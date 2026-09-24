@@ -1,0 +1,11 @@
+id: pypy3
+name: "Python 3 / PyPy"
+version_command: ["/usr/bin/pypy3", "--version"]
+source_extensions: [".py"]
+compile:
+  - ["/usr/bin/pypy3", "-m", "py_compile", "{sources}"]
+executable: "{main}.py"
+keep_files: ["*.py"]
+run: ["/usr/bin/pypy3", "{main}.py"]
+env: {PYTHONDONTWRITEBYTECODE: "1", PYTHONHASHSEED: "0", PYTHONIOENCODING: "utf-8"}
+no_address_space_limit: true

@@ -1,0 +1,12 @@
+id: haskell
+name: "Haskell / GHC"
+version_command: ["/usr/bin/ghc", "--version"]
+source_extensions: [".hs"]
+compile:
+  - ["/usr/bin/ghc", "-O2", "-o", "{executable}", "{sources}"]
+executable: "{main}"
+run: ["./{executable}"]
+compile_limits: {time: 60s, memory: 2GiB, processes: 64}
+# The GHC runtime starts a timer thread.
+run_processes: 4
+dirs: ["/var/lib/ghc"]

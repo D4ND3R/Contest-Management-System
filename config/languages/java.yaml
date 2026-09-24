@@ -1,0 +1,14 @@
+id: java
+name: "Java 21 / OpenJDK"
+version_command: ["/usr/bin/java", "-version"]
+source_extensions: [".java"]
+compile:
+  - ["/usr/bin/javac", "-encoding", "UTF-8", "-J-Xmx768m", "-J-XX:+UseSerialGC", "-J-XX:TieredStopAtLevel=1", "-J-XX:-UsePerfData", "{sources}"]
+# The main class is the main source's basename; every class is kept.
+executable: "{main}.class"
+keep_files: ["*.class"]
+run: ["/usr/bin/java", "-Xmx{memory_mb}m", "-Xss64m", "-XX:+UseSerialGC", "-XX:-UsePerfData", "-cp", ".", "{main}"]
+compile_limits: {time: 30s, memory: 2GiB, processes: 128}
+run_processes: 64
+dirs: ["/etc/java-*"]
+no_address_space_limit: true

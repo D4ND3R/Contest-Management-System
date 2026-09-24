@@ -7,7 +7,7 @@ Status of each phase of SPEC.md §9. Updated at the end of every phase.
 | F0 Foundations | done |
 | F1 Data model and blob store | done |
 | F2 Sandbox + worker | done (cgroup v2 path: pending verification on real hardware) |
-| F3 Task types, checkers, languages | pending |
+| F3 Task types, checkers, languages | done |
 | F4 Dispatcher | pending |
 | F5 CWS | pending |
 | F6 AWS | pending |
@@ -135,3 +135,105 @@ Pending verification on real hardware: isolate 2.x with cgroup v2 (this VM
 only offers cgroup v1; the CI `sandbox` job runs the same battery on a
 cgroup v2 GitHub runner); timing stability with turbo/hyperthreading
 disabled.
+
+## F3 — Task types, checkers and languages (done)
+Skipping skills: immersive-web-design, master skill.
+
+- Task types: Batch (stdin/stdout or files, optional grader), OutputOnly,
+  TwoSteps (second step isolated in another box, only sees the message),
+  Communication (manager + 1..4 contestant processes in separate boxes over
+  per-process FIFO pairs, `fifos` or `std_io`, optional stub).
+- Checkers: exact, white-diff (CMS semantics), float tolerance, CMS custom
+  protocol, testlib exit codes; checker/manager sources (`checker.cpp`,
+  `manager.cpp`) compiled once per worker in the sandbox.
+- 12 languages as YAML files: C11, C++17, C++20, Java, Python 3, PyPy 3,
+  Pascal, Rust, Go, Kotlin, C#, Haskell. Generic "compile seeds" (warmed,
+  copied compiler caches): Go compile 5–10 s → 0.3 s.
+- Docs: `docs/{en,es}/languages.md`, `docs/{en,es}/task-types.md`.
+
+### Sample solution suite (`TestSampleSolutions`, two consecutive runs)
+A+B in every language; TL 2 s, 256 MiB. Every row matched the expected
+verdict (AC/WA/TLE/MLE/RE/CE) and both runs were identical:
+
+| Solution | Run 1 | Run 2 |
+|---|---|---|
+| c11/ac | AC | AC |
+| c11/ce | CE | CE |
+| c11/mle | MLE | MLE |
+| c11/re | RE | RE |
+| c11/tle | TLE | TLE |
+| c11/wa | WA | WA |
+| cpp17/ac | AC | AC |
+| cpp17/ce | CE | CE |
+| cpp17/mle | MLE | MLE |
+| cpp17/re | RE | RE |
+| cpp17/tle | TLE | TLE |
+| cpp17/wa | WA | WA |
+| cpp20/ac | AC | AC |
+| cpp20/ce | CE | CE |
+| cpp20/mle | MLE | MLE |
+| cpp20/re | RE | RE |
+| cpp20/tle | TLE | TLE |
+| cpp20/wa | WA | WA |
+| csharp/ac | AC | AC |
+| csharp/ce | CE | CE |
+| csharp/mle | MLE | MLE |
+| csharp/re | RE | RE |
+| csharp/tle | TLE | TLE |
+| csharp/wa | WA | WA |
+| go/ac | AC | AC |
+| go/ce | CE | CE |
+| go/mle | MLE | MLE |
+| go/re | RE | RE |
+| go/tle | TLE | TLE |
+| go/wa | WA | WA |
+| haskell/ac | AC | AC |
+| haskell/ce | CE | CE |
+| haskell/mle | MLE | MLE |
+| haskell/re | RE | RE |
+| haskell/tle | TLE | TLE |
+| haskell/wa | WA | WA |
+| java/ac | AC | AC |
+| java/ce | CE | CE |
+| java/mle | MLE | MLE |
+| java/re | RE | RE |
+| java/tle | TLE | TLE |
+| java/wa | WA | WA |
+| kotlin/ac | AC | AC |
+| kotlin/ce | CE | CE |
+| kotlin/mle | MLE | MLE |
+| kotlin/re | RE | RE |
+| kotlin/tle | TLE | TLE |
+| kotlin/wa | WA | WA |
+| pascal/ac | AC | AC |
+| pascal/ce | CE | CE |
+| pascal/mle | MLE | MLE |
+| pascal/re | RE | RE |
+| pascal/tle | TLE | TLE |
+| pascal/wa | WA | WA |
+| pypy3/ac | AC | AC |
+| pypy3/ce | CE | CE |
+| pypy3/mle | MLE | MLE |
+| pypy3/re | RE | RE |
+| pypy3/tle | TLE | TLE |
+| pypy3/wa | WA | WA |
+| python3/ac | AC | AC |
+| python3/ce | CE | CE |
+| python3/mle | MLE | MLE |
+| python3/re | RE | RE |
+| python3/tle | TLE | TLE |
+| python3/wa | WA | WA |
+| rust/ac | AC | AC |
+| rust/ce | CE | CE |
+| rust/mle | MLE | MLE |
+| rust/re | RE | RE |
+| rust/tle | TLE | TLE |
+| rust/wa | WA | WA |
+
+Task-type tests (`TestBatchVariants`, `TestOutputOnly`, `TestTwoSteps`,
+`TestCommunication`, `TestBatchUserTest`): graders in C++/Python/Java, file
+I/O and missing output, CMS checker from source (full/partial), testlib
+checker (ok/points), float tolerance, exact diff, OutputOnly with built-in
+and custom checkers, TwoSteps isolation, Communication OK/WA/crash/TLE/
+2 processes/std_io — all green. The malicious battery was re-run in the same
+session (two runs, identical, see F2).

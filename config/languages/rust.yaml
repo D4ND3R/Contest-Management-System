@@ -1,0 +1,9 @@
+id: rust
+name: "Rust / rustc (edition 2021)"
+version_command: ["/usr/bin/rustc", "--version"]
+source_extensions: [".rs"]
+compile:
+  - ["/usr/bin/rustc", "--edition=2021", "-O", "-C", "debuginfo=0", "-o", "{executable}", "{main_source}"]
+executable: "{main}"
+run: ["./{executable}"]
+compile_limits: {time: 30s, memory: 2GiB, processes: 64}

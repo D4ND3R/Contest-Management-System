@@ -167,9 +167,18 @@ func compile(ctx context.Context, env *Env, box *sandbox.Box, s *sourceSet) (*jo
 			return nil, err
 		}
 	}
+	if seed := env.Seeds.get(ctx, env, lang); seed != "" {
+		if err := copyTree(seed, box.Path(lang.CompileSeed.Dir)); err != nil {
+			return nil, infra("copy compile seed: %v", err)
+		}
+	}
 	main := s.main()
 	exe := lang.ExecutableName(main)
-	vars := langs.Vars{Sources: s.sources(), Main: main, Executable: exe}
+	srcs := s.sources()
+	vars := langs.Vars{Sources: srcs, Main: main, Executable: exe}
+	if len(srcs) > 0 {
+		vars.MainSource = srcs[0]
+	}
 	cl := lang.CompileLimits
 	limits := sandbox.Limits{
 		CPUTime:   cl.Time.D(),

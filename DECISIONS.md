@@ -93,3 +93,28 @@ isolate and the program) to one physical core (hyperthread siblings are
 skipped) and owns 6 boxes: program, checker/manager and Communication
 user processes. Boxes never cross slots, so jobs cannot deadlock. By default
 the first physical core is left to the OS and the worker when ≥3 cores exist.
+
+## D15. Language definitions travel inside jobs; languages are data
+The dispatcher embeds the language definition (commands, limits, env) in
+every job. Workers need no language configuration and can never disagree
+with each other; changing a flag takes effect for the next job.
+
+## D16. Compile seeds instead of shared compiler caches
+Some toolchains (Go) rebuild the standard library in a cold cache (5–10 s).
+A shared writable cache would let one submission poison another's build, so
+each worker compiles a warm-up program once and *copies* the resulting cache
+into every compilation box of that language (0.3 s Go builds).
+
+## D17. TwoSteps and Communication semantics
+TwoSteps runs the two steps sequentially in different boxes (the second only
+receives the first step's output, bounded by the output limit); time is the
+sum, memory the maximum. Communication follows the CMS FIFO protocol; a
+contestant killed by SIGPIPE after the manager exited successfully is not
+penalised; a manager failure while contestants were merely blocked is a
+system error (retried, then reported to admins).
+
+## D18. Verdict mapping
+Sandbox statuses map to verdicts: ok → AC/WA/partial (checker), timeout →
+TLE, timeout_wall → TLE (wall), memory → MLE, output_limit → OLE, nonzero and
+signal → RE (the signal number is kept), compilation failure → CE, any
+infrastructure failure → retried, then SE. Contestant stderr is discarded.

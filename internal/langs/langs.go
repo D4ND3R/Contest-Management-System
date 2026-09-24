@@ -7,6 +7,7 @@
 //	{sources}     every source file, grader first (expands to several args)
 //	{main}        basename (without extension) of the main source: the
 //	              grader when the task has one, else the first user file
+//	{main_source} file name of the main source (for single-file compilers)
 //	{executable}  the value of `executable` after expansion
 //	{memory_mb}   memory limit of the run in MiB (run commands only)
 //	{memory_kb}   memory limit of the run in KiB (run commands only)
@@ -54,11 +55,26 @@ type Language struct {
 	// to this value.
 	RunProcesses int               `yaml:"run_processes" json:"run_processes,omitempty"`
 	Env          map[string]string `yaml:"env" json:"env,omitempty"`
-	// Dirs are extra host directories mounted read-only (missing ones are ignored).
+	// Dirs are extra host directories mounted read-only (missing ones are
+	// ignored); glob patterns such as /etc/java-* are expanded on the worker.
 	Dirs []string `yaml:"dirs" json:"dirs,omitempty"`
 	// NoAddressSpaceLimit: never limit virtual memory for this language when
 	// cgroups are unavailable (managed runtimes reserve huge address spaces).
 	NoAddressSpaceLimit bool `yaml:"no_address_space_limit" json:"no_address_space_limit,omitempty"`
+	// CompileSeed pre-populates a compiler cache (e.g. Go's build cache).
+	CompileSeed *CompileSeed `yaml:"compile_seed" json:"compile_seed,omitempty"`
+}
+
+// CompileSeed describes a box directory that each worker fills once by
+// compiling a warm-up program, then copies into every compilation box of the
+// language. It is always copied (never shared or linked), so a submission
+// cannot poison other submissions' builds.
+type CompileSeed struct {
+	// Dir is the box-relative directory to seed (e.g. ".gocache").
+	Dir string `yaml:"dir" json:"dir"`
+	// WarmupFile is the name of the warm-up source and Warmup its content.
+	WarmupFile string `yaml:"warmup_file" json:"warmup_file"`
+	Warmup     string `yaml:"warmup" json:"warmup"`
 }
 
 // DefaultEnv is the environment every sandboxed command gets unless the
@@ -121,6 +137,7 @@ func (l *Language) IsHeader(name string) bool {
 type Vars struct {
 	Sources    []string
 	Main       string
+	MainSource string
 	Executable string
 	Memory     int64 // bytes
 }
@@ -129,6 +146,7 @@ type Vars struct {
 func Expand(tmpl []string, v Vars) []string {
 	out := make([]string, 0, len(tmpl)+len(v.Sources))
 	r := strings.NewReplacer(
+		"{main_source}", v.MainSource,
 		"{main}", v.Main,
 		"{executable}", v.Executable,
 		"{memory_mb}", strconv.FormatInt(v.Memory>>20, 10),
@@ -177,6 +195,11 @@ func (l *Language) Validate() error {
 	for i, c := range l.Compile {
 		if len(c) == 0 {
 			errs = append(errs, fmt.Errorf("compile[%d] is empty", i))
+		}
+	}
+	if cs := l.CompileSeed; cs != nil {
+		if cs.Dir == "" || strings.Contains(cs.Dir, "..") || strings.HasPrefix(cs.Dir, "/") || cs.WarmupFile == "" || cs.Warmup == "" {
+			errs = append(errs, errors.New("compile_seed needs a relative dir, warmup_file and warmup"))
 		}
 	}
 	if err := errors.Join(errs...); err != nil {

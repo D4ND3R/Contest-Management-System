@@ -21,11 +21,16 @@ type harness struct {
 	exec  *Executor
 	store *blob.Mem
 	langs *langs.Registry
+	// free holds the indexes of idle slots (multi-slot harnesses).
+	free chan int
 }
 
 var boxOffset = 400
 
-func newHarness(t testing.TB) *harness {
+func newHarness(t testing.TB) *harness { return newHarnessSlots(t, 1) }
+
+// newHarnessSlots creates a harness with up to n slots (one per judging core).
+func newHarnessSlots(t testing.TB, n int) *harness {
 	t.Helper()
 	iso := sandbox.TestIsolate(t)
 	dir := t.TempDir()
@@ -35,18 +40,32 @@ func newHarness(t testing.TB) *harness {
 	}
 	store := blob.NewMem()
 	cores := sandbox.DefaultCores()
+	if n > len(cores) {
+		n = len(cores)
+	}
 	cfg := config.Worker{
 		Name: "test", IsolatePath: iso.Path, IsolateCG: iso.CG, IsolateBoxRoot: iso.BoxRoot,
-		Cores: cores[:1], BoxIDOffset: boxOffset, WorkDir: filepath.Join(dir, "work"),
+		Cores: cores[:n], BoxIDOffset: boxOffset, WorkDir: filepath.Join(dir, "work"),
 		CacheDir: filepath.Join(dir, "cache"), CacheMaxBytes: 1 << 30,
 	}
-	boxOffset += 10
+	boxOffset += n * 2 * sandbox.BoxesPerSlot
 	e, err := NewExecutor(cfg, store, logging.Discard())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(e.Close)
-	return &harness{t: t, exec: e, store: store, langs: reg}
+	h := &harness{t: t, exec: e, store: store, langs: reg, free: make(chan int, n)}
+	for i := 0; i < n; i++ {
+		h.free <- i
+	}
+	return h
+}
+
+// execute runs a job on an idle slot.
+func (h *harness) execute(j *jobs.Job) *jobs.Result {
+	slot := <-h.free
+	defer func() { h.free <- slot }()
+	return h.exec.Execute(context.Background(), slot, j)
 }
 
 func (h *harness) put(data []byte) string {
@@ -105,9 +124,8 @@ func (h *harness) job(kind jobs.Kind, taskType string, b batchJob) *jobs.Job {
 // compileAndRun compiles the submission and, when it compiles, evaluates
 // it on the given testcases.
 func (h *harness) compileAndRun(taskType string, b batchJob, tcs []jobs.Testcase) (*jobs.Compilation, []jobs.Evaluation, error) {
-	ctx := context.Background()
 	cj := h.job(jobs.KindCompile, taskType, b)
-	res := h.exec.Execute(ctx, 0, cj)
+	res := h.execute(cj)
 	if res.Error != "" {
 		return nil, nil, errString(res.Error)
 	}
@@ -117,7 +135,7 @@ func (h *harness) compileAndRun(taskType string, b batchJob, tcs []jobs.Testcase
 	ej := h.job(jobs.KindEvaluate, taskType, b)
 	ej.Executables = res.Compilation.Executables
 	ej.Testcases = tcs
-	er := h.exec.Execute(ctx, 0, ej)
+	er := h.execute(ej)
 	if er.Error != "" {
 		return res.Compilation, nil, errString(er.Error)
 	}

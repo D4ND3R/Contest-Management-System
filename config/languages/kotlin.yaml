@@ -1,0 +1,13 @@
+id: kotlin
+name: "Kotlin / kotlinc (JVM)"
+version_command: ["/usr/bin/kotlinc", "-version"]
+source_extensions: [".kt"]
+compile:
+  - ["/usr/bin/kotlinc", "-include-runtime", "-d", "{executable}", "{sources}"]
+executable: "{main}.jar"
+run: ["/usr/bin/java", "-Xmx{memory_mb}m", "-Xss64m", "-XX:+UseSerialGC", "-XX:-UsePerfData", "-jar", "{executable}"]
+env: {JAVA_OPTS: "-Xmx1g -XX:+UseSerialGC -XX:-UsePerfData"}
+compile_limits: {time: 90s, memory: 3GiB, processes: 256}
+run_processes: 64
+dirs: ["/etc/java-*"]
+no_address_space_limit: true

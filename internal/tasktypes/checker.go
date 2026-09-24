@@ -12,6 +12,7 @@ import (
 
 	"github.com/D4ND3R/Contest-Management-System/internal/checkers"
 	"github.com/D4ND3R/Contest-Management-System/internal/jobs"
+	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/sandbox"
 )
 
@@ -157,8 +158,30 @@ func (e *Env) checkerExecutable(ctx context.Context, job *jobs.Job) (string, err
 	return e.Checkers.build(ctx, e, *src, headers)
 }
 
-// build compiles a checker source with the host toolchain inside the
-// sandbox and caches the executable.
+// managerExecutable returns the dataset's executable manager `name` (a
+// compiled binary) or compiles "<name>.cpp" once per worker.
+func (e *Env) managerExecutable(ctx context.Context, job *jobs.Job, name string) (string, error) {
+	var headers []jobs.File
+	var src *jobs.File
+	for i := range job.Managers {
+		m := &job.Managers[i]
+		switch {
+		case m.Name == name:
+			return e.fetch(ctx, m.Digest)
+		case m.Name == name+".cpp":
+			src = m
+		case filepath.Ext(m.Name) == ".h" || filepath.Ext(m.Name) == ".hpp":
+			headers = append(headers, *m)
+		}
+	}
+	if src == nil {
+		return "", fmt.Errorf("dataset has no %q manager (binary or .cpp source)", name)
+	}
+	return e.Checkers.build(ctx, e, *src, headers)
+}
+
+// build compiles a C++ manager/checker source with the host toolchain
+// inside the sandbox and caches the executable.
 func (c *CheckerCache) build(ctx context.Context, env *Env, src jobs.File, headers []jobs.File) (string, error) {
 	key := src.Digest
 	for _, h := range headers {
@@ -174,7 +197,7 @@ func (c *CheckerCache) build(ctx context.Context, env *Env, src jobs.File, heade
 	if err != nil {
 		return "", err
 	}
-	if err := env.put(ctx, box, "checker.cpp", src.Digest, 0o644); err != nil {
+	if err := env.put(ctx, box, "source.cpp", src.Digest, 0o644); err != nil {
 		return "", err
 	}
 	for _, h := range headers {
@@ -187,8 +210,8 @@ func (c *CheckerCache) build(ctx context.Context, env *Env, src jobs.File, heade
 		return "", fmt.Errorf("cannot compile checker.cpp: g++ not found")
 	}
 	res, err := box.Run(ctx, &sandbox.Spec{
-		Args:   []string{gpp, "-O2", "-std=gnu++17", "-static", "-o", "checker", "checker.cpp"},
-		Stderr: ".err", Env: []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp"},
+		Args:   []string{gpp, "-O2", "-std=gnu++17", "-static", "-o", "program", "source.cpp"},
+		Stderr: ".err", Env: []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp"}, Dirs: env.toolchainDirs(),
 		Limits: sandbox.Limits{CPUTime: 60 * time.Second, WallTime: 120 * time.Second, Memory: 2 << 30, Processes: 32, FileSize: 256 << 20},
 	})
 	if err != nil {
@@ -196,9 +219,9 @@ func (c *CheckerCache) build(ctx context.Context, env *Env, src jobs.File, heade
 	}
 	if res.Status != sandbox.StatusOK {
 		msg, _, _ := box.ReadFile(".err", 4096)
-		return "", fmt.Errorf("checker.cpp does not compile: %s", msg)
+		return "", fmt.Errorf("%s does not compile: %s", src.Name, msg)
 	}
-	f, _, err := box.OpenOutput("checker")
+	f, _, err := box.OpenOutput("program")
 	if err != nil {
 		return "", infra("read compiled checker: %v", err)
 	}
@@ -219,6 +242,15 @@ func (c *CheckerCache) build(ctx context.Context, env *Env, src jobs.File, heade
 	}
 	c.built[key] = dst
 	return dst, nil
+}
+
+// toolchainDirs are the mounts needed to run the host C++ toolchain.
+func (e *Env) toolchainDirs() []sandbox.Dir {
+	var out []sandbox.Dir
+	for _, d := range langs.DefaultDirs {
+		out = append(out, sandbox.Dir{Inside: d, Maybe: true})
+	}
+	return append(out, e.dirs(nil)...)
 }
 
 func shortHash(s string) string {

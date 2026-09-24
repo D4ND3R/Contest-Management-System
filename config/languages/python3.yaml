@@ -1,0 +1,11 @@
+id: python3
+name: "Python 3 / CPython"
+version_command: ["/usr/bin/python3", "--version"]
+source_extensions: [".py"]
+# "Compilation" is a syntax check; the sources are the executables.
+compile:
+  - ["/usr/bin/python3", "-S", "-m", "py_compile", "{sources}"]
+executable: "{main}.py"
+keep_files: ["*.py"]
+run: ["/usr/bin/python3", "-S", "{main}.py"]
+env: {PYTHONDONTWRITEBYTECODE: "1", PYTHONHASHSEED: "0", PYTHONIOENCODING: "utf-8"}

@@ -1,0 +1,49 @@
+id: go
+name: "Go"
+version_command: ["/usr/bin/env", "go", "version"]
+source_extensions: [".go"]
+compile:
+  - ["/usr/bin/env", "go", "build", "-trimpath", "-o", "{executable}", "{sources}"]
+executable: "{main}"
+run: ["./{executable}"]
+env:
+  PATH: "/usr/local/go/bin:/usr/lib/go/bin:/usr/local/bin:/usr/bin:/bin"
+  GOCACHE: "/box/.gocache"
+  GOPATH: "/tmp/gopath"
+  GOTOOLCHAIN: "local"
+  CGO_ENABLED: "0"
+  GOMAXPROCS: "1"
+compile_limits: {time: 60s, memory: 2GiB, processes: 128}
+# Go builds the standard library into its cache: every worker warms a cache
+# once and copies it into each compilation box.
+compile_seed:
+  dir: ".gocache"
+  warmup_file: "warmup.go"
+  warmup: |
+    package main
+
+    import (
+    	"bufio"
+    	"bytes"
+    	"container/heap"
+    	"container/list"
+    	"errors"
+    	"fmt"
+    	"math"
+    	"math/big"
+    	"math/bits"
+    	"math/rand"
+    	"os"
+    	"slices"
+    	"sort"
+    	"strconv"
+    	"strings"
+    	"unicode"
+    )
+
+    var _ = []any{bufio.NewReader, bytes.NewBuffer, heap.Init, list.New, errors.New, fmt.Println, math.Abs,
+    	big.NewInt, bits.Len, rand.Int, os.Exit, slices.Sort[[]int], sort.Ints, strconv.Itoa, strings.Fields, unicode.IsDigit}
+
+    func main() {}
+run_processes: 16
+no_address_space_limit: true

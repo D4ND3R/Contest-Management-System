@@ -35,9 +35,11 @@ type Executor struct {
 	Name     string
 	Slots    []*sandbox.Slot
 	stages   []*sandbox.Stage
+	workDir  string
 	cache    *blob.Cache
 	store    blob.Store
 	checkers *tasktypes.CheckerCache
+	seeds    *tasktypes.SeedCache
 	cg       bool
 	dirs     []string
 	log      *slog.Logger
@@ -68,9 +70,13 @@ func NewExecutor(cfg config.Worker, store blob.Store, log *slog.Logger) (*Execut
 	if err != nil {
 		return nil, err
 	}
+	seeds, err := tasktypes.NewSeedCache(filepath.Join(cfg.WorkDir, "seeds"))
+	if err != nil {
+		return nil, err
+	}
 	e := &Executor{
 		Name: name, Slots: sandbox.NewSlots(iso, cores, cfg.BoxIDOffset, sandbox.Complement(cores)), cache: cache, store: cache,
-		checkers: checkers, cg: cfg.IsolateCG, dirs: cfg.SandboxDirs, log: log,
+		checkers: checkers, seeds: seeds, cg: cfg.IsolateCG, workDir: cfg.WorkDir, dirs: cfg.SandboxDirs, log: log,
 	}
 	for i := range e.Slots {
 		st, err := sandbox.NewStage(filepath.Join(cfg.WorkDir, "stage", strconv.Itoa(i)))
@@ -92,7 +98,8 @@ func (e *Executor) Close() {
 func (e *Executor) env(slot int) *tasktypes.Env {
 	return &tasktypes.Env{
 		Slot: e.Slots[slot], Stage: e.stages[slot], Cache: e.cache, Store: e.store,
-		CG: e.cg, SandboxDirs: e.dirs, Checkers: e.checkers, Log: e.log,
+		FifoDir: filepath.Join(e.workDir, "fifo", strconv.Itoa(slot)),
+		CG:      e.cg, SandboxDirs: e.dirs, Checkers: e.checkers, Seeds: e.seeds, Log: e.log,
 	}
 }
 

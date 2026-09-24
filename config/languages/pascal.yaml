@@ -1,0 +1,15 @@
+id: pascal
+name: "Pascal / Free Pascal"
+version_command: ["/usr/bin/fpc", "-iV"]
+source_extensions: [".pas", ".pp"]
+header_extensions: [".inc"]
+# fpc compiles the program file and finds units (the submission when a
+# grader is used) in the working directory. -n ignores /etc/fpc.cfg, which
+# is not mounted in the sandbox; unit paths are given explicitly.
+compile:
+  - ["/usr/bin/fpc", "-n", "-dEVAL", "-XS", "-O2", "-Sgic",
+     "-Fu/usr/lib/x86_64-linux-gnu/fpc/$fpcversion/units/$fpctarget/*",
+     "-o{executable}", "{main_source}"]
+executable: "{main}"
+run: ["./{executable}"]
+compile_limits: {processes: 16}

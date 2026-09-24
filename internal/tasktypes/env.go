@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,8 +29,10 @@ import (
 type Env struct {
 	Slot  *sandbox.Slot
 	Stage *sandbox.Stage
-	Cache *blob.Cache
-	Store blob.Store
+	// FifoDir is a per-slot host directory for Communication FIFOs.
+	FifoDir string
+	Cache   *blob.Cache
+	Store   blob.Store
 	// CG reports whether isolate uses control groups (exact memory
 	// accounting); without them memory is limited by address space.
 	CG bool
@@ -37,7 +40,9 @@ type Env struct {
 	SandboxDirs []string
 	// Checkers compiles and caches checker sources (shared by the worker).
 	Checkers *CheckerCache
-	Log      *slog.Logger
+	// Seeds holds per-language compile seeds (shared by the worker).
+	Seeds *SeedCache
+	Log   *slog.Logger
 }
 
 // TaskType compiles and evaluates submissions of one kind of task.
@@ -131,9 +136,15 @@ func (e *Env) dirs(l *langs.Language) []sandbox.Dir {
 	var out []sandbox.Dir
 	seen := map[string]bool{}
 	add := func(p string) {
-		if p != "" && !seen[p] {
-			seen[p] = true
-			out = append(out, sandbox.Dir{Inside: p, Maybe: true})
+		paths := []string{p}
+		if strings.ContainsAny(p, "*?[") {
+			paths, _ = filepath.Glob(p)
+		}
+		for _, p := range paths {
+			if p != "" && !seen[p] {
+				seen[p] = true
+				out = append(out, sandbox.Dir{Inside: p, Maybe: true})
+			}
 		}
 	}
 	if l != nil {

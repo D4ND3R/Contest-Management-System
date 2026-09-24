@@ -1,0 +1,12 @@
+id: csharp
+name: "C# / Mono"
+version_command: ["/usr/bin/mono", "--version"]
+source_extensions: [".cs"]
+compile:
+  - ["/usr/bin/mcs", "-optimize+", "-out:{executable}", "{sources}"]
+executable: "{main}.exe"
+run: ["/usr/bin/mono", "{executable}"]
+compile_limits: {time: 30s, memory: 2GiB, processes: 64}
+run_processes: 32
+dirs: ["/etc/mono"]
+no_address_space_limit: true
