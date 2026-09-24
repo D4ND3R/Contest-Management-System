@@ -147,3 +147,36 @@ Scores, the task aggregate (score mode + ICPC fields) and the ranking update
 are computed in the same transaction that stores the last evaluation, so the
 ranking never shows a score whose evaluations are not committed. Ranking
 updates go to a durable, capped Redis stream consumed by the RWS pushers.
+
+## D23. Stateless signed sessions, server-side revocation only where needed
+Session cookies carry `{participation, user, issued, nonce}` signed with
+HMAC-SHA256; no session table and no Redis lookup per request. Logout
+clears the cookie. When the contest enables single login, a per-participation
+nonce (cached 3 s) is bumped on each login, which invalidates older cookies
+— the only server-side state. Secrets rotate by restarting with a new key.
+
+## D24. No inline code; CSP as the XSS backstop
+Templates never contain inline scripts, styles or event handlers, so the CSP
+is `default-src 'self'` with no `unsafe-inline`. Behaviour is attached by
+`app.js` through data attributes. Statements (arbitrary organiser HTML/PDF)
+are served from their own URL with a sandboxing CSP. A test fails if any
+template or rendered page contains inline code.
+
+## D25. htmx + SSE instead of a SPA
+Pages are server-rendered; htmx swaps fragments (submission rows, lists).
+Live updates use Server-Sent Events: each process holds one Redis pub/sub
+subscription and fans events out to connected contestants from memory, so
+Redis load does not grow with the number of browsers. Events are only
+hints ("submission 42 changed"); the browser fetches the row, which is
+authorised like any page, so no data leaks through the event stream.
+
+## D26. Short TTL caches for contest-wide data
+Contest, task and dataset views change rarely during a contest and are
+shared by every contestant, so they are cached in-process for 3 s (bounded
+staleness, no invalidation protocol needed across replicas). Per-contestant
+data (submissions, scores) is always read fresh with a single indexed query.
+
+## D27. Contest names share the URL root
+Contests live at `/{contest}/…` like CMS. Top-level names used by the
+server (`static`, `healthz`, `metrics`, `lang`) are reserved and rejected
+as contest names.

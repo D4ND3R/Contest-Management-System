@@ -30,6 +30,9 @@ test-short: ## unit tests only (no PostgreSQL/Redis)
 test-sandbox: ## malicious-program battery + sample solutions (root + isolate)
 	CMS_SANDBOX_TESTS=1 scripts/test.sh -count=1 -v -run 'TestMalicious|TestSampleSolutions' ./internal/worker/... ./internal/tasktypes/...
 
+test-e2e: ## whole-system tests (web + dispatcher + worker; judging needs root + isolate)
+	CMS_SANDBOX_TESTS=1 scripts/test.sh -count=1 -v ./internal/e2e/...
+
 bench: ## Go benchmarks for hot paths
 	scripts/test.sh -run '^$$' -bench . -benchmem $(PKGS)
 

@@ -1,0 +1,8 @@
+{{define "content"}}
+<h1>{{.T "Documentation"}}</h1>
+<p>{{.T "Programs are compiled and run inside a sandbox with the commands below. Standard error is ignored; the time limit counts CPU time of every thread."}}</p>
+<table>
+<tr><th>{{.T "Language"}}</th><th>{{.T "Extensions"}}</th><th>{{.T "Compilation"}}</th><th>{{.T "Execution"}}</th></tr>
+{{range .Data}}<tr><td>{{.Name}}</td><td><code>{{.Extensions}}</code></td><td>{{range .Compile}}<code>{{.}}</code><br>{{else}}—{{end}}</td><td><code>{{.Run}}</code></td></tr>{{end}}
+</table>
+{{end}}

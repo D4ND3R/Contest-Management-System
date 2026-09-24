@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"github.com/D4ND3R/Contest-Management-System/internal/app"
 	"github.com/D4ND3R/Contest-Management-System/internal/config"
+	"github.com/D4ND3R/Contest-Management-System/internal/contestweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/deps"
 	"github.com/D4ND3R/Contest-Management-System/internal/dispatcher"
@@ -19,7 +20,7 @@ import (
 )
 
 func init() {
-	services["contest-web"] = stub("contest-web", func(c *config.Config) string { return c.ContestWeb.Listen })
+	services["contest-web"] = runContestWeb
 	services["admin-web"] = stub("admin-web", func(c *config.Config) string { return c.AdminWeb.Listen })
 	services["ranking-web"] = stub("ranking-web", func(c *config.Config) string { return c.RankingWeb.Listen })
 	services["dispatcher"] = runDispatcher
@@ -61,6 +62,25 @@ func loadLanguages(ctx context.Context, cfg *config.Config, q *sqlc.Queries) (*l
 		}
 	}
 	return reg, nil
+}
+
+func runContestWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
+	d, err := deps.Open(ctx, cfg, log, deps.Need{DB: true, Redis: true, Blobs: true})
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	reg, err := langs.Load(cfg.LanguagesDir)
+	if err != nil {
+		return err
+	}
+	srv, err := contestweb.New(cfg.ContestWeb, contestweb.Deps{
+		Pool: d.DB, Redis: d.Redis, Blobs: d.Blobs, Langs: reg, Secret: cfg.Secret(), NS: cfg.Redis.Namespace, Checks: d.Checks(),
+	}, log)
+	if err != nil {
+		return err
+	}
+	return srv.Run(ctx, cfg.ContestWeb.Listen, nil)
 }
 
 func runDispatcher(ctx context.Context, cfg *config.Config, log *slog.Logger) error {

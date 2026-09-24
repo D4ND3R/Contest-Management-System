@@ -284,3 +284,55 @@ lost notification; user tests; dispatcher restart with a different consumer
 `cms worker` process is SIGKILLed while evaluating (8 slow testcases); the
 monitor requeues its job, a second worker process finishes, the submission
 scores 100 with exactly 8 evaluations (victim 1, rescuer 7).
+
+## F5 — Contestant web server (CWS) with SSE (done)
+Skipping skills: immersive-web-design, master skill.
+
+- `internal/webkit`: HMAC-signed stateless session cookies (HttpOnly,
+  SameSite=Lax, Secure behind TLS), CSRF tokens bound to the session plus an
+  Origin/Referer check, strict CSP (`script-src 'self'`, no inline code or
+  styles anywhere), security headers, trusted-proxy aware client IP, Redis
+  fixed-window rate limiter, content-hashed static assets served
+  precompressed with `immutable` caching, pooled template rendering.
+- `internal/i18n`: English message keys with a Spanish catalog (UI, judge
+  messages, limit errors); language from cookie → user preference →
+  `Accept-Language`; `/lang` switcher.
+- `internal/contest`: contest phase computation (start/stop, per-user
+  window with `per_user_time`, delay and extra time, analysis mode,
+  unrestricted users) and submission/user-test limits (total and per task,
+  minimum interval), with tests for the edge cases.
+- `internal/contestweb` (`cms contest-web`): contest list, login (rate
+  limited, constant time for unknown users, hidden/IP-restricted users),
+  autologin by IP, single-login (nonce bumped on each login), logout,
+  overview with per-task scores and timing, "start" for per-user windows,
+  task pages (statements served with a sandboxing CSP, attachments,
+  limits, submission form with per-file language placeholders), submit
+  (size/filename/language validation, limits, blobs stored before the
+  database row, dispatcher notified), submission list and details
+  (public vs tokened scores, restricted feedback, compilation output,
+  per-subtask tables, source download when allowed), documentation page
+  (languages and exact compiler commands).
+- Live updates: one Redis pub/sub subscription per process fans out to an
+  in-memory SSE hub; the browser (`app.js`, 2 KB) swaps only the affected
+  submission row via htmx. Heartbeats every 25 s, `retry: 3000`.
+- Contest/task/participation views are cached for 3 s in-process (the hot
+  path of a page view is one small query for the contestant's own data).
+- Frontend budget: htmx 2.0.7 + app.js = **17.7 KB gzip** (limit 30 KB),
+  one CSS file, no SPA, no inline code.
+
+Verification (`make test`):
+`internal/contestweb` (11 tests: login and pages, Spanish UI, submit flow,
+public score display, single login, IP restriction + autologin, per-user
+start, SSE delivery, no inline code + security headers, all template
+strings translated, JS budget) and `internal/e2e`:
+- **`TestSubmissionFlow` (F5 functional exit)**: contestant logs in over
+  HTTP, submits a C solution through the form, receives `compiling` →
+  `evaluating` → `scored` over SSE (**138 ms** from POST to `scored` with the
+  real dispatcher + isolate worker), sees "Evaluated 25 / 100" (public
+  score) and correct details, and the ranking aggregate holds 100.
+- **`TestLightLoadLatency` (F5 performance exit)**: 50 concurrent logged-in
+  contestants browsing overview/task/submissions/documentation for 5 s with
+  20 ms think time — 11,485 requests, **p50 0.95 ms, p95 4.1 ms, p99 8.0 ms**
+  (target p95 < 15 ms). Under `-race` the bound is relaxed ×5.
+- The 3000-contestant target (p95 < 15 ms, p99 < 40 ms on 4 vCPU / 8 GB) is
+  measured in F10 with k6; **pendiente de verificar en hardware real**.

@@ -1,0 +1,13 @@
+{{define "content"}}
+<section class="card narrow">
+<h1>{{.T "Log in"}}</h1>
+{{with .Contest.Description}}<p class="muted">{{.}}</p>{{end}}
+{{with .Error}}<p class="alert">{{.}}</p>{{end}}
+<form method="post" action="{{.Base}}login">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <label>{{.T "Username"}} <input name="username" autocomplete="username" required autofocus></label>
+  <label>{{.T "Password"}} <input type="password" name="password" autocomplete="current-password" required></label>
+  <button>{{.T "Log in"}}</button>
+</form>
+</section>
+{{end}}

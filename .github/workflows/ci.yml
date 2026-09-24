@@ -90,7 +90,7 @@ jobs:
         run: |
           set -o pipefail
           sudo -E env "PATH=$PATH" "HOME=$HOME" "GOCACHE=$(go env GOCACHE)" "GOMODCACHE=$(go env GOMODCACHE)" \
-            CMS_SANDBOX_TESTS=1 CMS_SAMPLE_LANGUAGES=c11,cpp17,cpp20,python3,java go test -count=1 -v ./internal/sandbox/ ./internal/worker/ ./internal/dispatcher/ 2>&1 | tee sandbox.log
+            CMS_SANDBOX_TESTS=1 CMS_SAMPLE_LANGUAGES=c11,cpp17,cpp20,python3,java go test -count=1 -v ./internal/sandbox/ ./internal/worker/ ./internal/dispatcher/ ./internal/e2e/ 2>&1 | tee sandbox.log
           ! grep -q "^FAIL" sandbox.log
 
   docker:

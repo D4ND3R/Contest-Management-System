@@ -1,0 +1,34 @@
+{{define "content"}}
+{{$d := .Data}}
+<h1>{{.Contest.Name}}</h1>
+{{with .Contest.Description}}<p>{{.}}</p>{{end}}
+<section class="card">
+<dl class="meta">
+  <dt>{{.T "Status"}}</dt><dd>{{.PhaseText}}</dd>
+  {{if $d.PerUserTime}}<dt>{{.T "Time available"}}</dt><dd>{{.Dur $d.PerUserTime}}</dd>{{end}}
+  {{if not .Status.Begin.IsZero}}<dt>{{.T "Start"}}</dt><dd>{{.DateTime .Status.Begin}}</dd>{{end}}
+  {{if not .Status.End.IsZero}}<dt>{{.T "End"}}</dt><dd>{{.DateTime .Status.End}}</dd>{{end}}
+  {{if .Status.Running}}<dt>{{.T "Remaining time"}}</dt><dd class="clock" data-countdown="{{.EndMillis}}">{{.Dur .Status.Remaining}}</dd>{{end}}
+  <dt>{{.T "Time zone"}}</dt><dd>{{.TZ}}</dd>
+</dl>
+{{if .Status.CanStart}}
+<form method="post" action="{{.Base}}start">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <p>{{.T "Your time starts when you press the button."}}</p>
+  <button>{{.T "Start the contest"}}</button>
+</form>
+{{end}}
+</section>
+{{if .Tasks}}
+<h2>{{.T "Tasks"}}</h2>
+<table>
+<tr><th>{{.T "Task"}}</th><th>{{.T "Title"}}</th><th class="num">{{.T "Score"}}</th></tr>
+{{range $d.Rows}}<tr>
+  <td><a href="{{$.Base}}tasks/{{.Name}}">{{.Name}}</a></td><td>{{.Title}}</td>
+  <td class="num">{{if .HasScore}}{{$.Score .Score .Precision}} / {{$.Score .Max .Precision}}{{else}}<span class="muted">—</span>{{end}}{{if .Pending}} <span class="muted" title="{{$.T "being evaluated"}}">…</span>{{end}}</td>
+</tr>{{end}}
+{{if $d.ShowTotal}}<tr><th colspan="2">{{.T "Total"}}</th><th class="num">{{.Score $d.Total 2}} / {{.Score $d.MaxTotal 2}}</th></tr>{{end}}
+</table>
+{{end}}
+<p><button id="enable-notifications" hidden>{{.T "Enable desktop notifications"}}</button></p>
+{{end}}

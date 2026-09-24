@@ -1,0 +1,46 @@
+{{define "layout"}}<!doctype html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}{{if .Contest}} · {{.Contest.Name}}{{end}}</title>
+<link rel="stylesheet" href="{{static "style.css"}}">
+<meta name="csrf-token" content="{{.CSRF}}">
+<meta name="server-time" content="{{.ServerTime}}">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0}'>
+{{with .EventsURL}}<meta name="cms-events" content="{{.}}">{{end}}
+<script src="{{static "htmx.min.js"}}" defer></script>
+<script src="{{static "app.js"}}" defer></script>
+</head>
+<body>
+<header class="top">
+  {{if .Contest}}<a class="brand" href="{{.Base}}">{{.Contest.Name}}</a>{{else}}<span class="brand">CMS</span>{{end}}
+  {{if .Part}}
+  <nav>
+    <a href="{{.Base}}" {{if eq .Active "overview"}}class="active"{{end}}>{{.T "Overview"}}</a>
+    {{range .Tasks}}<a href="{{$.Base}}tasks/{{.Name}}" {{if eq $.Active .Name}}class="active"{{end}}>{{.Name}}</a>{{end}}
+    <a href="{{.Base}}communication" {{if eq .Active "communication"}}class="active"{{end}}>{{.T "Communication"}}</a>
+    {{if .Contest.AllowUserTests}}<a href="{{.Base}}testing" {{if eq .Active "testing"}}class="active"{{end}}>{{.T "Testing"}}</a>{{end}}
+    {{if .Contest.AllowPrinting}}<a href="{{.Base}}printing" {{if eq .Active "printing"}}class="active"{{end}}>{{.T "Printing"}}</a>{{end}}
+    <a href="{{.Base}}documentation" {{if eq .Active "documentation"}}class="active"{{end}}>{{.T "Documentation"}}</a>
+  </nav>
+  <div class="user">
+    {{if .Status.Running}}<span title="{{.T "Remaining time"}}" class="clock" data-countdown="{{.EndMillis}}">{{.Dur .Status.Remaining}}</span>{{end}}
+    <span>{{.Part.Username}}</span>
+    <form method="post" action="{{.Base}}logout" class="inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link">{{.T "Log out"}}</button></form>
+  </div>
+  {{end}}
+  <form method="post" action="{{if .Contest}}{{.Base}}{{else}}/{{end}}lang" class="inline">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <select name="lang" aria-label="{{.T "Language"}}" hx-post="{{if .Contest}}{{.Base}}{{else}}/{{end}}lang" hx-trigger="change">
+      {{range .UILanguages}}<option value="{{.Code}}" {{if eq .Code $.Lang}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+  </form>
+</header>
+<main>
+{{with .Flash}}<p class="info">{{.}}</p>{{end}}
+{{template "content" .}}
+</main>
+<div id="notifications" aria-live="polite"></div>
+</body>
+</html>{{end}}

@@ -1,0 +1,36 @@
+{{define "content"}}
+{{$d := .Data}}{{$t := $d.Task}}
+<h1>{{$t.Name}} — {{$t.Title}}</h1>
+<div class="row">
+<section class="card">
+  <h2>{{.T "Statement"}}</h2>
+  {{if $t.Statements}}<ul>{{range $t.Statements}}<li><a href="{{$.Base}}tasks/{{$t.Name}}/statement/{{.Lang}}">{{.Name}}</a>{{if .Primary}} <strong>({{$.T "official"}})</strong>{{end}}</li>{{end}}</ul>
+  {{else}}<p class="muted">{{.T "No statement available."}}</p>{{end}}
+  {{if $t.Attachments}}<h2>{{.T "Attachments"}}</h2><ul>{{range $t.Attachments}}<li><a href="{{$.Base}}tasks/{{$t.Name}}/attachments/{{.}}">{{.}}</a></li>{{end}}</ul>{{end}}
+</section>
+<section class="card">
+  <h2>{{.T "Limits"}}</h2>
+  <dl class="meta">
+    {{if $t.TimeLimit}}<dt>{{.T "Time limit"}}</dt><dd>{{.Seconds $t.TimeLimit}}</dd>{{end}}
+    {{if $t.MemoryLimit}}<dt>{{.T "Memory limit"}}</dt><dd>{{.Bytes $t.MemoryLimit}}</dd>{{end}}
+    <dt>{{.T "Task type"}}</dt><dd>{{$t.TaskType}}</dd>
+    {{with $d.Limits}}{{range .}}<dt>{{index . 0}}</dt><dd>{{index . 1}}</dd>{{end}}{{end}}
+  </dl>
+</section>
+</div>
+<section class="card">
+  <h2>{{.T "Submit a solution"}}</h2>
+  {{if $d.CanSubmit}}
+  <form method="post" action="{{.Base}}tasks/{{$t.Name}}/submit" enctype="multipart/form-data"
+        hx-post="{{.Base}}tasks/{{$t.Name}}/submit" hx-encoding="multipart/form-data" hx-target="#submit-result" hx-swap="innerHTML">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" {{if $t.NeedsLanguage}}required{{end}}></label>{{end}}
+    {{if $t.NeedsLanguage}}<label>{{.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
+    <button>{{.T "Submit"}}</button>
+    <span id="submit-result"></span>
+  </form>
+  {{else}}<p class="muted">{{$d.CannotSubmit}}</p>{{end}}
+</section>
+<h2>{{.T "Submissions"}}</h2>
+{{template "submissions" .}}
+{{end}}
