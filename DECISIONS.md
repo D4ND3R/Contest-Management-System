@@ -73,3 +73,23 @@ a grace period (uploads whose rows are not committed yet are safe).
 ~15 ms per verification keeps mass logins at contest start cheap while being
 memory-hard. `plaintext:` hashes are accepted for imports (CMS compatibility)
 and compared in constant time.
+
+## D13. Sandbox file handling: copy into the box, zero-copy only via a read-only stage
+isolate `chown`s every file under the box directory to the sandbox user at
+the start of each run (and deletes symlinks/special files afterwards). Hard
+links from the shared blob cache into the box would therefore give untrusted
+code ownership of cached inodes (cache poisoning across submissions).
+Decision: files are *copied* into `/box`; large read-only inputs (stdin
+testcases, checker inputs) are hard-linked into a per-slot staging directory
+bound read-only and `noexec` at `/stage`. Outputs are read back with
+`O_NOFOLLOW` and a regular-file check (second layer on top of isolate's
+cleanup). Boxes are reused between runs: the worker wipes `/box` and the
+box's private `/tmp` as root (≈4 ms per trivial run end-to-end) and falls
+back to `isolate --cleanup/--init` after any error.
+
+## D14. One slot per physical core, several boxes per slot
+Worker parallelism = slots; a slot is pinned (sched_setaffinity inherited by
+isolate and the program) to one physical core (hyperthread siblings are
+skipped) and owns 6 boxes: program, checker/manager and Communication
+user processes. Boxes never cross slots, so jobs cannot deadlock. By default
+the first physical core is left to the OS and the worker when ≥3 cores exist.

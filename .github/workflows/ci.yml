@@ -59,6 +59,24 @@ jobs:
       - name: go test -race
         run: go test -count=1 -race ./...
 
+  sandbox:
+    # isolate v2 with cgroup v2 (systemd-delegated) on a real runner: the
+    # malicious-program battery and sandbox integration tests.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with: {go-version-file: go.mod}
+      - name: install isolate
+        run: sudo scripts/install-isolate.sh v2.7
+      - name: check environment
+        run: sudo isolate-check-environment || true
+      - name: sandbox tests (run as root)
+        run: |
+          sudo -E env "PATH=$PATH" "HOME=$HOME" "GOCACHE=$(go env GOCACHE)" "GOMODCACHE=$(go env GOMODCACHE)" \
+            CMS_SANDBOX_TESTS=1 go test -count=1 -v ./internal/sandbox/ ./internal/worker/ 2>&1 | tee sandbox.log
+          grep -q "^ok" sandbox.log
+
   docker:
     runs-on: ubuntu-24.04
     steps:

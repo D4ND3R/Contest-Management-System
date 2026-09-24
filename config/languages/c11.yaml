@@ -1,0 +1,9 @@
+id: c11
+name: "C11 / gcc"
+version_command: ["gcc", "--version"]
+source_extensions: [".c"]
+header_extensions: [".h"]
+compile:
+  - ["/usr/bin/gcc", "-DEVAL", "-std=gnu11", "-O2", "-pipe", "-static", "-s", "-o", "{executable}", "{sources}", "-lm"]
+executable: "{main}"
+run: ["./{executable}"]
