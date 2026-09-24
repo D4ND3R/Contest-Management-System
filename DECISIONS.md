@@ -180,3 +180,9 @@ data (submissions, scores) is always read fresh with a single indexed query.
 Contests live at `/{contest}/…` like CMS. Top-level names used by the
 server (`static`, `healthz`, `metrics`, `lang`) are reserved and rejected
 as contest names.
+
+## D28. Latency assertions only on a quiet machine
+Performance targets are asserted by dedicated runs (`make test-e2e`, and
+the k6 scenarios of F10), never inside `go test ./...`, where packages run
+in parallel with CPU-heavy sandbox tests and on shared CI runners. There the
+same tests still run and report their percentiles.

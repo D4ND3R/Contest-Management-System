@@ -333,6 +333,9 @@ strings translated, JS budget) and `internal/e2e`:
 - **`TestLightLoadLatency` (F5 performance exit)**: 50 concurrent logged-in
   contestants browsing overview/task/submissions/documentation for 5 s with
   20 ms think time — 11,485 requests, **p50 0.95 ms, p95 4.1 ms, p99 8.0 ms**
-  (target p95 < 15 ms). Under `-race` the bound is relaxed ×5.
+  (target p95 < 15 ms). The bound is enforced by `make test-e2e`, which
+  runs the package alone; inside `go test ./...` (packages in parallel with
+  the worker's compilation-heavy tests, e.g. on 2-4 vCPU CI runners) the
+  latencies are only reported.
 - The 3000-contestant target (p95 < 15 ms, p99 < 40 ms on 4 vCPU / 8 GB) is
   measured in F10 with k6; **pendiente de verificar en hardware real**.

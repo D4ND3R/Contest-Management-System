@@ -54,13 +54,13 @@ type fixture struct {
 }
 
 type fixtureOpts struct {
-	perUserTime  int64
-	singleLogin  bool
-	ipRestrict   bool
-	ipAutologin  bool
-	ips          []netip.Prefix
-	maxSubs      *int32
-	trusted      []string
+	perUserTime int64
+	singleLogin bool
+	ipRestrict  bool
+	ipAutologin bool
+	ips         []netip.Prefix
+	maxSubs     *int32
+	trusted     []string
 }
 
 func newFixture(t *testing.T, o fixtureOpts) *fixture {

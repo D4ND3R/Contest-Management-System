@@ -8,6 +8,7 @@ import (
 
 	"github.com/D4ND3R/Contest-Management-System/internal/events"
 	"github.com/D4ND3R/Contest-Management-System/internal/metrics"
+	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -63,20 +64,10 @@ func (h *hub) remove(c *sseClient) {
 	sseClients.WithLabelValues("contest-web").Set(float64(h.n.Add(-1)))
 }
 
-// sseFrame formats one event.
-func sseFrame(kind string, data []byte) []byte {
-	b := make([]byte, 0, len(kind)+len(data)+16)
-	b = append(b, "event: "...)
-	b = append(b, kind...)
-	b = append(b, "\ndata: "...)
-	b = append(b, data...)
-	return append(b, "\n\n"...)
-}
-
 // publish delivers e to its recipients without ever blocking: a client that
 // cannot keep up loses events (it re-syncs on reconnect).
 func (h *hub) publish(e events.Event) {
-	frame := sseFrame(e.Type, jsonBytes(e))
+	frame := webkit.SSEFrame(e.Type, jsonBytes(e))
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	var targets map[*sseClient]struct{}
@@ -96,42 +87,8 @@ func (h *hub) publish(e events.Event) {
 
 // handleEvents streams events to a contestant.
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	rcx := http.NewResponseController(w)
-	h := w.Header()
-	h.Set("Content-Type", "text/event-stream")
-	h.Set("Cache-Control", "no-store")
-	h.Set("X-Accel-Buffering", "no")
-	w.WriteHeader(http.StatusOK)
-	// Ask the browser to wait a little before reconnecting (thundering herd).
-	w.Write([]byte("retry: 3000\n\n"))
-	if err := rcx.Flush(); err != nil {
-		return
-	}
 	c := &sseClient{ch: make(chan []byte, 32), pid: rc.part.ID, cid: rc.contest.ID}
 	s.hub.add(c)
 	defer s.hub.remove(c)
-	ping := time.NewTicker(25 * time.Second)
-	defer ping.Stop()
-	for {
-		select {
-		case <-r.Context().Done():
-			return
-		case frame := <-c.ch:
-			rcx.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if _, err := w.Write(frame); err != nil {
-				return
-			}
-			if err := rcx.Flush(); err != nil {
-				return
-			}
-		case <-ping.C:
-			rcx.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if _, err := w.Write([]byte(": ping\n\n")); err != nil {
-				return
-			}
-			if err := rcx.Flush(); err != nil {
-				return
-			}
-		}
-	}
+	webkit.ServeSSE(w, r, c.ch, 25*time.Second, 3*time.Second)
 }

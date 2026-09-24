@@ -30,19 +30,19 @@ test-short: ## unit tests only (no PostgreSQL/Redis)
 test-sandbox: ## malicious-program battery + sample solutions (root + isolate)
 	CMS_SANDBOX_TESTS=1 scripts/test.sh -count=1 -v -run 'TestMalicious|TestSampleSolutions' ./internal/worker/... ./internal/tasktypes/...
 
-test-e2e: ## whole-system tests (web + dispatcher + worker; judging needs root + isolate)
-	CMS_SANDBOX_TESTS=1 scripts/test.sh -count=1 -v ./internal/e2e/...
+test-e2e: ## whole-system tests alone, enforcing latency targets (judging needs root + isolate)
+	CMS_SANDBOX_TESTS=1 CMS_PERF_ASSERT=1 scripts/test.sh -count=1 -p 1 -v ./internal/e2e/...
 
 bench: ## Go benchmarks for hot paths
 	scripts/test.sh -run '^$$' -bench . -benchmem $(PKGS)
 
 lint: ## gofmt + go vet
-	@out=$$(gofmt -l $$(git ls-files '*.go' 2>/dev/null || find . -name '*.go')); \
+	@out=$$(gofmt -l cmd internal web); \
 	  if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 	$(GO) vet $(PKGS)
 
 fmt: ## format the code
-	gofmt -w $$(git ls-files '*.go')
+	gofmt -w cmd internal web
 
 generate: ## regenerate sqlc code
 	cd internal/db && sqlc generate
