@@ -163,19 +163,25 @@ func (e *Env) dirs(l *langs.Language) []sandbox.Dir {
 
 // upload stores a box file in the blob store.
 func (e *Env) upload(ctx context.Context, b *sandbox.Box, name string, limit int64) (string, error) {
+	f, err := e.uploadFile(ctx, b, name, limit)
+	return f.Digest, err
+}
+
+// uploadFile is upload returning the digest and size.
+func (e *Env) uploadFile(ctx context.Context, b *sandbox.Box, name string, limit int64) (jobs.File, error) {
 	f, size, err := b.OpenOutput(name)
 	if err != nil {
-		return "", err
+		return jobs.File{}, err
 	}
 	defer f.Close()
 	if size > limit {
-		return "", fmt.Errorf("%s is too large (%d bytes)", name, size)
+		return jobs.File{}, fmt.Errorf("%s is too large (%d bytes)", name, size)
 	}
 	info, err := e.Store.Put(ctx, f)
 	if err != nil {
-		return "", infra("upload %s: %v", name, err)
+		return jobs.File{}, infra("upload %s: %v", name, err)
 	}
-	return info.Digest, nil
+	return jobs.File{Name: name, Digest: info.Digest, Size: info.Size}, nil
 }
 
 // WallLimit returns the wall-clock limit for a CPU limit: the explicit one

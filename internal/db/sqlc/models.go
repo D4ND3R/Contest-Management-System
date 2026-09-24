@@ -265,6 +265,7 @@ type SubmissionResult struct {
 	ScoredAt            *time.Time      `json:"scored_at"`
 	SystemError         *string         `json:"system_error"`
 	CreatedAt           time.Time       `json:"created_at"`
+	JobsEnqueuedAt      *time.Time      `json:"jobs_enqueued_at"`
 }
 
 type Task struct {
@@ -375,4 +376,5 @@ type UserTestResult struct {
 	ExitStatus          *string    `json:"exit_status"`
 	SystemError         *string    `json:"system_error"`
 	CompletedAt         *time.Time `json:"completed_at"`
+	JobsEnqueuedAt      *time.Time `json:"jobs_enqueued_at"`
 }

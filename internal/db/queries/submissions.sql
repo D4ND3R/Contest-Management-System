@@ -125,7 +125,7 @@ UPDATE submission_results SET
     evaluation_tries = CASE WHEN @level::text = 'score' THEN evaluation_tries ELSE 0 END,
     testcases_done = CASE WHEN @level::text = 'score' THEN testcases_done ELSE 0 END,
     score = NULL, score_details = NULL, public_score = NULL, public_score_details = NULL,
-    ranking_score_details = NULL, scored_at = NULL, system_error = NULL
+    ranking_score_details = NULL, scored_at = NULL, system_error = NULL, jobs_enqueued_at = NULL
 WHERE submission_id = $1 AND dataset_id = $2
 RETURNING generation;
 

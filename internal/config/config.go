@@ -88,6 +88,8 @@ type Database struct {
 type Redis struct {
 	URL      string `yaml:"url"`
 	PoolSize int    `yaml:"pool_size"`
+	// Namespace prefixes every key (several installations can share a server).
+	Namespace string `yaml:"namespace"`
 }
 
 type S3 struct {
@@ -217,7 +219,7 @@ func Default() *Config {
 	return &Config{
 		Log:          Log{Level: "info", Format: "json"},
 		Database:     Database{URL: "postgres://cms:cms@localhost:5432/cms?sslmode=disable", MaxConns: 32},
-		Redis:        Redis{URL: "redis://localhost:6379/0", PoolSize: 64},
+		Redis:        Redis{URL: "redis://localhost:6379/0", PoolSize: 64, Namespace: "cms:"},
 		Blob:         Blob{Backend: "local", LocalDir: "./data/blobs", CacheDir: "", CacheMaxBytes: 0},
 		LanguagesDir: "./config/languages",
 		ContestWeb: ContestWeb{

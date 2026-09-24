@@ -83,7 +83,7 @@ func (q *Queries) GetUserTest(ctx context.Context, id int64) (UserTest, error) {
 }
 
 const getUserTestResult = `-- name: GetUserTestResult :one
-SELECT user_test_id, dataset_id, generation, compilation_outcome, compilation_text, compilation_stdout, compilation_stderr, compilation_tries, compilation_time, compilation_wall_time, compilation_memory, evaluation_outcome, evaluation_text, evaluation_tries, output_digest, execution_time, execution_wall_time, execution_memory, exit_status, system_error, completed_at FROM user_test_results WHERE user_test_id = $1 AND dataset_id = $2
+SELECT user_test_id, dataset_id, generation, compilation_outcome, compilation_text, compilation_stdout, compilation_stderr, compilation_tries, compilation_time, compilation_wall_time, compilation_memory, evaluation_outcome, evaluation_text, evaluation_tries, output_digest, execution_time, execution_wall_time, execution_memory, exit_status, system_error, completed_at, jobs_enqueued_at FROM user_test_results WHERE user_test_id = $1 AND dataset_id = $2
 `
 
 type GetUserTestResultParams struct {
@@ -116,6 +116,7 @@ func (q *Queries) GetUserTestResult(ctx context.Context, arg GetUserTestResultPa
 		&i.ExitStatus,
 		&i.SystemError,
 		&i.CompletedAt,
+		&i.JobsEnqueuedAt,
 	)
 	return i, err
 }
@@ -248,7 +249,7 @@ func (q *Queries) ListUserTestFiles(ctx context.Context, userTestID int64) ([]Us
 }
 
 const listUserTestResultsByTests = `-- name: ListUserTestResultsByTests :many
-SELECT user_test_id, dataset_id, generation, compilation_outcome, compilation_text, compilation_stdout, compilation_stderr, compilation_tries, compilation_time, compilation_wall_time, compilation_memory, evaluation_outcome, evaluation_text, evaluation_tries, output_digest, execution_time, execution_wall_time, execution_memory, exit_status, system_error, completed_at FROM user_test_results WHERE user_test_id = ANY($1::bigint[]) AND dataset_id = ANY($2::bigint[])
+SELECT user_test_id, dataset_id, generation, compilation_outcome, compilation_text, compilation_stdout, compilation_stderr, compilation_tries, compilation_time, compilation_wall_time, compilation_memory, evaluation_outcome, evaluation_text, evaluation_tries, output_digest, execution_time, execution_wall_time, execution_memory, exit_status, system_error, completed_at, jobs_enqueued_at FROM user_test_results WHERE user_test_id = ANY($1::bigint[]) AND dataset_id = ANY($2::bigint[])
 `
 
 type ListUserTestResultsByTestsParams struct {
@@ -287,6 +288,7 @@ func (q *Queries) ListUserTestResultsByTests(ctx context.Context, arg ListUserTe
 			&i.ExitStatus,
 			&i.SystemError,
 			&i.CompletedAt,
+			&i.JobsEnqueuedAt,
 		); err != nil {
 			return nil, err
 		}

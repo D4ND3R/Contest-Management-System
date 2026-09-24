@@ -26,6 +26,8 @@ const (
 type File struct {
 	Name   string `json:"name"`
 	Digest string `json:"digest"`
+	// Size is set on files produced by workers (for blob accounting).
+	Size int64 `json:"size,omitempty"`
 }
 
 // Limits of the contestant's program on a dataset.
@@ -50,6 +52,8 @@ type Job struct {
 	ID      string `json:"id"`
 	Kind    Kind   `json:"kind"`
 	Attempt int    `json:"attempt"`
+	// Priority is the queue the job was sent to (echoed in the result).
+	Priority int `json:"priority,omitempty"`
 
 	SubmissionID int64 `json:"submission_id,omitempty"`
 	UserTestID   int64 `json:"user_test_id,omitempty"`
@@ -111,11 +115,16 @@ type Result struct {
 	JobID        string `json:"job_id"`
 	Kind         Kind   `json:"kind"`
 	Attempt      int    `json:"attempt"`
+	Priority     int    `json:"priority,omitempty"`
 	Worker       string `json:"worker"`
 	SubmissionID int64  `json:"submission_id,omitempty"`
 	UserTestID   int64  `json:"user_test_id,omitempty"`
 	DatasetID    int64  `json:"dataset_id"`
 	Generation   int32  `json:"generation"`
+
+	// Testcases echoes the job's testcase ids (so failed evaluation jobs
+	// can be rebuilt and retried).
+	Testcases []int64 `json:"testcases,omitempty"`
 
 	Compilation *Compilation `json:"compilation,omitempty"`
 	Evaluations []Evaluation `json:"evaluations,omitempty"`
@@ -129,6 +138,10 @@ type Result struct {
 
 // ForJob returns an empty result addressed to the job's target.
 func ForJob(j *Job, worker string) *Result {
-	return &Result{JobID: j.ID, Kind: j.Kind, Attempt: j.Attempt, Worker: worker,
+	r := &Result{JobID: j.ID, Kind: j.Kind, Attempt: j.Attempt, Priority: j.Priority, Worker: worker,
 		SubmissionID: j.SubmissionID, UserTestID: j.UserTestID, DatasetID: j.DatasetID, Generation: j.Generation}
+	for _, tc := range j.Testcases {
+		r.Testcases = append(r.Testcases, tc.ID)
+	}
+	return r
 }

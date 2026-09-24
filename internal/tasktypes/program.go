@@ -245,7 +245,7 @@ func compile(ctx context.Context, env *Env, box *sandbox.Box, s *sourceSet) (*jo
 		return c, nil
 	}
 	for _, name := range artifacts {
-		d, err := env.upload(ctx, box, name, maxExecutableSize)
+		f, err := env.uploadFile(ctx, box, name, maxExecutableSize)
 		if err != nil {
 			if errors.Is(err, errInfra) {
 				return nil, err
@@ -255,7 +255,7 @@ func compile(ctx context.Context, env *Env, box *sandbox.Box, s *sourceSet) (*jo
 			c.Stderr = strings.TrimSpace(c.Stderr + "\n" + err.Error())
 			return c, nil
 		}
-		c.Executables = append(c.Executables, jobs.File{Name: name, Digest: d})
+		c.Executables = append(c.Executables, f)
 	}
 	return c, nil
 }

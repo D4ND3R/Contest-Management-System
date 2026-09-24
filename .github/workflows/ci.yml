@@ -61,8 +61,23 @@ jobs:
 
   sandbox:
     # isolate v2 with cgroup v2 (systemd-delegated) on a real runner: the
-    # malicious-program battery and sandbox integration tests.
+    # malicious-program battery, sandbox and judging integration tests.
     runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: {POSTGRES_PASSWORD: postgres}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-retries 30
+      redis:
+        image: valkey/valkey:8-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "valkey-cli ping" --health-interval 2s --health-retries 30
+    env:
+      CMS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+      CMS_TEST_REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -75,7 +90,7 @@ jobs:
         run: |
           set -o pipefail
           sudo -E env "PATH=$PATH" "HOME=$HOME" "GOCACHE=$(go env GOCACHE)" "GOMODCACHE=$(go env GOMODCACHE)" \
-            CMS_SANDBOX_TESTS=1 CMS_SAMPLE_LANGUAGES=c11,cpp17,cpp20,python3,java go test -count=1 -v ./internal/sandbox/ ./internal/worker/ 2>&1 | tee sandbox.log
+            CMS_SANDBOX_TESTS=1 CMS_SAMPLE_LANGUAGES=c11,cpp17,cpp20,python3,java go test -count=1 -v ./internal/sandbox/ ./internal/worker/ ./internal/dispatcher/ 2>&1 | tee sandbox.log
           ! grep -q "^FAIL" sandbox.log
 
   docker:

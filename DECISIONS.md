@@ -118,3 +118,32 @@ Sandbox statuses map to verdicts: ok → AC/WA/partial (checker), timeout →
 TLE, timeout_wall → TLE (wall), memory → MLE, output_limit → OLE, nonzero and
 signal → RE (the signal number is kept), compilation failure → CE, any
 infrastructure failure → retried, then SE. Contestant stderr is discarded.
+
+## D19. Queues: one Redis stream per priority, strict priority, at-least-once
+Workers poll the streams in priority order without blocking, then block on
+all of them. Results are published and jobs acknowledged in one MULTI/EXEC,
+so a job is either pending (and re-run after a crash) or done with its
+result stored. Duplicate executions are harmless thanks to D10. Rejudges
+and non-live datasets use the background stream so they never delay fresh
+submissions.
+
+## D20. Crash recovery layers
+1) Worker death: heartbeat TTL expires → monitor requeues its pending jobs
+(copy first, then ack). 2) Stuck job: pending longer than `job_timeout` →
+requeued. 3) Dispatcher death: its unacknowledged results/events are
+adopted by the next leader (`XAUTOCLAIM`). 4) Anything else (Redis data loss,
+crash between commit and enqueue): the sweeper re-derives work from
+PostgreSQL (`scored_at IS NULL` and `jobs_enqueued_at` older than
+`StaleAfter`, or NULL after an invalidation). PostgreSQL is the only source
+of truth; Redis only accelerates.
+
+## D21. HA by leases, not partitioning
+Dispatcher and monitor replicas compete for a Redis lease; exactly one is
+active. The active dispatcher still processes results in parallel (sharded
+by submission so a submission's results stay ordered).
+
+## D22. Scoring runs inside the result transaction
+Scores, the task aggregate (score mode + ICPC fields) and the ranking update
+are computed in the same transaction that stores the last evaluation, so the
+ranking never shows a score whose evaluations are not committed. Ranking
+updates go to a durable, capped Redis stream consumed by the RWS pushers.

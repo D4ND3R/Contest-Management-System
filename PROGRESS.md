@@ -8,7 +8,7 @@ Status of each phase of SPEC.md §9. Updated at the end of every phase.
 | F1 Data model and blob store | done |
 | F2 Sandbox + worker | done (cgroup v2 path: pending verification on real hardware) |
 | F3 Task types, checkers, languages | done |
-| F4 Dispatcher | pending |
+| F4 Dispatcher | done |
 | F5 CWS | pending |
 | F6 AWS | pending |
 | F7 RWS | pending |
@@ -237,3 +237,50 @@ checker (ok/points), float tolerance, exact diff, OutputOnly with built-in
 and custom checkers, TwoSteps isolation, Communication OK/WA/crash/TLE/
 2 processes/std_io — all green. The malicious battery was re-run in the same
 session (two runs, identical, see F2).
+
+## F4 — Dispatcher, queues, scoring, reevaluation, monitor (done)
+Skipping skills: immersive-web-design, master skill.
+
+- `internal/queue`: Redis Streams with consumer groups; four job streams
+  served strictly by priority (compile > evaluate > user tests >
+  background); result + ack in one MULTI/EXEC; dispatcher events stream;
+  ranking-updates stream (capped); worker heartbeats (TTL) and registry;
+  `Requeue` (copy re-added before the original is acked); leadership lease
+  (Lua renew/release) so dispatcher and monitor can run as HA replicas;
+  `AdoptPending` hands a dead replica's unacknowledged work to the new
+  leader. Round trip enqueue → prioritised read → result+ack ≈ 0.22 ms.
+- `internal/scoring`: Sum, GroupMin, GroupMul, GroupThreshold (subtasks by
+  count, regex or list; CMS array or object params), public/private scores
+  (a subtask is public when all its testcases are), score precision; score
+  modes max, max_subtask, max_tokened_last; ICPC aggregation (binary verdict,
+  attempts, penalty minutes).
+- `internal/dispatcher`: per-result transactions with `SELECT … FOR UPDATE`
+  and generation checks (duplicates/stale results are no-ops); parallel
+  result processing sharded by submission; compile → evaluate (testcases
+  spread over workers, `testcases_per_job`) → score → task aggregate →
+  ranking update + SSE event; retries with the attempt counter, system error
+  + admin alert after `max_attempts`; user tests; autojudged background
+  datasets; live-dataset switch (re-aggregation + judging); sweeper that
+  re-derives lost/invalidated work from the database
+  (`jobs_enqueued_at`, migration 0002).
+- Reevaluation API and `cmsctl reevaluate`: recompile / reevaluate / rescore
+  by contest, task, dataset, participation, user or submission, in batches,
+  rejudges on the background queue (no downtime); `cmsctl set-live-dataset`,
+  `cmsctl status`.
+- `internal/monitor`: requeues jobs of dead workers (heartbeat expired) and
+  stuck jobs (job timeout), reports exhausted jobs as errors, publishes
+  queue/worker stats (Redis + Prometheus).
+- `cms worker` (one consumer loop per slot, graceful shutdown finishing the
+  current job), `cms dispatcher`, `cms monitor` are now real services.
+- `internal/events`: Redis pub/sub for live notifications (used by CWS SSE).
+
+Verification (`make test`, real PostgreSQL + Redis + isolate):
+end-to-end AC/WA/CE scoring with details, events and ranking updates;
+max_subtask across submissions; the three reevaluation levels (generation
+and compilation counters checked); live dataset switch; autojudged
+background dataset; retries → system error + alert; sweeper recovering a
+lost notification; user tests; dispatcher restart with a different consumer
+(adopts pending results); **F4 exit: `TestKillWorkerMidEvaluation`** — a
+`cms worker` process is SIGKILLed while evaluating (8 slow testcases); the
+monitor requeues its job, a second worker process finishes, the submission
+scores 100 with exactly 8 evaluations (victim 1, rescuer 7).
