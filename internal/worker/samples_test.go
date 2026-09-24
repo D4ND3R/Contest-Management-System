@@ -3,7 +3,6 @@ package worker
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -55,14 +54,34 @@ func toolchainAvailable(h *harness, id string) bool {
 	}
 	bin := cmd[0]
 	if bin == "/usr/bin/env" && len(cmd) > 1 {
-		_, err := exec.LookPath(cmd[1])
-		if err != nil {
-			_, err = exec.LookPath("/usr/local/go/bin/" + cmd[1])
+		// Resolve against the PATH the sandbox will use.
+		path := l.Env["PATH"]
+		if path == "" {
+			path = "/usr/local/bin:/usr/bin:/bin"
 		}
-		return err == nil
+		for _, dir := range filepath.SplitList(path) {
+			if st, err := os.Stat(filepath.Join(dir, cmd[1])); err == nil && !st.IsDir() {
+				return true
+			}
+		}
+		return false
 	}
 	_, err := os.Stat(bin)
 	return err == nil
+}
+
+// selectedLanguage honours CMS_SAMPLE_LANGUAGES (comma-separated ids).
+func selectedLanguage(id string) bool {
+	sel := os.Getenv("CMS_SAMPLE_LANGUAGES")
+	if sel == "" {
+		return true
+	}
+	for _, s := range strings.Split(sel, ",") {
+		if strings.TrimSpace(s) == id {
+			return true
+		}
+	}
+	return false
 }
 
 type sampleResult struct {
@@ -83,6 +102,9 @@ func runSamples(t *testing.T, h *harness) map[string]string {
 		for _, d := range dirs {
 			lang := d.Name()
 			t.Run(lang, func(t *testing.T) {
+				if !selectedLanguage(lang) {
+					t.Skipf("%s not selected by CMS_SAMPLE_LANGUAGES", lang)
+				}
 				if !toolchainAvailable(h, lang) {
 					if os.Getenv("CMS_REQUIRE_ALL_LANGUAGES") == "1" {
 						t.Fatalf("toolchain for %s not installed", lang)
