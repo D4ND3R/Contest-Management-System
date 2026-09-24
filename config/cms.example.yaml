@@ -1,0 +1,97 @@
+# CMS configuration. Every service reads this file (path given with
+# -config or $CMS_CONFIG) and uses only the sections it needs.
+# Most values can be overridden with CMS_* environment variables
+# (see internal/config/config.go).
+
+log:
+  level: info        # debug | info | warn | error
+  format: json       # json | text
+
+database:
+  url: postgres://cms:cms@localhost:5432/cms?sslmode=disable
+  max_conns: 32
+
+redis:
+  url: redis://localhost:6379/0
+  pool_size: 64
+
+# Content-addressed blob store (SHA-256). Blobs never live in PostgreSQL.
+blob:
+  backend: local            # local | s3
+  local_dir: /var/lib/cms/blobs
+  # s3:
+  #   endpoint: minio:9000
+  #   bucket: cms
+  #   access_key: minioadmin
+  #   secret_key: minioadmin
+  #   use_ssl: false
+  # Local LRU cache in front of the backend (recommended with s3).
+  cache_dir: ""
+  cache_max_bytes: 0
+
+# 32+ random bytes, hex encoded: `openssl rand -hex 32`.
+# Signs session cookies and CSRF tokens; must be identical on every web node.
+secret_key: ""
+
+languages_dir: /etc/cms/languages
+
+contest_web:
+  listen: ":8888"
+  contest_id: 0              # 0 = contestants choose among active contests
+  cookie_secure: true        # set false only for plain-HTTP LANs
+  trusted_proxies: []        # CIDRs whose X-Forwarded-For is honoured
+  max_submission_bytes: 1MiB
+  max_user_test_bytes: 8MiB
+  max_print_bytes: 2MiB
+  rate_limit_per_minute: 120
+  login_rate_limit_per_minute: 20
+  pprof: false
+
+admin_web:
+  listen: ":8889"
+  cookie_secure: true
+  trusted_proxies: []
+  pprof: false
+
+ranking_web:
+  listen: ":8890"
+  data_dir: /var/lib/cms/ranking
+  push_token: "change-me"    # shared with the dispatcher
+  title: "Ranking"
+  max_clients: 20000
+  pprof: false
+
+dispatcher:
+  metrics_listen: ":9101"
+  ranking_urls: ["http://localhost:8890"]
+  sweep_interval: 30s
+  max_attempts: 3
+  testcases_per_job: 1
+
+worker:
+  name: ""                   # defaults to the hostname
+  metrics_listen: ":9102"
+  isolate_path: /usr/local/bin/isolate
+  isolate_cg: true
+  isolate_box_root: /var/local/lib/isolate
+  cores: []                  # empty = one sandbox per physical core
+  box_id_offset: 0           # distinct per worker process on the same host
+  work_dir: /var/lib/cms/worker
+  cache_dir: /var/cache/cms/testcases   # put it on tmpfs for speed
+  cache_max_bytes: 4GiB
+  queues: []                 # empty = all, in priority order
+  sandbox_dirs: []           # extra read-only dirs, e.g. /usr/lib/jvm
+  heartbeat_interval: 2s
+
+monitor:
+  metrics_listen: ":9103"
+  heartbeat_timeout: 10s
+  job_timeout: 10m
+  check_interval: 2s
+
+printing:
+  metrics_listen: ":9104"
+  printer: ""                # CUPS destination; empty = render only
+  lp_path: lp
+  max_pages: 10
+  paper_size: A4

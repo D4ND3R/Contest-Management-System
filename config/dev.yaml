@@ -1,0 +1,18 @@
+# Native development configuration used by scripts/dev.sh.
+log: {level: debug, format: text}
+database: {url: "postgres://postgres@127.0.0.1:55433/cms?sslmode=disable", max_conns: 32}
+redis: {url: "redis://127.0.0.1:56380/0"}
+blob: {backend: local, local_dir: ./.cache/dev/blobs}
+secret_key: "6465762d6f6e6c792d7365637265742d6b65792d646f2d6e6f742d7573652d696e2d70726f64"
+languages_dir: ./config/languages
+contest_web: {listen: ":8888", cookie_secure: false, pprof: true}
+admin_web: {listen: ":8889", cookie_secure: false, pprof: true}
+ranking_web: {listen: ":8890", data_dir: ./.cache/dev/ranking, push_token: dev-token}
+dispatcher: {metrics_listen: ":9101", ranking_urls: ["http://127.0.0.1:8890"]}
+worker:
+  metrics_listen: ":9102"
+  work_dir: ./.cache/dev/worker
+  cache_dir: ./.cache/dev/worker-cache
+  box_id_offset: 100
+monitor: {metrics_listen: ":9103"}
+printing: {metrics_listen: ":9104"}

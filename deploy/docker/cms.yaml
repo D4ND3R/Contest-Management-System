@@ -1,0 +1,23 @@
+# Configuration used by docker-compose.yml.
+log: {level: info, format: json}
+database: {url: "postgres://cms:cms@postgres:5432/cms?sslmode=disable", max_conns: 32}
+redis: {url: "redis://redis:6379/0"}
+blob:
+  backend: s3
+  s3: {endpoint: "minio:9000", bucket: cms, access_key: minioadmin, secret_key: minioadmin, use_ssl: false}
+  cache_dir: /var/cache/cms/blobs
+  cache_max_bytes: 1GiB
+secret_key: "646f636b65722d6465762d7365637265742d6b65792d646f2d6e6f742d7573652d696e2d70726f64"
+languages_dir: /etc/cms/languages
+contest_web: {listen: ":8888", cookie_secure: false}
+admin_web: {listen: ":8889", cookie_secure: false}
+ranking_web: {listen: ":8890", data_dir: /var/lib/cms/ranking, push_token: dev-token}
+dispatcher: {metrics_listen: ":9101", ranking_urls: ["http://ranking-web:8890"]}
+worker:
+  metrics_listen: ":9102"
+  isolate_path: /usr/local/bin/isolate
+  isolate_cg: true
+  work_dir: /var/lib/cms/worker
+  cache_dir: /var/cache/cms/testcases
+monitor: {metrics_listen: ":9103"}
+printing: {metrics_listen: ":9104"}

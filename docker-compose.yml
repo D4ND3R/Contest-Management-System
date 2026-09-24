@@ -1,0 +1,135 @@
+# Development stack: infrastructure (PostgreSQL, Valkey/Redis, S3 via a
+# MinIO build) plus every CMS service. `make dev` runs `docker compose up`.
+name: cms
+
+x-build: &build
+  context: .
+  target: cms
+  secrets: [extra_ca]
+
+x-cms: &cms
+  build: *build
+  image: cms:dev
+  restart: unless-stopped
+  depends_on:
+    init: {condition: service_completed_successfully}
+  volumes:
+    - ./config/languages:/etc/cms/languages:ro
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: {POSTGRES_USER: cms, POSTGRES_PASSWORD: cms, POSTGRES_DB: cms}
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cms -d cms"]
+      interval: 2s
+      retries: 30
+
+  redis:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports: ["6379:6379"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 2s
+      retries: 30
+
+  minio:
+    # Community build of MinIO (the upstream Docker Hub images were retired).
+    image: pgsty/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment: {MINIO_ROOT_USER: minioadmin, MINIO_ROOT_PASSWORD: minioadmin}
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      retries: 30
+
+  # One-shot: apply migrations and create the default admin.
+  init:
+    build: *build
+    image: cms:dev
+    command: ["ctl", "bootstrap", "-admin-password", "admin"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+
+  contest-web:
+    <<: *cms
+    command: ["contest-web"]
+    ports: ["8888:8888"]
+    healthcheck: &hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:8888/healthz"]
+      interval: 5s
+      retries: 10
+
+  admin-web:
+    <<: *cms
+    command: ["admin-web"]
+    ports: ["8889:8889"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:8889/healthz"]
+
+  ranking-web:
+    <<: *cms
+    command: ["ranking-web"]
+    ports: ["8890:8890"]
+    volumes: [rankingdata:/var/lib/cms/ranking]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:8890/healthz"]
+
+  dispatcher:
+    <<: *cms
+    command: ["dispatcher"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:9101/healthz"]
+
+  monitor:
+    <<: *cms
+    command: ["monitor"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:9103/healthz"]
+
+  printing:
+    <<: *cms
+    command: ["printing"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:9104/healthz"]
+
+  worker:
+    build:
+      <<: *build
+      target: worker
+      args: {LANGS: "${WORKER_LANGS:-minimal}"}
+    image: cms-worker:dev
+    command: ["cms", "worker"]
+    privileged: true          # isolate needs namespaces and cgroups
+    cgroup: private
+    restart: unless-stopped
+    environment: {CMS_WORKER_CORES: "${WORKER_CORES:-0-1}"}
+    depends_on:
+      init: {condition: service_completed_successfully}
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:9102/healthz"]
+
+# Optional extra CA certificate for builds behind TLS-intercepting proxies.
+secrets:
+  extra_ca:
+    file: ${CMS_EXTRA_CA_FILE:-./deploy/docker/no-extra-ca.pem}
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  rankingdata:
