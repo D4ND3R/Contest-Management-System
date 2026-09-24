@@ -73,9 +73,10 @@ jobs:
         run: sudo isolate-check-environment || true
       - name: sandbox tests (run as root)
         run: |
+          set -o pipefail
           sudo -E env "PATH=$PATH" "HOME=$HOME" "GOCACHE=$(go env GOCACHE)" "GOMODCACHE=$(go env GOMODCACHE)" \
             CMS_SANDBOX_TESTS=1 go test -count=1 -v ./internal/sandbox/ ./internal/worker/ 2>&1 | tee sandbox.log
-          grep -q "^ok" sandbox.log
+          ! grep -q "^FAIL" sandbox.log
 
   docker:
     runs-on: ubuntu-24.04

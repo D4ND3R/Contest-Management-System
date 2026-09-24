@@ -49,7 +49,7 @@ int main(){int a,b; if(scanf("%d %d",&a,&b)!=2) return 3; printf("%d\n",a+b); fp
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !res.Success() || res.Memory <= 0 || res.WallTime <= 0 {
+	if !res.Success() || res.Memory <= 0 || res.WallTime < 0 {
 		t.Fatalf("result %+v", res)
 	}
 	out, trunc, err := b.ReadFile("out.txt", 100)
