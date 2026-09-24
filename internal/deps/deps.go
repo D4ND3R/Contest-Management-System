@@ -7,8 +7,10 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/config"
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
+	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/httpx"
 	"github.com/D4ND3R/Contest-Management-System/internal/redisx"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,6 +21,7 @@ import (
 type Need struct {
 	DB    bool
 	Redis bool
+	Blobs bool
 }
 
 // Deps bundles opened dependencies. Fields for unrequested dependencies are nil.
@@ -27,6 +30,9 @@ type Deps struct {
 	Log   *slog.Logger
 	DB    *pgxpool.Pool
 	Redis *redis.Client
+	// Blobs is the configured blob store; when the database is also open
+	// it is wrapped in blob.Tracked so new blobs are registered for GC.
+	Blobs blob.Store
 }
 
 // Open connects to the requested dependencies.
@@ -46,6 +52,17 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger, need Need) 
 			return nil, err
 		}
 		d.Redis = rc
+	}
+	if need.Blobs {
+		bs, err := blob.Open(ctx, cfg.Blob)
+		if err != nil {
+			d.Close()
+			return nil, err
+		}
+		if d.DB != nil {
+			bs = blob.NewTracked(bs, sqlc.New(d.DB))
+		}
+		d.Blobs = bs
 	}
 	return d, nil
 }

@@ -16,12 +16,17 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with: {go-version-file: go.mod}
       - run: make lint
       - name: build
         run: make build
+      - name: sqlc generated code is up to date
+        run: |
+          curl -sSL https://github.com/sqlc-dev/sqlc/releases/download/v1.30.0/sqlc_1.30.0_linux_amd64.tar.gz | sudo tar xz -C /usr/local/bin sqlc
+          make generate
+          git diff --exit-code -- internal/db/sqlc
 
   test:
     runs-on: ubuntu-24.04
@@ -41,16 +46,23 @@ jobs:
       CMS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
       CMS_TEST_REDIS_URL: redis://localhost:6379/0
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with: {go-version-file: go.mod}
+      - name: start MinIO (S3 blob backend tests)
+        run: |
+          docker run -d --name minio -p 59000:9000 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin pgsty/minio:latest server /data
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:59000/minio/health/live && break; sleep 1; done
+          echo "CMS_TEST_S3_ENDPOINT=127.0.0.1:59000" >> "$GITHUB_ENV"
+          echo "CMS_TEST_S3_ACCESS_KEY=minioadmin" >> "$GITHUB_ENV"
+          echo "CMS_TEST_S3_SECRET_KEY=minioadmin" >> "$GITHUB_ENV"
       - name: go test -race
         run: go test -count=1 -race ./...
 
   docker:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
       - name: build cms image
         uses: docker/build-push-action@v6

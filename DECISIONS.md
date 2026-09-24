@@ -49,3 +49,27 @@ real hardware" in PROGRESS.md.
 The Dockerfile accepts a build secret `extra_ca` (compose reads
 `$CMS_EXTRA_CA_FILE`) so images build behind TLS-intercepting proxies, which
 is common in school/olympiad networks. Without it nothing changes.
+
+## D9. Durations as integer seconds/milliseconds, sizes in bytes
+`*_s` / `*_ms` / `*_bytes` columns instead of `interval`: trivial mapping to
+Go, no calendar semantics needed, cheaper comparisons in limit checks.
+
+## D10. Result generations for idempotent, restart-safe evaluation
+`submission_results.generation` (and `user_test_results.generation`) is
+bumped on every invalidation (recompile/reevaluate). Jobs carry the
+generation they were created for; results of older generations are ignored.
+Combined with upserts on `(submission, dataset, testcase)` this makes
+duplicate or late job results harmless, so queues can be at-least-once.
+
+## D11. Blob store layout and verification
+Local: `objects/ab/<digest>`, writes to `tmp/` then atomic rename (no partial
+reads, concurrent identical writes are harmless). S3: object key = digest,
+content hashed before upload (≤8 MiB in memory, larger spooled). Workers read
+through a verified LRU cache: content that does not hash to its digest is
+never cached nor used. A `blobs` table records size/first upload for GC with
+a grace period (uploads whose rows are not committed yet are safe).
+
+## D12. Password hashing: argon2id, OWASP parameters (19 MiB, t=2, p=1)
+~15 ms per verification keeps mass logins at contest start cheap while being
+memory-hard. `plaintext:` hashes are accepted for imports (CMS compatibility)
+and compared in constant time.
