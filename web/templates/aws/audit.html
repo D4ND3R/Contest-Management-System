@@ -1,6 +1,13 @@
 {{define "content"}}
 <h1>{{.T "Audit log"}}</h1>
-<form method="get" class="filters"><label>{{.T "Administrator"}} <select name="admin"><option value="">{{.T "all"}}</option>{{range .Data.Admins}}<option value="{{.ID}}" {{if eq .ID $.Data.Admin}}selected{{end}}>{{.Username}}</option>{{end}}</select></label> <button>{{.T "Filter"}}</button></form>
+<form method="get" class="filters">
+  <label>{{.T "Administrator"}} <select name="admin"><option value="">{{.T "all"}}</option>{{range .Data.Admins}}<option value="{{.ID}}" {{if eq .ID $.Data.Admin}}selected{{end}}>{{.Username}}</option>{{end}}</select></label>
+  <label>{{.T "Action"}} <input name="action" value="{{.Data.Action}}" list="audit-actions" placeholder="{{.T "e.g. contest. or score.adjust"}}" size="18"></label>
+  <datalist id="audit-actions">{{range .Data.Actions}}<option value="{{.}}">{{end}}</datalist>
+  <label>{{.T "From (UTC)"}} <input type="datetime-local" name="from" value="{{.Data.From}}"></label>
+  <label>{{.T "to"}} <input type="datetime-local" name="to" value="{{.Data.To}}"></label>
+  <button>{{.T "Filter"}}</button> <a href="/audit">{{.T "reset"}}</a>
+</form>
 <table class="audit">
 <thead><tr><th>{{.T "Time (UTC)"}}</th><th>{{.T "Administrator"}}</th><th>{{.T "Action"}}</th><th>{{.T "Target"}}</th><th>{{.T "Details"}}</th><th>IP</th></tr></thead>
 <tbody>

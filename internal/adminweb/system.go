@@ -3,6 +3,7 @@ package adminweb
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -221,17 +222,37 @@ type auditPage struct {
 	Rows   []sqlc.ListAuditLogRow
 	Admins []sqlc.Admin
 	Admin  int64
-	Next   string
+	// Action is a prefix ("contest." or a full action); From and To are
+	// datetime-local values in UTC.
+	Action, From, To string
+	Actions          []string
+	Next             string
 }
 
 func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	const perPage = 200
-	d := &auditPage{}
+	qv := r.URL.Query()
+	d := &auditPage{Action: strings.TrimSpace(qv.Get("action")), From: qv.Get("from"), To: qv.Get("to")}
 	p := sqlc.ListAuditLogParams{Limit: perPage + 1}
-	if v, err := strconv.ParseInt(r.URL.Query().Get("admin"), 10, 64); err == nil && v > 0 {
+	if v, err := strconv.ParseInt(qv.Get("admin"), 10, 64); err == nil && v > 0 {
 		d.Admin, p.AdminID = v, &v
 	}
-	if v, err := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64); err == nil && v > 0 {
+	if d.Action != "" {
+		// LIKE wildcards in the filter are literal.
+		esc := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(d.Action)
+		p.Action = &esc
+	}
+	parse := func(v *string) *time.Time {
+		for _, layout := range []string{"2006-01-02T15:04", "2006-01-02T15:04:05", "2006-01-02"} {
+			if t, err := time.ParseInLocation(layout, *v, time.UTC); err == nil {
+				return &t
+			}
+		}
+		*v = ""
+		return nil
+	}
+	p.FromTime, p.ToTime = parse(&d.From), parse(&d.To)
+	if v, err := strconv.ParseInt(qv.Get("before"), 10, 64); err == nil && v > 0 {
 		p.BeforeID = &v
 	}
 	rows, err := s.q.ListAuditLog(r.Context(), p)
@@ -241,14 +262,23 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 	}
 	if len(rows) > perPage {
 		rows = rows[:perPage]
-		next := "before=" + strconv.FormatInt(rows[len(rows)-1].ID, 10)
+		next := url.Values{"before": {strconv.FormatInt(rows[len(rows)-1].ID, 10)}}
 		if d.Admin != 0 {
-			next += "&admin=" + strconv.FormatInt(d.Admin, 10)
+			next.Set("admin", strconv.FormatInt(d.Admin, 10))
 		}
-		d.Next = next
+		for k, v := range map[string]string{"action": d.Action, "from": d.From, "to": d.To} {
+			if v != "" {
+				next.Set(k, v)
+			}
+		}
+		d.Next = next.Encode()
 	}
 	d.Rows = rows
 	if d.Admins, err = s.q.ListAdmins(r.Context()); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	if d.Actions, err = s.q.ListAuditActions(r.Context()); err != nil {
 		s.internalError(w, r, rc, err)
 		return
 	}

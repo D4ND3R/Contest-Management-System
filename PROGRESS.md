@@ -716,3 +716,11 @@ or solved/penalty, header repeated on every page, labels in the admin's
 language, same site/hidden filters. Test: ranking.TestWritePDF (+ the
 download in adminweb.TestEveryPageRenders).
 
+## SPEC_CLOSE D6 — Audit log (done)
+Skipping skills: immersive-web-design, master skill.
+
+The audit log filters by administrator, action prefix (with suggestions of
+the recorded actions) and a UTC date range; "older" pages keep the
+filters. Every mutating admin request, logins and bulk downloads are
+recorded. Test: adminweb.TestAuditFilters.
+

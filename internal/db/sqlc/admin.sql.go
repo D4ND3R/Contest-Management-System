@@ -163,19 +163,50 @@ func (q *Queries) ListAdmins(ctx context.Context) ([]Admin, error) {
 	return items, nil
 }
 
+const listAuditActions = `-- name: ListAuditActions :many
+SELECT DISTINCT action FROM audit_log ORDER BY action
+`
+
+// The actions recorded, for the filter's suggestions.
+func (q *Queries) ListAuditActions(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, listAuditActions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var action string
+		if err := rows.Scan(&action); err != nil {
+			return nil, err
+		}
+		items = append(items, action)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAuditLog = `-- name: ListAuditLog :many
 SELECT a.id, a.admin_id, a.created_at, a.action, a.target_type, a.target_id, a.details, a.ip, ad.username AS admin_username
 FROM audit_log a LEFT JOIN admins ad ON ad.id = a.admin_id
 WHERE ($2::bigint IS NULL OR a.admin_id = $2)
-  AND ($3::bigint IS NULL OR a.id < $3)
+  AND ($3::text IS NULL OR a.action LIKE $3::text || '%')
+  AND ($4::timestamptz IS NULL OR a.created_at >= $4::timestamptz)
+  AND ($5::timestamptz IS NULL OR a.created_at < $5::timestamptz)
+  AND ($6::bigint IS NULL OR a.id < $6)
 ORDER BY a.id DESC
 LIMIT $1
 `
 
 type ListAuditLogParams struct {
-	Limit    int32  `json:"limit"`
-	AdminID  *int64 `json:"admin_id"`
-	BeforeID *int64 `json:"before_id"`
+	Limit    int32      `json:"limit"`
+	AdminID  *int64     `json:"admin_id"`
+	Action   *string    `json:"action"`
+	FromTime *time.Time `json:"from_time"`
+	ToTime   *time.Time `json:"to_time"`
+	BeforeID *int64     `json:"before_id"`
 }
 
 type ListAuditLogRow struct {
@@ -191,7 +222,14 @@ type ListAuditLogRow struct {
 }
 
 func (q *Queries) ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]ListAuditLogRow, error) {
-	rows, err := q.db.Query(ctx, listAuditLog, arg.Limit, arg.AdminID, arg.BeforeID)
+	rows, err := q.db.Query(ctx, listAuditLog,
+		arg.Limit,
+		arg.AdminID,
+		arg.Action,
+		arg.FromTime,
+		arg.ToTime,
+		arg.BeforeID,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -293,6 +293,9 @@ var esClose = map[string]string{
 	"Team / institution": "Equipo / institución",
 	"page":               "página",
 	"Printable PDF":      "PDF para imprimir",
+	// D6: audit log.
+	"e.g. contest. or score.adjust": "p. ej. contest. o score.adjust",
+	"From (UTC)":                    "Desde (UTC)",
 }
 
 func init() {

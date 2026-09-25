@@ -29,9 +29,16 @@ INSERT INTO audit_log (admin_id, action, target_type, target_id, details, ip) VA
 SELECT a.*, ad.username AS admin_username
 FROM audit_log a LEFT JOIN admins ad ON ad.id = a.admin_id
 WHERE (sqlc.narg(admin_id)::bigint IS NULL OR a.admin_id = sqlc.narg(admin_id))
+  AND (sqlc.narg(action)::text IS NULL OR a.action LIKE sqlc.narg(action)::text || '%')
+  AND (sqlc.narg(from_time)::timestamptz IS NULL OR a.created_at >= sqlc.narg(from_time)::timestamptz)
+  AND (sqlc.narg(to_time)::timestamptz IS NULL OR a.created_at < sqlc.narg(to_time)::timestamptz)
   AND (sqlc.narg(before_id)::bigint IS NULL OR a.id < sqlc.narg(before_id))
 ORDER BY a.id DESC
 LIMIT $1;
+
+-- name: ListAuditActions :many
+-- The actions recorded, for the filter's suggestions.
+SELECT DISTINCT action FROM audit_log ORDER BY action;
 
 -- name: SetAdminTOTP :exec
 UPDATE admins SET totp_secret = $2 WHERE id = $1;
