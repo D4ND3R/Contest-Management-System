@@ -42,6 +42,8 @@ type overviewData struct {
 	PerUserTime     time.Duration
 	ShowTotal       bool
 	Total, MaxTotal float64
+	// Hidden: the contest does not show scores now.
+	Hidden bool
 }
 
 func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -53,6 +55,10 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqC
 		return
 	}
 	byTask := mergeScores(scores, rc.contest.TaskByID)
+	if !scoresVisible(rc) {
+		byTask = nil
+		d.Hidden = true
+	}
 	for _, t := range p.Tasks {
 		row := overviewRow{Name: t.Name, Title: t.Title, Max: t.MaxScore, Precision: t.Precision}
 		if sc, ok := byTask[t.ID]; ok {
@@ -62,7 +68,7 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqC
 		d.MaxTotal += row.Max
 		d.Rows = append(d.Rows, row)
 	}
-	d.ShowTotal = len(d.Rows) > 1
+	d.ShowTotal = len(d.Rows) > 1 && !d.Hidden
 	p.Data = d
 	s.render(w, "overview", http.StatusOK, p)
 }
@@ -99,6 +105,7 @@ type langChoice struct{ ID, Name string }
 
 type taskData struct {
 	Task         *taskView
+	Tokens       *tokenView
 	Subs         []subView
 	CanSubmit    bool
 	CannotSubmit string
@@ -127,6 +134,9 @@ func (s *Server) taskData(r *http.Request, rc *reqCtx, p *page, t *taskView) (*t
 	}
 	d.Subs = subs
 	d.Limits = s.limitsText(p, rc, t)
+	if d.Tokens, err = s.tokenView(r, rc, t); err != nil {
+		return nil, err
+	}
 	return d, nil
 }
 

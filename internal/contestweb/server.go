@@ -164,6 +164,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{contest}/tasks/{task}/submissions", auth(s.handleSubmissionList))
 	mux.HandleFunc("GET /{contest}/submissions/{id}", auth(s.handleSubmission))
 	mux.HandleFunc("GET /{contest}/submissions/{id}/row", auth(s.handleSubmissionRow))
+	mux.HandleFunc("POST /{contest}/submissions/{id}/token", auth(s.handleToken))
 	mux.HandleFunc("GET /{contest}/submissions/{id}/file/{name}", auth(s.handleSubmissionFile))
 	mux.HandleFunc("GET /{contest}/documentation", auth(s.handleDocumentation))
 	mux.HandleFunc("GET /{contest}/events", auth(s.handleEvents))

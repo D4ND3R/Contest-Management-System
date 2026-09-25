@@ -28,6 +28,8 @@ type subView struct {
 	Precision  int
 	// Author is the team member who submitted (team contests only).
 	Author string
+	// CanToken: a token can be played on it now.
+	CanToken bool
 	// Invalidated submissions stay visible but do not count.
 	Invalidated       *time.Time
 	InvalidatedReason string
@@ -48,6 +50,8 @@ type subState struct {
 	scored      bool
 	systemError *string
 	tokened     bool
+	// hidden: the contest does not show scores now.
+	hidden bool
 }
 
 func (s *Server) fillStatus(p *page, t *taskView, st subState, sv *subView) {
@@ -62,6 +66,8 @@ func (s *Server) fillStatus(p *page, t *taskView, st subState, sv *subView) {
 	case !st.scored:
 		sv.Pending, sv.Evaluating, sv.Done, sv.Total = true, true, st.done, st.total
 		sv.StatusText = p.T("Evaluating")
+	case st.hidden:
+		sv.StatusText = p.T("Evaluated")
 	default:
 		sv.HasScore = true
 		// Contestants see the public score unless they played a token or
@@ -89,6 +95,11 @@ func (s *Server) listSubs(r *http.Request, rc *reqCtx, t *taskView) ([]subView, 
 		return nil, err
 	}
 	p := &page{Lang: rc.lang}
+	hidden := !scoresVisible(rc)
+	tv, err := s.tokenView(r, rc, t)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]subView, 0, len(rows))
 	for _, row := range rows {
 		sv := subView{ID: row.ID, Time: row.SubmittedAt, Official: row.Official, Tokened: row.Tokened,
@@ -109,7 +120,9 @@ func (s *Server) listSubs(r *http.Request, rc *reqCtx, t *taskView) ([]subView, 
 			done = *row.TestcasesDone
 		}
 		s.fillStatus(p, t, subState{compilation: row.CompilationOutcome, evaluation: row.EvaluationOutcome, done: done, total: total,
-			score: row.Score, pub: row.PublicScore, scored: row.ScoredAt != nil, systemError: row.SystemError, tokened: row.Tokened}, &sv)
+			score: row.Score, pub: row.PublicScore, scored: row.ScoredAt != nil, systemError: row.SystemError, tokened: row.Tokened,
+			hidden: hidden}, &sv)
+		sv.CanToken = tv != nil && tv.CanPlay && !row.Tokened && row.Official && row.InvalidatedAt == nil && row.Author == rc.part.Username
 		out = append(out, sv)
 	}
 	return out, nil
@@ -139,8 +152,27 @@ func (s *Server) subViewFromDetail(p *page, rc *reqCtx, t *taskView, row sqlc.Ge
 		total = *row.TestcasesTotal
 	}
 	s.fillStatus(p, t, subState{compilation: row.CompilationOutcome, evaluation: row.EvaluationOutcome, done: done, total: total,
-		score: row.Score, pub: row.PublicScore, scored: row.ScoredAt != nil, systemError: row.SystemError, tokened: row.Tokened}, &sv)
+		score: row.Score, pub: row.PublicScore, scored: row.ScoredAt != nil, systemError: row.SystemError, tokened: row.Tokened,
+		hidden: !scoresVisible(rc)}, &sv)
+	if !row.Tokened && row.Official && row.InvalidatedAt == nil && row.ParticipationID != nil && *row.ParticipationID == rc.part.ID {
+		if tv, err := s.tokenView(nil, rc, t); err == nil && tv != nil && tv.CanPlay {
+			sv.CanToken = true
+		}
+	}
 	return sv
+}
+
+// tokenView loads the contestant's plays and computes the token view of a
+// task.
+func (s *Server) tokenView(r *http.Request, rc *reqCtx, t *taskView) (*tokenView, error) {
+	if rc.contest.TokenMode == "disabled" || t.TokenMode == "disabled" {
+		return nil, nil
+	}
+	played, err := s.q.ListTokenTimesByParticipation(rc.ctx, rc.part.ID)
+	if err != nil {
+		return nil, err
+	}
+	return s.tokens(rc, t, played), nil
 }
 
 // ---------------------------------------------------------------- details
@@ -207,12 +239,15 @@ func (s *Server) detailData(r *http.Request, p *page, rc *reqCtx, t *taskView, r
 		if row.CompilationStderr != nil {
 			c.Stderr = *row.CompilationStderr
 		}
-		if c.OK && c.Stdout == "" && c.Stderr == "" && t.TaskType == "OutputOnly" {
+		if !rc.contest.ShowCompilationOutput {
+			c.Stdout, c.Stderr = "", ""
+		}
+		if c != nil && c.OK && c.Stdout == "" && c.Stderr == "" && t.TaskType == "OutputOnly" {
 			c = nil
 		}
 		d.Compilation = c
 	}
-	if row.ScoredAt == nil {
+	if row.ScoredAt == nil || !scoresVisible(rc) {
 		return d, nil
 	}
 	// Full details for tokened submissions, public ones otherwise.

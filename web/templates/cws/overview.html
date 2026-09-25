@@ -21,11 +21,12 @@
 </section>
 {{if .Tasks}}
 <h2>{{.T "Tasks"}}</h2>
+{{if $d.Hidden}}<p class="muted">{{if eq .Contest.ScoreVisibility "after"}}{{.T "Scores will be shown when the contest is over."}}{{else}}{{.T "Scores are not shown in this contest."}}{{end}}</p>{{end}}
 <table>
-<tr><th>{{.T "Task"}}</th><th>{{.T "Title"}}</th><th class="num">{{.T "Score"}}</th></tr>
+<tr><th>{{.T "Task"}}</th><th>{{.T "Title"}}</th>{{if not $d.Hidden}}<th class="num">{{.T "Score"}}</th>{{end}}</tr>
 {{range $d.Rows}}<tr>
   <td><a href="{{$.Base}}tasks/{{.Name}}">{{.Name}}</a></td><td>{{.Title}}</td>
-  <td class="num">{{if .HasScore}}{{$.Score .Score .Precision}} / {{$.Score .Max .Precision}}{{else}}<span class="muted">—</span>{{end}}{{if .Pending}} <span class="muted" title="{{$.T "being evaluated"}}">…</span>{{end}}</td>
+  {{if not $d.Hidden}}<td class="num">{{if .HasScore}}{{$.Score .Score .Precision}} / {{$.Score .Max .Precision}}{{else}}<span class="muted">—</span>{{end}}{{if .Pending}} <span class="muted" title="{{$.T "being evaluated"}}">…</span>{{end}}</td>{{end}}
 </tr>{{end}}
 {{if $d.ShowTotal}}<tr><th colspan="2">{{.T "Total"}}</th><th class="num">{{.Score $d.Total 2}} / {{.Score $d.MaxTotal 2}}</th></tr>{{end}}
 </table>

@@ -410,3 +410,13 @@ func (q *Queries) ListSubmissionsWithResults(ctx context.Context, arg ListSubmis
 	}
 	return items, nil
 }
+
+const lockParticipation = `-- name: LockParticipation :exec
+SELECT id FROM participations WHERE id = $1 FOR UPDATE
+`
+
+// Serialises token plays of a participation (no double spending).
+func (q *Queries) LockParticipation(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, lockParticipation, id)
+	return err
+}

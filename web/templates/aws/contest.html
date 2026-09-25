@@ -98,6 +98,16 @@
   <label><input type="checkbox" name="submissions_download_allowed" {{if $c.SubmissionsDownloadAllowed}}checked{{end}}> {{.T "Contestants can download their submissions"}}</label>
 </p>
 </fieldset>
+<fieldset><legend>{{.T "Results and feedback"}}</legend>
+<div class="grid">
+  <label>{{.T "Scores shown to contestants"}} <select name="score_visibility">
+    <option value="always" {{if eq $c.ScoreVisibility "always"}}selected{{end}}>{{.T "as soon as they are known"}}</option>
+    <option value="after" {{if eq $c.ScoreVisibility "after"}}selected{{end}}>{{.T "only after the end"}}</option>
+    <option value="never" {{if eq $c.ScoreVisibility "never"}}selected{{end}}>{{.T "never"}}</option></select></label>
+</div>
+<p class="checks"><label><input type="checkbox" name="show_compilation_output" {{if $c.ShowCompilationOutput}}checked{{end}}> {{.T "Show the compiler's messages"}}</label></p>
+<p class="muted small">{{.T "How much of each testcase is shown is set per task (feedback level); tokens (below) show the full result of a submission during the contest."}}</p>
+</fieldset>
 {{template "token-fields" (part $ $c)}}
 {{template "limit-fields" (part $ $c)}}
 <fieldset><legend>{{.T "Scoring and ranking"}}</legend>

@@ -33,5 +33,8 @@
   {{else}}<p class="muted">{{$d.CannotSubmit}}</p>{{end}}
 </section>
 <h2>{{.T "Submissions"}}</h2>
+{{with $d.Tokens}}<p class="muted" id="tokens">{{if .Unlimited}}{{$.T "Tokens: unlimited."}}{{else}}{{$.T "Tokens available: %d." .Available}}{{end}}
+  {{if .Wait}}{{$.T "The next one can be played in %s." ($.Dur .Wait)}}{{else if not .Next.IsZero}}{{$.T "Next token at %s." ($.Time .Next)}}{{end}}
+  {{$.T "A token shows the full result of a submission."}}</p>{{end}}
 {{template "submissions" .}}
 {{end}}

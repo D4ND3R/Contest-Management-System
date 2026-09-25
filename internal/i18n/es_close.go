@@ -90,6 +90,26 @@ var esClose = map[string]string{
 	"Maximum team size":                                           "Tamaño máximo del equipo",
 	"no limit":                                                    "sin límite",
 	"New tasks of the contest start with this score mode and the score precision above; each task can change them.": "Los problemas nuevos del concurso empiezan con este modo de puntaje y la precisión de arriba; cada problema puede cambiarlos.",
+
+	// B4: results, feedback and tokens.
+	"A token shows the full result of a submission.": "Un token muestra el resultado completo de un envío.",
+	"How much of each testcase is shown is set per task (feedback level); tokens (below) show the full result of a submission during the contest.": "Cuánto se muestra de cada caso de prueba se define en cada problema (nivel de retroalimentación); los tokens (abajo) muestran el resultado completo de un envío durante el concurso.",
+	"Next token at %s.":                                  "Próximo token a las %s.",
+	"Results and feedback":                               "Resultados y retroalimentación",
+	"Scores are not shown in this contest.":              "En este concurso no se muestran los puntajes.",
+	"Scores shown to contestants":                        "Puntajes que ven los concursantes",
+	"Scores will be shown when the contest is over.":     "Los puntajes se mostrarán cuando termine el concurso.",
+	"Show the compiler's messages":                       "Mostrar los mensajes del compilador",
+	"The next one can be played in %s.":                  "El próximo se puede usar en %s.",
+	"Tokens available: %d.":                              "Tokens disponibles: %d.",
+	"Tokens: unlimited.":                                 "Tokens: ilimitados.",
+	"as soon as they are known":                          "en cuanto se conocen",
+	"never":                                              "nunca",
+	"use a token":                                        "usar un token",
+	"Tokens can only be played on official submissions.": "Los tokens solo se pueden usar en envíos oficiales.",
+	"No token is available now.":                         "No hay tokens disponibles ahora.",
+	"A token was already played on this submission.":     "Ya se usó un token en este envío.",
+	"Token": "Token",
 }
 
 func init() {

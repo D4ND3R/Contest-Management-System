@@ -504,3 +504,18 @@ show. `sandbox.TestIsolate` now takes an exclusive `flock` on
 a process), so judging tests of different packages run one at a time while
 everything else stays parallel. The full suite got faster (4 min instead of
 ~5), because nothing is retried or waits on overloaded cores.
+
+## D55. Tokens are computed, not stored
+A token play is a row in `tokens`; the tokens *available* are recomputed
+from the rules and the play times (`contest.Tokens`): start with
+`gen_initial`, add `gen_number` every `gen_interval` from the contestant's
+window start up to `gen_max`, subtract plays in time order, then apply the
+total cap and the minimum interval. The contest pool (all plays) and the
+task pool (plays on that task) must both allow a play. Nothing to keep in
+sync, and changing the rules mid-contest is immediately consistent. Plays
+lock the participation row (`SELECT … FOR UPDATE`) and recount inside the
+transaction, so two clicks cannot spend one token twice; the unique
+submission constraint rejects a second token on the same submission. After
+a play the dispatcher re-aggregates (it matters for "max of tokened and
+last") and the row refreshes with the full result. Tokens are only offered
+while the contestant's window runs and scores are visible.

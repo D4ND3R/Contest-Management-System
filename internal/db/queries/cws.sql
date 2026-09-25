@@ -67,3 +67,7 @@ LEFT JOIN testcases tc ON tc.dataset_id = @dataset_id::bigint AND f.filename = r
 LEFT JOIN evaluations e ON e.submission_id = s.id AND e.dataset_id = @dataset_id::bigint AND e.testcase_id = tc.id
 WHERE s.participation_id = ANY(@participation_ids::bigint[]) AND s.task_id = @task_id::bigint AND s.invalidated_at IS NULL
 ORDER BY f.filename, e.outcome DESC NULLS LAST, s.submitted_at DESC, s.id DESC;
+
+-- name: LockParticipation :exec
+-- Serialises token plays of a participation (no double spending).
+SELECT id FROM participations WHERE id = $1 FOR UPDATE;

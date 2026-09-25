@@ -588,3 +588,14 @@ each other's live updates. IOI/ICPC with penalty already existed. New tasks
 and imported packages take the contest's default score mode and precision
 (packages keep what they state). Tests: contestweb.TestTeamSharedSubmissions,
 adminweb.TestContestModality, problempkg.TestImportExportRoundTrip.
+
+## SPEC_CLOSE B4 — Results and feedback (done)
+Skipping skills: immersive-web-design, master skill.
+
+Per contest: scores shown always, only after the end or never (overview,
+task page, rows and details all follow it) and the compiler's messages can
+be hidden; the feedback level stays per task. Tokens now have their
+contestant UI: the task page shows the tokens available and when the next
+one comes, each own official submission offers "use a token", which shows
+its full result and re-aggregates the score. Tests: contest.TestTokens,
+contestweb.TestTokens, contestweb.TestScoreVisibilityAndCompilerOutput.

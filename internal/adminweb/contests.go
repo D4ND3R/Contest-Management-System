@@ -176,6 +176,10 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 		f.fail("the analysis ends before it starts")
 	}
 	c.PracticeEnabled = f.check("practice_enabled")
+	if f.str("score_visibility") != "" {
+		c.ScoreVisibility = f.oneOf("score_visibility", "Scores shown to contestants", "always", "after", "never")
+		c.ShowCompilationOutput = f.check("show_compilation_output")
+	}
 	c.SubmissionsDownloadAllowed = f.check("submissions_download_allowed")
 	c.AllowQuestions = f.check("allow_questions")
 	if f.str("questions_per_minute") != "" {

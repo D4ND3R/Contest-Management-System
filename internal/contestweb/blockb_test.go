@@ -230,3 +230,118 @@ func TestTeamSharedSubmissions(t *testing.T) {
 		t.Fatal("individual contest shows the team score")
 	}
 }
+
+// scoreSubmission simulates the dispatcher: compiled (with a compiler
+// warning) and scored 100 (public 50).
+func (f *fixture) scoreSubmission(t *testing.T, id int64) {
+	t.Helper()
+	f.q.EnsureSubmissionResult(bg, sqlc.EnsureSubmissionResultParams{SubmissionID: id, DatasetID: f.ds.ID})
+	ok := "ok"
+	f.q.SetCompilationResult(bg, sqlc.SetCompilationResultParams{SubmissionID: id, DatasetID: f.ds.ID, CompilationOutcome: &ok,
+		CompilationText: "Compilation succeeded", CompilationStderr: "warning: unused variable", TestcasesTotal: 2})
+	full, pub := 100.0, 50.0
+	det := json.RawMessage(`{"type":"sum","max_score":100,"testcases":[{"codename":"0","public":true,"outcome":1,"text":"Output is correct","time":0.01,"memory":1024,"status":"ok"}]}`)
+	f.q.SetScore(bg, sqlc.SetScoreParams{SubmissionID: id, DatasetID: f.ds.ID, Score: &full, ScoreDetails: det, PublicScore: &pub,
+		PublicScoreDetails: det, RankingScoreDetails: json.RawMessage(`[100]`)})
+	f.q.UpsertParticipationTaskScore(bg, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: f.part.ID, TaskID: f.task.ID,
+		Score: 100, SubtaskScores: json.RawMessage(`[]`)})
+}
+
+// TestScoreVisibilityAndCompilerOutput (SPEC_CLOSE B4): scores shown
+// always, only after the end or never; the compiler's messages can be
+// hidden.
+func TestScoreVisibilityAndCompilerOutput(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	c := f.client()
+	_, page := f.login(c, "ana", "secret")
+	f.submit(c, csrfOf(t, page), "c11", "int main(){}", false)
+	subs, _ := f.q.ListSubmissionsByParticipation(bg, f.part.ID)
+	id := subs[0].ID
+	f.scoreSubmission(t, id)
+	detail := fmt.Sprintf("/ioi/submissions/%d", id)
+	if _, body := f.get(c, "/ioi/"); !strings.Contains(body, "100 / 100") {
+		t.Fatalf("score not shown:\n%s", body)
+	}
+	if _, body := f.get(c, detail); !strings.Contains(body, "warning: unused variable") || !strings.Contains(body, "Output is correct") {
+		t.Fatalf("details:\n%s", body)
+	}
+	f.setContest(t, "score_visibility = 'never', show_compilation_output = false")
+	for _, path := range []string{"/ioi/", "/ioi/tasks/sum", detail, detail + "/row"} {
+		_, body := f.get(c, path)
+		if strings.Contains(body, "/ 100") || strings.Contains(body, "Output is correct") {
+			t.Errorf("%s shows scores:\n%s", path, body)
+		}
+	}
+	_, body := f.get(c, detail)
+	if strings.Contains(body, "warning: unused variable") || !strings.Contains(body, "Compilation succeeded") {
+		t.Fatalf("compiler output toggle:\n%s", body)
+	}
+	if _, body := f.get(c, "/ioi/"); !strings.Contains(body, "Scores are not shown") {
+		t.Fatalf("no notice:\n%s", body)
+	}
+	f.setContest(t, "score_visibility = 'after'")
+	if _, body := f.get(c, "/ioi/"); !strings.Contains(body, "when the contest is over") || strings.Contains(body, "/ 100") {
+		t.Fatalf("after, during the contest:\n%s", body)
+	}
+	f.setContest(t, "start_time = now() - interval '3 hours', stop_time = now() - interval '1 hour'")
+	if _, body := f.get(c, "/ioi/"); !strings.Contains(body, "100 / 100") {
+		t.Fatalf("after, once over:\n%s", body)
+	}
+}
+
+// TestTokens (SPEC_CLOSE B4): the contestant sees the tokens available and
+// plays one; both the contest and the task rules apply; no double spending.
+func TestTokens(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	c := f.client()
+	_, page := f.login(c, "ana", "secret")
+	if strings.Contains(page, "use a token") {
+		t.Fatal("token offered while tokens are disabled")
+	}
+	f.submit(c, csrfOf(t, page), "c11", "int main(){}", false)
+	f.submit(c, csrfOf(t, page), "c11", "int main(){return 0;}", false)
+	subs, _ := f.q.ListSubmissionsByParticipation(bg, f.part.ID)
+	for _, s := range subs {
+		f.scoreSubmission(t, s.ID)
+	}
+	f.pool.Exec(bg, "UPDATE tasks SET token_mode = 'infinite' WHERE id = $1", f.task.ID)
+	f.setContest(t, "token_mode = 'finite', token_gen_initial = 1, token_gen_number = 0")
+	_, page = f.get(c, "/ioi/tasks/sum")
+	if !strings.Contains(page, "Tokens available: 1.") || strings.Count(page, "use a token") != 2 {
+		t.Fatalf("token offer:\n%s", page)
+	}
+	play := func(id int64) (int, string) {
+		resp, err := c.PostForm(fmt.Sprintf("%s/ioi/submissions/%d/token", f.url, id), url.Values{"csrf": {csrfOf(t, page)}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+	code, body := play(subs[0].ID)
+	if code != 200 || !strings.Contains(body, "Tokens available: 0.") || strings.Contains(body, "use a token") {
+		t.Fatalf("after the token = %d:\n%s", code, body)
+	}
+	// The tokened submission shows its full score.
+	if _, row := f.get(c, fmt.Sprintf("/ioi/submissions/%d/row", subs[0].ID)); !strings.Contains(row, "100 / 100") || !strings.Contains(row, "★") {
+		t.Fatalf("tokened row:\n%s", row)
+	}
+	if code, _ := play(subs[1].ID); code != 409 {
+		t.Fatalf("second token = %d", code)
+	}
+	if code, _ := play(subs[0].ID); code != 409 {
+		t.Fatalf("token on a tokened submission = %d", code)
+	}
+	var n int
+	f.pool.QueryRow(bg, "SELECT count(*) FROM tokens").Scan(&n)
+	if n != 1 {
+		t.Fatalf("%d tokens stored", n)
+	}
+	// The task's own rules apply too.
+	f.pool.Exec(bg, "UPDATE tasks SET token_mode = 'disabled' WHERE id = $1", f.task.ID)
+	f.setContest(t, "token_gen_initial = 5")
+	if _, page := f.get(c, "/ioi/tasks/sum"); strings.Contains(page, "use a token") {
+		t.Fatal("token offered on a task without tokens")
+	}
+}
