@@ -188,6 +188,7 @@ func (b *Box) dispose() { _ = b.Cleanup(context.Background()) }
 // by the worker are root-owned, so the sandboxed program can read (and, with
 // mode 0755, execute) but not modify them.
 func (b *Box) WriteFile(name string, data []byte, mode os.FileMode) error {
+	defer holdForkLock(mode)()
 	f, err := b.create(name, mode)
 	if err != nil {
 		return err
@@ -197,6 +198,21 @@ func (b *Box) WriteFile(name string, data []byte, mode os.FileMode) error {
 		err = cerr
 	}
 	return err
+}
+
+// holdForkLock keeps the process from forking while an executable file is
+// open for writing, and returns the function that allows it again. A child
+// forked meanwhile (another slot starting isolate) would inherit the write
+// descriptor until it execs, and running the file in that window fails
+// with ETXTBSY ("text file busy": isolate reports exit code 127). Every
+// fork of the Go runtime takes syscall.ForkLock for writing, so a read
+// lock is enough; writes of non-executable files are not held back.
+func holdForkLock(mode os.FileMode) func() {
+	if mode&0o111 == 0 {
+		return func() {}
+	}
+	syscall.ForkLock.RLock()
+	return syscall.ForkLock.RUnlock
 }
 
 func (b *Box) create(name string, mode os.FileMode) (*os.File, error) {
@@ -220,6 +236,7 @@ func (b *Box) create(name string, mode os.FileMode) (*os.File, error) {
 // starts, so a hard link would hand a shared (cached) inode to untrusted code.
 // Use a read-only Stage for zero-copy access to large inputs.
 func (b *Box) CopyIn(src, name string, mode os.FileMode) error {
+	defer holdForkLock(mode)()
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -238,6 +255,7 @@ func (b *Box) CopyIn(src, name string, mode os.FileMode) error {
 
 // WriteFrom creates name in the box with the content of r.
 func (b *Box) WriteFrom(name string, r io.Reader, mode os.FileMode) error {
+	defer holdForkLock(mode)()
 	out, err := b.create(name, mode)
 	if err != nil {
 		return err
