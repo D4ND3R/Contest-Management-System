@@ -197,6 +197,7 @@ func (s *Server) Handler() http.Handler {
 	get("/contests/{id}", s.handleContest)
 	post("/contests/{id}", permAll, "contest.update", s.handleContestUpdate)
 	post("/contests/{id}/delete", permAll, "contest.delete", s.handleContestDelete)
+	post("/contests/{id}/clone", permAll, "contest.clone", s.handleContestClone)
 	post("/contests/{id}/tasks", permAll, "contest.add_task", s.handleContestAddTask)
 	post("/contests/{id}/tasks/{task}/move", permAll, "contest.move_task", s.handleContestMoveTask)
 	post("/contests/{id}/tasks/{task}/remove", permAll, "contest.remove_task", s.handleContestRemoveTask)

@@ -41,7 +41,7 @@ WHERE s.id = @id::bigint;
 -- name: ListActiveContests :many
 -- Contests shown on the CWS landing page.
 SELECT id, name, description, start_time, stop_time FROM contests
-WHERE stop_time > now() - interval '30 days' OR analysis_stop > now()
+WHERE status = 'published' AND (stop_time > now() - interval '30 days' OR analysis_stop > now() OR practice_enabled)
 ORDER BY start_time DESC;
 
 -- name: BestPreviousOutputs :many

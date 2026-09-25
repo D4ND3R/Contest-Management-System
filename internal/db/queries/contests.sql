@@ -37,7 +37,10 @@ UPDATE contests SET
     ranking_freeze_time = $36, max_print_jobs = $37, max_print_pages = $38, questions_per_minute = $39,
     ranking_visibility = $40, ranking_contestant_view = $41, ranking_when = $42, ranking_freeze_minutes = $43,
     ranking_show_subtasks = $44, ranking_show_flags = $45, ranking_show_institutions = $46,
-    ranking_show_hidden = $47, ranking_anonymous = $48, updated_at = now()
+    ranking_show_hidden = $47, ranking_anonymous = $48, status = $49, practice_enabled = $50,
+    default_score_mode = $51, score_visibility = $52, show_compilation_output = $53,
+    max_submission_bytes = $54, registration = $55, invitation_code = $56, password_min_length = $57,
+    session_minutes = $58, team_mode = $59, max_team_size = $60, updated_at = now()
 WHERE id = $1
 RETURNING *;
 

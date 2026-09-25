@@ -99,6 +99,8 @@ func (s *Server) handleContestNew(w http.ResponseWriter, r *http.Request, rc *re
 	now := s.now().Truncate(time.Hour).Add(time.Hour)
 	c := db.NewContestUpdate()
 	c.StartTime, c.StopTime = now, now.Add(5*time.Hour)
+	// New contests start hidden from contestants until published.
+	c.Status = "draft"
 	d, _ := s.contestForm(r.Context(), c, true)
 	s.render(w, "contest", http.StatusOK, s.newPage(w, r, rc, "New contest", "contests", d).crumb("Contests", "/contests"))
 }
@@ -138,6 +140,9 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 		f.fail("%q is reserved", c.Name)
 	}
 	c.Description = f.str("description")
+	if f.str("status") != "" {
+		c.Status = f.oneOf("status", "Status", "draft", "published", "archived")
+	}
 	c.Timezone = f.timezone("timezone")
 	loc, err := time.LoadLocation(c.Timezone)
 	if err != nil {

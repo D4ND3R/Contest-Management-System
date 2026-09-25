@@ -137,6 +137,9 @@ func (p *page) EndMillis() int64 { return p.Status.End.UnixMilli() }
 
 // PhaseText describes the contest phase.
 func (p *page) PhaseText() string {
+	if p.Contest != nil && p.Contest.Status == "archived" {
+		return p.T("This contest is archived: you can look at it but not submit.")
+	}
 	switch p.Status.Phase {
 	case contest.NotStarted:
 		return p.T("The contest has not started yet.")

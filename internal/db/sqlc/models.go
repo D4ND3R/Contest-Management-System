@@ -109,6 +109,16 @@ type Contest struct {
 	RankingShowInstitutions     bool       `json:"ranking_show_institutions"`
 	RankingShowHidden           bool       `json:"ranking_show_hidden"`
 	RankingAnonymous            bool       `json:"ranking_anonymous"`
+	Status                      string     `json:"status"`
+	PracticeEnabled             bool       `json:"practice_enabled"`
+	DefaultScoreMode            string     `json:"default_score_mode"`
+	ScoreVisibility             string     `json:"score_visibility"`
+	ShowCompilationOutput       bool       `json:"show_compilation_output"`
+	MaxSubmissionBytes          *int64     `json:"max_submission_bytes"`
+	Registration                string     `json:"registration"`
+	InvitationCode              string     `json:"invitation_code"`
+	PasswordMinLength           int32      `json:"password_min_length"`
+	SessionMinutes              *int32     `json:"session_minutes"`
 }
 
 type Dataset struct {
@@ -191,6 +201,7 @@ type Participation struct {
 	LoginNonce          int64          `json:"login_nonce"`
 	SiteID              *int64         `json:"site_id"`
 	CommunicationSeenAt time.Time      `json:"communication_seen_at"`
+	Approved            bool           `json:"approved"`
 }
 
 type ParticipationTaskScore struct {

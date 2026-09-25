@@ -554,3 +554,16 @@ e2e.TestExternalWorker (a real judgement through the blob server),
 cli.TestDocsLinks.
 
 Block A (A1–A6) is complete.
+
+## SPEC_CLOSE B1 — Contest status, copies, languages, timezone (done)
+Skipping skills: immersive-web-design, master skill.
+
+Migration 0009 adds the block B contest settings. Contests are draft
+(hidden from contestants, previewable by admins, off the ranking servers),
+published or archived (read-only, unlisted). "Copy this contest" creates a
+draft with every setting, the sites and the tasks with all their datasets,
+testcases, managers, statements and attachments (task names get a suffix),
+optionally the participants, never submissions. Programming languages,
+interface languages and the timezone were already per contest; tests now
+cover them. Tests: adminweb.TestContestClone, contestweb.TestContestStatus,
+db.TestRowToUpdateCopiesEveryField.

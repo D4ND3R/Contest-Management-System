@@ -131,7 +131,7 @@ func (q *Queries) AdminExportParticipants(ctx context.Context, contestID int64) 
 }
 
 const adminGetParticipation = `-- name: AdminGetParticipation :one
-SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, p.communication_seen_at, u.username, u.first_name, u.last_name, c.name AS contest_name
+SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, p.communication_seen_at, p.approved, u.username, u.first_name, u.last_name, c.name AS contest_name
 FROM participations p
 JOIN users u ON u.id = p.user_id
 JOIN contests c ON c.id = p.contest_id
@@ -153,6 +153,7 @@ type AdminGetParticipationRow struct {
 	LoginNonce          int64          `json:"login_nonce"`
 	SiteID              *int64         `json:"site_id"`
 	CommunicationSeenAt time.Time      `json:"communication_seen_at"`
+	Approved            bool           `json:"approved"`
 	Username            string         `json:"username"`
 	FirstName           string         `json:"first_name"`
 	LastName            string         `json:"last_name"`
@@ -177,6 +178,7 @@ func (q *Queries) AdminGetParticipation(ctx context.Context, id int64) (AdminGet
 		&i.LoginNonce,
 		&i.SiteID,
 		&i.CommunicationSeenAt,
+		&i.Approved,
 		&i.Username,
 		&i.FirstName,
 		&i.LastName,
@@ -571,7 +573,7 @@ func (q *Queries) AdminListTesterRuns(ctx context.Context, taskID int64) ([]Admi
 }
 
 const adminListUserParticipations = `-- name: AdminListUserParticipations :many
-SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, p.communication_seen_at, c.name AS contest_name, t.code AS team_code
+SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, p.communication_seen_at, p.approved, c.name AS contest_name, t.code AS team_code
 FROM participations p
 JOIN contests c ON c.id = p.contest_id
 LEFT JOIN teams t ON t.id = p.team_id
@@ -594,6 +596,7 @@ type AdminListUserParticipationsRow struct {
 	LoginNonce          int64          `json:"login_nonce"`
 	SiteID              *int64         `json:"site_id"`
 	CommunicationSeenAt time.Time      `json:"communication_seen_at"`
+	Approved            bool           `json:"approved"`
 	ContestName         string         `json:"contest_name"`
 	TeamCode            *string        `json:"team_code"`
 }
@@ -622,6 +625,7 @@ func (q *Queries) AdminListUserParticipations(ctx context.Context, userID int64)
 			&i.LoginNonce,
 			&i.SiteID,
 			&i.CommunicationSeenAt,
+			&i.Approved,
 			&i.ContestName,
 			&i.TeamCode,
 		); err != nil {

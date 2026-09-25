@@ -268,6 +268,9 @@ func (p *Pusher) flush(ctx context.Context) {
 
 // published reports whether c's board goes to the ranking web servers.
 func published(c sqlc.Contest, now time.Time) bool {
+	if c.Status == "draft" {
+		return false
+	}
 	switch c.RankingVisibility {
 	case "public", "admins":
 	default:

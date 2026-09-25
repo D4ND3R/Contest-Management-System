@@ -108,6 +108,7 @@ func TestDynamicKeysTranslated(t *testing.T) {
 		"choose at least one testcase", "write a regular expression", "the threshold must be a number", "GroupThreshold needs a threshold",
 		"public", "contestants", "admins", "hidden", // ranking visibility
 		backup.KindScheduled, backup.KindManual, backup.KindCLI, "external", "Kind", "done", "failed", // backups
+		"draft", "published", "archived", // contest status
 		"Bad Request", "Unauthorized", "Forbidden", "Not Found", "Method Not Allowed", "Conflict",
 		"Request Entity Too Large", "Unprocessable Entity", "Too Many Requests", "Internal Server Error"}
 	for _, v := range problempkg.Verdicts {

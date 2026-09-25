@@ -30,6 +30,8 @@ func NewContestUpdate() sqlc.UpdateContestParams {
 	c.QuestionsPerMinute = 3
 	c.RankingVisibility, c.RankingContestantView, c.RankingWhen = "public", "full", "always"
 	c.RankingShowSubtasks, c.RankingShowFlags, c.RankingShowInstitutions = true, true, true
+	c.Status, c.DefaultScoreMode, c.ScoreVisibility, c.ShowCompilationOutput = "published", "max_subtask", "always", true
+	c.Registration, c.PasswordMinLength = "admin", 8
 	return c
 }
 
@@ -55,6 +57,11 @@ func ContestToUpdate(c sqlc.Contest) sqlc.UpdateContestParams {
 		RankingFreezeMinutes: c.RankingFreezeMinutes, RankingShowSubtasks: c.RankingShowSubtasks,
 		RankingShowFlags: c.RankingShowFlags, RankingShowInstitutions: c.RankingShowInstitutions,
 		RankingShowHidden: c.RankingShowHidden, RankingAnonymous: c.RankingAnonymous,
+		Status: c.Status, PracticeEnabled: c.PracticeEnabled, DefaultScoreMode: c.DefaultScoreMode,
+		ScoreVisibility: c.ScoreVisibility, ShowCompilationOutput: c.ShowCompilationOutput,
+		MaxSubmissionBytes: c.MaxSubmissionBytes, Registration: c.Registration, InvitationCode: c.InvitationCode,
+		PasswordMinLength: c.PasswordMinLength, SessionMinutes: c.SessionMinutes, TeamMode: c.TeamMode,
+		MaxTeamSize: c.MaxTeamSize,
 	}
 }
 

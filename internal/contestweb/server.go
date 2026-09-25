@@ -247,8 +247,23 @@ func (s *Server) withContest(h http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
+		if cv.Status == "draft" && !s.adminPreview(r, cv) {
+			// Drafts exist only for the organizers' read-only preview.
+			s.errorPage(w, r, nil, http.StatusNotFound, "Not found", "This contest does not exist.")
+			return
+		}
 		h(w, r.WithContext(context.WithValue(r.Context(), contestKey, cv)))
 	}
+}
+
+// adminPreview reports whether the request is an administrator's read-only
+// view of the contest (or the link that opens one).
+func (s *Server) adminPreview(r *http.Request, cv *contestView) bool {
+	if strings.HasSuffix(r.URL.Path, "/impersonate") {
+		return true
+	}
+	sess := s.cookie(cv.ID).Read(r)
+	return sess != nil && sess.ReadOnly && sess.ContestID == cv.ID
 }
 
 func contestOf(r *http.Request) *contestView { return r.Context().Value(contestKey).(*contestView) }
@@ -296,6 +311,10 @@ func (s *Server) withAuth(h func(http.ResponseWriter, *http.Request, *reqCtx)) h
 		rc := &reqCtx{ctx: r.Context(), contest: cv, part: part, sess: sess, ip: ip, now: now,
 			lang: s.language(r, cv, part.PreferredLanguages, sess.Lang)}
 		rc.status = contest.Compute(cv.Rules, participantOf(part), now)
+		if cv.Status == "archived" {
+			// Archived contests are read-only for everybody.
+			rc.status = contest.Status{Phase: contest.Finished, Begin: rc.status.Begin, End: rc.status.End}
+		}
 		if r.Method == http.MethodPost && sess.ReadOnly {
 			s.errorPage(w, r, cv, http.StatusForbidden, "Forbidden", "This is a read-only view for administrators.")
 			return

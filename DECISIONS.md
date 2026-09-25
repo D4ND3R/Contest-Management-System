@@ -443,3 +443,24 @@ bearer token (GET/HEAD by digest, POST to add; no delete, no overwrite:
 content addressing makes that safe), and `blob.backend: http` lets a worker
 use it behind its usual local cache, verifying every download against its
 SHA-256. With Valkey, that is all a worker needs, over WireGuard or a VPC.
+
+## D51. Contest status and copies
+Three statuses: **draft** (the contest web server answers 404 to everybody
+but an administrator's read-only preview; the pusher keeps it off the
+ranking servers), **published**, **archived** (read-only for contestants:
+the phase is forced to "finished", nothing can be submitted or asked; not
+listed). Existing contests became "published"; the admin's New contest form
+starts at "draft" so nothing half-configured is visible by accident.
+
+A copy is made in one transaction with `INSERT … SELECT` over the columns
+the catalog lists (`pg_attribute`), naming only the columns that change
+(ids, names, contest, created_at, the live dataset); a column added by a
+future migration is therefore copied without anyone remembering to. Task
+names are unique across the installation (they appear in URLs and in
+packages), so the copies get a suffix (default `-<new contest>`), renameable
+afterwards. Participants are optional (same users, teams, IP ranges and
+times, sites mapped by name, nobody started); submissions, questions,
+announcements and tester runs never travel. `db.TestRowToUpdateCopiesEveryField`
+guards the other direction: every column an update query sets is copied
+from the row by the `*ToUpdate` helpers, so edit forms cannot reset a
+column they do not show.

@@ -6,7 +6,7 @@
 {{range .Data}}
 <tr>
   <td><a href="/contests/{{.ID}}">{{.Name}}</a></td><td>{{.Description}}</td>
-  <td><span class="phase {{.Phase}}">{{$.T .Phase}}</span></td>
+  <td><span class="phase {{.Phase}}">{{$.T .Phase}}</span>{{if ne .Status "published"}} <span class="tag">{{$.T .Status}}</span>{{end}}</td>
   <td>{{dt .StartTime}}</td><td>{{dt .StopTime}}</td>
   <td class="num">{{.Tasks}}</td><td class="num">{{.Participations}}</td><td class="num">{{.Submissions}}</td>
 </tr>

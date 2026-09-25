@@ -203,7 +203,7 @@ func (q *Queries) GetSubmissionWithResult(ctx context.Context, arg GetSubmission
 
 const listActiveContests = `-- name: ListActiveContests :many
 SELECT id, name, description, start_time, stop_time FROM contests
-WHERE stop_time > now() - interval '30 days' OR analysis_stop > now()
+WHERE status = 'published' AND (stop_time > now() - interval '30 days' OR analysis_stop > now() OR practice_enabled)
 ORDER BY start_time DESC
 `
 

@@ -53,6 +53,25 @@ var esClose = map[string]string{
 	"Another backup is running.":   "Hay otro respaldo en curso.",
 	"Backup started.":              "Respaldo iniciado.",
 	"Backup deleted.":              "Respaldo eliminado.",
+
+	// B1: contest status and copies.
+	"Status":                           "Estado",
+	"draft (hidden from contestants)":  "borrador (oculto a los concursantes)",
+	"published":                        "publicado",
+	"archived (read-only, not listed)": "archivado (solo lectura, no listado)",
+	"draft":                            "borrador",
+	"archived":                         "archivado",
+	"Copy this contest":                "Copiar este concurso",
+	"The copy is a draft with the same settings, sites and tasks (statements, attachments, datasets, testcases); it has no submissions. Task names get a suffix because they are unique.": "La copia es un borrador con la misma configuración, sedes y problemas (enunciados, adjuntos, datasets, casos de prueba); no tiene envíos. Los nombres de los problemas llevan un sufijo porque son únicos.",
+	"Name of the copy":           "Nombre de la copia",
+	"Task name suffix":           "Sufijo de los problemas",
+	"-<name of the copy>":        "-<nombre de la copia>",
+	"also copy the participants": "copiar también a los participantes",
+	"Copy contest":               "Copiar concurso",
+	"Contest copied as a draft: check its dates and publish it.":           "Concurso copiado como borrador: revisa sus fechas y publícalo.",
+	"the task name suffix may only have letters, digits, '_', '.' and '-'": "el sufijo de los problemas solo puede tener letras, dígitos, '_', '.' y '-'",
+	"The name is already taken:":                                           "El nombre ya está en uso:",
+	"This contest is archived: you can look at it but not submit.":         "Este concurso está archivado: puedes verlo pero no enviar.",
 }
 
 func init() {
