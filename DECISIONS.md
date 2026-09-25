@@ -356,3 +356,18 @@ the secret, "hidden" nowhere but the admin panel. Team boards merge members
 per task (best member per subtask with max_subtask scoring); anonymous
 boards label rows by participation order so labels do not move with the
 scores.
+
+## D47. Invalidated submissions stay, flagged, and never count
+Invalidating a submission (A3) sets `invalidated_at`, a mandatory reason
+and the admin on the submission row instead of deleting it or zeroing its
+result: the evidence, its result and its evaluations remain for the appeal,
+and restoring is one UPDATE. Every query that feeds a score filters
+`invalidated_at IS NULL` (task-score aggregation, which also drives ICPC
+attempts and penalties; the ranking replay used while frozen; the
+output-only merge of previous outputs), so nothing downstream needs to know
+about invalidation. After the change the admin web notifies the dispatcher
+with a `reaggregate` event: it recomputes that participation's task score
+and pushes the ranking update through the usual path, taking about as long
+as a normal scoring. Invalidated submissions still count toward submission
+limits and intervals, like in CMS (they were really submitted); tester runs
+cannot be invalidated.

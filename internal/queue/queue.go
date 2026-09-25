@@ -345,6 +345,7 @@ const (
 	EventUserTest       = "user_test"
 	EventReevaluate     = "reevaluate"      // results were invalidated: enqueue what is missing
 	EventDatasetChanged = "dataset_changed" // dataset content or the live dataset changed
+	EventReaggregate    = "reaggregate"     // a submission stopped or started counting (invalidation)
 )
 
 // Notify sends an event to the dispatcher.

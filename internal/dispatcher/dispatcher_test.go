@@ -235,6 +235,26 @@ func (e *env) waitScored(sub, ds int64, timeout time.Duration) sqlc.SubmissionRe
 	return sqlc.SubmissionResult{}
 }
 
+// logEvaluations prints a result's evaluations (diagnostics on failure).
+func (e *env) logEvaluations(sub, ds int64) {
+	e.t.Helper()
+	evs, err := sqlc.New(e.pool).ListEvaluationsWithTestcase(ctx, sqlc.ListEvaluationsWithTestcaseParams{SubmissionID: sub, DatasetID: ds})
+	if err != nil {
+		e.t.Logf("evaluations: %v", err)
+	}
+	for _, ev := range evs {
+		e.t.Logf("testcase %s: outcome %v %q exit %s time %v wall %v worker %v", ev.Codename, ev.Outcome, ev.Text, ev.ExitStatus,
+			derefF(ev.ExecutionTime), derefF(ev.ExecutionWallTime), ev.Worker)
+	}
+}
+
+func derefF(p *float64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
 func (e *env) taskScore() sqlc.ParticipationTaskScore {
 	s, err := sqlc.New(e.pool).GetParticipationTaskScore(ctx, sqlc.GetParticipationTaskScoreParams{ParticipationID: e.part.ID, TaskID: e.task.ID})
 	if err != nil {
@@ -370,10 +390,12 @@ func TestAutojudgeBackgroundDataset(t *testing.T) {
 	id := e.submit(srcAC, true)
 	e.waitScored(id, e.dataset.ID, 60*time.Second)
 	if r := e.waitScored(id, bg.ID, 60*time.Second); *r.Score != 100 {
+		e.logEvaluations(id, bg.ID)
 		t.Fatalf("background dataset score %v", *r.Score)
 	}
 	// The background dataset never changes the ranking.
 	if ts := e.taskScore(); ts.Score != 100 {
+		e.logEvaluations(id, e.dataset.ID)
 		t.Fatalf("task score %v", ts.Score)
 	}
 }
@@ -609,4 +631,65 @@ func TestDispatcherRestart(t *testing.T) {
 	if r.Score == nil || *r.Score != 100 {
 		t.Fatalf("score after restart %v (error %v)", r.Score, r.SystemError)
 	}
+}
+
+// TestInvalidatedSubmissionsDoNotCount (SPEC_CLOSE A3): an invalidated
+// submission leaves the task score and the ICPC attempts; restoring it
+// brings both back.
+func TestInvalidatedSubmissionsDoNotCount(t *testing.T) {
+	e := newEnv(t, true)
+	q := sqlc.New(e.pool)
+	wa := e.submit(srcWA, true)
+	e.waitScored(wa, e.dataset.ID, 60*time.Second)
+	ac := e.submit(srcAC, true)
+	e.waitScored(ac, e.dataset.ID, 60*time.Second)
+	waitScore := func(want func(sqlc.ParticipationTaskScore) bool, what string) {
+		t.Helper()
+		deadline := time.Now().Add(10 * time.Second)
+		for {
+			ts := e.taskScore()
+			if want(ts) {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%s: task score %+v", what, ts)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+	waitScore(func(ts sqlc.ParticipationTaskScore) bool {
+		return ts.Score == 100 && ts.IcpcSolved && ts.IcpcAttempts == 1
+	}, "before")
+	notify := func(id int64) {
+		if err := e.q.Notify(ctx, queue.Event{Kind: queue.EventReaggregate, SubmissionID: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The wrong attempt no longer costs a penalty.
+	if _, err := q.SetSubmissionInvalidated(ctx, sqlc.SetSubmissionInvalidatedParams{ID: wa, Reason: "duplicate"}); err != nil {
+		t.Fatal(err)
+	}
+	notify(wa)
+	waitScore(func(ts sqlc.ParticipationTaskScore) bool {
+		return ts.Score == 100 && ts.IcpcSolved && ts.IcpcAttempts == 0
+	}, "WA invalidated")
+	// Without the accepted one the task is unsolved.
+	if _, err := q.SetSubmissionInvalidated(ctx, sqlc.SetSubmissionInvalidatedParams{ID: ac, Reason: "copied"}); err != nil {
+		t.Fatal(err)
+	}
+	notify(ac)
+	waitScore(func(ts sqlc.ParticipationTaskScore) bool {
+		return ts.Score == 0 && !ts.IcpcSolved && ts.IcpcAttempts == 0 && ts.LastSubmissionAt == nil
+	}, "both invalidated")
+	for _, id := range []int64{wa, ac} {
+		if _, err := q.ClearSubmissionInvalidated(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+		notify(id)
+	}
+	waitScore(func(ts sqlc.ParticipationTaskScore) bool {
+		return ts.Score == 100 && ts.IcpcSolved && ts.IcpcAttempts == 1
+	}, "restored")
+	// Tester runs cannot be invalidated; unknown submissions are ignored.
+	notify(1 << 40)
 }

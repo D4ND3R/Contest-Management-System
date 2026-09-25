@@ -14,7 +14,7 @@ import (
 const createSubmission = `-- name: CreateSubmission :one
 INSERT INTO submissions (participation_id, task_id, submitted_at, language, comment, official)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id
+RETURNING id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id, invalidated_at, invalidated_reason, invalidated_by
 `
 
 type CreateSubmissionParams struct {
@@ -46,6 +46,9 @@ func (q *Queries) CreateSubmission(ctx context.Context, arg CreateSubmissionPara
 		&i.Official,
 		&i.Tester,
 		&i.TesterAdminID,
+		&i.InvalidatedAt,
+		&i.InvalidatedReason,
+		&i.InvalidatedBy,
 	)
 	return i, err
 }
@@ -125,7 +128,7 @@ func (q *Queries) EnsureSubmissionResult(ctx context.Context, arg EnsureSubmissi
 }
 
 const getSubmission = `-- name: GetSubmission :one
-SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id FROM submissions WHERE id = $1
+SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id, invalidated_at, invalidated_reason, invalidated_by FROM submissions WHERE id = $1
 `
 
 func (q *Queries) GetSubmission(ctx context.Context, id int64) (Submission, error) {
@@ -141,6 +144,9 @@ func (q *Queries) GetSubmission(ctx context.Context, id int64) (Submission, erro
 		&i.Official,
 		&i.Tester,
 		&i.TesterAdminID,
+		&i.InvalidatedAt,
+		&i.InvalidatedReason,
+		&i.InvalidatedBy,
 	)
 	return i, err
 }
@@ -560,7 +566,7 @@ func (q *Queries) ListSubmissionResultsBySubmissions(ctx context.Context, arg Li
 }
 
 const listSubmissionsByParticipation = `-- name: ListSubmissionsByParticipation :many
-SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id FROM submissions WHERE participation_id = $1::bigint ORDER BY submitted_at, id
+SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id, invalidated_at, invalidated_reason, invalidated_by FROM submissions WHERE participation_id = $1::bigint ORDER BY submitted_at, id
 `
 
 func (q *Queries) ListSubmissionsByParticipation(ctx context.Context, participationID int64) ([]Submission, error) {
@@ -582,6 +588,9 @@ func (q *Queries) ListSubmissionsByParticipation(ctx context.Context, participat
 			&i.Official,
 			&i.Tester,
 			&i.TesterAdminID,
+			&i.InvalidatedAt,
+			&i.InvalidatedReason,
+			&i.InvalidatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -594,7 +603,7 @@ func (q *Queries) ListSubmissionsByParticipation(ctx context.Context, participat
 }
 
 const listSubmissionsByParticipationTask = `-- name: ListSubmissionsByParticipationTask :many
-SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id FROM submissions WHERE participation_id = $1::bigint AND task_id = $2::bigint ORDER BY submitted_at, id
+SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id, invalidated_at, invalidated_reason, invalidated_by FROM submissions WHERE participation_id = $1::bigint AND task_id = $2::bigint ORDER BY submitted_at, id
 `
 
 type ListSubmissionsByParticipationTaskParams struct {
@@ -621,6 +630,9 @@ func (q *Queries) ListSubmissionsByParticipationTask(ctx context.Context, arg Li
 			&i.Official,
 			&i.Tester,
 			&i.TesterAdminID,
+			&i.InvalidatedAt,
+			&i.InvalidatedReason,
+			&i.InvalidatedBy,
 		); err != nil {
 			return nil, err
 		}

@@ -18,7 +18,7 @@ FROM submissions s
 JOIN submission_files f ON f.submission_id = s.id
 LEFT JOIN testcases tc ON tc.dataset_id = $1::bigint AND f.filename = replace($2::text, '%s', tc.codename)
 LEFT JOIN evaluations e ON e.submission_id = s.id AND e.dataset_id = $1::bigint AND e.testcase_id = tc.id
-WHERE s.participation_id = $3::bigint AND s.task_id = $4::bigint
+WHERE s.participation_id = $3::bigint AND s.task_id = $4::bigint AND s.invalidated_at IS NULL
 ORDER BY f.filename, e.outcome DESC NULLS LAST, s.submitted_at DESC, s.id DESC
 `
 
@@ -37,6 +37,7 @@ type BestPreviousOutputsRow struct {
 // Output-only tasks: for every output file name, the file of the
 // participation's previous submission that scored best on the matching
 // testcase of the dataset (the latest one on ties or when unjudged).
+// Invalidated submissions are never reused.
 func (q *Queries) BestPreviousOutputs(ctx context.Context, arg BestPreviousOutputsParams) ([]BestPreviousOutputsRow, error) {
 	rows, err := q.db.Query(ctx, bestPreviousOutputs,
 		arg.DatasetID,
@@ -125,7 +126,7 @@ func (q *Queries) GetParticipationView(ctx context.Context, id int64) (GetPartic
 
 const getSubmissionWithResult = `-- name: GetSubmissionWithResult :one
 SELECT s.id, s.participation_id, s.task_id, s.submitted_at, s.language, s.official,
-       (k.submission_id IS NOT NULL)::boolean AS tokened,
+       (k.submission_id IS NOT NULL)::boolean AS tokened, s.invalidated_at, s.invalidated_reason,
        sr.compilation_outcome, sr.compilation_text, sr.compilation_stdout, sr.compilation_stderr,
        sr.compilation_time, sr.compilation_memory,
        sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
@@ -149,6 +150,8 @@ type GetSubmissionWithResultRow struct {
 	Language           *string         `json:"language"`
 	Official           bool            `json:"official"`
 	Tokened            bool            `json:"tokened"`
+	InvalidatedAt      *time.Time      `json:"invalidated_at"`
+	InvalidatedReason  string          `json:"invalidated_reason"`
 	CompilationOutcome *string         `json:"compilation_outcome"`
 	CompilationText    *string         `json:"compilation_text"`
 	CompilationStdout  *string         `json:"compilation_stdout"`
@@ -177,6 +180,8 @@ func (q *Queries) GetSubmissionWithResult(ctx context.Context, arg GetSubmission
 		&i.Language,
 		&i.Official,
 		&i.Tokened,
+		&i.InvalidatedAt,
+		&i.InvalidatedReason,
 		&i.CompilationOutcome,
 		&i.CompilationText,
 		&i.CompilationStdout,
@@ -282,6 +287,7 @@ func (q *Queries) ListScoresByParticipation(ctx context.Context, participationID
 
 const listSubmissionsWithResults = `-- name: ListSubmissionsWithResults :many
 SELECT s.id, s.submitted_at, s.language, s.official, (k.submission_id IS NOT NULL)::boolean AS tokened,
+       s.invalidated_at, s.invalidated_reason,
        sr.compilation_outcome, sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
        sr.score, sr.public_score, sr.scored_at, sr.system_error
 FROM submissions s
@@ -303,6 +309,8 @@ type ListSubmissionsWithResultsRow struct {
 	Language           *string    `json:"language"`
 	Official           bool       `json:"official"`
 	Tokened            bool       `json:"tokened"`
+	InvalidatedAt      *time.Time `json:"invalidated_at"`
+	InvalidatedReason  string     `json:"invalidated_reason"`
 	CompilationOutcome *string    `json:"compilation_outcome"`
 	EvaluationOutcome  *string    `json:"evaluation_outcome"`
 	TestcasesDone      *int32     `json:"testcases_done"`
@@ -330,6 +338,8 @@ func (q *Queries) ListSubmissionsWithResults(ctx context.Context, arg ListSubmis
 			&i.Language,
 			&i.Official,
 			&i.Tokened,
+			&i.InvalidatedAt,
+			&i.InvalidatedReason,
 			&i.CompilationOutcome,
 			&i.EvaluationOutcome,
 			&i.TestcasesDone,

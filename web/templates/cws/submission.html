@@ -1,5 +1,6 @@
 {{define "content"}}{{$d := .Data}}{{$s := $d.Sub}}
 <h1>{{.T "Submission"}} #{{$s.ID}} — <a href="{{.Base}}tasks/{{$d.TaskName}}">{{$d.TaskName}}</a></h1>
+{{with $s.Invalidated}}<p class="alert">{{$.T "The organizers invalidated this submission on %s: it does not count for the score." ($.DateTime .)}}{{with $s.InvalidatedReason}} {{$.T "Reason:"}} {{.}}{{end}}</p>{{end}}
 <section class="card">
 <dl class="meta">
   <dt>{{.T "Time"}}</dt><dd>{{.DateTime $s.Time}}</dd>

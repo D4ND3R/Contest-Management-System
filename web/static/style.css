@@ -25,6 +25,7 @@ button,.button{display:inline-block;padding:.4rem .9rem;border:1px solid var(--a
 button.link{background:none;border:none;color:var(--accent);padding:0}
 button:disabled{opacity:.55;cursor:not-allowed}
 .inline{display:inline}
+.tag{display:inline-block;padding:0 .4rem;border-radius:3px;background:#eef1f5;color:var(--muted);font-size:.8rem}.tag.bad{background:#fdecea;color:var(--bad)}
 .row{display:flex;flex-wrap:wrap;gap:1rem}.row>*{flex:1 1 260px}
 .alert{padding:.6rem .8rem;border-radius:4px;background:#fdecea;color:var(--bad);border:1px solid #f5c2bd}
 .info{padding:.6rem .8rem;border-radius:4px;background:#e8f0fd;border:1px solid #c5d7f7}

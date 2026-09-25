@@ -52,13 +52,13 @@ WHERE submission_id = $1 AND dataset_id = $2;
 
 -- name: ListTaskSubmissionsForScore :many
 -- Every submission of a participation on a task with its result on a
--- dataset, for the task-score aggregation.
+-- dataset, for the task-score aggregation (invalidated ones never count).
 SELECT s.id, s.submitted_at, s.official, (k.submission_id IS NOT NULL)::boolean AS tokened,
        sr.compilation_outcome, sr.score, sr.ranking_score_details, sr.scored_at
 FROM submissions s
 LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = @dataset_id::bigint
 LEFT JOIN tokens k ON k.submission_id = s.id
-WHERE s.participation_id = @participation_id::bigint AND s.task_id = @task_id::bigint
+WHERE s.participation_id = @participation_id::bigint AND s.task_id = @task_id::bigint AND s.invalidated_at IS NULL
 ORDER BY s.submitted_at, s.id;
 
 -- name: ListParticipationsWithSubmissions :many

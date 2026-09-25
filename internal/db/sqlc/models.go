@@ -249,15 +249,18 @@ type Statement struct {
 }
 
 type Submission struct {
-	ID              int64     `json:"id"`
-	ParticipationID *int64    `json:"participation_id"`
-	TaskID          int64     `json:"task_id"`
-	SubmittedAt     time.Time `json:"submitted_at"`
-	Language        *string   `json:"language"`
-	Comment         string    `json:"comment"`
-	Official        bool      `json:"official"`
-	Tester          bool      `json:"tester"`
-	TesterAdminID   *int64    `json:"tester_admin_id"`
+	ID                int64      `json:"id"`
+	ParticipationID   *int64     `json:"participation_id"`
+	TaskID            int64      `json:"task_id"`
+	SubmittedAt       time.Time  `json:"submitted_at"`
+	Language          *string    `json:"language"`
+	Comment           string     `json:"comment"`
+	Official          bool       `json:"official"`
+	Tester            bool       `json:"tester"`
+	TesterAdminID     *int64     `json:"tester_admin_id"`
+	InvalidatedAt     *time.Time `json:"invalidated_at"`
+	InvalidatedReason string     `json:"invalidated_reason"`
+	InvalidatedBy     *int64     `json:"invalidated_by"`
 }
 
 type SubmissionFile struct {

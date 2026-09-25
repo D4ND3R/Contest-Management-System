@@ -307,7 +307,7 @@ SELECT s.id, s.submitted_at, s.official, (k.submission_id IS NOT NULL)::boolean 
 FROM submissions s
 LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = $1::bigint
 LEFT JOIN tokens k ON k.submission_id = s.id
-WHERE s.participation_id = $2::bigint AND s.task_id = $3::bigint
+WHERE s.participation_id = $2::bigint AND s.task_id = $3::bigint AND s.invalidated_at IS NULL
 ORDER BY s.submitted_at, s.id
 `
 
@@ -329,7 +329,7 @@ type ListTaskSubmissionsForScoreRow struct {
 }
 
 // Every submission of a participation on a task with its result on a
-// dataset, for the task-score aggregation.
+// dataset, for the task-score aggregation (invalidated ones never count).
 func (q *Queries) ListTaskSubmissionsForScore(ctx context.Context, arg ListTaskSubmissionsForScoreParams) ([]ListTaskSubmissionsForScoreRow, error) {
 	rows, err := q.db.Query(ctx, listTaskSubmissionsForScore, arg.DatasetID, arg.ParticipationID, arg.TaskID)
 	if err != nil {

@@ -486,3 +486,15 @@ Test infrastructure: the isolate box ids of the test packages that judge
 (e2e 100–299, worker 400–599, dispatcher 600–879, sandbox 900+) no longer
 overlap; an e2e stack could reach into the worker range when packages ran
 in parallel, which explained rare wrong verdicts in the full suite.
+
+## SPEC_CLOSE A3 — Invalidate submissions (done)
+Skipping skills: immersive-web-design, master skill.
+
+An admin with full permissions invalidates a contestant submission from its
+page with a mandatory reason (audited); it stops counting for the task
+score, ICPC attempts, the ranking and output-only merges at once, keeps its
+result, and can be restored. Contestants see an "invalidated" tag in their
+list and the reason on the submission page; the admin list tags it too.
+Tests: dispatcher.TestInvalidatedSubmissionsDoNotCount (score and ICPC
+attempts go and come back), e2e.TestInvalidateSubmissionFromAdminUI
+(through both web servers with a real judge, audit rows).

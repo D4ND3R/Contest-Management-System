@@ -11,7 +11,7 @@
 
 {{define "subrow"}}{{$p := .P}}{{$s := .S}}
 <tr id="sub-{{$s.ID}}" data-src="{{$p.Base}}submissions/{{$s.ID}}/row" {{if $s.Pending}}class="pending"{{end}}>
-  <td>{{$p.Time $s.Time}}{{if not $s.Official}} <span class="muted">({{$p.T "unofficial"}})</span>{{end}}</td>
+  <td>{{$p.Time $s.Time}}{{if not $s.Official}} <span class="muted">({{$p.T "unofficial"}})</span>{{end}}{{if $s.Invalidated}} <span class="tag bad" title="{{$s.InvalidatedReason}}">{{$p.T "invalidated"}}</span>{{end}}</td>
   <td>{{$s.Language}}</td>
   <td class="{{$s.Class}}">{{$s.StatusText}}{{if $s.Evaluating}} <progress max="{{$s.Total}}" value="{{$s.Done}}"></progress>{{end}}</td>
   <td class="num">{{if $s.HasScore}}{{$p.Score $s.Score $s.Precision}} / {{$p.Score $s.Max $s.Precision}}{{end}}{{if $s.Tokened}} <span title="{{$p.T "token played"}}">★</span>{{end}}</td>

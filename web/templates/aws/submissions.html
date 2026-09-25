@@ -18,7 +18,7 @@
 {{range .Data.Rows}}
 <tr id="sub-{{.ID}}">
   <td><input type="checkbox" name="id" value="{{.ID}}" aria-label="{{$.T "compare"}}"></td>
-  <td><a href="/submissions/{{.ID}}">{{.ID}}</a>{{if not .Official}} <span class="tag">{{$.T "unofficial"}}</span>{{end}}{{if .Tokened}} <span class="tag">{{$.T "token"}}</span>{{end}}</td>
+  <td><a href="/submissions/{{.ID}}">{{.ID}}</a>{{if not .Official}} <span class="tag">{{$.T "unofficial"}}</span>{{end}}{{if .Tokened}} <span class="tag">{{$.T "token"}}</span>{{end}}{{if .Invalidated}} <span class="tag bad">{{$.T "invalidated"}}</span>{{end}}</td>
   <td>{{dt .SubmittedAt}}</td>
   <td><a href="/participations/{{.ParticipationID}}">{{.Username}}</a></td>
   <td>{{.TaskName}}</td>

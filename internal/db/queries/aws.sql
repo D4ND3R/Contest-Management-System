@@ -6,7 +6,8 @@
 SELECT s.id, s.submitted_at, s.language, s.official, s.participation_id, s.task_id,
        u.username, t.name AS task_name, t.score_precision,
        sr.compilation_outcome, sr.testcases_done, sr.testcases_total, sr.score, sr.scored_at,
-       sr.system_error, (tk.submission_id IS NOT NULL)::boolean AS tokened
+       sr.system_error, (tk.submission_id IS NOT NULL)::boolean AS tokened,
+       (s.invalidated_at IS NOT NULL)::boolean AS invalidated
 FROM submissions s
 JOIN participations p ON p.id = s.participation_id
 JOIN users u ON u.id = p.user_id
@@ -212,4 +213,14 @@ JOIN participations p ON p.id = s.participation_id
 LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
 LEFT JOIN tokens k ON k.submission_id = s.id
 WHERE t.contest_id = @contest_id::bigint AND p.contest_id = @contest_id::bigint AND s.official AND NOT s.tester
+  AND s.invalidated_at IS NULL
 ORDER BY s.submitted_at, s.id;
+
+-- name: SetSubmissionInvalidated :one
+UPDATE submissions SET invalidated_at = now(), invalidated_reason = @reason::text, invalidated_by = sqlc.narg(admin_id)::bigint
+WHERE id = @id::bigint AND NOT tester
+RETURNING *;
+
+-- name: ClearSubmissionInvalidated :one
+UPDATE submissions SET invalidated_at = NULL, invalidated_reason = '', invalidated_by = NULL
+WHERE id = $1 RETURNING *;

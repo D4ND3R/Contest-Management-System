@@ -26,6 +26,9 @@ type subView struct {
 	HasScore   bool
 	Score, Max float64
 	Precision  int
+	// Invalidated submissions stay visible but do not count.
+	Invalidated       *time.Time
+	InvalidatedReason string
 }
 
 // rowCtx gives the row template both the page and the submission.
@@ -86,7 +89,8 @@ func (s *Server) listSubs(r *http.Request, rc *reqCtx, t *taskView) ([]subView, 
 	p := &page{Lang: rc.lang}
 	out := make([]subView, 0, len(rows))
 	for _, row := range rows {
-		sv := subView{ID: row.ID, Time: row.SubmittedAt, Official: row.Official, Tokened: row.Tokened}
+		sv := subView{ID: row.ID, Time: row.SubmittedAt, Official: row.Official, Tokened: row.Tokened,
+			Invalidated: row.InvalidatedAt, InvalidatedReason: row.InvalidatedReason}
 		if row.Language != nil {
 			sv.langID = *row.Language
 			sv.Language = s.langName(*row.Language)
@@ -114,7 +118,8 @@ func (s *Server) langName(id string) string {
 }
 
 func (s *Server) subViewFromDetail(p *page, rc *reqCtx, t *taskView, row sqlc.GetSubmissionWithResultRow) subView {
-	sv := subView{ID: row.ID, Time: row.SubmittedAt, Official: row.Official, Tokened: row.Tokened}
+	sv := subView{ID: row.ID, Time: row.SubmittedAt, Official: row.Official, Tokened: row.Tokened,
+		Invalidated: row.InvalidatedAt, InvalidatedReason: row.InvalidatedReason}
 	if row.Language != nil {
 		sv.langID, sv.Language = *row.Language, s.langName(*row.Language)
 	}

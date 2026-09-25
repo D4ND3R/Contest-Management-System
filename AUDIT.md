@@ -89,7 +89,7 @@ first audit (after F6), the "status" column the current state.
 | X3 | Diff between submissions | complete | complete | adminweb/diff.go | adminweb.TestLineDiff, adminweb.TestEveryPageRenders |
 | X4 | Download all submissions as zip | missing | missing | — | — |
 | X5 | Rejudge by submission, user, task, contest | complete | complete | adminweb/submissions.go, dispatcher/reeval.go | adminweb.TestReevaluateFromUI, dispatcher.TestReevaluationLevels |
-| X6 | Invalidate (exclude) submissions | missing | missing | — | — |
+| X6 | Invalidate (exclude) submissions | missing | complete (reason mandatory and shown to the contestant; restorable; excluded from task scores, ICPC attempts, rankings and output-only merges; audited) | db/migrations/0008_invalidation.sql, adminweb/invalidate.go, dispatcher/judging.go (reaggregateSubmission), db/queries/{dispatcher,aws,cws}.sql, web/templates/{aws,cws}/submission*.html | dispatcher.TestInvalidatedSubmissionsDoNotCount, e2e.TestInvalidateSubmissionFromAdminUI |
 | X7 | Manual score adjustment with mandatory justification (audited) | missing | missing | — | — |
 | X8 | Plagiarism: similarity report per task | missing | missing | — | — |
 | X9 | Live system panel: workers, queues, stuck jobs, system errors, CPU/memory | partial (no stuck jobs, CPU/memory) | partial | adminweb/system.go | adminweb.TestEveryPageRenders |

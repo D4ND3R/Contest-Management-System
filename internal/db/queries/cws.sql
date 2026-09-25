@@ -17,6 +17,7 @@ FROM participation_task_scores WHERE participation_id = $1;
 -- A contestant's submissions to a task with their result on the live
 -- dataset (index: submissions_participation_task_idx + result PK).
 SELECT s.id, s.submitted_at, s.language, s.official, (k.submission_id IS NOT NULL)::boolean AS tokened,
+       s.invalidated_at, s.invalidated_reason,
        sr.compilation_outcome, sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
        sr.score, sr.public_score, sr.scored_at, sr.system_error
 FROM submissions s
@@ -27,7 +28,7 @@ ORDER BY s.submitted_at DESC, s.id DESC;
 
 -- name: GetSubmissionWithResult :one
 SELECT s.id, s.participation_id, s.task_id, s.submitted_at, s.language, s.official,
-       (k.submission_id IS NOT NULL)::boolean AS tokened,
+       (k.submission_id IS NOT NULL)::boolean AS tokened, s.invalidated_at, s.invalidated_reason,
        sr.compilation_outcome, sr.compilation_text, sr.compilation_stdout, sr.compilation_stderr,
        sr.compilation_time, sr.compilation_memory,
        sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
@@ -47,10 +48,11 @@ ORDER BY start_time DESC;
 -- Output-only tasks: for every output file name, the file of the
 -- participation's previous submission that scored best on the matching
 -- testcase of the dataset (the latest one on ties or when unjudged).
+-- Invalidated submissions are never reused.
 SELECT DISTINCT ON (f.filename) f.filename, f.digest
 FROM submissions s
 JOIN submission_files f ON f.submission_id = s.id
 LEFT JOIN testcases tc ON tc.dataset_id = @dataset_id::bigint AND f.filename = replace(@pattern::text, '%s', tc.codename)
 LEFT JOIN evaluations e ON e.submission_id = s.id AND e.dataset_id = @dataset_id::bigint AND e.testcase_id = tc.id
-WHERE s.participation_id = @participation_id::bigint AND s.task_id = @task_id::bigint
+WHERE s.participation_id = @participation_id::bigint AND s.task_id = @task_id::bigint AND s.invalidated_at IS NULL
 ORDER BY f.filename, e.outcome DESC NULLS LAST, s.submitted_at DESC, s.id DESC;

@@ -177,6 +177,8 @@ func (d *Dispatcher) handleEvent(ctx context.Context, e *queue.Event) error {
 		return d.newUserTest(ctx, e.UserTestID)
 	case queue.EventReevaluate:
 		d.RequestSweep()
+	case queue.EventReaggregate:
+		return d.reaggregateSubmission(ctx, e.SubmissionID)
 	case queue.EventDatasetChanged:
 		d.datasets.invalidate()
 		if e.TaskID != 0 {

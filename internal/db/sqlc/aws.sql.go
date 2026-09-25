@@ -186,7 +186,7 @@ func (q *Queries) AdminGetParticipation(ctx context.Context, id int64) (AdminGet
 }
 
 const adminGetSubmission = `-- name: AdminGetSubmission :one
-SELECT s.id, s.participation_id, s.task_id, s.submitted_at, s.language, s.comment, s.official, s.tester, s.tester_admin_id, COALESCE(u.id, 0)::bigint AS user_id, COALESCE(u.username, '')::text AS username,
+SELECT s.id, s.participation_id, s.task_id, s.submitted_at, s.language, s.comment, s.official, s.tester, s.tester_admin_id, s.invalidated_at, s.invalidated_reason, s.invalidated_by, COALESCE(u.id, 0)::bigint AS user_id, COALESCE(u.username, '')::text AS username,
        t.name AS task_name, t.title AS task_title, t.active_dataset_id,
        COALESCE(p.contest_id, t.contest_id, 0)::bigint AS contest_id, (tk.submission_id IS NOT NULL)::boolean AS tokened,
        COALESCE(a.username, '')::text AS tester_username
@@ -200,23 +200,26 @@ WHERE s.id = $1
 `
 
 type AdminGetSubmissionRow struct {
-	ID              int64     `json:"id"`
-	ParticipationID *int64    `json:"participation_id"`
-	TaskID          int64     `json:"task_id"`
-	SubmittedAt     time.Time `json:"submitted_at"`
-	Language        *string   `json:"language"`
-	Comment         string    `json:"comment"`
-	Official        bool      `json:"official"`
-	Tester          bool      `json:"tester"`
-	TesterAdminID   *int64    `json:"tester_admin_id"`
-	UserID          int64     `json:"user_id"`
-	Username        string    `json:"username"`
-	TaskName        string    `json:"task_name"`
-	TaskTitle       string    `json:"task_title"`
-	ActiveDatasetID *int64    `json:"active_dataset_id"`
-	ContestID       int64     `json:"contest_id"`
-	Tokened         bool      `json:"tokened"`
-	TesterUsername  string    `json:"tester_username"`
+	ID                int64      `json:"id"`
+	ParticipationID   *int64     `json:"participation_id"`
+	TaskID            int64      `json:"task_id"`
+	SubmittedAt       time.Time  `json:"submitted_at"`
+	Language          *string    `json:"language"`
+	Comment           string     `json:"comment"`
+	Official          bool       `json:"official"`
+	Tester            bool       `json:"tester"`
+	TesterAdminID     *int64     `json:"tester_admin_id"`
+	InvalidatedAt     *time.Time `json:"invalidated_at"`
+	InvalidatedReason string     `json:"invalidated_reason"`
+	InvalidatedBy     *int64     `json:"invalidated_by"`
+	UserID            int64      `json:"user_id"`
+	Username          string     `json:"username"`
+	TaskName          string     `json:"task_name"`
+	TaskTitle         string     `json:"task_title"`
+	ActiveDatasetID   *int64     `json:"active_dataset_id"`
+	ContestID         int64      `json:"contest_id"`
+	Tokened           bool       `json:"tokened"`
+	TesterUsername    string     `json:"tester_username"`
 }
 
 // A submission (or a task tester run, which has no participation).
@@ -233,6 +236,9 @@ func (q *Queries) AdminGetSubmission(ctx context.Context, id int64) (AdminGetSub
 		&i.Official,
 		&i.Tester,
 		&i.TesterAdminID,
+		&i.InvalidatedAt,
+		&i.InvalidatedReason,
+		&i.InvalidatedBy,
 		&i.UserID,
 		&i.Username,
 		&i.TaskName,
@@ -338,7 +344,8 @@ const adminListSubmissions = `-- name: AdminListSubmissions :many
 SELECT s.id, s.submitted_at, s.language, s.official, s.participation_id, s.task_id,
        u.username, t.name AS task_name, t.score_precision,
        sr.compilation_outcome, sr.testcases_done, sr.testcases_total, sr.score, sr.scored_at,
-       sr.system_error, (tk.submission_id IS NOT NULL)::boolean AS tokened
+       sr.system_error, (tk.submission_id IS NOT NULL)::boolean AS tokened,
+       (s.invalidated_at IS NOT NULL)::boolean AS invalidated
 FROM submissions s
 JOIN participations p ON p.id = s.participation_id
 JOIN users u ON u.id = p.user_id
@@ -393,6 +400,7 @@ type AdminListSubmissionsRow struct {
 	ScoredAt           *time.Time `json:"scored_at"`
 	SystemError        *string    `json:"system_error"`
 	Tokened            bool       `json:"tokened"`
+	Invalidated        bool       `json:"invalidated"`
 }
 
 // Queries of the admin web server (AWS).
@@ -435,6 +443,7 @@ func (q *Queries) AdminListSubmissions(ctx context.Context, arg AdminListSubmiss
 			&i.ScoredAt,
 			&i.SystemError,
 			&i.Tokened,
+			&i.Invalidated,
 		); err != nil {
 			return nil, err
 		}
@@ -504,7 +513,7 @@ const adminListTesterRuns = `-- name: AdminListTesterRuns :many
 SELECT s.id, s.submitted_at, s.language, COALESCE(a.username, '')::text AS admin_username,
        sr.dataset_id, d.description AS dataset_description, sr.compilation_outcome, sr.testcases_done,
        sr.testcases_total, sr.score, sr.scored_at, sr.system_error
-FROM (SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id FROM submissions WHERE task_id = $1::bigint AND tester ORDER BY id DESC LIMIT 30) s
+FROM (SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id, invalidated_at, invalidated_reason, invalidated_by FROM submissions WHERE task_id = $1::bigint AND tester ORDER BY id DESC LIMIT 30) s
 LEFT JOIN admins a ON a.id = s.tester_admin_id
 LEFT JOIN submission_results sr ON sr.submission_id = s.id
 LEFT JOIN datasets d ON d.id = sr.dataset_id
@@ -937,10 +946,35 @@ func (q *Queries) AdminUnassignedTasks(ctx context.Context) ([]Task, error) {
 	return items, nil
 }
 
+const clearSubmissionInvalidated = `-- name: ClearSubmissionInvalidated :one
+UPDATE submissions SET invalidated_at = NULL, invalidated_reason = '', invalidated_by = NULL
+WHERE id = $1 RETURNING id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id, invalidated_at, invalidated_reason, invalidated_by
+`
+
+func (q *Queries) ClearSubmissionInvalidated(ctx context.Context, id int64) (Submission, error) {
+	row := q.db.QueryRow(ctx, clearSubmissionInvalidated, id)
+	var i Submission
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipationID,
+		&i.TaskID,
+		&i.SubmittedAt,
+		&i.Language,
+		&i.Comment,
+		&i.Official,
+		&i.Tester,
+		&i.TesterAdminID,
+		&i.InvalidatedAt,
+		&i.InvalidatedReason,
+		&i.InvalidatedBy,
+	)
+	return i, err
+}
+
 const createTesterSubmission = `-- name: CreateTesterSubmission :one
 INSERT INTO submissions (participation_id, task_id, submitted_at, language, official, tester, tester_admin_id, comment)
 VALUES (NULL, $1::bigint, now(), $2, false, true, $3::bigint, $4::text)
-RETURNING id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id
+RETURNING id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id, invalidated_at, invalidated_reason, invalidated_by
 `
 
 type CreateTesterSubmissionParams struct {
@@ -968,6 +1002,9 @@ func (q *Queries) CreateTesterSubmission(ctx context.Context, arg CreateTesterSu
 		&i.Official,
 		&i.Tester,
 		&i.TesterAdminID,
+		&i.InvalidatedAt,
+		&i.InvalidatedReason,
+		&i.InvalidatedBy,
 	)
 	return i, err
 }
@@ -982,6 +1019,7 @@ JOIN participations p ON p.id = s.participation_id
 LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
 LEFT JOIN tokens k ON k.submission_id = s.id
 WHERE t.contest_id = $1::bigint AND p.contest_id = $1::bigint AND s.official AND NOT s.tester
+  AND s.invalidated_at IS NULL
 ORDER BY s.submitted_at, s.id
 `
 
@@ -1074,4 +1112,36 @@ func (q *Queries) ListPackageSolutionFiles(ctx context.Context, taskID int64) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const setSubmissionInvalidated = `-- name: SetSubmissionInvalidated :one
+UPDATE submissions SET invalidated_at = now(), invalidated_reason = $1::text, invalidated_by = $2::bigint
+WHERE id = $3::bigint AND NOT tester
+RETURNING id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id, invalidated_at, invalidated_reason, invalidated_by
+`
+
+type SetSubmissionInvalidatedParams struct {
+	Reason  string `json:"reason"`
+	AdminID *int64 `json:"admin_id"`
+	ID      int64  `json:"id"`
+}
+
+func (q *Queries) SetSubmissionInvalidated(ctx context.Context, arg SetSubmissionInvalidatedParams) (Submission, error) {
+	row := q.db.QueryRow(ctx, setSubmissionInvalidated, arg.Reason, arg.AdminID, arg.ID)
+	var i Submission
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipationID,
+		&i.TaskID,
+		&i.SubmittedAt,
+		&i.Language,
+		&i.Comment,
+		&i.Official,
+		&i.Tester,
+		&i.TesterAdminID,
+		&i.InvalidatedAt,
+		&i.InvalidatedReason,
+		&i.InvalidatedBy,
+	)
+	return i, err
 }

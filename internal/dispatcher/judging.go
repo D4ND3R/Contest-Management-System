@@ -554,3 +554,30 @@ func (d *Dispatcher) reaggregateTask(ctx context.Context, taskID int64) error {
 	d.apply(ctx, &eff)
 	return nil
 }
+
+// reaggregateSubmission recomputes the task score of a submission's
+// participation (after the submission was invalidated or restored).
+func (d *Dispatcher) reaggregateSubmission(ctx context.Context, submissionID int64) error {
+	q := sqlc.New(d.pool)
+	s, err := q.GetSubmission(ctx, submissionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // deleted meanwhile
+	}
+	if err != nil || s.ParticipationID == nil {
+		return err
+	}
+	task, err := q.GetTask(ctx, s.TaskID)
+	if err != nil || task.ActiveDatasetID == nil {
+		return err
+	}
+	di, err := d.datasets.get(ctx, q, *task.ActiveDatasetID)
+	if err != nil {
+		return err
+	}
+	up, err := d.aggregate(ctx, q, *s.ParticipationID, di)
+	if err != nil {
+		return err
+	}
+	d.apply(ctx, &effects{ranking: []queue.RankingUpdate{*up}})
+	return nil
+}

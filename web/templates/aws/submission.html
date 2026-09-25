@@ -15,7 +15,20 @@
   <dt>{{.T "Token"}}</dt><dd>{{if $s.Tokened}}{{.T "played"}}{{else}}{{.T "no"}}{{end}}</dd>
   {{if $s.Comment}}<dt>{{.T "Comment"}}</dt><dd>{{$s.Comment}}</dd>{{end}}
 </dl>
-{{if .CanWrite}}<p>{{template "reevaluate" (reeval $ "submission_id" $s.ID (printf "/submissions/%d" $s.ID))}}</p>{{end}}
+{{if $s.InvalidatedAt}}<p class="alert">{{.T "Invalidated on %s UTC: it does not count." (dt $s.InvalidatedAt)}} {{.T "Reason:"}} <b>{{$s.InvalidatedReason}}</b></p>{{end}}
+{{if .CanWrite}}<p>{{template "reevaluate" (reeval $ "submission_id" $s.ID (printf "/submissions/%d" $s.ID))}}</p>
+{{if not $s.Tester}}{{if $s.InvalidatedAt}}
+<form method="post" action="/submissions/{{$s.ID}}/restore" class="inline" data-confirm="{{.T "Make the submission count again?"}}">{{template "csrf" .CSRF}}<button class="secondary">{{.T "Restore (count it again)"}}</button></form>
+{{else}}
+<details><summary>{{.T "Invalidate this submission"}}</summary>
+<form method="post" action="/submissions/{{$s.ID}}/invalidate" class="card danger">
+  {{template "csrf" .CSRF}}
+  <label>{{.T "Reason (shown to the contestant)"}} <textarea name="reason" rows="2" maxlength="1000" required></textarea></label>
+  <p class="muted small">{{.T "The submission stays visible but stops counting for the score, the ranking and ICPC penalties; it can be restored."}}</p>
+  <button class="danger">{{.T "Invalidate"}}</button>
+</form>
+</details>
+{{end}}{{end}}{{end}}
 <form method="get" action="/submissions/diff" class="inline-form">
   <input type="hidden" name="a" value="{{$s.ID}}">
   <label>{{.T "Compare with submission #"}} <input name="b" size="8" inputmode="numeric" required></label> <button class="secondary">{{.T "Diff"}}</button>
