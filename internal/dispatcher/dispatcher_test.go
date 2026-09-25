@@ -24,6 +24,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/logging"
 	"github.com/D4ND3R/Contest-Management-System/internal/monitor"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
+	"github.com/D4ND3R/Contest-Management-System/internal/ranking"
 	"github.com/D4ND3R/Contest-Management-System/internal/sandbox"
 	"github.com/D4ND3R/Contest-Management-System/internal/testutil"
 	"github.com/D4ND3R/Contest-Management-System/internal/worker"
@@ -442,6 +443,38 @@ func TestSweeperRecoversLostNotification(t *testing.T) {
 	id := e.submit(srcAC, false) // the notification is "lost"
 	if r := e.waitScored(id, e.dataset.ID, 60*time.Second); *r.Score != 100 {
 		t.Fatalf("score %v", *r.Score)
+	}
+}
+
+// TestPendingCountsOnArrival: a submission waiting to be judged is pending
+// in the task score (the task page, the scoreboards) as soon as the
+// dispatcher takes it, and the incremental ranking agrees with the full
+// recomputation (they used to disagree until the submission was scored,
+// and every periodic resynchronisation flickered on the scoreboards).
+func TestPendingCountsOnArrival(t *testing.T) {
+	e := newEnv(t, false) // no worker: the submission stays pending
+	e.submit(srcAC, true)
+	q := sqlc.New(e.pool)
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		s, err := q.GetParticipationTaskScore(ctx, sqlc.GetParticipationTaskScoreParams{ParticipationID: e.part.ID, TaskID: e.task.ID})
+		if err == nil && s.Pending == 1 && s.LastSubmissionAt != nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("task score %+v, %v", s, err)
+		}
+	}
+	live, err := ranking.Compute(ctx, q, e.contest.ID, ranking.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	full, _, err := ranking.Replay(ctx, q, e.contest.ID, nil, ranking.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b := live.Rows[0].Cells[0], full.Rows[0].Cells[0]
+	if !a.Submitted || a.Pending != 1 || a.Submitted != b.Submitted || a.Pending != b.Pending || a.Score != b.Score {
+		t.Fatalf("incremental %+v, full %+v", a, b)
 	}
 }
 

@@ -193,6 +193,15 @@ func (d *Dispatcher) advance(ctx context.Context, subID, dsID int64, rejudge boo
 		case st.CompilationOutcome == nil:
 			eff.jobs = append(eff.jobs, sc.compileJob(st.Generation, 0, sc.priority(queue.PriorityCompile, rejudge)))
 			eff.events = append(eff.events, sc.event("compiling"))
+			// Pending from now on in the task score, as the full ranking
+			// recomputations count it (they must agree). No ranking update
+			// of its own: every update is a write to every spectator, so
+			// the mark rides along with the next one.
+			if sc.di.live() && !sc.meta.Tester {
+				if _, err := d.aggregate(ctx, q, sc.meta.ParticipationID, sc.di); err != nil {
+					return err
+				}
+			}
 		case *st.CompilationOutcome == "fail":
 			return d.scoreCompilationFailure(ctx, q, &eff, sc)
 		case st.EvaluationOutcome == nil:
