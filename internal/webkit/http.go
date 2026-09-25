@@ -3,10 +3,12 @@ package webkit
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"net/netip"
@@ -150,6 +152,31 @@ func (l *Limiter) Allow(ctx context.Context, key string, limit int, period time.
 	}
 	w.n++
 	return w.n <= limit
+}
+
+// Over reports whether key already reached limit events in the current
+// period, without counting one (see Hit): failed logins are counted, and a
+// successful one never uses up the budget of a shared address.
+func (l *Limiter) Over(ctx context.Context, key string, limit int, period time.Duration) bool {
+	if limit <= 0 {
+		return false
+	}
+	slot := time.Now().UnixNano() / int64(period)
+	if l.rdb != nil {
+		n, err := l.rdb.Get(ctx, fmt.Sprintf("%srl:%s:%d", l.ns, key, slot)).Int64()
+		if err == nil || errors.Is(err, redis.Nil) {
+			return n >= int64(limit)
+		}
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	w, ok := l.local[key]
+	return ok && time.Since(w.start) < period && w.n >= limit
+}
+
+// Hit counts one event for key (see Over).
+func (l *Limiter) Hit(ctx context.Context, key string, period time.Duration) {
+	l.Allow(ctx, key, math.MaxInt, period)
 }
 
 var bufPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}

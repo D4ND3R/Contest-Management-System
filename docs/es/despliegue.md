@@ -193,3 +193,36 @@ nunca pierde uno.
   impresión). Alertas útiles: `up == 0`,
   `cms_backup_last_success_timestamp_seconds` con más de 30 minutos durante
   un concurso, una cola que crece durante minutos.
+- Un servicio que parece trabado: `sudo systemctl kill -s USR1
+  cms-dispatcher` (cualquier unidad) escribe la pila de cada goroutine en
+  su journal sin detenerlo (`journalctl -u cms-dispatcher`); adjúntala a un
+  reporte de error.
+
+## Seguridad y límites
+
+Los servidores web envían una Content-Security-Policy estricta (sin código
+en línea ni orígenes externos), `X-Frame-Options: DENY`, `nosniff` y una
+política de referer del mismo origen; las cookies de sesión son
+`HttpOnly`, `SameSite=Lax` y, con `cookie_secure: true` (lo pone el script
+de instalación cuando hay HTTPS), `Secure`. Todo formulario lleva un token
+CSRF por sesión y se rechazan las peticiones de otro origen. Opciones de
+`cms.yaml`:
+
+| Opción | Por defecto | Significado |
+|--------|-------------|-------------|
+| `contest_web.login_rate_limit_per_minute` | 20 | inicios de sesión **fallidos** por dirección y minuto (los exitosos no cuentan, así un laboratorio detrás de una sola dirección NAT entra a la vez); además un usuario se bloquea tras 10 fallos por minuto desde cualquier dirección |
+| `admin_web.login_rate_limit_per_minute` | 20 | lo mismo para administradores; 5 códigos de segundo factor erróneos por minuto bloquean al administrador |
+| `contest_web.rate_limit_per_minute` | 120 | envíos y user tests por concursante y minuto (además de los límites del concurso) |
+| `contest_web.max_submission_bytes` | 1 MiB | una petición de envío; el límite de fuente de la tarea se aplica por archivo |
+| `contest_web.max_user_test_bytes` | 8 MiB | un user test (fuentes y entrada) |
+| `contest_web.max_print_bytes` | 2 MiB | un trabajo de impresión |
+| `admin_web.max_upload_bytes` | 1 GiB | una subida del admin (paquetes, archivos de testcases, archivos de concurso) |
+| `*.trusted_proxies` | — | proxies cuyo `X-Forwarded-For` se cree (el proxy HTTPS) |
+
+Las peticiones que superan estos límites se rechazan con 413 antes de leer
+nada en memoria o en disco; los formularios simples se limitan a 64 KiB
+(concursantes) y 1 MiB (administradores). Las verificaciones de contraseña
+(argon2id, 19 MiB cada una) corren como máximo una por núcleo a la vez (al
+menos dos), así
+una avalancha de inicios de sesión espera su turno en lugar de agotar la
+memoria.

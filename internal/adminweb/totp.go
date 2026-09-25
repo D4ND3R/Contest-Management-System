@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -56,13 +57,15 @@ func (s *Server) startSecondFactor(w http.ResponseWriter, r *http.Request, a sql
 }
 
 func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	sess := s.cookie().Read(r)
 	if sess == nil || s.csrf.Check(r, sess.ID) != nil {
 		s.loginPage(w, r, http.StatusForbidden, "Your session expired; try again.")
 		return
 	}
 	ip := s.ips.ClientIP(r)
-	if !s.limiter.Allow(r.Context(), "admin-login:"+ip.String(), max(s.cfg.LoginRateLimit, 1), time.Minute) {
+	ipKey := "admin-login-fail:" + ip.String()
+	if s.limiter.Over(r.Context(), ipKey, max(s.cfg.LoginRateLimit, 1), time.Minute) {
 		s.loginPage(w, r, http.StatusTooManyRequests, "Too many attempts; wait a minute.")
 		return
 	}
@@ -71,12 +74,21 @@ func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 		s.loginPage(w, r, http.StatusUnauthorized, "The login expired; enter your password again.")
 		return
 	}
+	// Codes are guessed per administrator: a few wrong ones lock the second
+	// step for a minute, from any address.
+	codeKey := "admin-2fa-fail:" + strconv.FormatInt(pend.AdminID, 10)
+	if s.limiter.Over(r.Context(), codeKey, 5, time.Minute) {
+		s.loginPage(w, r, http.StatusTooManyRequests, "Too many attempts; wait a minute.")
+		return
+	}
 	a, err := s.q.GetAdmin(r.Context(), pend.AdminID)
 	if err != nil || !a.Enabled || a.TotpSecret == nil {
 		s.loginPage(w, r, http.StatusUnauthorized, "Wrong username or password.")
 		return
 	}
 	if !auth.VerifyTOTP(*a.TotpSecret, r.FormValue("totp_code"), time.Now()) {
+		s.limiter.Hit(r.Context(), ipKey, time.Minute)
+		s.limiter.Hit(r.Context(), codeKey, time.Minute)
 		s.audit(r, &a.ID, "login_failed", map[string]any{"username": a.Username, "reason": "2fa"})
 		p := s.newPage(w, r, nil, "Two-factor authentication", "", &secondStep{Token: r.FormValue("token")})
 		p.CSRF = s.csrf.Token(sess.ID)

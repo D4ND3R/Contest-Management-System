@@ -370,6 +370,11 @@ var esClose = map[string]string{
 	"Certificate (PDF)":                                "Certificado (PDF)",
 	"Download your certificate":                        "Descarga tu certificado",
 	"There is no certificate for you in this contest.": "No hay un certificado para ti en este concurso.",
+
+	// F2: request size limits.
+	"Too large":                           "Demasiado grande",
+	"The request is larger than allowed.": "La solicitud es más grande de lo permitido.",
+	"The upload is larger than allowed (admin_web.max_upload_bytes).": "El archivo subido es más grande de lo permitido (admin_web.max_upload_bytes).",
 }
 
 func init() {

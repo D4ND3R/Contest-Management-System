@@ -8,7 +8,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
+	"sync/atomic"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -27,6 +29,35 @@ type Argon2Params struct {
 // contestants log in within the same minute.
 var DefaultParams = Argon2Params{Memory: 19 * 1024, Iterations: 2, Parallelism: 1, SaltLen: 16, KeyLen: 32}
 
+// slots bounds the argon2 computations running at once: each needs its
+// memory parameter (19 MiB by default) and a core for ~20 ms, so a burst of
+// logins (a whole contest at the start signal) waits its turn instead of
+// exhausting the machine's memory (a thousand at once would need 19 GiB).
+var slots = make(chan struct{}, max(2, runtime.GOMAXPROCS(0)))
+
+// maxMemory bounds the memory parameter accepted from a stored hash
+// (imported hashes are not trusted to be sane).
+const maxMemory = 256 * 1024
+
+// running and peak count the computations in progress (tests).
+var running, peak atomic.Int32
+
+func idKey(password, salt []byte, t, m uint32, p uint8, n uint32) []byte {
+	slots <- struct{}{}
+	r := running.Add(1)
+	for {
+		old := peak.Load()
+		if r <= old || peak.CompareAndSwap(old, r) {
+			break
+		}
+	}
+	defer func() {
+		running.Add(-1)
+		<-slots
+	}()
+	return argon2.IDKey(password, salt, t, m, p, n)
+}
+
 // ErrMismatch is returned when a password does not match its hash.
 var ErrMismatch = errors.New("password mismatch")
 
@@ -42,7 +73,7 @@ func HashPasswordParams(password string, p Argon2Params) (string, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	key := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLen)
+	key := idKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLen)
 	enc := base64.RawStdEncoding
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, p.Memory, p.Iterations, p.Parallelism, enc.EncodeToString(salt), enc.EncodeToString(key)), nil
@@ -79,7 +110,10 @@ func VerifyPassword(hash, password string) error {
 	if err != nil {
 		return errors.New("malformed key")
 	}
-	got := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, uint32(len(want)))
+	if p.Memory > maxMemory || p.Iterations > 16 || p.Parallelism == 0 {
+		return errors.New("argon2 parameters out of range")
+	}
+	got := idKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, uint32(len(want)))
 	if subtle.ConstantTimeCompare(got, want) == 1 {
 		return nil
 	}

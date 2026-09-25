@@ -387,6 +387,9 @@ func (s *Server) withAuth(h func(http.ResponseWriter, *http.Request, *reqCtx)) h
 			return
 		}
 		if r.Method == http.MethodPost {
+			if !s.limitBody(w, r, cv) {
+				return
+			}
 			if err := s.csrf.Check(r, sess.ID); err != nil {
 				s.errorPage(w, r, cv, http.StatusForbidden, "Forbidden", "Your session expired; reload the page and try again.")
 				return
@@ -517,4 +520,49 @@ func itoa(v int64) string {
 		b[i], b[j] = b[j], b[i]
 	}
 	return string(b)
+}
+
+// formLimit bounds the body of a form without files (questions, tokens…).
+const formLimit = 64 << 10
+
+// postLimit is the largest body a contestant may send to r: its upload
+// limit (submission, user test, print job) or a small form.
+func (s *Server) postLimit(r *http.Request) int64 {
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
+		return formLimit
+	}
+	limit := int64(s.cfg.MaxSubmissionBytes)
+	switch {
+	case strings.HasSuffix(r.URL.Path, "/test"):
+		limit = int64(s.cfg.MaxUserTestBytes)
+	case strings.HasSuffix(r.URL.Path, "/printing"):
+		limit = int64(s.cfg.MaxPrintBytes)
+	}
+	if limit <= 0 {
+		limit = 1 << 20
+	}
+	return limit + formLimit
+}
+
+// limitBody bounds the body before anything reads it (the CSRF check
+// parses the form, files included) and answers 413 when it is larger.
+func (s *Server) limitBody(w http.ResponseWriter, r *http.Request, cv *contestView) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, s.postLimit(r))
+	var err error
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
+		err = r.ParseMultipartForm(8 << 20)
+	} else {
+		err = r.ParseForm()
+	}
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		s.errorPage(w, r, cv, http.StatusRequestEntityTooLarge, "Too large", "The request is larger than allowed.")
+		return false
+	}
+	return true
+}
+
+// smallBody bounds the forms sent before logging in.
+func smallBody(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 }

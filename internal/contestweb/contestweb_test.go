@@ -61,6 +61,11 @@ type fixtureOpts struct {
 	ips         []netip.Prefix
 	maxSubs     *int32
 	trusted     []string
+	// loginLimit replaces the (test) per-address login failure limit;
+	// cookieSecure and maxSubmission set the matching options.
+	loginLimit    int
+	cookieSecure  bool
+	maxSubmission int64
 }
 
 func newFixture(t *testing.T, o fixtureOpts) *fixture {
@@ -115,6 +120,13 @@ func newFixture(t *testing.T, o fixtureOpts) *fixture {
 
 	cfg := config.Default().ContestWeb
 	cfg.RateLimitPerMinute, cfg.LoginRateLimit, cfg.TrustedProxies = 1000, 1000, o.trusted
+	if o.loginLimit > 0 {
+		cfg.LoginRateLimit = o.loginLimit
+	}
+	cfg.CookieSecure = o.cookieSecure
+	if o.maxSubmission > 0 {
+		cfg.MaxSubmissionBytes = config.ByteSize(o.maxSubmission)
+	}
 	f.srv, err = New(cfg, Deps{Pool: pool, Redis: rdb, Blobs: store, Langs: reg, Secret: bytes.Repeat([]byte("k"), 32), NS: ns}, logging.Discard())
 	if err != nil {
 		t.Fatal(err)

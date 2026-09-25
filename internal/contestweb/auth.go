@@ -4,11 +4,14 @@ import (
 	"errors"
 	"net/http"
 	"net/netip"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/auth"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/events"
+	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 	"github.com/jackc/pgx/v5"
 )
@@ -47,9 +50,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 // handleLang stores the UI language in a cookie.
 func (s *Server) handleLang(w http.ResponseWriter, r *http.Request) {
-	lang := r.FormValue("lang")
-	http.SetCookie(w, &http.Cookie{Name: "cms_lang", Value: lang, Path: "/", MaxAge: 365 * 24 * 3600,
-		HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteLaxMode})
+	smallBody(w, r)
+	if lang := r.FormValue("lang"); slices.Contains(i18n.Languages(), lang) {
+		http.SetCookie(w, &http.Cookie{Name: "cms_lang", Value: lang, Path: "/", MaxAge: 365 * 24 * 3600,
+			HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteLaxMode})
+	}
 	back := r.Header.Get("HX-Current-URL")
 	if back == "" {
 		back = r.Referer()
@@ -92,16 +97,26 @@ const (
 )
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	smallBody(w, r)
 	cv := contestOf(r)
 	anon := s.anonCookie().Read(r)
 	if anon == nil || s.csrf.Check(r, anon.ID) != nil {
 		s.loginPage(w, r, cv, http.StatusForbidden, "Your session expired; reload the page and try again.")
 		return
 	}
+	// Only failures count: a lab behind one address logs in at once, while
+	// guessing is limited per address and per username.
 	ip := s.ips.ClientIP(r)
-	if !s.limiter.Allow(r.Context(), "login:"+ip.String(), s.cfg.LoginRateLimit, time.Minute) {
+	ipKey := "login-fail:" + ip.String()
+	userKey := "login-fail-user:" + itoa(cv.ID) + ":" + strings.ToLower(r.FormValue("username"))
+	if s.limiter.Over(r.Context(), ipKey, s.cfg.LoginRateLimit, time.Minute) ||
+		s.limiter.Over(r.Context(), userKey, loginFailuresPerUser, time.Minute) {
 		s.loginPage(w, r, cv, http.StatusTooManyRequests, msgTooManyLogins)
 		return
+	}
+	failed := func() {
+		s.limiter.Hit(r.Context(), ipKey, time.Minute)
+		s.limiter.Hit(r.Context(), userKey, time.Minute)
 	}
 	if !cv.AllowPasswordAuthentication {
 		s.loginPage(w, r, cv, http.StatusForbidden, msgPasswordLogin)
@@ -114,6 +129,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		// Burn comparable time to not reveal which usernames exist.
 		_ = auth.VerifyPassword(dummyHash, r.FormValue("password"))
+		failed()
 		s.loginPage(w, r, cv, http.StatusUnauthorized, msgBadCredentials)
 		return
 	}
@@ -122,6 +138,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		hash = *cand.ParticipationPasswordHash
 	}
 	if auth.VerifyPassword(hash, r.FormValue("password")) != nil {
+		failed()
 		s.loginPage(w, r, cv, http.StatusUnauthorized, msgBadCredentials)
 		return
 	}
@@ -144,6 +161,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.startSession(w, r, cv, cand.ParticipationID, cand.UserID, cand.LoginNonce)
 	http.Redirect(w, r, "/"+cv.Name+"/", http.StatusSeeOther)
 }
+
+// loginFailuresPerUser bounds wrong passwords per username and minute,
+// from any address.
+const loginFailuresPerUser = 10
 
 // dummyHash is verified when the username does not exist.
 var dummyHash, _ = auth.HashPassword("dummy-password-for-timing")
@@ -189,6 +210,7 @@ func (s *Server) autologin(w http.ResponseWriter, r *http.Request, cv *contestVi
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	smallBody(w, r)
 	cv := contestOf(r)
 	if sess := s.cookie(cv.ID).Read(r); sess != nil && s.csrf.Check(r, sess.ID) != nil {
 		http.Error(w, "forbidden", http.StatusForbidden)

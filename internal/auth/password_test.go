@@ -2,6 +2,7 @@ package auth
 
 import (
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -49,5 +50,33 @@ func BenchmarkVerifyDefault(b *testing.B) {
 	h, _ := HashPassword("password")
 	for b.Loop() {
 		_ = VerifyPassword(h, "password")
+	}
+}
+
+// TestVerificationsAreBounded: a burst of logins never runs more argon2
+// computations at once than there are slots, so memory stays bounded.
+func TestVerificationsAreBounded(t *testing.T) {
+	hash, err := HashPasswordParams("secret", cheap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	peak.Store(0)
+	var wg sync.WaitGroup
+	for i := 0; i < 64; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := VerifyPassword(hash, "secret"); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	if p := int(peak.Load()); p > cap(slots) || p < 1 {
+		t.Fatalf("peak %d concurrent verifications, %d slots", p, cap(slots))
+	}
+	// A stored hash asking for absurd resources is refused, not computed.
+	if err := VerifyPassword("$argon2id$v=19$m=4194304,t=2,p=1$c2FsdHNhbHRzYWx0$a2V5a2V5a2V5a2V5", "x"); err == nil {
+		t.Fatal("4 GiB hash accepted")
 	}
 }

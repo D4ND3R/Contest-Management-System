@@ -50,7 +50,12 @@ func safeNext(next string) string {
 	return next
 }
 
+// loginFailuresPerUser bounds wrong passwords (and second-factor codes)
+// per administrator and minute, from any address.
+const loginFailuresPerUser = 10
+
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	sess := s.cookie().Read(r)
 	if sess == nil || s.csrf.Check(r, sess.ID) != nil {
 		s.loginPage(w, r, http.StatusForbidden, "Your session expired; try again.")
@@ -61,19 +66,27 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if limit <= 0 {
 		limit = 20
 	}
-	if !s.limiter.Allow(r.Context(), "admin-login:"+ip.String(), limit, time.Minute) {
+	username := strings.TrimSpace(r.FormValue("username"))
+	// Only failures count, per address and per username.
+	ipKey, userKey := "admin-login-fail:"+ip.String(), "admin-login-fail-user:"+strings.ToLower(username)
+	if s.limiter.Over(r.Context(), ipKey, limit, time.Minute) || s.limiter.Over(r.Context(), userKey, loginFailuresPerUser, time.Minute) {
 		s.loginPage(w, r, http.StatusTooManyRequests, "Too many attempts; wait a minute.")
 		return
 	}
-	username := strings.TrimSpace(r.FormValue("username"))
+	failed := func() {
+		s.limiter.Hit(r.Context(), ipKey, time.Minute)
+		s.limiter.Hit(r.Context(), userKey, time.Minute)
+	}
 	a, err := s.q.GetAdminByUsername(r.Context(), username)
 	if err != nil {
 		_ = auth.VerifyPassword(dummyHash, r.FormValue("password"))
+		failed()
 		s.audit(r, nil, "login_failed", map[string]any{"username": username})
 		s.loginPage(w, r, http.StatusUnauthorized, "Wrong username or password.")
 		return
 	}
 	if auth.VerifyPassword(a.PasswordHash, r.FormValue("password")) != nil || !a.Enabled {
+		failed()
 		s.audit(r, &a.ID, "login_failed", map[string]any{"username": username})
 		s.loginPage(w, r, http.StatusUnauthorized, "Wrong username or password.")
 		return
@@ -97,6 +110,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request, rc *reqCtx
 // handleLang stores the interface language (the cookie is shared with the
 // contest web server on the same host).
 func (s *Server) handleLang(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	if lang := r.FormValue("lang"); slices.Contains(i18n.Languages(), lang) {
 		http.SetCookie(w, &http.Cookie{Name: "cms_lang", Value: lang, Path: "/", MaxAge: 365 * 24 * 3600,
 			HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteLaxMode})

@@ -185,3 +185,32 @@ printing, so a crash may print a job twice but never loses one.
   services) and on 127.0.0.1:9101–9104 (dispatcher, worker, monitor,
   printing). Useful alerts: `up == 0`, `cms_backup_last_success_timestamp_seconds`
   older than 30 minutes during a contest, queue length growing for minutes.
+- A service that seems stuck: `sudo systemctl kill -s USR1 cms-dispatcher`
+  (any unit) writes the stack of every goroutine to its journal without
+  stopping it (`journalctl -u cms-dispatcher`); attach it to a bug report.
+
+## Security and limits
+
+The web servers send a strict Content-Security-Policy (no inline code, no
+foreign origins), `X-Frame-Options: DENY`, `nosniff` and a same-origin
+referrer policy; session cookies are `HttpOnly`, `SameSite=Lax` and, with
+`cookie_secure: true` (set by the install script when HTTPS is on),
+`Secure`. Every form carries a per-session CSRF token and requests from
+another origin are refused. Settings in `cms.yaml`:
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `contest_web.login_rate_limit_per_minute` | 20 | **failed** logins per address and minute (successful ones never count, so a lab behind one NAT address logs in at once); a username also locks after 10 failures a minute from any address |
+| `admin_web.login_rate_limit_per_minute` | 20 | the same for administrators; 5 wrong second-factor codes a minute lock the administrator |
+| `contest_web.rate_limit_per_minute` | 120 | submissions and user tests per contestant and minute (on top of the contest's own limits) |
+| `contest_web.max_submission_bytes` | 1 MiB | a submission request; the task's source limit applies per file |
+| `contest_web.max_user_test_bytes` | 8 MiB | a user test (sources and input) |
+| `contest_web.max_print_bytes` | 2 MiB | a print job |
+| `admin_web.max_upload_bytes` | 1 GiB | an admin upload (packages, testcase archives, contest archives) |
+| `*.trusted_proxies` | — | proxies whose `X-Forwarded-For` is believed (the HTTPS proxy) |
+
+Bodies over these limits are refused with 413 before anything is read
+into memory or onto disk; plain forms are limited to 64 KiB (contestants)
+and 1 MiB (administrators). Password checks (argon2id, 19 MiB each) run at
+most one per core at a time (at least two), so a login storm queues
+instead of exhausting memory.

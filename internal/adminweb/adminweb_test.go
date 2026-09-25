@@ -53,7 +53,9 @@ type fixture struct {
 	backups *backup.Runner
 }
 
-func newFixture(t *testing.T) *fixture {
+// newFixture starts an admin server over a seeded database; opts adjust
+// its configuration.
+func newFixture(t *testing.T, opts ...func(*config.AdminWeb)) *fixture {
 	t.Helper()
 	pool := testutil.DB(t)
 	rdb, ns := testutil.Redis(t)
@@ -77,6 +79,9 @@ func newFixture(t *testing.T) *fixture {
 	f.seed()
 	cfg := config.Default().AdminWeb
 	cfg.LoginRateLimit = 1000
+	for _, o := range opts {
+		o(&cfg)
+	}
 	bcfg := config.Default().Backup
 	bcfg.Dir, bcfg.MaxRate = t.TempDir(), 0
 	f.backups = backup.NewRunner(pool, store, bcfg, queue.New(rdb, ns), nil, logging.Discard())

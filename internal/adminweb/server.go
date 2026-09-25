@@ -426,6 +426,9 @@ func (s *Server) withAdmin(p perm, action string, h handler) http.HandlerFunc {
 		}
 		rc := &reqCtx{admin: a, sess: sess}
 		if r.Method == http.MethodPost {
+			if !s.limitBody(w, r, rc) {
+				return
+			}
 			if err := s.csrf.Check(r, sess.ID); err != nil {
 				s.errorPage(w, r, rc, http.StatusForbidden, "Your session expired; reload the page and try again.")
 				return
@@ -670,4 +673,28 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request, rc *reqCtx
 		s.hub.mu.Unlock()
 	}()
 	webkit.ServeSSE(w, r, ch, 25*time.Second, 3*time.Second)
+}
+
+// limitBody bounds the body before anything reads it (the CSRF check
+// parses the form, files included): the upload limit for multipart forms,
+// 1 MiB for the others; it answers 413 when the body is larger.
+func (s *Server) limitBody(w http.ResponseWriter, r *http.Request, rc *reqCtx) bool {
+	multipart := strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/")
+	limit := int64(1 << 20)
+	if multipart {
+		limit = s.uploadLimit() + 1<<20
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
+	var err error
+	if multipart {
+		err = r.ParseMultipartForm(32 << 20)
+	} else {
+		err = r.ParseForm()
+	}
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		s.errorPage(w, r, rc, http.StatusRequestEntityTooLarge, "The upload is larger than allowed (admin_web.max_upload_bytes).")
+		return false
+	}
+	return true
 }

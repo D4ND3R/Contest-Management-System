@@ -2,6 +2,7 @@ package webkit
 
 import (
 	"context"
+	"github.com/D4ND3R/Contest-Management-System/internal/testutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -138,5 +139,31 @@ func TestSecurityHeaders(t *testing.T) {
 	csp := rec.Header().Get("Content-Security-Policy")
 	if !strings.Contains(csp, "script-src 'self'") || strings.Contains(csp, "unsafe-inline") || rec.Header().Get("X-Frame-Options") != "DENY" {
 		t.Fatalf("headers %v", rec.Header())
+	}
+}
+
+// TestLimiterOverAndHit: only counted events use the budget, with Redis
+// and with the local fallback alike.
+func TestLimiterOverAndHit(t *testing.T) {
+	rdb, ns := testutil.Redis(t)
+	ctx := context.Background()
+	for name, l := range map[string]*Limiter{"redis": NewLimiter(rdb, ns), "local": NewLimiter(nil, "t:")} {
+		for i := 0; i < 100; i++ {
+			if l.Over(ctx, "fail:ip", 3, time.Minute) {
+				t.Fatalf("%s: over before any failure", name)
+			}
+		}
+		for i := 0; i < 3; i++ {
+			if l.Over(ctx, "fail:ip", 3, time.Minute) {
+				t.Fatalf("%s: over after %d failures", name, i)
+			}
+			l.Hit(ctx, "fail:ip", time.Minute)
+		}
+		if !l.Over(ctx, "fail:ip", 3, time.Minute) || l.Over(ctx, "fail:other", 3, time.Minute) {
+			t.Fatalf("%s: limit not reached or not per key", name)
+		}
+		if l.Over(ctx, "fail:ip", 0, time.Minute) {
+			t.Fatalf("%s: a zero limit disables the check", name)
+		}
 	}
 }
