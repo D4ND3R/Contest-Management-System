@@ -100,8 +100,33 @@
   <label>{{.T "Mode"}} <select name="scoring_mode"><option value="ioi" {{if eq $c.ScoringMode "ioi"}}selected{{end}}>{{.T "IOI (scores)"}}</option><option value="icpc" {{if eq $c.ScoringMode "icpc"}}selected{{end}}>{{.T "ICPC (solved + penalty)"}}</option></select></label>
   <label>{{.T "Score precision (decimals)"}} <input name="score_precision" value="{{$c.ScorePrecision}}" inputmode="numeric"></label>
   <label>{{.T "ICPC penalty per rejected attempt (min)"}} <input name="icpc_penalty_minutes" value="{{$c.IcpcPenaltyMinutes}}" inputmode="numeric"></label>
-  <label>{{.T "Freeze the public ranking at (%s)" $c.Timezone}} <input type="datetime-local" step="1" name="ranking_freeze_time" value="{{local $c.RankingFreezeTime $c.Timezone}}"></label>
 </div>
+</fieldset>
+<fieldset><legend>{{.T "Ranking"}}</legend>
+<div class="grid">
+  <label>{{.T "Who sees it"}} <select name="ranking_visibility">
+    <option value="public" {{if eq $c.RankingVisibility "public"}}selected{{end}}>{{.T "everybody (public scoreboard)"}}</option>
+    <option value="contestants" {{if eq $c.RankingVisibility "contestants"}}selected{{end}}>{{.T "only contestants"}}</option>
+    <option value="admins" {{if eq $c.RankingVisibility "admins"}}selected{{end}}>{{.T "only administrators (and a secret link)"}}</option>
+    <option value="hidden" {{if eq $c.RankingVisibility "hidden"}}selected{{end}}>{{.T "nobody (admin panel only)"}}</option></select></label>
+  <label>{{.T "What contestants see"}} <select name="ranking_contestant_view">
+    <option value="full" {{if eq $c.RankingContestantView "full"}}selected{{end}}>{{.T "the whole ranking"}}</option>
+    <option value="own" {{if eq $c.RankingContestantView "own"}}selected{{end}}>{{.T "only their position"}}</option>
+    <option value="none" {{if eq $c.RankingContestantView "none"}}selected{{end}}>{{.T "nothing"}}</option></select></label>
+  <label>{{.T "When"}} <select name="ranking_when">
+    <option value="always" {{if eq $c.RankingWhen "always"}}selected{{end}}>{{.T "during and after the contest"}}</option>
+    <option value="after" {{if eq $c.RankingWhen "after"}}selected{{end}}>{{.T "only after the end"}}</option></select></label>
+  <label>{{.T "Freeze the last (minutes)"}} <input name="ranking_freeze_minutes" value="{{$c.RankingFreezeMinutes}}" inputmode="numeric" size="4"></label>
+  <label>{{.T "or freeze at (%s)" $c.Timezone}} <input type="datetime-local" step="1" name="ranking_freeze_time" value="{{local $c.RankingFreezeTime $c.Timezone}}"></label>
+</div>
+<p class="checks">
+  <label><input type="checkbox" name="ranking_show_subtasks" {{if $c.RankingShowSubtasks}}checked{{end}}> {{.T "subtask scores"}}</label>
+  <label><input type="checkbox" name="ranking_show_flags" {{if $c.RankingShowFlags}}checked{{end}}> {{.T "flags"}}</label>
+  <label><input type="checkbox" name="ranking_show_institutions" {{if $c.RankingShowInstitutions}}checked{{end}}> {{.T "institutions"}}</label>
+  <label><input type="checkbox" name="ranking_show_hidden" {{if $c.RankingShowHidden}}checked{{end}}> {{.T "hidden users"}}</label>
+  <label><input type="checkbox" name="ranking_anonymous" {{if $c.RankingAnonymous}}checked{{end}}> {{.T "anonymous (no names)"}}</label>
+</p>
+<p class="muted small">{{.T "Team contests are ranked by team. The public scoreboard is served by the ranking web server; the freeze hides later results until you unfreeze it from the ranking page."}}</p>
 </fieldset>
 <fieldset><legend>{{.T "Printing"}}</legend>
 <div class="grid">

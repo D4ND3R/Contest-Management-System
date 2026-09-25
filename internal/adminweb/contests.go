@@ -97,13 +97,8 @@ func (s *Server) handleContests(w http.ResponseWriter, r *http.Request, rc *reqC
 
 func (s *Server) handleContestNew(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	now := s.now().Truncate(time.Hour).Add(time.Hour)
-	c := db.ContestToUpdate(sqlc.Contest{})
-	cp := db.NewContestParams("", now, now.Add(5*time.Hour))
-	c.StartTime, c.StopTime, c.Timezone, c.TokenMode = cp.StartTime, cp.StopTime, cp.Timezone, cp.TokenMode
-	c.SubmissionsDownloadAllowed, c.AllowQuestions, c.AllowUserTests = true, true, true
-	c.AllowPasswordAuthentication, c.TokenGenInitial, c.TokenGenNumber, c.TokenGenIntervalS = true, 2, 2, 1800
-	c.ScoringMode, c.IcpcPenaltyMinutes, c.MaxPrintJobs, c.MaxPrintPages = "ioi", 20, 10, 20
-	c.Languages, c.AllowedLocalizations = []string{}, []string{}
+	c := db.NewContestUpdate()
+	c.StartTime, c.StopTime = now, now.Add(5*time.Hour)
 	d, _ := s.contestForm(r.Context(), c, true)
 	s.render(w, "contest", http.StatusOK, s.newPage(w, r, rc, "New contest", "contests", d).crumb("Contests", "/contests"))
 }
@@ -207,6 +202,20 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 		f.fail("the ICPC penalty must not be negative")
 	}
 	c.RankingFreezeTime = f.optTime("ranking_freeze_time", "Ranking freeze", loc)
+	if f.str("ranking_visibility") != "" {
+		c.RankingVisibility = f.oneOf("ranking_visibility", "Ranking visibility", "public", "contestants", "admins", "hidden")
+		c.RankingContestantView = f.oneOf("ranking_contestant_view", "What contestants see", "full", "own", "none")
+		c.RankingWhen = f.oneOf("ranking_when", "When the ranking is shown", "always", "after")
+		c.RankingFreezeMinutes = f.int32("ranking_freeze_minutes", "Freeze minutes", 0)
+		if c.RankingFreezeMinutes < 0 {
+			f.fail("%s must not be negative", "Freeze minutes")
+		}
+		c.RankingShowSubtasks = f.check("ranking_show_subtasks")
+		c.RankingShowFlags = f.check("ranking_show_flags")
+		c.RankingShowInstitutions = f.check("ranking_show_institutions")
+		c.RankingShowHidden = f.check("ranking_show_hidden")
+		c.RankingAnonymous = f.check("ranking_anonymous")
+	}
 	c.MaxPrintJobs = f.int32("max_print_jobs", "Maximum print jobs", 10)
 	c.MaxPrintPages = f.int32("max_print_pages", "Maximum pages per job", 20)
 	if c.MaxPrintJobs < 0 || c.MaxPrintPages < 0 {
@@ -217,7 +226,7 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 
 func (s *Server) handleContestCreate(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	f := newForm(r)
-	c := s.parseContest(f, db.ContestToUpdate(sqlc.Contest{}))
+	c := s.parseContest(f, db.NewContestUpdate())
 	if f.err == nil {
 		if _, err := s.q.GetContestByName(r.Context(), c.Name); err == nil {
 			f.fail("a contest named %q already exists", c.Name)

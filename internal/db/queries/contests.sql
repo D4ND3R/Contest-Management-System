@@ -35,7 +35,9 @@ UPDATE contests SET
     max_user_test_number = $30, min_submission_interval_s = $31, min_user_test_interval_s = $32,
     score_precision = $33, scoring_mode = $34, icpc_penalty_minutes = $35,
     ranking_freeze_time = $36, max_print_jobs = $37, max_print_pages = $38, questions_per_minute = $39,
-    updated_at = now()
+    ranking_visibility = $40, ranking_contestant_view = $41, ranking_when = $42, ranking_freeze_minutes = $43,
+    ranking_show_subtasks = $44, ranking_show_flags = $45, ranking_show_institutions = $46,
+    ranking_show_hidden = $47, ranking_anonymous = $48, updated_at = now()
 WHERE id = $1
 RETURNING *;
 

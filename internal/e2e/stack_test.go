@@ -33,6 +33,8 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/logging"
 	"github.com/D4ND3R/Contest-Management-System/internal/monitor"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
+	"github.com/D4ND3R/Contest-Management-System/internal/rankingpush"
+	"github.com/D4ND3R/Contest-Management-System/internal/rankingweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/sandbox"
 	"github.com/D4ND3R/Contest-Management-System/internal/testutil"
 	"github.com/D4ND3R/Contest-Management-System/internal/worker"
@@ -53,6 +55,7 @@ type stack struct {
 	langs   *langs.Registry
 	cwsURL  string
 	awsURL  string
+	rwsURL  string
 	secret  []byte
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -65,9 +68,13 @@ type stackOpts struct {
 	workers bool // start a worker (needs isolate + root)
 	admin   bool // start the admin web server
 	empty   bool // no contest fixture (created through the admin UI)
+	ranking bool // start a ranking web server fed by the ranking pusher
 }
 
-var boxBase = 300
+// Isolate box ids of this package: 100-299 (worker tests use 400-599,
+// dispatcher tests 600-879 and sandbox tests 900+; packages run in
+// parallel, so the ranges must not overlap).
+var boxBase = 100
 
 func newStack(t testing.TB, o stackOpts) *stack {
 	t.Helper()
@@ -100,13 +107,14 @@ func newStack(t testing.TB, o stackOpts) *stack {
 		iso := sandbox.TestIsolate(t)
 		dir := t.(interface{ TempDir() string }).TempDir()
 		cores := sandbox.DefaultCores()
+		need := 2 * sandbox.BoxesPerSlot * len(cores)
+		if boxBase+need > 300 {
+			boxBase = 100
+		}
 		svc, err := worker.NewService(config.Worker{Name: "e2e-worker", IsolatePath: iso.Path, IsolateCG: iso.CG,
 			IsolateBoxRoot: iso.BoxRoot, Cores: cores, BoxIDOffset: boxBase, WorkDir: filepath.Join(dir, "w"),
 			CacheDir: filepath.Join(dir, "c"), CacheMaxBytes: 1 << 30}, st, qu, logging.Discard())
-		boxBase += 2 * 12 * len(cores)
-		if boxBase > 380 {
-			boxBase = 300
-		}
+		boxBase += need
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -132,6 +140,18 @@ func newStack(t testing.TB, o stackOpts) *stack {
 		ready := make(chan net.Addr, 1)
 		s.run(func() { aws.Run(ctx, "127.0.0.1:0", ready) })
 		s.awsURL = "http://" + (<-ready).String()
+	}
+	if o.ranking {
+		rws, err := rankingweb.New(config.RankingWeb{DataDir: t.(interface{ TempDir() string }).TempDir(), PushToken: "e2e-token"}, logging.Discard())
+		if err != nil {
+			t.Fatal(err)
+		}
+		ready := make(chan net.Addr, 1)
+		s.run(func() { rws.Run(ctx, "127.0.0.1:0", ready) })
+		s.rwsURL = "http://" + (<-ready).String()
+		p := rankingpush.New(pool, rdb, s.store, logging.Discard(), rankingpush.Options{URLs: []string{s.rwsURL}, Token: "e2e-token",
+			Secret: s.secret, Namespace: ns})
+		s.run(func() { p.Run(ctx) })
 	}
 	t.Cleanup(func() {
 		cancel()

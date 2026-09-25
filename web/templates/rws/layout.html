@@ -1,0 +1,16 @@
+{{define "layout"}}<!doctype html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<link rel="stylesheet" href="{{static "style.css"}}">
+<link rel="stylesheet" href="{{static "rws.css"}}">
+{{if .Live}}<meta name="rws-events" content="/{{.Name}}/events"><script src="{{static "rws.js"}}" defer></script>{{end}}
+</head>
+<body class="rws">
+<main class="wide">
+{{template "content" .}}
+</main>
+</body>
+</html>{{end}}

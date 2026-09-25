@@ -522,6 +522,42 @@ func (q *Queue) PushRanking(ctx context.Context, ups ...RankingUpdate) error {
 	return err
 }
 
+// ReadRanking returns the ranking updates after id ("$" for new ones only),
+// waiting up to block, and the id to continue from. The stream is only a
+// signal for the ranking pusher, which recomputes from the database, so it
+// is read without a consumer group.
+func (q *Queue) ReadRanking(ctx context.Context, id string, block time.Duration) ([]RankingUpdate, string, error) {
+	res, err := q.rdb.XRead(ctx, &redis.XReadArgs{Streams: []string{q.RankingStream(), id}, Count: 1000, Block: block}).Result()
+	if errors.Is(err, redis.Nil) {
+		return nil, id, nil
+	}
+	if err != nil {
+		return nil, id, err
+	}
+	var out []RankingUpdate
+	for _, st := range res {
+		for _, m := range st.Messages {
+			id = m.ID
+			if s, ok := m.Values["update"].(string); ok {
+				var u RankingUpdate
+				if json.Unmarshal([]byte(s), &u) == nil {
+					out = append(out, u)
+				}
+			}
+		}
+	}
+	return out, id, nil
+}
+
+// LastRankingID is the id of the newest ranking update ("0-0" if none).
+func (q *Queue) LastRankingID(ctx context.Context) (string, error) {
+	msgs, err := q.rdb.XRevRangeN(ctx, q.RankingStream(), "+", "-", 1).Result()
+	if err != nil || len(msgs) == 0 {
+		return "0-0", err
+	}
+	return msgs[0].ID, nil
+}
+
 // AdoptPending transfers every unacknowledged result and event of other
 // dispatcher consumers to consumer. The active dispatcher calls it when it
 // takes the lease, so work delivered to a dead replica is not stranded.

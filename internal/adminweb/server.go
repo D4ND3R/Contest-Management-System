@@ -59,8 +59,10 @@ type Server struct {
 	secret   []byte
 	// contestListen is the contest web server's listen address (links).
 	contestListen string
-	checks        []httpx.Check
-	now           func() time.Time
+	// rankingURL is the public address of the ranking web server (links).
+	rankingURL string
+	checks     []httpx.Check
+	now        func() time.Time
 	// MaxUploadBytes bounds multipart requests (testcase archives).
 	maxUpload int64
 }
@@ -77,6 +79,8 @@ type Deps struct {
 	// ContestListen is the contest web server's listen address, used to
 	// build links when admin_web.contest_url is not set.
 	ContestListen string
+	// RankingURL is the public address of the ranking web server.
+	RankingURL string
 }
 
 // New builds a server.
@@ -96,7 +100,7 @@ func New(cfg config.AdminWeb, d Deps, log *slog.Logger) (*Server, error) {
 		signer: webkit.NewSigner(d.Secret, "aws-session"), flash: webkit.NewSigner(d.Secret, "aws-flash"),
 		ips: ips, limiter: webkit.NewLimiter(d.Redis, d.NS), admins: &adminCache{q: q, m: map[int64]adminEntry{}},
 		hub: &adminHub{clients: map[chan []byte]struct{}{}}, checks: d.Checks, now: time.Now,
-		sessions: webkit.NewSessionTracker(d.Redis, d.NS), secret: d.Secret, contestListen: d.ContestListen,
+		sessions: webkit.NewSessionTracker(d.Redis, d.NS), secret: d.Secret, contestListen: d.ContestListen, rankingURL: d.RankingURL,
 		maxUpload: 1 << 30,
 	}
 	if err := s.loadTemplates(); err != nil {
@@ -200,6 +204,7 @@ func (s *Server) Handler() http.Handler {
 	post("/contests/{id}/participations", permAll, "participation.create", s.handleParticipationCreate)
 	get("/contests/{id}/submissions", s.handleSubmissions)
 	get("/contests/{id}/ranking", s.handleRanking)
+	post("/contests/{id}/ranking/freeze", permAll, "contest.ranking_freeze", s.handleRankingFreeze)
 	get("/contests/{id}/ranking.csv", s.handleRankingCSV)
 	get("/contests/{id}/ranking.json", s.handleRankingJSON)
 	get("/contests/{id}/stats", s.handleStats)

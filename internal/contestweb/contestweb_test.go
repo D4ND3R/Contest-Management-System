@@ -572,3 +572,47 @@ func TestAskQuestion(t *testing.T) {
 		t.Fatal("the form is shown while questions are closed")
 	}
 }
+
+// TestContestantRanking covers what contestants see of the ranking (A2).
+func TestContestantRanking(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	hash, _ := auth.HashPassword("pw")
+	u2, _ := f.q.CreateUser(bg, sqlc.CreateUserParams{Username: "beto", FirstName: "Beto", PasswordHash: hash, PreferredLanguages: []string{}})
+	p2, _ := f.q.CreateParticipation(bg, sqlc.CreateParticipationParams{ContestID: f.contest.ID, UserID: u2.ID, Ip: []netip.Prefix{}})
+	f.q.UpsertParticipationTaskScore(bg, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: p2.ID, TaskID: f.task.ID, Score: 50,
+		SubtaskScores: json.RawMessage(`[50]`), LastSubmissionAt: ptrTime(time.Now())})
+	set := func(sql string) {
+		if _, err := f.pool.Exec(bg, "UPDATE contests SET "+sql+" WHERE id = $1", f.contest.ID); err != nil {
+			t.Fatal(err)
+		}
+		events.Publish(bg, f.rdb, f.ns, events.Event{Type: events.TypeContest, ContestID: f.contest.ID})
+		time.Sleep(100 * time.Millisecond)
+		f.srv.boards.mu.Lock()
+		f.srv.boards.entries = nil
+		f.srv.boards.mu.Unlock()
+	}
+	c := f.client()
+	f.login(c, "ana", "secret")
+	code, body := f.get(c, "/ioi/ranking")
+	if code != 200 || !strings.Contains(body, "Beto") || !strings.Contains(body, `class="mine"`) || !strings.Contains(body, `href="/ioi/ranking"`) {
+		t.Fatalf("full ranking = %d\n%s", code, body)
+	}
+	set("ranking_contestant_view = 'own'")
+	if _, body = f.get(c, "/ioi/ranking"); strings.Contains(body, "Beto") || !strings.Contains(body, "Your position: 2 of 2.") {
+		t.Fatalf("own position:\n%s", body)
+	}
+	set("ranking_contestant_view = 'full', ranking_freeze_minutes = 1000")
+	if _, body = f.get(c, "/ioi/ranking"); !strings.Contains(body, "The ranking is frozen") {
+		t.Fatalf("frozen notice:\n%s", body)
+	}
+	set("ranking_when = 'after'")
+	if code, body = f.get(c, "/ioi/ranking"); code != 404 || strings.Contains(body, `href="/ioi/ranking"`) {
+		t.Fatalf("ranking during the contest with 'after' = %d", code)
+	}
+	set("ranking_when = 'always', ranking_visibility = 'admins'")
+	if code, _ = f.get(c, "/ioi/ranking"); code != 404 {
+		t.Fatalf("admins-only ranking = %d", code)
+	}
+}
+
+func ptrTime(t time.Time) *time.Time { return &t }

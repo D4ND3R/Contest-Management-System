@@ -22,6 +22,7 @@
     <a href="{{.Base}}communication" {{if eq .Active "communication"}}class="active"{{end}}>{{.T "Communication"}} <span id="unread" class="badge" title="{{.T "unread"}}" {{if not .Unread}}hidden{{end}}>{{.Unread}}</span></a>
     {{if .Contest.AllowUserTests}}<a href="{{.Base}}testing" {{if eq .Active "testing"}}class="active"{{end}}>{{.T "Testing"}}</a>{{end}}
     {{if .Contest.AllowPrinting}}<a href="{{.Base}}printing" {{if eq .Active "printing"}}class="active"{{end}}>{{.T "Printing"}}</a>{{end}}
+    {{if .Ranking}}<a href="{{.Base}}ranking" {{if eq .Active "ranking"}}class="active"{{end}}>{{.T "Ranking"}}</a>{{end}}
     <a href="{{.Base}}documentation" {{if eq .Active "documentation"}}class="active"{{end}}>{{.T "Documentation"}}</a>
   </nav>
   <div class="user">

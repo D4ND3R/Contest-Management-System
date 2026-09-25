@@ -1,0 +1,9 @@
+{{define "row"}}{{$b := .B}}{{$r := .R}}
+<tr id="r-{{$r.Key}}" data-key="{{$r.Key}}" data-rank="{{$r.Rank}}" data-name="{{$r.Name}}">
+<td class="num rank">{{$r.Rank}}</td>
+<td class="name">{{if and $b.Flags $r.Flag}}<img src="/assets/{{$r.Flag}}" alt="" class="flag"> {{end}}<a href="u/{{$r.Key}}">{{$r.Name}}</a>{{if and $b.Institutions $r.Institution}} <small class="muted">{{$r.Institution}}</small>{{end}}</td>
+{{range $i, $c := $r.Cells}}{{$d := cell $b $i $c}}<td class="num cell {{$d.Class}}">{{$d.Text}}{{with $d.Minute}} <small>{{.}}</small>{{end}}{{if $d.Pending}} <span class="pending">?</span>{{end}}{{with $d.Subtasks}}<small class="sub">{{.}}</small>{{end}}</td>{{end}}
+<td class="num total"><b>{{if $b.ICPC}}{{$r.Solved}}{{else}}{{score $r.Total $b.Precision}}{{end}}</b></td>
+{{if $b.ICPC}}<td class="num">{{$r.Penalty}}</td>{{end}}
+</tr>
+{{end}}

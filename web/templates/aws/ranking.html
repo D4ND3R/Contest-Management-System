@@ -1,6 +1,17 @@
 {{define "content"}}
 {{$r := .Data}}
 <h1>{{.T "Ranking of %s" $r.Contest}} {{if $r.ICPC}}<span class="tag">ICPC</span>{{end}}</h1>
+<section class="card">
+<p>{{.T "Public ranking:"}} <b>{{.T $r.C.RankingVisibility}}</b>{{with $r.PublicURL}} · <a href="{{.}}">{{$.T "open the scoreboard"}}</a>{{end}}
+{{with $r.FreezeAt}} · {{if $r.Frozen}}<span class="tag">{{$.T "frozen since %s UTC" (dt .)}}</span>{{else if $r.C.RankingUnfrozen}}<span class="tag ok">{{$.T "unfrozen"}}</span>{{else}}{{$.T "freezes at %s UTC" (dt .)}}{{end}}{{end}}</p>
+{{if and .CanWrite $r.FreezeAt}}
+<form method="post" action="/contests/{{$r.C.ID}}/ranking/freeze" class="inline" data-confirm="{{if $r.C.RankingUnfrozen}}{{.T "Freeze the public ranking again?"}}{{else}}{{.T "Unfreeze the public ranking? Every result becomes visible."}}{{end}}">
+  {{template "csrf" .CSRF}}<input type="hidden" name="unfrozen" value="{{if $r.C.RankingUnfrozen}}0{{else}}1{{end}}">
+  <button class="{{if not $r.C.RankingUnfrozen}}danger{{end}}">{{if $r.C.RankingUnfrozen}}{{.T "Freeze again"}}{{else}}{{.T "Unfreeze now"}}{{end}}</button>
+</form>
+{{end}}
+<p class="muted small">{{.T "This page always shows the complete, unfrozen ranking."}}</p>
+</section>
 <p class="actions"><a href="/contests/{{$r.ContestID}}/ranking.csv{{if $r.Site}}?site={{$r.Site}}{{end}}">{{.T "Export CSV"}}</a> · <a href="/contests/{{$r.ContestID}}/ranking.json{{if $r.Site}}?site={{$r.Site}}{{end}}">{{.T "Export JSON"}}</a> ·
   <a href="?hidden=1">{{.T "include hidden users"}}</a> · <a href="/contests/{{$r.ContestID}}/stats">{{.T "statistics"}}</a></p>
 {{if $r.Sites}}<form method="get" class="filters"><label>{{.T "Site"}} <select name="site"><option value="">{{.T "all"}}</option>{{range $r.Sites}}<option value="{{.ID}}" {{if eq .ID $r.Site}}selected{{end}}>{{.Name}}</option>{{end}}</select></label> <button>{{.T "Filter"}}</button></form>{{end}}

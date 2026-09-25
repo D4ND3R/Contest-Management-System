@@ -337,3 +337,22 @@ per-participation index and SSE routing need nothing new). The question
 limit uses the Redis rate limiter (no database write on rejection). The
 admin SSE hub forwards only alerts and new questions: submission events are
 far too frequent to fan out to staff browsers that ignore them.
+
+## D46. Ranking: pusher in the dispatcher, stateless-to-the-DB RWS
+The public scoreboard (RWS) never reads the database: a pusher (under its
+own Redis lease, started with the dispatcher when `ranking_urls` is set)
+watches the ranking stream the dispatcher already writes, recomputes the
+affected contest's board — from the per-task aggregates while live, by
+replaying submissions before the cutoff while frozen or on a full
+resynchronisation — and pushes only changed rows with sequence numbers; a
+server that is new or missed a delta answers 409 and gets the full board.
+Recomputations are coalesced (250 ms live, 2 s frozen) so the web and
+database core never compute a ranking per score. The RWS renders every
+changed row once, language-neutral, and sends that HTML over SSE, so ten
+thousand spectators cost one render per change; pages are cached per
+language. Visibility "contestants" is served by the contest web server
+only (it has the sessions), "admins" by the RWS behind a key derived from
+the secret, "hidden" nowhere but the admin panel. Team boards merge members
+per task (best member per subtask with max_subtask scoring); anonymous
+boards label rows by participation order so labels do not move with the
+scores.

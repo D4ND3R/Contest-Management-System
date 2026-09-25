@@ -75,7 +75,7 @@ func newFixture(t *testing.T) *fixture {
 	cfg := config.Default().AdminWeb
 	cfg.LoginRateLimit = 1000
 	srv, err := New(cfg, Deps{Pool: pool, Redis: rdb, Blobs: blob.NewTracked(store, f.q), Langs: reg,
-		Secret: bytes.Repeat([]byte("a"), 32), NS: ns}, logging.Discard())
+		Secret: bytes.Repeat([]byte("a"), 32), NS: ns, RankingURL: "https://ranking.example.org"}, logging.Discard())
 	if err != nil {
 		t.Fatal(err)
 	}

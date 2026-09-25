@@ -17,13 +17,15 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/monitor"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
+	"github.com/D4ND3R/Contest-Management-System/internal/rankingpush"
+	"github.com/D4ND3R/Contest-Management-System/internal/rankingweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/worker"
 )
 
 func init() {
 	services["contest-web"] = runContestWeb
 	services["admin-web"] = runAdminWeb
-	services["ranking-web"] = stub("ranking-web", func(c *config.Config) string { return c.RankingWeb.Listen })
+	services["ranking-web"] = runRankingWeb
 	services["dispatcher"] = runDispatcher
 	services["worker"] = runWorker
 	services["monitor"] = runMonitor
@@ -96,7 +98,7 @@ func runAdminWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) erro
 	}
 	srv, err := adminweb.New(cfg.AdminWeb, adminweb.Deps{
 		Pool: d.DB, Redis: d.Redis, Blobs: d.Blobs, Langs: reg, Secret: cfg.Secret(), NS: cfg.Redis.Namespace, Checks: d.Checks(),
-		ContestListen: cfg.ContestWeb.Listen,
+		ContestListen: cfg.ContestWeb.Listen, RankingURL: cfg.RankingWeb.PublicURL,
 	}, log)
 	if err != nil {
 		return err
@@ -105,7 +107,7 @@ func runAdminWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) erro
 }
 
 func runDispatcher(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
-	d, err := deps.Open(ctx, cfg, log, deps.Need{DB: true, Redis: true})
+	d, err := deps.Open(ctx, cfg, log, deps.Need{DB: true, Redis: true, Blobs: len(cfg.Dispatcher.RankingURLs) > 0})
 	if err != nil {
 		return err
 	}
@@ -120,6 +122,10 @@ func runDispatcher(ctx context.Context, cfg *config.Config, log *slog.Logger) er
 	})
 	g, ctx := app.NewGroup(ctx)
 	g.Go(disp.Run)
+	// The ranking pusher feeds the ranking web servers (when configured).
+	pusher := rankingpush.New(d.DB, d.Redis, d.Blobs, log, rankingpush.Options{URLs: cfg.Dispatcher.RankingURLs,
+		Token: cfg.RankingWeb.PushToken, Secret: cfg.Secret(), Namespace: cfg.Redis.Namespace})
+	g.Go(pusher.Run)
 	g.Go(func(ctx context.Context) error {
 		return httpx.Serve(ctx, log, cfg.Dispatcher.MetricsListen, httpx.OpsMux("dispatcher", d.Checks()...), nil)
 	})
@@ -161,4 +167,13 @@ func runMonitor(ctx context.Context, cfg *config.Config, log *slog.Logger) error
 		return httpx.Serve(ctx, log, cfg.Monitor.MetricsListen, httpx.OpsMux("monitor", d.Checks()...), nil)
 	})
 	return g.Wait()
+}
+
+// runRankingWeb serves the public scoreboards; it needs no database.
+func runRankingWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
+	srv, err := rankingweb.New(cfg.RankingWeb, log)
+	if err != nil {
+		return err
+	}
+	return srv.Run(ctx, cfg.RankingWeb.Listen, nil)
 }

@@ -463,6 +463,7 @@ func (q *Queries) ListExistingUsernames(ctx context.Context, usernames []string)
 const listParticipationsByContest = `-- name: ListParticipationsByContest :many
 SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, p.communication_seen_at, u.username, u.first_name, u.last_name, u.timezone AS user_timezone,
        u.institution, u.country, u.disabled, t.code AS team_code, t.name AS team_name,
+       t.flag_digest AS team_flag, t.institution AS team_institution,
        st.name AS site_name, st.start_time AS site_start_time
 FROM participations p
 JOIN users u ON u.id = p.user_id
@@ -473,18 +474,20 @@ ORDER BY u.username
 `
 
 type ListParticipationsByContestRow struct {
-	Participation Participation `json:"participation"`
-	Username      string        `json:"username"`
-	FirstName     string        `json:"first_name"`
-	LastName      string        `json:"last_name"`
-	UserTimezone  *string       `json:"user_timezone"`
-	Institution   string        `json:"institution"`
-	Country       string        `json:"country"`
-	Disabled      bool          `json:"disabled"`
-	TeamCode      *string       `json:"team_code"`
-	TeamName      *string       `json:"team_name"`
-	SiteName      *string       `json:"site_name"`
-	SiteStartTime *time.Time    `json:"site_start_time"`
+	Participation   Participation `json:"participation"`
+	Username        string        `json:"username"`
+	FirstName       string        `json:"first_name"`
+	LastName        string        `json:"last_name"`
+	UserTimezone    *string       `json:"user_timezone"`
+	Institution     string        `json:"institution"`
+	Country         string        `json:"country"`
+	Disabled        bool          `json:"disabled"`
+	TeamCode        *string       `json:"team_code"`
+	TeamName        *string       `json:"team_name"`
+	TeamFlag        *string       `json:"team_flag"`
+	TeamInstitution *string       `json:"team_institution"`
+	SiteName        *string       `json:"site_name"`
+	SiteStartTime   *time.Time    `json:"site_start_time"`
 }
 
 func (q *Queries) ListParticipationsByContest(ctx context.Context, contestID int64) ([]ListParticipationsByContestRow, error) {
@@ -520,6 +523,8 @@ func (q *Queries) ListParticipationsByContest(ctx context.Context, contestID int
 			&i.Disabled,
 			&i.TeamCode,
 			&i.TeamName,
+			&i.TeamFlag,
+			&i.TeamInstitution,
 			&i.SiteName,
 			&i.SiteStartTime,
 		); err != nil {

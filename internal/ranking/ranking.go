@@ -29,6 +29,7 @@ type Task struct {
 	DatasetID   int64     `json:"dataset_id,omitempty"`
 	ScoreType   string    `json:"-"`
 	NumTestcase int       `json:"-"`
+	scoreMode   string
 }
 
 // Cell is a participation's result on a task.
@@ -54,6 +55,8 @@ type Row struct {
 	LastName        string  `json:"last_name"`
 	TeamCode        string  `json:"team,omitempty"`
 	TeamName        string  `json:"team_name,omitempty"`
+	TeamFlag        string  `json:"team_flag,omitempty"` // blob digest
+	TeamInstitution string  `json:"team_institution,omitempty"`
 	Institution     string  `json:"institution,omitempty"`
 	Country         string  `json:"country,omitempty"`
 	Site            string  `json:"site,omitempty"`
@@ -120,7 +123,7 @@ func LoadTasks(ctx context.Context, q *sqlc.Queries, contestID int64) ([]Task, e
 	}
 	out := make([]Task, 0, len(tasks))
 	for _, t := range tasks {
-		rt := Task{ID: t.ID, Name: t.Name, Title: t.Title, Precision: int(t.ScorePrecision)}
+		rt := Task{ID: t.ID, Name: t.Name, Title: t.Title, Precision: int(t.ScorePrecision), scoreMode: t.ScoreMode}
 		if d, ok := dsByTask[t.ID]; ok {
 			rt.DatasetID, rt.ScoreType = d.ID, d.ScoreType
 			s := byDS[d.ID]
@@ -137,8 +140,17 @@ func LoadTasks(ctx context.Context, q *sqlc.Queries, contestID int64) ([]Task, e
 	return out, nil
 }
 
-// Compute builds the (unfrozen) ranking of a contest.
-func Compute(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options) (*Ranking, error) {
+// build is a ranking being assembled: rows without results yet.
+type build struct {
+	c       sqlc.Contest
+	r       *Ranking
+	rowIdx  map[int64]int
+	taskIdx map[int64]int
+	starts  map[int64]time.Time
+}
+
+// newBuild loads the contest, its tasks and the participations to rank.
+func newBuild(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options) (*build, error) {
 	c, err := q.GetContest(ctx, contestID)
 	if err != nil {
 		return nil, err
@@ -151,17 +163,12 @@ func Compute(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options)
 	if err != nil {
 		return nil, err
 	}
-	scores, err := q.ListParticipationTaskScoresByContest(ctx, contestID)
-	if err != nil {
-		return nil, err
-	}
-	r := &Ranking{ContestID: c.ID, Contest: c.Name, ICPC: c.ScoringMode == "icpc", Precision: int(c.ScorePrecision),
-		Tasks: tasks, Generated: time.Now().UTC()}
-	taskIdx := map[int64]int{}
+	b := &build{c: c, rowIdx: map[int64]int{}, taskIdx: map[int64]int{}, starts: map[int64]time.Time{},
+		r: &Ranking{ContestID: c.ID, Contest: c.Name, ICPC: c.ScoringMode == "icpc", Precision: int(c.ScorePrecision),
+			Tasks: tasks, Generated: time.Now().UTC()}}
 	for i, t := range tasks {
-		taskIdx[t.ID] = i
+		b.taskIdx[t.ID] = i
 	}
-	rowIdx := map[int64]int{}
 	for _, p := range parts {
 		if p.Participation.Hidden && !opt.IncludeHidden {
 			continue
@@ -172,17 +179,12 @@ func Compute(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options)
 		row := Row{ParticipationID: p.Participation.ID, UserID: p.Participation.UserID, Username: p.Username,
 			FirstName: p.FirstName, LastName: p.LastName, Hidden: p.Participation.Hidden,
 			Institution: p.Institution, Country: p.Country, Site: derefStr(p.SiteName),
-			Unrestricted: p.Participation.Unrestricted, Cells: make([]Cell, len(tasks))}
-		if p.TeamCode != nil {
-			row.TeamCode = *p.TeamCode
-		}
-		if p.TeamName != nil {
-			row.TeamName = *p.TeamName
-		}
-		rowIdx[row.ParticipationID] = len(r.Rows)
-		r.Rows = append(r.Rows, row)
+			Unrestricted: p.Participation.Unrestricted, Cells: make([]Cell, len(tasks)),
+			TeamCode: derefStr(p.TeamCode), TeamName: derefStr(p.TeamName), TeamFlag: derefStr(p.TeamFlag),
+			TeamInstitution: derefStr(p.TeamInstitution)}
+		b.rowIdx[row.ParticipationID] = len(b.r.Rows)
+		b.r.Rows = append(b.r.Rows, row)
 	}
-	starts := map[int64]time.Time{}
 	for _, p := range parts {
 		start := c.StartTime
 		if p.SiteStartTime != nil {
@@ -192,35 +194,63 @@ func Compute(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options)
 		if c.PerUserTimeS != nil && p.Participation.StartingTime != nil {
 			start = *p.Participation.StartingTime
 		}
-		starts[p.Participation.ID] = start
+		b.starts[p.Participation.ID] = start
+	}
+	return b, nil
+}
+
+// finish computes totals and ranks.
+func (b *build) finish() *Ranking {
+	r := b.r
+	for i := range r.Rows {
+		row := &r.Rows[i]
+		row.Total, row.Solved, row.Penalty = 0, 0, 0
+		for _, cell := range row.Cells {
+			row.Total += cell.Score
+			if r.ICPC && cell.Solved {
+				row.Solved++
+				row.Penalty += cell.SolvedMinute + int(b.c.IcpcPenaltyMinutes)*cell.Attempts
+			}
+		}
+		row.Total = round(row.Total, r.Precision)
+	}
+	r.sort()
+	return r
+}
+
+func (b *build) solvedMinute(pid int64, at *time.Time) int {
+	if at == nil {
+		return 0
+	}
+	return max(0, int(at.Sub(b.starts[pid])/time.Minute))
+}
+
+// Compute builds the (unfrozen) ranking of a contest from the per-task
+// aggregates the dispatcher maintains.
+func Compute(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options) (*Ranking, error) {
+	b, err := newBuild(ctx, q, contestID, opt)
+	if err != nil {
+		return nil, err
+	}
+	scores, err := q.ListParticipationTaskScoresByContest(ctx, contestID)
+	if err != nil {
+		return nil, err
 	}
 	for _, s := range scores {
-		ri, ok := rowIdx[s.ParticipationID]
-		ti, ok2 := taskIdx[s.TaskID]
+		ri, ok := b.rowIdx[s.ParticipationID]
+		ti, ok2 := b.taskIdx[s.TaskID]
 		if !ok || !ok2 {
 			continue
 		}
 		cell := Cell{Score: s.Score, Submitted: s.LastSubmissionAt != nil || s.Pending > 0, Pending: int(s.Pending),
 			Solved: s.IcpcSolved, Attempts: int(s.IcpcAttempts), SolvedAt: s.IcpcSolvedAt}
 		_ = json.Unmarshal(s.SubtaskScores, &cell.Subtasks)
-		if cell.Solved && cell.SolvedAt != nil {
-			cell.SolvedMinute = max(0, int(cell.SolvedAt.Sub(starts[s.ParticipationID])/time.Minute))
+		if cell.Solved {
+			cell.SolvedMinute = b.solvedMinute(s.ParticipationID, cell.SolvedAt)
 		}
-		r.Rows[ri].Cells[ti] = cell
+		b.r.Rows[ri].Cells[ti] = cell
 	}
-	for i := range r.Rows {
-		row := &r.Rows[i]
-		for _, cell := range row.Cells {
-			row.Total += cell.Score
-			if r.ICPC && cell.Solved {
-				row.Solved++
-				row.Penalty += cell.SolvedMinute + int(c.IcpcPenaltyMinutes)*cell.Attempts
-			}
-		}
-		row.Total = round(row.Total, r.Precision)
-	}
-	r.sort()
-	return r, nil
+	return b.finish(), nil
 }
 
 func round(v float64, precision int) float64 {

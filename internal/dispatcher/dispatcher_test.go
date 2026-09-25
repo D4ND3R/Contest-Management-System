@@ -176,6 +176,10 @@ func (e *env) newDataset(desc string, autojudge bool, cases [][2]string, groups 
 	q := sqlc.New(e.pool)
 	dp := db.NewDatasetParams(e.task.ID, desc)
 	dp.ScoreType, dp.ScoreTypeParams, dp.Autojudge = "GroupMin", json.RawMessage(groups), autojudge
+	// Generous time limit: these tests are about the pipeline, and other
+	// test packages judge on the same cores at the same time.
+	tl := int32(3000)
+	dp.TimeLimitMs = &tl
 	ds, err := q.CreateDataset(ctx, dp)
 	if err != nil {
 		e.t.Fatal(err)

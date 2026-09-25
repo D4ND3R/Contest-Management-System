@@ -972,6 +972,64 @@ func (q *Queries) CreateTesterSubmission(ctx context.Context, arg CreateTesterSu
 	return i, err
 }
 
+const listContestSubmissionsForRanking = `-- name: ListContestSubmissionsForRanking :many
+SELECT s.id, s.participation_id::bigint AS participation_id, s.task_id, s.submitted_at,
+       (k.submission_id IS NOT NULL)::boolean AS tokened,
+       sr.compilation_outcome, sr.score, sr.ranking_score_details, sr.scored_at
+FROM tasks t
+JOIN submissions s ON s.task_id = t.id
+JOIN participations p ON p.id = s.participation_id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+LEFT JOIN tokens k ON k.submission_id = s.id
+WHERE t.contest_id = $1::bigint AND p.contest_id = $1::bigint AND s.official AND NOT s.tester
+ORDER BY s.submitted_at, s.id
+`
+
+type ListContestSubmissionsForRankingRow struct {
+	ID                  int64           `json:"id"`
+	ParticipationID     int64           `json:"participation_id"`
+	TaskID              int64           `json:"task_id"`
+	SubmittedAt         time.Time       `json:"submitted_at"`
+	Tokened             bool            `json:"tokened"`
+	CompilationOutcome  *string         `json:"compilation_outcome"`
+	Score               *float64        `json:"score"`
+	RankingScoreDetails json.RawMessage `json:"ranking_score_details"`
+	ScoredAt            *time.Time      `json:"scored_at"`
+}
+
+// Official submissions of a contest with their result on each task's live
+// dataset, in time order, for the ranking replay (frozen ranking and score
+// history; submissions_task_idx per task of the contest).
+func (q *Queries) ListContestSubmissionsForRanking(ctx context.Context, contestID int64) ([]ListContestSubmissionsForRankingRow, error) {
+	rows, err := q.db.Query(ctx, listContestSubmissionsForRanking, contestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListContestSubmissionsForRankingRow{}
+	for rows.Next() {
+		var i ListContestSubmissionsForRankingRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParticipationID,
+			&i.TaskID,
+			&i.SubmittedAt,
+			&i.Tokened,
+			&i.CompilationOutcome,
+			&i.Score,
+			&i.RankingScoreDetails,
+			&i.ScoredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPackageSolutionFiles = `-- name: ListPackageSolutionFiles :many
 SELECT s.id AS submission_id, s.comment, (s.language IS NULL)::boolean AS output_only, f.filename, f.digest
 FROM (SELECT DISTINCT ON (comment) id, comment, language FROM submissions

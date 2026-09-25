@@ -49,3 +49,24 @@
 {{end}}
 </div>
 {{end}}
+
+{{define "ranking-table"}}{{$d := .Data}}{{$b := $d.Board}}
+<div id="ranking" hx-get="{{.Base}}ranking?fragment=1" hx-trigger="every 15s" hx-swap="outerHTML">
+{{if $b.Frozen}}<p class="info">{{.T "The ranking is frozen: results of later submissions show as ?."}}</p>{{end}}
+{{if $d.Own}}<p class="big">{{if $d.Rank}}{{.T "Your position: %d of %d." $d.Rank $d.Count}}{{else}}{{.T "You are not in the ranking."}}{{end}}</p>{{end}}
+{{if $d.Rows}}
+<table class="ranking">
+<thead><tr><th class="num">#</th><th>{{if $b.Teams}}{{.T "Team"}}{{else}}{{.T "Participant"}}{{end}}</th>
+{{range $b.Tasks}}<th class="num" title="{{.Title}}">{{.Name}}</th>{{end}}
+<th class="num">{{if $b.ICPC}}{{.T "Solved"}}{{else}}{{.T "Total"}}{{end}}</th>{{if $b.ICPC}}<th class="num">{{.T "Penalty"}}</th>{{end}}</tr></thead>
+<tbody>
+{{range $r := $d.Rows}}
+<tr class="{{if eq $r.Key $d.Mine}}mine{{end}}"><td class="num">{{$r.Rank}}</td><td>{{$r.Name}}{{if and $b.Institutions $r.Institution}} <small class="muted">{{$r.Institution}}</small>{{end}}</td>
+{{range $i, $c := $r.Cells}}{{$x := cell $b $i $c}}<td class="num {{$x.Class}}">{{$x.Text}}{{with $x.Minute}} <small>{{.}}</small>{{end}}{{if $x.Pending}} <span class="pending">?</span>{{end}}{{with $x.Subtasks}}<small class="sub">{{.}}</small>{{end}}</td>{{end}}
+<td class="num"><b>{{if $b.ICPC}}{{$r.Solved}}{{else}}{{fscore $r.Total $b.Precision}}{{end}}</b></td>{{if $b.ICPC}}<td class="num">{{$r.Penalty}}</td>{{end}}</tr>
+{{end}}
+</tbody>
+</table>
+{{end}}
+</div>
+{{end}}

@@ -1,0 +1,11 @@
+{{define "content"}}{{$d := .Data}}{{$b := .Board}}
+<p><a href="/{{.Name}}/">{{.T "Back to the ranking"}}</a></p>
+<h1>{{$d.Row.Name}} <small class="muted">#{{$d.Row.Rank}}{{with $d.Row.Institution}} · {{.}}{{end}}</small></h1>
+<h2>{{.T "Score history"}}</h2>
+{{if $d.Points}}
+{{$d.Chart}}
+<table><thead><tr><th>{{.T "Time"}}</th><th class="num">{{if $b.ICPC}}{{.T "Solved"}}{{else}}{{.T "Total"}}{{end}}</th></tr></thead><tbody>
+{{range $d.Points}}<tr><td>{{when .Time $b.Timezone}}</td><td class="num">{{score .Total $b.Precision}}</td></tr>{{end}}
+</tbody></table>
+{{else}}<p class="muted">{{.T "No history."}}</p>{{end}}
+{{end}}

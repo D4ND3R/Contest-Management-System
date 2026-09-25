@@ -100,6 +100,15 @@ type Contest struct {
 	TeamMode                    bool       `json:"team_mode"`
 	MaxTeamSize                 *int32     `json:"max_team_size"`
 	QuestionsPerMinute          int32      `json:"questions_per_minute"`
+	RankingVisibility           string     `json:"ranking_visibility"`
+	RankingContestantView       string     `json:"ranking_contestant_view"`
+	RankingWhen                 string     `json:"ranking_when"`
+	RankingFreezeMinutes        int32      `json:"ranking_freeze_minutes"`
+	RankingShowSubtasks         bool       `json:"ranking_show_subtasks"`
+	RankingShowFlags            bool       `json:"ranking_show_flags"`
+	RankingShowInstitutions     bool       `json:"ranking_show_institutions"`
+	RankingShowHidden           bool       `json:"ranking_show_hidden"`
+	RankingAnonymous            bool       `json:"ranking_anonymous"`
 }
 
 type Dataset struct {

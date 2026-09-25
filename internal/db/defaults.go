@@ -19,6 +19,20 @@ func NewContestParams(name string, start, stop time.Time) sqlc.CreateContestPara
 	}
 }
 
+// NewContestUpdate returns update parameters with the schema defaults, for
+// contests created from a form.
+func NewContestUpdate() sqlc.UpdateContestParams {
+	c := ContestToUpdate(sqlc.Contest{})
+	c.Languages, c.AllowedLocalizations = []string{}, []string{}
+	c.SubmissionsDownloadAllowed, c.AllowQuestions, c.AllowUserTests, c.AllowPasswordAuthentication = true, true, true, true
+	c.TokenMode, c.TokenGenInitial, c.TokenGenNumber, c.TokenGenIntervalS = "disabled", 2, 2, 1800
+	c.Timezone, c.ScoringMode, c.IcpcPenaltyMinutes, c.MaxPrintJobs, c.MaxPrintPages = "UTC", "ioi", 20, 10, 20
+	c.QuestionsPerMinute = 3
+	c.RankingVisibility, c.RankingContestantView, c.RankingWhen = "public", "full", "always"
+	c.RankingShowSubtasks, c.RankingShowFlags, c.RankingShowInstitutions = true, true, true
+	return c
+}
+
 // ContestToUpdate converts a row into update parameters (edit then save).
 func ContestToUpdate(c sqlc.Contest) sqlc.UpdateContestParams {
 	return sqlc.UpdateContestParams{
@@ -36,7 +50,11 @@ func ContestToUpdate(c sqlc.Contest) sqlc.UpdateContestParams {
 		MinUserTestIntervalS: c.MinUserTestIntervalS, ScorePrecision: c.ScorePrecision,
 		ScoringMode: c.ScoringMode, IcpcPenaltyMinutes: c.IcpcPenaltyMinutes,
 		RankingFreezeTime: c.RankingFreezeTime, MaxPrintJobs: c.MaxPrintJobs, MaxPrintPages: c.MaxPrintPages,
-		QuestionsPerMinute: c.QuestionsPerMinute,
+		QuestionsPerMinute: c.QuestionsPerMinute, RankingVisibility: c.RankingVisibility,
+		RankingContestantView: c.RankingContestantView, RankingWhen: c.RankingWhen,
+		RankingFreezeMinutes: c.RankingFreezeMinutes, RankingShowSubtasks: c.RankingShowSubtasks,
+		RankingShowFlags: c.RankingShowFlags, RankingShowInstitutions: c.RankingShowInstitutions,
+		RankingShowHidden: c.RankingShowHidden, RankingAnonymous: c.RankingAnonymous,
 	}
 }
 

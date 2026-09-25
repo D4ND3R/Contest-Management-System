@@ -120,6 +120,7 @@ func TestProblemPackagesFromAdminUI(t *testing.T) {
 			}
 			body := waitReport(t, path)
 			if !strings.Contains(body, "Every solution behaves as expected") {
+				logEvaluations(t, s)
 				t.Fatalf("report:\n%s", body)
 			}
 		})
@@ -168,3 +169,38 @@ func mustRead(t *testing.T, p string) string {
 }
 
 func itoa(v int64) string { return strconv.FormatInt(v, 10) }
+
+// logEvaluations logs every evaluation of the stack (diagnostics of a
+// failed validation).
+func logEvaluations(t *testing.T, s *stack) {
+	rows, err := s.pool.Query(bg, `SELECT s.comment, e.testcase_id, e.outcome, e.text, e.exit_status, e.exit_code, e.signal,
+		e.execution_time, e.execution_wall_time FROM evaluations e JOIN submissions s ON s.id = e.submission_id ORDER BY s.id, e.testcase_id`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var comment, text, status string
+		var tc int64
+		var outcome float64
+		var code, sig *int32
+		var cpu, wall *float64
+		rows.Scan(&comment, &tc, &outcome, &text, &status, &code, &sig, &cpu, &wall)
+		t.Logf("%s tc=%d outcome=%g status=%s code=%v signal=%v cpu=%v wall=%v text=%q", comment, tc, outcome, status,
+			deref32(code), deref32(sig), derefF(cpu), derefF(wall), text)
+	}
+}
+
+func deref32(p *int32) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+func derefF(p *float64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}

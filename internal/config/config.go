@@ -145,8 +145,11 @@ type RankingWeb struct {
 	// Title shown on the scoreboard.
 	Title string `yaml:"title"`
 	// MaxClients bounds the number of concurrent SSE spectators.
-	MaxClients int  `yaml:"max_clients"`
-	Pprof      bool `yaml:"pprof"`
+	MaxClients int `yaml:"max_clients"`
+	// PublicURL is where spectators reach the ranking web server (links
+	// in the admin panel), e.g. https://ranking.example.org.
+	PublicURL string `yaml:"public_url"`
+	Pprof     bool   `yaml:"pprof"`
 }
 
 type Dispatcher struct {
@@ -300,6 +303,7 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 		"CMS_RANKING_WEB_LISTEN": &c.RankingWeb.Listen,
 		"CMS_RANKING_DATA_DIR":   &c.RankingWeb.DataDir,
 		"CMS_RANKING_PUSH_TOKEN": &c.RankingWeb.PushToken,
+		"CMS_RANKING_PUBLIC_URL": &c.RankingWeb.PublicURL,
 		"CMS_WORKER_NAME":        &c.Worker.Name,
 		"CMS_WORKER_WORK_DIR":    &c.Worker.WorkDir,
 		"CMS_WORKER_CACHE_DIR":   &c.Worker.CacheDir,
@@ -314,6 +318,14 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 	for k, p := range str {
 		if v, ok := lookup(k); ok {
 			*p = v
+		}
+	}
+	if v, ok := lookup("CMS_RANKING_URLS"); ok {
+		c.Dispatcher.RankingURLs = nil
+		for _, u := range strings.Split(v, ",") {
+			if u = strings.TrimSpace(u); u != "" {
+				c.Dispatcher.RankingURLs = append(c.Dispatcher.RankingURLs, u)
+			}
 		}
 	}
 	if v, ok := lookup("CMS_S3_USE_SSL"); ok {

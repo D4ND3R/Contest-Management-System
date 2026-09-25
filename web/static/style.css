@@ -43,3 +43,7 @@ article.msg:first-of-type{border-top:0}
 article.msg h3{margin:.2rem 0;font-size:1rem}
 .pre{white-space:pre-wrap}
 p.answer{background:#f3f8f4;border-left:3px solid var(--ok);padding:.3rem .6rem;margin:.3rem 0}
+table.ranking tr.mine{background:#eef4fd;font-weight:600}
+table.ranking small.sub{display:block;color:var(--muted);font-size:.72rem}
+.pending{color:var(--warn);font-weight:bold}
+p.big{font-size:1.2rem}

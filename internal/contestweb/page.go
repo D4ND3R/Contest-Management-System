@@ -38,7 +38,9 @@ type page struct {
 	ViewAs string
 	// Unread is the number of unread announcements, messages and answers.
 	Unread int64
-	loc    *time.Location
+	// Ranking is set when the contestant may see the ranking.
+	Ranking bool
+	loc     *time.Location
 }
 
 // statusView adds template-friendly accessors to contest.Status.

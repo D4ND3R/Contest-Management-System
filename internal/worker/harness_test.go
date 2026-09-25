@@ -25,6 +25,8 @@ type harness struct {
 	free chan int
 }
 
+// Isolate box ids of this package: 400-599 (see internal/e2e for the
+// other packages' ranges; test packages run in parallel).
 var boxOffset = 400
 
 func newHarness(t testing.TB) *harness { return newHarnessSlots(t, 1) }
@@ -42,6 +44,9 @@ func newHarnessSlots(t testing.TB, n int) *harness {
 	cores := sandbox.DefaultCores()
 	if n > len(cores) {
 		n = len(cores)
+	}
+	if boxOffset+n*2*sandbox.BoxesPerSlot > 600 {
+		boxOffset = 400 // harnesses run one after the other
 	}
 	cfg := config.Worker{
 		Name: "test", IsolatePath: iso.Path, IsolateCG: iso.CG, IsolateBoxRoot: iso.BoxRoot,

@@ -198,3 +198,18 @@ LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = d
 LEFT JOIN evaluations e ON e.submission_id = s.id AND e.dataset_id = d.id
 GROUP BY s.id, s.comment, s.language, d.id, d.description, sr.submission_id, sr.dataset_id
 ORDER BY s.comment, d.id;
+
+-- name: ListContestSubmissionsForRanking :many
+-- Official submissions of a contest with their result on each task's live
+-- dataset, in time order, for the ranking replay (frozen ranking and score
+-- history; submissions_task_idx per task of the contest).
+SELECT s.id, s.participation_id::bigint AS participation_id, s.task_id, s.submitted_at,
+       (k.submission_id IS NOT NULL)::boolean AS tokened,
+       sr.compilation_outcome, sr.score, sr.ranking_score_details, sr.scored_at
+FROM tasks t
+JOIN submissions s ON s.task_id = t.id
+JOIN participations p ON p.id = s.participation_id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+LEFT JOIN tokens k ON k.submission_id = s.id
+WHERE t.contest_id = @contest_id::bigint AND p.contest_id = @contest_id::bigint AND s.official AND NOT s.tester
+ORDER BY s.submitted_at, s.id;

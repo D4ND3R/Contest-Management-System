@@ -8,4 +8,5 @@ func (s *Server) registerExtra(mux *http.ServeMux, auth func(func(http.ResponseW
 	mux.HandleFunc("GET /{contest}/communication", auth(s.handleCommunication))
 	mux.HandleFunc("GET /{contest}/communication/list", auth(s.handleCommunicationList))
 	mux.HandleFunc("POST /{contest}/questions", auth(s.handleAsk))
+	mux.HandleFunc("GET /{contest}/ranking", auth(s.handleRanking))
 }

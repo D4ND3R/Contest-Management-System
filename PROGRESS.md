@@ -469,3 +469,20 @@ and answers privately or publicly with free text or one of five quick
 answers; announcements and messages to a user or a whole team. Tests:
 e2e.TestCommunicationFlow (both web servers, SSE, unread counts, Spanish),
 adminweb.TestQuestionInbox, contestweb.TestAskQuestion.
+
+## SPEC_CLOSE A2 — Ranking (done)
+Skipping skills: immersive-web-design, master skill.
+
+Per-contest ranking settings in the admin (who sees it, what contestants
+see, during/after, freeze of the last minutes with manual unfreeze,
+subtasks, flags, institutions, hidden users, anonymous), a contestant
+ranking page (full or own position), team ranking, and the ranking web
+server: fed by a pusher inside the dispatcher (deltas with sequence numbers,
+full boards on demand), cached JSON snapshots, live rows over SSE, score
+history per participant with an SVG chart, flags as assets, admin-only
+boards behind a secret link, persistence across restarts. The e2e test
+measures the scoreboard update at ~0.2 s after scoring (target < 1 s).
+Test infrastructure: the isolate box ids of the test packages that judge
+(e2e 100–299, worker 400–599, dispatcher 600–879, sandbox 900+) no longer
+overlap; an e2e stack could reach into the worker range when packages ran
+in parallel, which explained rare wrong verdicts in the full suite.

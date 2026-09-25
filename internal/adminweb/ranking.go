@@ -1,11 +1,14 @@
 package adminweb
 
 import (
-	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/ranking"
+	"github.com/D4ND3R/Contest-Management-System/internal/rankingpush"
 )
 
 func (s *Server) handleRanking(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -24,12 +27,48 @@ func (s *Server) handleRanking(w http.ResponseWriter, r *http.Request, rc *reqCt
 		s.internalError(w, r, rc, err)
 		return
 	}
-	s.render(w, "ranking", http.StatusOK, s.newPage(w, r, rc, "Ranking", "contests", struct {
-		*ranking.Ranking
-		Sites []sqlc.Site
-		Site  int64
-	}{rk, sites, site}).
+	d := rankingPage{Ranking: rk, Sites: sites, Site: site, C: c, FreezeAt: ranking.FreezeAt(c), Frozen: ranking.Frozen(c, s.now())}
+	if s.rankingURL != "" && (c.RankingVisibility == "public" || c.RankingVisibility == "admins") {
+		d.PublicURL = strings.TrimRight(s.rankingURL, "/") + "/" + c.Name + "/"
+		if c.RankingVisibility == "admins" {
+			d.PublicURL += "?key=" + rankingpush.BoardKey(s.secret, c.Name)
+		}
+	}
+	s.render(w, "ranking", http.StatusOK, s.newPage(w, r, rc, "Ranking", "contests", d).
 		crumb("Contests", "/contests").crumb(c.Name, "/contests/"+strconv.FormatInt(c.ID, 10)))
+}
+
+// rankingPage is the admin ranking (always complete and unfrozen) with the
+// state of the public one.
+type rankingPage struct {
+	*ranking.Ranking
+	Sites     []sqlc.Site
+	Site      int64
+	C         sqlc.Contest
+	FreezeAt  *time.Time
+	Frozen    bool
+	PublicURL string
+}
+
+// handleRankingFreeze unfreezes the public ranking (or freezes it again).
+func (s *Server) handleRankingFreeze(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	c, ok := s.loadContest(w, r, rc)
+	if !ok {
+		return
+	}
+	unfrozen := r.FormValue("unfrozen") == "1"
+	if err := s.q.SetContestRankingUnfrozen(r.Context(), sqlc.SetContestRankingUnfrozenParams{ID: c.ID, RankingUnfrozen: unfrozen}); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	rc.target("contest", c.ID)
+	rc.note("unfrozen", unfrozen)
+	s.contestChanged(r.Context(), c.ID, 0)
+	msg := "The public ranking is frozen again."
+	if unfrozen {
+		msg = "The public ranking is unfrozen: every result is shown."
+	}
+	s.done(w, r, "/contests/"+strconv.FormatInt(c.ID, 10)+"/ranking", msg)
 }
 
 func (s *Server) exportRanking(w http.ResponseWriter, r *http.Request, rc *reqCtx, csv bool) {

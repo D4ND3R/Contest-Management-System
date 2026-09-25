@@ -23,7 +23,7 @@ INSERT INTO contests (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
     $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37
-) RETURNING id, name, description, allowed_localizations, languages, submissions_download_allowed, allow_questions, allow_user_tests, allow_printing, block_hidden_participations, allow_password_authentication, ip_restriction, ip_autologin, single_login, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, start_time, stop_time, analysis_enabled, analysis_start, analysis_stop, timezone, per_user_time_s, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, score_precision, scoring_mode, icpc_penalty_minutes, ranking_freeze_time, ranking_unfrozen, max_print_jobs, max_print_pages, created_at, updated_at, team_mode, max_team_size, questions_per_minute
+) RETURNING id, name, description, allowed_localizations, languages, submissions_download_allowed, allow_questions, allow_user_tests, allow_printing, block_hidden_participations, allow_password_authentication, ip_restriction, ip_autologin, single_login, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, start_time, stop_time, analysis_enabled, analysis_start, analysis_stop, timezone, per_user_time_s, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, score_precision, scoring_mode, icpc_penalty_minutes, ranking_freeze_time, ranking_unfrozen, max_print_jobs, max_print_pages, created_at, updated_at, team_mode, max_team_size, questions_per_minute, ranking_visibility, ranking_contestant_view, ranking_when, ranking_freeze_minutes, ranking_show_subtasks, ranking_show_flags, ranking_show_institutions, ranking_show_hidden, ranking_anonymous
 `
 
 type CreateContestParams struct {
@@ -152,6 +152,15 @@ func (q *Queries) CreateContest(ctx context.Context, arg CreateContestParams) (C
 		&i.TeamMode,
 		&i.MaxTeamSize,
 		&i.QuestionsPerMinute,
+		&i.RankingVisibility,
+		&i.RankingContestantView,
+		&i.RankingWhen,
+		&i.RankingFreezeMinutes,
+		&i.RankingShowSubtasks,
+		&i.RankingShowFlags,
+		&i.RankingShowInstitutions,
+		&i.RankingShowHidden,
+		&i.RankingAnonymous,
 	)
 	return i, err
 }
@@ -166,7 +175,7 @@ func (q *Queries) DeleteContest(ctx context.Context, id int64) error {
 }
 
 const getContest = `-- name: GetContest :one
-SELECT id, name, description, allowed_localizations, languages, submissions_download_allowed, allow_questions, allow_user_tests, allow_printing, block_hidden_participations, allow_password_authentication, ip_restriction, ip_autologin, single_login, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, start_time, stop_time, analysis_enabled, analysis_start, analysis_stop, timezone, per_user_time_s, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, score_precision, scoring_mode, icpc_penalty_minutes, ranking_freeze_time, ranking_unfrozen, max_print_jobs, max_print_pages, created_at, updated_at, team_mode, max_team_size, questions_per_minute FROM contests WHERE id = $1
+SELECT id, name, description, allowed_localizations, languages, submissions_download_allowed, allow_questions, allow_user_tests, allow_printing, block_hidden_participations, allow_password_authentication, ip_restriction, ip_autologin, single_login, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, start_time, stop_time, analysis_enabled, analysis_start, analysis_stop, timezone, per_user_time_s, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, score_precision, scoring_mode, icpc_penalty_minutes, ranking_freeze_time, ranking_unfrozen, max_print_jobs, max_print_pages, created_at, updated_at, team_mode, max_team_size, questions_per_minute, ranking_visibility, ranking_contestant_view, ranking_when, ranking_freeze_minutes, ranking_show_subtasks, ranking_show_flags, ranking_show_institutions, ranking_show_hidden, ranking_anonymous FROM contests WHERE id = $1
 `
 
 func (q *Queries) GetContest(ctx context.Context, id int64) (Contest, error) {
@@ -217,12 +226,21 @@ func (q *Queries) GetContest(ctx context.Context, id int64) (Contest, error) {
 		&i.TeamMode,
 		&i.MaxTeamSize,
 		&i.QuestionsPerMinute,
+		&i.RankingVisibility,
+		&i.RankingContestantView,
+		&i.RankingWhen,
+		&i.RankingFreezeMinutes,
+		&i.RankingShowSubtasks,
+		&i.RankingShowFlags,
+		&i.RankingShowInstitutions,
+		&i.RankingShowHidden,
+		&i.RankingAnonymous,
 	)
 	return i, err
 }
 
 const getContestByName = `-- name: GetContestByName :one
-SELECT id, name, description, allowed_localizations, languages, submissions_download_allowed, allow_questions, allow_user_tests, allow_printing, block_hidden_participations, allow_password_authentication, ip_restriction, ip_autologin, single_login, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, start_time, stop_time, analysis_enabled, analysis_start, analysis_stop, timezone, per_user_time_s, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, score_precision, scoring_mode, icpc_penalty_minutes, ranking_freeze_time, ranking_unfrozen, max_print_jobs, max_print_pages, created_at, updated_at, team_mode, max_team_size, questions_per_minute FROM contests WHERE name = $1
+SELECT id, name, description, allowed_localizations, languages, submissions_download_allowed, allow_questions, allow_user_tests, allow_printing, block_hidden_participations, allow_password_authentication, ip_restriction, ip_autologin, single_login, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, start_time, stop_time, analysis_enabled, analysis_start, analysis_stop, timezone, per_user_time_s, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, score_precision, scoring_mode, icpc_penalty_minutes, ranking_freeze_time, ranking_unfrozen, max_print_jobs, max_print_pages, created_at, updated_at, team_mode, max_team_size, questions_per_minute, ranking_visibility, ranking_contestant_view, ranking_when, ranking_freeze_minutes, ranking_show_subtasks, ranking_show_flags, ranking_show_institutions, ranking_show_hidden, ranking_anonymous FROM contests WHERE name = $1
 `
 
 func (q *Queries) GetContestByName(ctx context.Context, name string) (Contest, error) {
@@ -273,12 +291,21 @@ func (q *Queries) GetContestByName(ctx context.Context, name string) (Contest, e
 		&i.TeamMode,
 		&i.MaxTeamSize,
 		&i.QuestionsPerMinute,
+		&i.RankingVisibility,
+		&i.RankingContestantView,
+		&i.RankingWhen,
+		&i.RankingFreezeMinutes,
+		&i.RankingShowSubtasks,
+		&i.RankingShowFlags,
+		&i.RankingShowInstitutions,
+		&i.RankingShowHidden,
+		&i.RankingAnonymous,
 	)
 	return i, err
 }
 
 const listContests = `-- name: ListContests :many
-SELECT id, name, description, allowed_localizations, languages, submissions_download_allowed, allow_questions, allow_user_tests, allow_printing, block_hidden_participations, allow_password_authentication, ip_restriction, ip_autologin, single_login, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, start_time, stop_time, analysis_enabled, analysis_start, analysis_stop, timezone, per_user_time_s, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, score_precision, scoring_mode, icpc_penalty_minutes, ranking_freeze_time, ranking_unfrozen, max_print_jobs, max_print_pages, created_at, updated_at, team_mode, max_team_size, questions_per_minute FROM contests ORDER BY start_time DESC, id DESC
+SELECT id, name, description, allowed_localizations, languages, submissions_download_allowed, allow_questions, allow_user_tests, allow_printing, block_hidden_participations, allow_password_authentication, ip_restriction, ip_autologin, single_login, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, start_time, stop_time, analysis_enabled, analysis_start, analysis_stop, timezone, per_user_time_s, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, score_precision, scoring_mode, icpc_penalty_minutes, ranking_freeze_time, ranking_unfrozen, max_print_jobs, max_print_pages, created_at, updated_at, team_mode, max_team_size, questions_per_minute, ranking_visibility, ranking_contestant_view, ranking_when, ranking_freeze_minutes, ranking_show_subtasks, ranking_show_flags, ranking_show_institutions, ranking_show_hidden, ranking_anonymous FROM contests ORDER BY start_time DESC, id DESC
 `
 
 func (q *Queries) ListContests(ctx context.Context) ([]Contest, error) {
@@ -335,6 +362,15 @@ func (q *Queries) ListContests(ctx context.Context) ([]Contest, error) {
 			&i.TeamMode,
 			&i.MaxTeamSize,
 			&i.QuestionsPerMinute,
+			&i.RankingVisibility,
+			&i.RankingContestantView,
+			&i.RankingWhen,
+			&i.RankingFreezeMinutes,
+			&i.RankingShowSubtasks,
+			&i.RankingShowFlags,
+			&i.RankingShowInstitutions,
+			&i.RankingShowHidden,
+			&i.RankingAnonymous,
 		); err != nil {
 			return nil, err
 		}
@@ -373,9 +409,11 @@ UPDATE contests SET
     max_user_test_number = $30, min_submission_interval_s = $31, min_user_test_interval_s = $32,
     score_precision = $33, scoring_mode = $34, icpc_penalty_minutes = $35,
     ranking_freeze_time = $36, max_print_jobs = $37, max_print_pages = $38, questions_per_minute = $39,
-    updated_at = now()
+    ranking_visibility = $40, ranking_contestant_view = $41, ranking_when = $42, ranking_freeze_minutes = $43,
+    ranking_show_subtasks = $44, ranking_show_flags = $45, ranking_show_institutions = $46,
+    ranking_show_hidden = $47, ranking_anonymous = $48, updated_at = now()
 WHERE id = $1
-RETURNING id, name, description, allowed_localizations, languages, submissions_download_allowed, allow_questions, allow_user_tests, allow_printing, block_hidden_participations, allow_password_authentication, ip_restriction, ip_autologin, single_login, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, start_time, stop_time, analysis_enabled, analysis_start, analysis_stop, timezone, per_user_time_s, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, score_precision, scoring_mode, icpc_penalty_minutes, ranking_freeze_time, ranking_unfrozen, max_print_jobs, max_print_pages, created_at, updated_at, team_mode, max_team_size, questions_per_minute
+RETURNING id, name, description, allowed_localizations, languages, submissions_download_allowed, allow_questions, allow_user_tests, allow_printing, block_hidden_participations, allow_password_authentication, ip_restriction, ip_autologin, single_login, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, start_time, stop_time, analysis_enabled, analysis_start, analysis_stop, timezone, per_user_time_s, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, score_precision, scoring_mode, icpc_penalty_minutes, ranking_freeze_time, ranking_unfrozen, max_print_jobs, max_print_pages, created_at, updated_at, team_mode, max_team_size, questions_per_minute, ranking_visibility, ranking_contestant_view, ranking_when, ranking_freeze_minutes, ranking_show_subtasks, ranking_show_flags, ranking_show_institutions, ranking_show_hidden, ranking_anonymous
 `
 
 type UpdateContestParams struct {
@@ -418,6 +456,15 @@ type UpdateContestParams struct {
 	MaxPrintJobs                int32      `json:"max_print_jobs"`
 	MaxPrintPages               int32      `json:"max_print_pages"`
 	QuestionsPerMinute          int32      `json:"questions_per_minute"`
+	RankingVisibility           string     `json:"ranking_visibility"`
+	RankingContestantView       string     `json:"ranking_contestant_view"`
+	RankingWhen                 string     `json:"ranking_when"`
+	RankingFreezeMinutes        int32      `json:"ranking_freeze_minutes"`
+	RankingShowSubtasks         bool       `json:"ranking_show_subtasks"`
+	RankingShowFlags            bool       `json:"ranking_show_flags"`
+	RankingShowInstitutions     bool       `json:"ranking_show_institutions"`
+	RankingShowHidden           bool       `json:"ranking_show_hidden"`
+	RankingAnonymous            bool       `json:"ranking_anonymous"`
 }
 
 func (q *Queries) UpdateContest(ctx context.Context, arg UpdateContestParams) (Contest, error) {
@@ -461,6 +508,15 @@ func (q *Queries) UpdateContest(ctx context.Context, arg UpdateContestParams) (C
 		arg.MaxPrintJobs,
 		arg.MaxPrintPages,
 		arg.QuestionsPerMinute,
+		arg.RankingVisibility,
+		arg.RankingContestantView,
+		arg.RankingWhen,
+		arg.RankingFreezeMinutes,
+		arg.RankingShowSubtasks,
+		arg.RankingShowFlags,
+		arg.RankingShowInstitutions,
+		arg.RankingShowHidden,
+		arg.RankingAnonymous,
 	)
 	var i Contest
 	err := row.Scan(
@@ -508,6 +564,15 @@ func (q *Queries) UpdateContest(ctx context.Context, arg UpdateContestParams) (C
 		&i.TeamMode,
 		&i.MaxTeamSize,
 		&i.QuestionsPerMinute,
+		&i.RankingVisibility,
+		&i.RankingContestantView,
+		&i.RankingWhen,
+		&i.RankingFreezeMinutes,
+		&i.RankingShowSubtasks,
+		&i.RankingShowFlags,
+		&i.RankingShowInstitutions,
+		&i.RankingShowHidden,
+		&i.RankingAnonymous,
 	)
 	return i, err
 }

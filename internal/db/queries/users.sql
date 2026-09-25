@@ -76,6 +76,7 @@ WHERE p.contest_id = $1 AND u.username = $2;
 -- name: ListParticipationsByContest :many
 SELECT sqlc.embed(p), u.username, u.first_name, u.last_name, u.timezone AS user_timezone,
        u.institution, u.country, u.disabled, t.code AS team_code, t.name AS team_name,
+       t.flag_digest AS team_flag, t.institution AS team_institution,
        st.name AS site_name, st.start_time AS site_start_time
 FROM participations p
 JOIN users u ON u.id = p.user_id

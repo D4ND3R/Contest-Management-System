@@ -1,0 +1,13 @@
+.board-head h1{margin-bottom:.2rem}
+table.board td,table.board th{padding:.3rem .5rem}
+table.board td.name a{color:inherit;text-decoration:none}
+table.board td.name a:hover{text-decoration:underline}
+table.board td.cell small.sub{display:block;color:var(--muted);font-size:.72rem}
+table.board tr.moved{background:#fff6d6;transition:background 2s}
+.pending{color:var(--warn);font-weight:bold}
+.frozen{color:var(--accent);font-weight:600}
+.live::before{content:"● ";color:var(--ok)}
+.live.off::before{color:var(--muted)}
+img.flag{height:1.1rem;vertical-align:middle}
+svg.chart{width:100%;max-width:40rem;height:12rem;background:var(--card);border:1px solid var(--line)}
+svg.chart .line{fill:none;stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke}

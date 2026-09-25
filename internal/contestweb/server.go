@@ -31,6 +31,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/metrics"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
+	"github.com/D4ND3R/Contest-Management-System/internal/ranking"
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 	"github.com/D4ND3R/Contest-Management-System/web"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -58,6 +59,7 @@ type Server struct {
 	secret   []byte
 	hub      *hub
 	sessions *webkit.SessionTracker
+	boards   boardCache
 	checks   []httpx.Check
 	now      func() time.Time
 }
@@ -101,6 +103,8 @@ func (s *Server) loadTemplates() error {
 	funcs := template.FuncMap{
 		"static": s.static.URL,
 		"row":    func(p *page, sv subView) rowCtx { return rowCtx{P: p, S: sv} },
+		"cell":   ranking.Display,
+		"fscore": ranking.FormatScore,
 	}
 	base, err := template.New("").Funcs(funcs).ParseFS(web.Templates, "cws/layout.html", "cws/partials.html")
 	if err != nil {
@@ -371,6 +375,7 @@ func (s *Server) newPage(rc *reqCtx, title, active string) *page {
 	if rc.status.Phase != contest.NotStarted && rc.status.Phase != contest.WaitingStart || rc.part.Unrestricted {
 		p.Tasks = rc.contest.Tasks
 	}
+	p.Ranking = rankingVisible(rc.contest.Contest, rc.now)
 	return p
 }
 
