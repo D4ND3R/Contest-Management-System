@@ -149,6 +149,9 @@ func (s *Server) Handler() http.Handler {
 	top.Handle("GET /static/", s.static)
 	top.Handle("GET /healthz", httpx.HealthHandler("contest-web", s.checks...))
 	top.Handle("GET /metrics", metrics.Handler())
+	if s.cfg.Pprof {
+		webkit.Profiling(top)
+	}
 	top.HandleFunc("GET /{$}", s.handleIndex)
 	top.HandleFunc("POST /lang", s.handleLang)
 	mux := http.NewServeMux()
@@ -197,7 +200,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 // ReservedNames cannot be used as contest names (they are CWS routes).
-var ReservedNames = []string{"static", "healthz", "metrics", "lang"}
+var ReservedNames = []string{"static", "healthz", "metrics", "lang", "debug"}
 
 // Run serves HTTP and the event fan-out until ctx ends.
 func (s *Server) Run(ctx context.Context, addr string, ready chan<- net.Addr) error {

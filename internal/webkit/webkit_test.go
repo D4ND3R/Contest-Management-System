@@ -167,3 +167,34 @@ func TestLimiterOverAndHit(t *testing.T) {
 		}
 	}
 }
+
+func TestProfilingIsLocalOnly(t *testing.T) {
+	mux := http.NewServeMux()
+	Profiling(mux)
+	get := func(remote string, hdr map[string]string) int {
+		r := httptest.NewRequest("GET", "/debug/pprof/cmdline", nil)
+		r.RemoteAddr = remote
+		for k, v := range hdr {
+			r.Header.Set(k, v)
+		}
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+		return w.Code
+	}
+	for _, c := range []struct {
+		remote string
+		hdr    map[string]string
+		want   int
+	}{
+		{"127.0.0.1:5000", nil, 200},
+		{"[::1]:5000", nil, 200},
+		{"192.0.2.7:5000", nil, 404},
+		{"127.0.0.1:5000", map[string]string{"X-Forwarded-For": "192.0.2.7"}, 404}, // through the proxy
+		{"127.0.0.1:5000", map[string]string{"Forwarded": "for=192.0.2.7"}, 404},
+		{"127.0.0.1:5000", map[string]string{"X-Real-IP": "192.0.2.7"}, 404},
+	} {
+		if got := get(c.remote, c.hdr); got != c.want {
+			t.Errorf("%s %v: %d, want %d", c.remote, c.hdr, got, c.want)
+		}
+	}
+}

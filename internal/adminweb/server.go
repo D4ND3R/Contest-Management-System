@@ -177,6 +177,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /static/", s.static)
 	mux.Handle("GET /healthz", httpx.HealthHandler("admin-web", s.checks...))
 	mux.Handle("GET /metrics", metrics.Handler())
+	if s.cfg.Pprof {
+		webkit.Profiling(mux)
+	}
 	mux.HandleFunc("GET /login", s.handleLoginForm)
 	mux.HandleFunc("POST /login", s.handleLogin)
 	mux.HandleFunc("POST /login/2fa", s.handleLogin2FA)
