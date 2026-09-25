@@ -317,6 +317,27 @@ var esClose = map[string]string{
 	"Not a contest archive: %v":                                                           "No es el archivo de un concurso: %v",
 	"The archive could not be imported (nothing was written): %v":                         "No se pudo importar el archivo (no se escribió nada): %v",
 	"Contest imported: %d rows, %d files; %d existing users and %d teams reused.":         "Concurso importado: %d filas, %d archivos; se reutilizaron %d usuarios y %d equipos existentes.",
+	// E1: plagiarism.
+	"Plagiarism":                    "Plagio",
+	"Submission of each contestant": "Envío de cada concursante",
+	"the latest":                    "el último",
+	"the best scored":               "el de mejor puntaje",
+	"Minimum similarity (%)":        "Similitud mínima (%)",
+	"Compare":                       "Comparar",
+	"Sources are compared after removing layout, comments and preprocessor lines and replacing every name and literal, so renaming variables or reformatting does not hide a copy. Code given to contestants (attachments and graders or stubs) and fragments present in many submissions are ignored. Similarity is the share of the smaller submission found in the other one: a lead to review, not a verdict.": "Los códigos se comparan después de quitar el formato, los comentarios y las líneas del preprocesador y de reemplazar cada nombre y cada literal, así que renombrar variables o reformatear no oculta una copia. Se ignoran el código entregado a los concursantes (adjuntos y graders o stubs) y los fragmentos presentes en muchos envíos. La similitud es la parte del envío más chico que aparece en el otro: una pista para revisar, no un veredicto.",
+	"%d submissions compared":                                 "%d envíos comparados",
+	"%d without source code in a known language or too short": "%d sin código fuente en un lenguaje conocido o demasiado cortos",
+	"ignored as given code: %s":                               "ignorado por ser código entregado: %s",
+	"Similarity":                                              "Similitud",
+	"Shared fragments":                                        "Fragmentos en común",
+	"side by side":                                            "lado a lado",
+	"No pair reaches the threshold.":                          "Ningún par alcanza el umbral.",
+	"Compare submissions":                                     "Comparar envíos",
+	"similarity %d%%":                                         "similitud %d%%",
+	"Highlighted lines belong to fragments both submissions share (after normalisation); code given to contestants is not highlighted.": "Las líneas resaltadas pertenecen a fragmentos que ambos envíos comparten (después de normalizar); el código entregado a los concursantes no se resalta.",
+	"The two submissions are for different tasks.": "Los dos envíos son de tareas distintas.",
+	"similarity report":                            "reporte de similitud",
+	"binary or too large":                          "binario o demasiado grande",
 }
 
 func init() {

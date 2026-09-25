@@ -1,0 +1,34 @@
+{{define "content"}}{{$d := .Data}}
+<h1>{{.T "Plagiarism"}} <small class="muted">{{$d.Contest}}</small></h1>
+<form method="get" action="/contests/{{$d.ContestID}}/plagiarism" class="inline-form card">
+  <label>{{.T "Task"}} <select name="task" required><option value="">—</option>{{range $d.Tasks}}<option value="{{.ID}}"{{if eq .ID $d.TaskID}} selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  <label>{{.T "Submission of each contestant"}} <select name="which">
+    <option value="last"{{if eq $d.Which "last"}} selected{{end}}>{{.T "the latest"}}</option>
+    <option value="best"{{if eq $d.Which "best"}} selected{{end}}>{{.T "the best scored"}}</option>
+  </select></label>
+  <label>{{.T "Minimum similarity (%)"}} <input name="threshold" value="{{$d.Threshold}}" inputmode="numeric" size="3"></label>
+  <button>{{.T "Compare"}}</button>
+</form>
+<p class="muted small">{{.T "Sources are compared after removing layout, comments and preprocessor lines and replacing every name and literal, so renaming variables or reformatting does not hide a copy. Code given to contestants (attachments and graders or stubs) and fragments present in many submissions are ignored. Similarity is the share of the smaller submission found in the other one: a lead to review, not a verdict."}}</p>
+{{if $d.Ran}}
+<section class="card">
+<p>{{.T "%d submissions compared" $d.Compared}}{{with $d.Skipped}} · {{$.T "%d without source code in a known language or too short" .}}{{end}}{{with $d.Templates}} · {{$.T "ignored as given code: %s" (join . ", ")}}{{end}}</p>
+<table>
+<thead><tr><th class="num">{{.T "Similarity"}}</th><th>{{.T "Contestant"}}</th><th>{{.T "Contestant"}}</th><th class="num">{{.T "Shared fragments"}}</th><th></th></tr></thead>
+<tbody>
+{{range $d.Pairs}}
+<tr>
+  <td class="num"><b>{{.Similarity}}%</b></td>
+  <td><a href="/submissions/{{.A.ID}}">{{.A.Username}}</a> <span class="muted small">#{{.A.ID}}</span></td>
+  <td><a href="/submissions/{{.B.ID}}">{{.B.Username}}</a> <span class="muted small">#{{.B.ID}}</span></td>
+  <td class="num">{{.Shared}}</td>
+  <td><a href="/contests/{{$d.ContestID}}/plagiarism/compare?a={{.A.ID}}&amp;b={{.B.ID}}">{{$.T "side by side"}}</a></td>
+</tr>
+{{else}}
+<tr><td colspan="5" class="muted">{{$.T "No pair reaches the threshold."}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</section>
+{{end}}
+{{end}}

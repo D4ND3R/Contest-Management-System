@@ -2,7 +2,7 @@
 <h1>{{.T "Statistics of %s" .Data.Contest}} <small class="muted">{{.T "%d ranked contestants" .Data.Participants}}</small></h1>
 {{range .Data.Tasks}}
 <section class="card">
-<h2>{{.Task.Name}} <small class="muted">{{.Task.Title}} · {{$.T "max %s" (score .Task.MaxScore .Task.Precision)}}</small></h2>
+<h2>{{.Task.Name}} <small class="muted">{{.Task.Title}} · {{$.T "max %s" (score .Task.MaxScore .Task.Precision)}} · <a href="/contests/{{$.Data.ContestID}}/plagiarism?task={{.Task.ID}}">{{$.T "similarity report"}}</a></small></h2>
 <div class="stats">
   <div class="stat"><b>{{.Submissions}}</b><span>{{$.T "submissions"}}</span></div>
   <div class="stat"><b>{{.Participants}}</b><span>{{$.T "contestants submitted"}}</span></div>

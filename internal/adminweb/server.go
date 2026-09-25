@@ -233,6 +233,8 @@ func (s *Server) Handler() http.Handler {
 	get("/contests/{id}/ranking.json", s.handleRankingJSON)
 	get("/contests/{id}/ranking.pdf", s.handleRankingPDF)
 	get("/contests/{id}/stats", s.handleStats)
+	get("/contests/{id}/plagiarism", s.handlePlagiarism)
+	get("/contests/{id}/plagiarism/compare", s.handlePlagiarismCompare)
 
 	get("/questions", s.handleQuestions)
 	get("/questions/count", s.handleQuestionCount)

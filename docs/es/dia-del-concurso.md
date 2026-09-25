@@ -105,6 +105,13 @@ principal salvo que se indique otra cosa.
       eligió una).
 - [ ] Respaldo final (**Respaldar ahora**), descárgalo y guárdalo fuera del
       servidor.
+- [ ] Revisa el reporte de similitud de cada tarea (página del concurso →
+      **Plagio**, o *reporte de similitud* en las estadísticas): pares de
+      concursantes cuyos últimos (o mejores) envíos comparten la mayor parte
+      del código después de quitar formato, comentarios y nombres, con una
+      vista lado a lado de las líneas en común. Se ignora el código
+      entregado a los concursantes (adjuntos, graders, stubs). Es una pista
+      para revisar, no un veredicto.
 - [ ] Archiva el concurso (página del concurso → **Archivo**, con los
       envíos): un zip que cualquier instalación posterior importa
       ([archivos de un concurso](respaldos.md#archivos-de-un-concurso)).

@@ -1,6 +1,7 @@
 package highlight
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -49,5 +50,30 @@ func BenchmarkHighlight(b *testing.B) {
 	b.SetBytes(int64(len(src)))
 	for i := 0; i < b.N; i++ {
 		HTML(src, s)
+	}
+}
+
+func TestTokens(t *testing.T) {
+	src := "#include <cstdio>\nint main() { // hi\n  return x1 + 0x1F; /* c */ }\n\"é\" ≥\n"
+	var got []string
+	Tokens(src, ForFile("a.cpp"), func(kind byte, text string, line int) {
+		got = append(got, string(kind)+":"+text+":"+strconv.Itoa(line))
+	})
+	want := "p:#include <cstdio>:0 k:int:1 i:main:1 o:(:1 o:):1 o:{:1 c:// hi:1 k:return:2 i:x1:2 o:+:2 n:0x1F:2 o:;:2 c:/* c */:2 o:}:2 s:\"é\":3 o:≥:3"
+	if strings.Join(got, " ") != want {
+		t.Fatalf("tokens:\n%s\nwant:\n%s", strings.Join(got, " "), want)
+	}
+	// Pascal keywords are case-insensitive.
+	got = nil
+	Tokens("BEGIN End", ForFile("a.pas"), func(kind byte, text string, line int) { got = append(got, string(kind)+text) })
+	if strings.Join(got, " ") != "kbegin kend" {
+		t.Fatalf("pascal: %v", got)
+	}
+}
+
+func TestHTMLMarked(t *testing.T) {
+	h := string(HTMLMarked("a\nb\nc", nil, map[int]bool{1: true}))
+	if h != `<span class="l">a</span>`+"\n"+`<span class="l m">b</span>`+"\n"+`<span class="l">c</span>` {
+		t.Fatalf("%q", h)
 	}
 }

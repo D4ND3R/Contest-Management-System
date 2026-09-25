@@ -100,6 +100,12 @@ web site; commands run on the main server unless noted.
       landscape, header on every page, filtered by site if one is chosen).
 - [ ] Final backup (**Back up now**), download it and store it off the
       server.
+- [ ] Review the similarity report of each task (contest page →
+      **Plagiarism**, or *similarity report* on the statistics): pairs of
+      contestants whose latest (or best) submissions share most of their
+      code after removing layout, comments and names, with a side-by-side
+      view of the shared lines. Code given to contestants (attachments,
+      graders, stubs) is ignored. It is a lead to review, not a verdict.
 - [ ] Archive the contest (contest page → **Archive**, with the
       submissions): one zip that any later installation imports
       ([contest archives](backups.md#contest-archives)).

@@ -143,3 +143,20 @@ FROM submission_results sr
 WHERE sr.scored_at IS NULL
 ORDER BY sr.submission_id
 LIMIT $1;
+
+-- name: PlagiarismCandidates :many
+-- One submission per participation for the plagiarism report of a task:
+-- the latest official, valid submission or, with best, the best scored
+-- one (ties: the latest). Served by submissions_task_idx.
+SELECT DISTINCT ON (s.participation_id)
+    s.id, s.participation_id, s.submitted_at, s.language, u.username, p.team_id, r.score
+FROM submissions s
+JOIN participations p ON p.id = s.participation_id
+JOIN users u ON u.id = p.user_id
+JOIN tasks t ON t.id = s.task_id
+LEFT JOIN submission_results r ON r.submission_id = s.id AND r.dataset_id = t.active_dataset_id
+WHERE s.task_id = sqlc.arg(task_id)::bigint AND p.contest_id = sqlc.arg(contest_id)::bigint
+  AND s.official AND s.invalidated_at IS NULL
+ORDER BY s.participation_id,
+    CASE WHEN sqlc.arg(best)::boolean THEN COALESCE(r.score, -1) ELSE 0 END DESC,
+    s.submitted_at DESC, s.id DESC;

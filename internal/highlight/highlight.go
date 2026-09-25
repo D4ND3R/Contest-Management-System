@@ -129,9 +129,88 @@ func HTML(src string, s *Syntax) template.HTML {
 	return template.HTML(w.b.String())
 }
 
+// HTMLMarked is HTML with the lines in marked (0-based) given the class
+// "m" as well (matched code in the plagiarism view).
+func HTMLMarked(src string, s *Syntax, marked map[int]bool) template.HTML {
+	src = strings.ReplaceAll(src, "\r\n", "\n")
+	w := &writer{marked: marked}
+	w.b.Grow(len(src)*2 + 64)
+	w.open()
+	if s == nil {
+		w.write("", src)
+	} else {
+		s.tokenize(src, w.write)
+	}
+	w.b.WriteString("</span>")
+	return template.HTML(w.b.String())
+}
+
+// Token kinds reported by Tokens.
+const (
+	Keyword      = 'k'
+	Identifier   = 'i'
+	Number       = 'n'
+	String       = 's'
+	Comment      = 'c'
+	Preprocessor = 'p'
+	Operator     = 'o'
+)
+
+// Tokens calls fn with every token of src in order, whitespace left out:
+// its kind, its text (keywords lower-cased in case-insensitive languages)
+// and its 0-based line. Every other byte is an operator token of its own
+// (a whole rune for non-ASCII text).
+func Tokens(src string, s *Syntax, fn func(kind byte, text string, line int)) {
+	line := 0
+	s.tokenize(src, func(class, text string) {
+		if class != "" {
+			if class == "k" && s.caseInsensitive {
+				fn(Keyword, strings.ToLower(text), line)
+			} else {
+				fn(class[0], text, line)
+			}
+			line += strings.Count(text, "\n")
+			return
+		}
+		for i := 0; i < len(text); {
+			c := text[i]
+			switch {
+			case c == '\n':
+				line++
+				i++
+			case c == ' ' || c == '\t' || c == '\r' || c == '\f' || c == '\v':
+				i++
+			case isIdentStart(c):
+				j := i + 1
+				for j < len(text) && isIdent(text[j]) {
+					j++
+				}
+				fn(Identifier, text[i:j], line)
+				i = j
+			default:
+				_, n := utf8.DecodeRuneInString(text[i:])
+				fn(Operator, text[i:i+n], line)
+				i += n
+			}
+		}
+	})
+}
+
 // writer emits tokens, closing and reopening their span at line breaks so
 // that every line element is well formed.
-type writer struct{ b strings.Builder }
+type writer struct {
+	b      strings.Builder
+	marked map[int]bool
+	line   int
+}
+
+func (w *writer) open() {
+	if w.marked[w.line] {
+		w.b.WriteString(`<span class="l m">`)
+	} else {
+		w.b.WriteString(`<span class="l">`)
+	}
+}
 
 func (w *writer) write(class, text string) {
 	for {
@@ -154,7 +233,9 @@ func (w *writer) write(class, text string) {
 		if nl < 0 {
 			return
 		}
-		w.b.WriteString("</span>\n<span class=\"l\">")
+		w.b.WriteString("</span>\n")
+		w.line++
+		w.open()
 		text = text[nl+1:]
 	}
 }

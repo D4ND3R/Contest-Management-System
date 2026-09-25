@@ -749,3 +749,16 @@ Skipping skills: immersive-web-design, master skill.
   backups / respaldos (contest archives), contest-day runbook.
 
 Block D is complete.
+
+## SPEC_CLOSE E1 — Plagiarism report (done)
+Skipping skills: immersive-web-design, master skill.
+
+Contest → Plagiarism (and *similarity report* per task on the statistics):
+choose the task, the latest or best submission of each contestant and a
+minimum similarity; the report lists the pairs with their similarity and
+shared fragments, and opens a side-by-side view with the shared lines
+marked (D65). Package plagiarism (normalised tokens from the highlighter,
+winnowed fingerprints, base code removed by token, common fragments
+ignored); ~80 ms for 500 submissions of 150 lines
+(plagiarism.BenchmarkReport500). Tests: plagiarism.Test*,
+highlight.TestTokens/TestHTMLMarked, adminweb.TestPlagiarismReport.

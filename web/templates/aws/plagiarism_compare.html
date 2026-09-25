@@ -1,0 +1,14 @@
+{{define "content"}}{{$d := .Data}}
+<h1>{{.T "Compare submissions"}} <small class="muted">{{$d.A.Sub.TaskName}} · {{.T "similarity %d%%" $d.Similarity}}</small></h1>
+<p class="muted small">{{.T "Highlighted lines belong to fragments both submissions share (after normalisation); code given to contestants is not highlighted."}}</p>
+<div class="sbs">
+{{template "compare-side" $d.A}}
+{{template "compare-side" $d.B}}
+</div>
+{{end}}
+{{define "compare-side"}}
+<section>
+  <h2><a href="/submissions/{{.Sub.ID}}">#{{.Sub.ID}}</a> {{.Sub.Username}} <small class="muted">{{dt .Sub.SubmittedAt}}</small></h2>
+  {{range .Files}}<h3><code>{{.Name}}</code></h3><pre class="code hl">{{.HTML}}</pre>{{end}}
+</section>
+{{end}}

@@ -680,6 +680,68 @@ func (q *Queries) ListTokenTimesByParticipation(ctx context.Context, participati
 	return items, nil
 }
 
+const plagiarismCandidates = `-- name: PlagiarismCandidates :many
+SELECT DISTINCT ON (s.participation_id)
+    s.id, s.participation_id, s.submitted_at, s.language, u.username, p.team_id, r.score
+FROM submissions s
+JOIN participations p ON p.id = s.participation_id
+JOIN users u ON u.id = p.user_id
+JOIN tasks t ON t.id = s.task_id
+LEFT JOIN submission_results r ON r.submission_id = s.id AND r.dataset_id = t.active_dataset_id
+WHERE s.task_id = $1::bigint AND p.contest_id = $2::bigint
+  AND s.official AND s.invalidated_at IS NULL
+ORDER BY s.participation_id,
+    CASE WHEN $3::boolean THEN COALESCE(r.score, -1) ELSE 0 END DESC,
+    s.submitted_at DESC, s.id DESC
+`
+
+type PlagiarismCandidatesParams struct {
+	TaskID    int64 `json:"task_id"`
+	ContestID int64 `json:"contest_id"`
+	Best      bool  `json:"best"`
+}
+
+type PlagiarismCandidatesRow struct {
+	ID              int64     `json:"id"`
+	ParticipationID *int64    `json:"participation_id"`
+	SubmittedAt     time.Time `json:"submitted_at"`
+	Language        *string   `json:"language"`
+	Username        string    `json:"username"`
+	TeamID          *int64    `json:"team_id"`
+	Score           *float64  `json:"score"`
+}
+
+// One submission per participation for the plagiarism report of a task:
+// the latest official, valid submission or, with best, the best scored
+// one (ties: the latest). Served by submissions_task_idx.
+func (q *Queries) PlagiarismCandidates(ctx context.Context, arg PlagiarismCandidatesParams) ([]PlagiarismCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, plagiarismCandidates, arg.TaskID, arg.ContestID, arg.Best)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PlagiarismCandidatesRow{}
+	for rows.Next() {
+		var i PlagiarismCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParticipationID,
+			&i.SubmittedAt,
+			&i.Language,
+			&i.Username,
+			&i.TeamID,
+			&i.Score,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const refreshTestcasesDone = `-- name: RefreshTestcasesDone :one
 UPDATE submission_results sr
 SET testcases_done = (SELECT count(*) FROM evaluations e WHERE e.submission_id = sr.submission_id AND e.dataset_id = sr.dataset_id)

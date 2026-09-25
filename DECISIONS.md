@@ -691,3 +691,27 @@ demand by the dispatcher's sweep), user tests, print jobs, balloons, the
 audit log. Zip rather than the backup's tar.zst because an archive is
 meant to be opened and read by people (results.csv) and imported through
 a browser upload; the rows come from one REPEATABLE READ snapshot.
+
+## D65. Plagiarism: normalised tokens, winnowing, base code removed by token
+The report reuses the syntax highlighter's tokenizer (one lexer for every
+configured language, chosen by file extension) and reduces each source to
+keywords and operators, with every identifier, number and string replaced
+by a fixed token and comments and preprocessor lines dropped: renaming,
+reformatting and commenting do not change the stream. Hashes of 12-token
+windows are winnowed with a window of 8 (Schleimer, Wilkerson and Aiken,
+the method behind MOSS), so any common run of 19 tokens or more is found
+wherever it sits, with a few fingerprints per program. A rolling hash over
+per-token hashes keeps fingerprinting linear (profiled: per-k-gram FNV and
+token strings dominated). Pairs come from an inverted index of
+fingerprints, so the work follows the shared fragments, not n² pairs; a
+fingerprint in more than max(5, n/10) submissions is an idiom and is
+dropped. Code handed to contestants is removed at token level rather than
+by fingerprint: every token covered by a k-gram of the attachments,
+graders and stubs is marked and no fingerprint may include one, otherwise
+the seam between the template and each contestant's code would look like
+shared code (a test reproduced exactly that). Similarity is the share of
+the smaller program's own fingerprints found in the other, which catches
+a copy padded with extra code; the page presents it as a lead to review.
+One submission per contestant (latest or best), official and valid; a
+team's members are not paired in team contests. Computed on request (the
+admin runs it after the contest; it never touches the judging queue).
