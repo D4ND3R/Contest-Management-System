@@ -39,6 +39,7 @@ type stats struct {
 	connects atomic.Int64
 	failures atomic.Int64
 	drops    atomic.Int64 // streams the server closed (reconnected)
+	bytes    atomic.Int64 // everything read, pings included
 }
 
 func (s *stats) received(seq int64, at time.Time) {
@@ -130,6 +131,7 @@ func follow(ctx context.Context, client *http.Client, url string, s *stats) bool
 	r := bufio.NewReaderSize(resp.Body, 4<<10)
 	for {
 		line, err := r.ReadSlice('\n')
+		s.bytes.Add(int64(len(line)))
 		if err != nil && err != bufio.ErrBufferFull {
 			if ctx.Err() == nil {
 				s.drops.Add(1)
@@ -148,8 +150,9 @@ func follow(ctx context.Context, client *http.Client, url string, s *stats) bool
 
 func report(w *os.File, s *stats, n int, ramp time.Duration) {
 	var spread []float64
-	reachedAll := 0
+	reachedAll, frames := 0, 0
 	for _, e := range s.events {
+		frames += e.got
 		spread = append(spread, e.last.Sub(e.first).Seconds()*1000)
 		if int64(e.got) >= e.open {
 			reachedAll++
@@ -164,6 +167,6 @@ func report(w *os.File, s *stats, n int, ramp time.Duration) {
 	}
 	fmt.Fprintf(w, "spectators=%d ramp_s=%.1f peak_open=%d connects=%d failures=%d drops=%d\n",
 		n, ramp.Seconds(), s.peak.Load(), s.connects.Load(), s.failures.Load(), s.drops.Load())
-	fmt.Fprintf(w, "events=%d reached_all=%d spread_ms_p50=%.1f spread_ms_p95=%.1f spread_ms_p99=%.1f spread_ms_max=%.1f\n",
-		len(spread), reachedAll, q(.5), q(.95), q(.99), q(1))
+	fmt.Fprintf(w, "events=%d reached_all=%d spread_ms_p50=%.1f spread_ms_p95=%.1f spread_ms_p99=%.1f spread_ms_max=%.1f mib=%d frame_bytes=%d\n",
+		len(spread), reachedAll, q(.5), q(.95), q(.99), q(1), s.bytes.Load()>>20, s.bytes.Load()/int64(max(frames, 1)))
 }

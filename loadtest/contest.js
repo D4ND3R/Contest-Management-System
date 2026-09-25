@@ -33,9 +33,8 @@ export const options = {
       // The open contest page of every contestant (server-sent events).
       executor: 'constant-vus', vus: USERS, duration: total, exec: 'stream', startTime: '20s',
     },
-    spectators: {
-      executor: 'constant-vus', vus: SPECTATORS, duration: total, exec: 'spectator',
-    },
+    // Ranking spectators (none with SPECTATORS=0).
+    ...(SPECTATORS > 0 ? { spectators: { executor: 'constant-vus', vus: SPECTATORS, duration: total, exec: 'spectator' } } : {}),
   },
   thresholds: {
     'http_req_duration{kind:page}': ['p(95)<150', 'p(99)<400'],

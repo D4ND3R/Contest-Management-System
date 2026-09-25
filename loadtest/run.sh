@@ -9,6 +9,7 @@
 #   CONTESTANTS=300 SPECTATORS=0 NORMAL_MIN=3 BURST_MIN=2 loadtest/run.sh
 #   CONTESTANTS=1500 SPECTATORS=3000 DRAIN_MAX=0 loadtest/run.sh  # web capacity
 #   SSE_CLIENTS=10000 loadtest/run.sh  # plus 10,000 streams following the ranking
+#   PROFILE_AT=240 loadtest/run.sh     # CPU profiles of the web servers 4 minutes in
 #
 # Needs root (isolate), PostgreSQL and Valkey/Redis binaries, k6 and Go.
 # Results (k6 summary, judging throughput, report.md) go to
@@ -18,6 +19,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 : "${CONTESTANTS:=500}" "${SPECTATORS:=1000}" "${NORMAL_MIN:=5}" "${BURST_MIN:=3}"
 : "${SSE_CLIENTS:=0}"  # extra ranking event streams held by loadtest/spectators
+: "${PROFILE_AT:=}"  # seconds into the run: take 20 s CPU profiles of both web servers
 : "${DRAIN_MAX:=1800}" # seconds to wait for the judging queue after k6 (0: do not wait)
 : "${WEB_CPU:=0}" "${JUDGE_CPU:=1}" "${K6_CPUS:=2,3}"
 : "${PGPORT:=15432}" "${REDISPORT:=16379}"
@@ -77,9 +79,9 @@ redis: {url: "redis://127.0.0.1:$REDISPORT/0"}
 blob: {backend: local, local_dir: "$RUN/blobs"}
 secret_key: "6c6f61642d746573742d7365637265742d6b65792d6e6f742d666f722d70726f64"
 languages_dir: "$ROOT/config/languages"
-contest_web: {listen: "127.0.0.1:18888", login_rate_limit_per_minute: 100000, rate_limit_per_minute: 1000}
+contest_web: {listen: "127.0.0.1:18888", login_rate_limit_per_minute: 100000, rate_limit_per_minute: 1000, pprof: true}
 admin_web: {listen: "127.0.0.1:18889"}
-ranking_web: {listen: "127.0.0.1:18890", data_dir: "$RUN/ranking", push_token: load-token}
+ranking_web: {listen: "127.0.0.1:18890", data_dir: "$RUN/ranking", push_token: load-token, pprof: true}
 dispatcher: {metrics_listen: "127.0.0.1:19101", ranking_urls: ["http://127.0.0.1:18890"]}
 worker:
   metrics_listen: "127.0.0.1:19102"
@@ -133,7 +135,23 @@ sample() {
 }
 echo load > "$RUN/phase"
 sample > "$OUT/samples.txt" & sampler=$!
+# CPU seconds used so far by each CMS service, PostgreSQL and Valkey
+cpu_by_process() {
+  ps -eo times=,args= | awk '
+    $2 ~ /\/cms$/ {n[$3] += $1; next}
+    $2 ~ /^postgres/ || $2 ~ /bin\/postgres$/ {n["postgresql"] += $1; next}
+    $2 ~ /(valkey|redis)-server/ {n["valkey"] += $1}
+    END {for (k in n) print k, n[k]}' | sort
+}
+cpu_by_process > "$RUN/cpu-start.txt"
 K6_START=$(date -u +%s)
+if [ -n "$PROFILE_AT" ]; then
+  (sleep "$PROFILE_AT"
+   for p in 18888:cws 18890:rws; do
+     curl -fsS -o "$OUT/${p#*:}-cpu.pprof" "http://127.0.0.1:${p%:*}/debug/pprof/profile?seconds=20" &
+   done
+   wait) & profiler=$!
+fi
 if [ "$SSE_CLIENTS" -gt 0 ]; then
   taskset -c "$K6_CPUS" "$RUN/spectators" -url http://127.0.0.1:18890/load/events -n "$SSE_CLIENTS" \
     -for "$((NORMAL_MIN + BURST_MIN))m" -out "$OUT/sse.txt" & spect=$!
@@ -142,8 +160,10 @@ taskset -c "$K6_CPUS" k6 run --quiet --summary-export "$OUT/k6-summary.json" \
   -e CONTESTANTS="$CONTESTANTS" -e SPECTATORS="$SPECTATORS" -e NORMAL_MIN="$NORMAL_MIN" -e BURST_MIN="$BURST_MIN" \
   loadtest/contest.js 2>&1 | tee "$OUT/k6.txt" || true
 K6_END=$(date -u +%s)
+cpu_by_process | join -a1 - "$RUN/cpu-start.txt" | awk -v s=$((K6_END - K6_START > 0 ? K6_END - K6_START : 1)) '{printf "%s cpu_s=%d share=%.0f%%\n", $1, $2-$3, 100*($2-$3)/s}' > "$OUT/cpu-by-process.txt"
 echo drain > "$RUN/phase"
 [ -n "${spect:-}" ] && { wait "$spect" || true; }
+[ -n "${profiler:-}" ] && { wait "$profiler" || true; }
 curl -fsS http://127.0.0.1:18888/metrics > "$OUT/cws-metrics.txt" || true
 curl -fsS http://127.0.0.1:18890/metrics > "$OUT/rws-metrics.txt" || true
 

@@ -9,6 +9,16 @@ grandes funcionan igual (desde 6 CPUs, las CPUs 0–1 atienden la web y el
 resto evalúa); más capacidad de evaluación se obtiene con [workers en otras
 máquinas](worker-externo.md).
 
+Capacidad medida de esa máquina ([pruebas de carga](../../loadtest/README.md)):
+unos **500 concursantes con margen amplio** (las páginas del concurso
+responden en menos de 20 ms el 95% de las veces, con 1,000 espectadores
+del ranking) y **hasta unos 1,000** con páginas todavía por debajo de
+150 ms, si los inicios de sesión se reparten en unos minutos. La
+evaluación es el límite más estrecho: un núcleo de evaluación califica
+70–80 envíos por minuto de C++ pesado; agrega núcleos o workers para un
+cierre más intenso. Miles de espectadores del ranking van en un núcleo o
+máquina propios para el servidor de ranking.
+
 `scripts/install.sh` hace todo lo que sigue; los pasos manuales se detallan
 para que sepas qué cambia y puedas adaptarlo.
 
@@ -197,6 +207,12 @@ nunca pierde uno.
   cms-dispatcher` (cualquier unidad) escribe la pila de cada goroutine en
   su journal sin detenerlo (`journalctl -u cms-dispatcher`); adjúntala a un
   reporte de error.
+- Perfilar un servidor web bajo carga: `pprof: true` en `contest_web`,
+  `admin_web` o `ranking_web` sirve el profiler de Go en `/debug/pprof/`
+  en el puerto del propio servicio, solo a peticiones hechas desde la misma
+  máquina (nunca a través del proxy HTTPS), p. ej. `go tool pprof
+  http://127.0.0.1:8888/debug/pprof/profile?seconds=20`. Déjalo apagado
+  el resto del tiempo.
 
 ## Seguridad y límites
 

@@ -87,9 +87,9 @@ func main() {
 		}
 		fmt.Println("## Ranking event streams (loadtest/spectators)")
 		fmt.Println()
-		fmt.Printf("%s more spectators followed the ranking over server-sent events (opened in %s s; at most %s open at once; %s refused or failed, %s closed by the server). %s ranking updates reached them; %s reached every stream open at the time. Delay between the first and the last spectator receiving the same update: p50 %s ms, p95 %s ms, p99 %s ms, max %s ms.\n\n",
+		fmt.Printf("%s more spectators followed the ranking over server-sent events (opened in %s s; at most %s open at once; %s refused or failed, %s closed by the server). %s ranking updates reached them; %s reached every stream open at the time. Delay between the first and the last spectator receiving the same update: p50 %s ms, p95 %s ms, p99 %s ms, max %s ms. They read %s MiB in all, %s bytes per update and stream on average.\n\n",
 			m["spectators"], m["ramp_s"], m["peak_open"], m["failures"], m["drops"], m["events"], m["reached_all"],
-			m["spread_ms_p50"], m["spread_ms_p95"], m["spread_ms_p99"], m["spread_ms_max"])
+			m["spread_ms_p50"], m["spread_ms_p95"], m["spread_ms_p99"], m["spread_ms_max"], m["mib"], m["frame_bytes"])
 	}
 
 	fmt.Println("## Judging")
@@ -158,6 +158,17 @@ func main() {
 	n = max(n, 1)
 	fmt.Printf("While k6 ran, the web CPU (%s) was busy %d%% on average and %d%% in the busiest 5 s; the judging CPU (%s) %d%% on average. Peak resident memory of the CMS processes %d MiB; largest judging backlog %d submissions. The busiest k6 CPU peaked at %d%% (near 100%% the generator, not CMS, limits the load).\n",
 		meta["web_cpu"], sumWeb/n, peakWeb, meta["judge_cpu"], sumJudge/n, peakRSS, peakBacklog, peakK6)
+	if procs := read(dir, "cpu-by-process.txt"); procs != "" {
+		fmt.Println()
+		fmt.Println("CPU used while k6 ran (100% = one core for the whole run):")
+		fmt.Println()
+		for _, line := range strings.Split(procs, "\n") {
+			f := strings.Fields(line)
+			if len(f) == 3 {
+				fmt.Printf("- %s: %s (%s)\n", f[0], strings.TrimPrefix(f[2], "share="), strings.TrimPrefix(f[1], "cpu_s=")+" s")
+			}
+		}
+	}
 }
 
 // histogram accumulates the buckets (upper bound in seconds → cumulative

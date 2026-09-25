@@ -796,3 +796,50 @@ spends a whole virtual user (several MiB) per open stream, so the 10,000
 ranking spectators of SPEC.md F7 are played by a small Go client
 (`loadtest/spectators`) that measures how long one update takes to reach
 every stream.
+
+## D70. Ranking updates: rows that only move travel as rank shifts
+(Amends D46.) With 10,000 extra spectators on the 2 vCPU layout the web
+core saturated and every web latency degraded. The profile (the web
+servers' `pprof` option, now wired: loopback only, never through the
+proxy) put 81% of the ranking server in write syscalls: when one
+contestant climbs, every row it passes changes rank, and each such row
+travelled as its whole HTML, so one update was tens of kilobytes written
+to every stream (three syscalls each, past the 4 KiB buffer).
+- Rows whose only change is the rank travel as runs `[from, to, delta]`
+  of old ranks: rows tied at a rank whose score did not change move
+  together, so a climb past hundreds of rows is one run. A rank whose rows
+  would move differently (never, for a board ranked by score) falls back
+  to one entry per row. Rows whose content changed still travel as
+  ready-made HTML. The pusher already sends at most one update per contest
+  every 250 ms, so the ranking server needs no batching of its own.
+- Shifts are only right for a page in exactly the state they start from,
+  so the ranking server remembers the sequence at which the rows last
+  changed visibly (`shown`, not every push: history-only pushes change
+  nothing on the board); pages carry it and every update names it as its
+  `base`. A page whose sequence differs (a frame dropped for a slow
+  client, a reconnection, a restart of either server) reloads, with
+  jitter, instead of applying changes meant for another state; it used to
+  stay stale until its rows changed again.
+- Only rows whose content changed and moved are highlighted, not every
+  row they pass.
+- The client script is tested in a real browser (`TestLivePageInBrowser`:
+  headless Chromium through Playwright, random updates, a dropped
+  connection, an unfreeze; skipped where Playwright is missing).
+
+## D71. A submission is pending in the task score as soon as it arrives
+The per-task aggregate (`participation_task_scores`, D22) was recomputed
+only when a submission was scored, so a submission waiting to be judged
+was not counted as pending there, while the full recomputation of the
+ranking (every minute, and at every restart) counted it. The scoreboards
+alternated between the two: every minute hundreds of rows flashed the
+pending mark on and off, each flash an update of every row to every
+spectator (found in the frames of the 10,000-spectator load test). The
+dispatcher now recomputes the aggregate when it takes a new submission (or
+a rejudged one), so both computations agree (`TestPendingCountsOnArrival`)
+and the contestant's task page counts it at once. It publishes no ranking
+update for it: publishing one doubled the updates every spectator
+receives (measured: the ranking server went from 18% to 41% of the web
+core with 10,000 spectators), and the mark appears with the next update of
+the board, which during a contest is a moment away. The cost is one
+aggregate query and upsert per submission, in the transaction that
+enqueues its compilation.

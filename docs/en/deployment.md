@@ -8,6 +8,15 @@ slows the contest web server down. Bigger machines work the same way (from 6
 CPUs up, CPUs 0–1 serve the web and the rest judge); more judging power
 comes from [workers on other machines](external-worker.md).
 
+Measured capacity of that machine ([load tests](../../loadtest/README.md)):
+about **500 contestants with ample margin** (contest pages answered in
+under 20 ms for 95% of requests, with 1,000 ranking spectators) and **up
+to about 1,000** with pages still under 150 ms, if logins are spread over
+a few minutes. Judging is the tighter limit: one judging core scores 70–80
+submissions a minute of heavy C++; add cores or workers for a bigger final
+rush. Thousands of ranking spectators belong on the ranking server's own
+core or machine.
+
 `scripts/install.sh` does everything below; the manual steps are listed so
 you know what it changes and can adapt it.
 
@@ -188,6 +197,12 @@ printing, so a crash may print a job twice but never loses one.
 - A service that seems stuck: `sudo systemctl kill -s USR1 cms-dispatcher`
   (any unit) writes the stack of every goroutine to its journal without
   stopping it (`journalctl -u cms-dispatcher`); attach it to a bug report.
+- Profiling a web server under load: `pprof: true` under `contest_web`,
+  `admin_web` or `ranking_web` serves the Go profiler at `/debug/pprof/`
+  on the service's own port, only to requests made on the machine itself
+  (never through the HTTPS proxy), e.g. `go tool pprof
+  http://127.0.0.1:8888/debug/pprof/profile?seconds=20`. Leave it off
+  otherwise.
 
 ## Security and limits
 

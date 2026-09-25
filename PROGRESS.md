@@ -9,14 +9,14 @@ Status of each phase of SPEC.md §9. Updated at the end of every phase.
 | F2 Sandbox + worker | done (cgroup v2 path: pending verification on real hardware) |
 | F3 Task types, checkers, languages | done |
 | F4 Dispatcher | done |
-| F5 CWS | done (3000-user target: F10) |
+| F5 CWS | done (3000-contestant target on 4 vCPU: pending verification on real hardware) |
 | F6 AWS | done |
-| F7 RWS | pending |
-| F8 Tokens, limits, user tests, Q&A, printing, analysis, ICPC | pending |
-| F9 Import/export | pending |
-| F10 Performance and security | pending |
-| F11 Deployment | pending |
-| Audit (SPEC_AUDIT.md) | in progress — see AUDIT.md |
+| F7 RWS | done (SPEC_CLOSE A2; 10,000 spectators measured in SPEC_CLOSE F1) |
+| F8 Tokens, limits, user tests, Q&A, printing, analysis, ICPC | done (SPEC_CLOSE A1, B2–B8) |
+| F9 Import/export | done (SPEC_CLOSE A4, D7; K18–K21) |
+| F10 Performance and security | done (SPEC_CLOSE F1–F3; the load tests: pending on the target VPS) |
+| F11 Deployment | done (SPEC_CLOSE A5, A6, F4, F5) |
+| Audit (SPEC_AUDIT.md, SPEC_CLOSE.md) | done — see AUDIT.md and SUMMARY.md |
 
 ## F0 — Foundations (done)
 - Monorepo: single `cms` binary with one subcommand per service + `cmsctl`
@@ -777,6 +777,39 @@ adminweb.TestCertificatesFromAdmin, adminweb.TestContestClone,
 contestweb.TestContestantCertificate, contestarchive round trip.
 
 Block E is complete.
+
+## SPEC_CLOSE F1 — Load tests on the 2 vCPU layout (done)
+Skipping skills: immersive-web-design, master skill.
+
+`loadtest/` (`make loadtest`): a complete installation pinned like the
+reference 2 vCPU server (web, dispatcher, PostgreSQL and Valkey on one
+CPU, the sandbox on another, k6 on the other two), production database
+settings, contestants logging in, browsing, submitting with a final burst,
+their event streams open, and ranking spectators; `loadtest/spectators`
+adds thousands of ranking streams. The report gives client- and
+server-side latency, judging per minute, per-core and per-process CPU,
+memory and optional CPU profiles (D69). Results in loadtest/README.md:
+
+- 500 contestants + 1,000 spectators: every threshold met, no failure;
+  contest pages p95 42 ms as k6 sees them, 18.9 ms in the server; web core
+  42% busy. Judging 70–86 submissions/min on the judging core; the final
+  burst drains 20 minutes after the end (one judging core is the limit).
+- 1,000 contestants: pages p95 132 ms; only the synchronized login storm
+  misses its threshold (p95 12 s). The machine supports ~500 contestants
+  with margin, up to ~1,000 with logins spread out.
+- 10,000 more ranking streams on the same core: every update reaches all
+  of them within 0.76 s; contest pages p95 46 ms in the server.
+
+Bugs the load tests found and fixed: evaluations starving behind
+compilations (D67); the ranking fan-out writing whole rows to every
+stream (D70, rows that only move now travel as rank shifts, pages detect
+missed updates); pending marks flickering on every scoreboard once a
+minute (D71). The web servers' `pprof` option was declared but never
+wired; it now serves the profiler to local requests only. Tests:
+rankingweb.TestCompactUpdates, rankingweb.TestShifts,
+rankingweb.TestLivePageInBrowser (the page in headless Chromium),
+dispatcher.TestPendingCountsOnArrival, webkit.TestProfilingIsLocalOnly.
+Pending on real hardware: the same runs on the target VPS.
 
 ## SPEC_CLOSE F2 — Web hardening (done)
 Skipping skills: immersive-web-design, master skill.
