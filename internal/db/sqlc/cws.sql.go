@@ -254,7 +254,7 @@ func (q *Queries) ListActiveContests(ctx context.Context) ([]ListActiveContestsR
 }
 
 const listScoresByParticipation = `-- name: ListScoresByParticipation :many
-SELECT task_id, score, subtask_scores, icpc_solved, icpc_attempts, icpc_solved_at, pending
+SELECT task_id, score, subtask_scores, icpc_solved, icpc_attempts, icpc_solved_at, pending, adjustment
 FROM participation_task_scores WHERE participation_id = $1
 `
 
@@ -266,6 +266,7 @@ type ListScoresByParticipationRow struct {
 	IcpcAttempts  int32           `json:"icpc_attempts"`
 	IcpcSolvedAt  *time.Time      `json:"icpc_solved_at"`
 	Pending       int32           `json:"pending"`
+	Adjustment    float64         `json:"adjustment"`
 }
 
 func (q *Queries) ListScoresByParticipation(ctx context.Context, participationID int64) ([]ListScoresByParticipationRow, error) {
@@ -285,6 +286,7 @@ func (q *Queries) ListScoresByParticipation(ctx context.Context, participationID
 			&i.IcpcAttempts,
 			&i.IcpcSolvedAt,
 			&i.Pending,
+			&i.Adjustment,
 		); err != nil {
 			return nil, err
 		}
@@ -297,7 +299,7 @@ func (q *Queries) ListScoresByParticipation(ctx context.Context, participationID
 }
 
 const listScoresByParticipations = `-- name: ListScoresByParticipations :many
-SELECT participation_id, task_id, score, subtask_scores, pending, icpc_solved, icpc_attempts, icpc_solved_at
+SELECT participation_id, task_id, score, subtask_scores, pending, icpc_solved, icpc_attempts, icpc_solved_at, adjustment
 FROM participation_task_scores WHERE participation_id = ANY($1::bigint[])
 `
 
@@ -310,6 +312,7 @@ type ListScoresByParticipationsRow struct {
 	IcpcSolved      bool            `json:"icpc_solved"`
 	IcpcAttempts    int32           `json:"icpc_attempts"`
 	IcpcSolvedAt    *time.Time      `json:"icpc_solved_at"`
+	Adjustment      float64         `json:"adjustment"`
 }
 
 // Task scores of a contestant, or of every member of a team (merged by the
@@ -332,6 +335,7 @@ func (q *Queries) ListScoresByParticipations(ctx context.Context, participationI
 			&i.IcpcSolved,
 			&i.IcpcAttempts,
 			&i.IcpcSolvedAt,
+			&i.Adjustment,
 		); err != nil {
 			return nil, err
 		}

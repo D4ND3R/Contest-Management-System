@@ -66,7 +66,7 @@ func setup(t *testing.T, mode string, users map[string][2]*cell, hidden string) 
 				solvedAt = &at
 			}
 			last := start.Add(cl.at)
-			if err := q.UpsertParticipationTaskScore(bg, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: p.ID, TaskID: tasks[i].ID,
+			if _, err := q.UpsertParticipationTaskScore(bg, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: p.ID, TaskID: tasks[i].ID,
 				Score: cl.score, SubtaskScores: json.RawMessage(`[]`), IcpcSolved: cl.solved, IcpcAttempts: cl.attempts,
 				IcpcSolvedAt: solvedAt, LastSubmissionAt: &last}); err != nil {
 				t.Fatal(err)
@@ -152,5 +152,62 @@ func TestPendingRegistrationsNotRanked(t *testing.T) {
 	}
 	if len(r.Rows) != 1 || r.Rows[0].Username != "ana" {
 		t.Fatalf("rows %+v", r.Rows)
+	}
+}
+
+// TestScoreAdjustments (SPEC_CLOSE D2): adjustments count in the live
+// ranking and in the replay (frozen boards and history) from the moment
+// they were made.
+func TestScoreAdjustments(t *testing.T) {
+	q, id := setup(t, "ioi", map[string][2]*cell{"ana": {{score: 100}, {score: 40}}, "beto": {{score: 70}, {score: 70}}}, "")
+	parts, _ := q.ListParticipationsByContest(bg, id)
+	tasks, _ := q.ListTasksByContest(bg, &id)
+	var beto int64
+	for _, p := range parts {
+		if p.Username == "beto" {
+			beto = p.Participation.ID
+		}
+	}
+	for _, pts := range []float64{15, -3} {
+		q.CreateScoreAdjustment(bg, sqlc.CreateScoreAdjustmentParams{ParticipationID: beto, TaskID: tasks[0].ID, Points: pts, Reason: "wrong test data"})
+		q.ApplyScoreAdjustment(bg, sqlc.ApplyScoreAdjustmentParams{ParticipationID: beto, TaskID: tasks[0].ID, Points: pts})
+	}
+	r, err := Compute(bg, q, id, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Rows[0].Username != "beto" || r.Rows[0].Total != 152 || r.Rows[0].Cells[0].Adjustment != 12 {
+		t.Fatalf("live ranking %+v", r.Rows[0])
+	}
+	// The fixture has no submissions: the replay has only the adjustments.
+	r, hist, err := Replay(bg, q, id, nil, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row Row
+	for _, x := range r.Rows {
+		if x.Username == "beto" {
+			row = x
+		}
+	}
+	if row.Total != 12 || !row.Cells[0].Submitted {
+		t.Fatalf("replay row %+v", row)
+	}
+	if h := hist[beto]; len(h) != 2 || h[0].Total != 15 || h[1].Total != 12 {
+		t.Fatalf("history %v", h)
+	}
+	before := time.Now().Add(-time.Hour)
+	r, _, _ = Replay(bg, q, id, &before, Options{})
+	for _, x := range r.Rows {
+		if x.Username == "beto" && x.Total != 0 {
+			t.Fatalf("adjustments after the cutoff counted: %+v", x)
+		}
+	}
+	// Team merge with "best per subtask": the members' adjustments add up.
+	tm := []Task{{Name: "a", scoreMode: "max_subtask"}}
+	a := BoardRow{Cells: []BoardCell{{Score: 45, Subtasks: []float64{40, 0}, Adjustment: 5}}}
+	mergeTeam(&a, BoardRow{Cells: []BoardCell{{Score: 62, Subtasks: []float64{0, 60}, Adjustment: 2}}}, false, tm)
+	if a.Cells[0].Score != 107 {
+		t.Fatalf("team cell %+v", a.Cells[0])
 	}
 }

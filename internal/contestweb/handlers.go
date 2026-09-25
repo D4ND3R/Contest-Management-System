@@ -38,6 +38,9 @@ type overviewRow struct {
 	// ICPC contests: solved, and the rejected attempts (before solving).
 	Solved   bool
 	Attempts int32
+	// Adjustment by the organizers (included in Score), with the reasons.
+	Adjustment float64
+	Reasons    string
 }
 
 type overviewData struct {
@@ -66,13 +69,17 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqC
 		row := overviewRow{Name: t.Name, Title: t.Title, Max: t.MaxScore, Precision: t.Precision}
 		if sc, ok := byTask[t.ID]; ok {
 			row.HasScore, row.Score, row.Pending = true, sc.score, sc.pending > 0
-			row.Solved, row.Attempts = sc.solved, sc.attempts
+			row.Solved, row.Attempts, row.Adjustment = sc.solved, sc.attempts, sc.adjustment
 		}
 		d.Total += row.Score
 		d.MaxTotal += row.Max
 		d.Rows = append(d.Rows, row)
 	}
 	d.ShowTotal = len(d.Rows) > 1 && !d.Hidden && !rc.contest.ICPC()
+	if err := s.adjustmentReasons(r, rc, d.Rows); err != nil {
+		s.fail(w, err)
+		return
+	}
 	p.Data = d
 	s.render(w, "overview", http.StatusOK, p)
 }
@@ -689,4 +696,30 @@ func templateEscape(s string) string {
 func jsonBytes(v any) []byte {
 	b, _ := json.Marshal(v)
 	return b
+}
+
+// adjustmentReasons fills the reasons of the adjusted rows (one query, only
+// when some score was adjusted).
+func (s *Server) adjustmentReasons(r *http.Request, rc *reqCtx, rows []overviewRow) error {
+	adjusted := false
+	for _, row := range rows {
+		adjusted = adjusted || row.Adjustment != 0
+	}
+	if !adjusted {
+		return nil
+	}
+	adjs, err := s.q.ListScoreAdjustments(r.Context(), rc.group)
+	if err != nil {
+		return err
+	}
+	for i := range rows {
+		var reasons []string
+		for _, a := range adjs {
+			if a.TaskName == rows[i].Name {
+				reasons = append(reasons, strconv.FormatFloat(a.Points, 'f', -1, 64)+": "+a.Reason)
+			}
+		}
+		rows[i].Reasons = strings.Join(reasons, "; ")
+	}
+	return nil
 }

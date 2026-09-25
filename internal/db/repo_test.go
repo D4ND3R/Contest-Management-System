@@ -507,17 +507,43 @@ func TestTrackedBlobDeduplicationAndGC(t *testing.T) {
 func TestParticipationTaskScores(t *testing.T) {
 	f := newFixture(t)
 	q := f.q
-	for _, score := range []float64{30, 70} {
-		err := q.UpsertParticipationTaskScore(ctx, sqlc.UpsertParticipationTaskScoreParams{
+	upsert := func(score float64) float64 {
+		t.Helper()
+		stored, err := q.UpsertParticipationTaskScore(ctx, sqlc.UpsertParticipationTaskScoreParams{
 			ParticipationID: f.part.ID, TaskID: f.task.ID, Score: score, SubtaskScores: json.RawMessage(`[30,40]`),
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
+		return stored
+	}
+	for _, score := range []float64{30, 70} {
+		upsert(score)
 	}
 	rows := must[[]sqlc.ParticipationTaskScore](t)(q.ListParticipationTaskScoresByContest(ctx, f.contest.ID))
 	if len(rows) != 1 || rows[0].Score != 70 {
 		t.Fatalf("scores = %+v", rows)
+	}
+	// Manual adjustments add up and survive a new aggregation.
+	for _, pts := range []float64{5, -2.5} {
+		must[sqlc.ScoreAdjustment](t)(q.CreateScoreAdjustment(ctx, sqlc.CreateScoreAdjustmentParams{ParticipationID: f.part.ID,
+			TaskID: f.task.ID, Points: pts, Reason: "checker bug on test 7"}))
+		if err := q.ApplyScoreAdjustment(ctx, sqlc.ApplyScoreAdjustmentParams{ParticipationID: f.part.ID, TaskID: f.task.ID, Points: pts}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows = must[[]sqlc.ParticipationTaskScore](t)(q.ListParticipationTaskScoresByContest(ctx, f.contest.ID))
+	if rows[0].Score != 72.5 || rows[0].Adjustment != 2.5 {
+		t.Fatalf("adjusted = %v (%v)", rows[0].Score, rows[0].Adjustment)
+	}
+	if stored := upsert(60); stored != 62.5 {
+		t.Fatalf("re-aggregated = %v", stored)
+	}
+	for _, bad := range []sqlc.CreateScoreAdjustmentParams{{Points: 0, Reason: "a valid reason"}, {Points: 1, Reason: "  x  "}} {
+		bad.ParticipationID, bad.TaskID = f.part.ID, f.task.ID
+		if _, err := q.CreateScoreAdjustment(ctx, bad); pgCode(err) != "23514" {
+			t.Errorf("%+v: %v", bad, err)
+		}
 	}
 }
 

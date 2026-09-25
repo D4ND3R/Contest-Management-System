@@ -43,6 +43,8 @@ type Cell struct {
 	SolvedAt  *time.Time `json:"solved_at,omitempty"`
 	// SolvedMinute is the contest minute of the accepted submission (ICPC).
 	SolvedMinute int `json:"solved_minute,omitempty"`
+	// Adjustment is the manual adjustment included in Score.
+	Adjustment float64 `json:"adjustment,omitempty"`
 }
 
 // Row is one participation.
@@ -244,7 +246,7 @@ func Compute(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options)
 			continue
 		}
 		cell := Cell{Score: s.Score, Submitted: s.LastSubmissionAt != nil || s.Pending > 0, Pending: int(s.Pending),
-			Solved: s.IcpcSolved, Attempts: int(s.IcpcAttempts), SolvedAt: s.IcpcSolvedAt}
+			Solved: s.IcpcSolved, Attempts: int(s.IcpcAttempts), SolvedAt: s.IcpcSolvedAt, Adjustment: s.Adjustment}
 		_ = json.Unmarshal(s.SubtaskScores, &cell.Subtasks)
 		if cell.Solved {
 			cell.SolvedMinute = b.solvedMinute(s.ParticipationID, cell.SolvedAt)

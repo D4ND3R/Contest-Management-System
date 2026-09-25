@@ -512,11 +512,13 @@ func (d *Dispatcher) aggregate(ctx context.Context, q *sqlc.Queries, participati
 		subtasks = []float64{}
 	}
 	st, _ := json.Marshal(subtasks)
-	if err := q.UpsertParticipationTaskScore(ctx, sqlc.UpsertParticipationTaskScoreParams{
+	// The stored score includes the manual adjustments.
+	score, err := q.UpsertParticipationTaskScore(ctx, sqlc.UpsertParticipationTaskScoreParams{
 		ParticipationID: participationID, TaskID: di.task.ID, Score: ts.Score, SubtaskScores: st,
 		IcpcSolved: icpc.Solved, IcpcAttempts: int32(icpc.Attempts), IcpcSolvedAt: icpc.SolvedAt,
 		Pending: int32(ts.Pending), LastSubmissionAt: ts.LastSubmission,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 	var contestID int64
@@ -524,7 +526,7 @@ func (d *Dispatcher) aggregate(ctx context.Context, q *sqlc.Queries, participati
 		contestID = *di.task.ContestID
 	}
 	return &queue.RankingUpdate{
-		ContestID: contestID, ParticipationID: participationID, TaskID: di.task.ID, Score: ts.Score,
+		ContestID: contestID, ParticipationID: participationID, TaskID: di.task.ID, Score: score,
 		Subtasks: subtasks, Pending: ts.Pending, ICPCSolved: icpc.Solved, ICPCAttempts: icpc.Attempts, ICPCSolvedAt: icpc.SolvedAt,
 		Time: time.Now().UTC(),
 	}, nil
@@ -572,7 +574,18 @@ func (d *Dispatcher) reaggregateSubmission(ctx context.Context, submissionID int
 	if err != nil || s.ParticipationID == nil {
 		return err
 	}
-	task, err := q.GetTask(ctx, s.TaskID)
+	return d.reaggregate(ctx, *s.ParticipationID, s.TaskID)
+}
+
+// reaggregate recomputes a participation's score on a task (after a
+// submission stopped or started counting, or a manual adjustment) and
+// tells the rankings.
+func (d *Dispatcher) reaggregate(ctx context.Context, participationID, taskID int64) error {
+	q := sqlc.New(d.pool)
+	task, err := q.GetTask(ctx, taskID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
 	if err != nil || task.ActiveDatasetID == nil {
 		return err
 	}
@@ -580,7 +593,7 @@ func (d *Dispatcher) reaggregateSubmission(ctx context.Context, submissionID int
 	if err != nil {
 		return err
 	}
-	up, err := d.aggregate(ctx, q, *s.ParticipationID, di)
+	up, err := d.aggregate(ctx, q, participationID, di)
 	if err != nil {
 		return err
 	}

@@ -67,6 +67,12 @@ principal salvo que se indique otra cosa.
   problema: *recalcular puntaje*, *reevaluar* (ejecutar de nuevo),
   *recompilar* (compilar y ejecutar de nuevo). Los mismos botones existen
   por envío, por usuario y para todo el concurso.
+- Un puntaje que hay que cambiar a mano (p. ej. una decisión del jurado):
+  **Participaciones → el participante → Ajustar un puntaje**: puntos a sumar
+  (negativos para quitar) y un motivo obligatorio. Los ajustes quedan para
+  siempre (una corrección es otro ajuste), el concursante los ve con el
+  motivo, se registran en la auditoría y sobreviven a cualquier
+  reevaluación; los rankings se actualizan al instante.
 - Un envío que no debe contar (trampa, error de los organizadores):
   **Invalídalo** en su página indicando el motivo; el concursante ve el
   motivo y el puntaje se actualiza al instante. Se puede restaurar.

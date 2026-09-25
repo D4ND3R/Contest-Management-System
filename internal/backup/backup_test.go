@@ -99,8 +99,9 @@ func fixture(t *testing.T, pool *pgxpool.Pool) blob.Store {
 	_, err = q.CreateAnnouncement(ctx, sqlc.CreateAnnouncementParams{ContestID: c.ID, Subject: "Aviso", Text: "texto", AdminID: &admin.ID})
 	must(err)
 	must(q.InsertAuditLog(ctx, sqlc.InsertAuditLogParams{AdminID: &admin.ID, Action: "seed", Details: json.RawMessage(`{"k": "v"}`), Ip: "::1"}))
-	must(q.UpsertParticipationTaskScore(ctx, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: p.ID, TaskID: task.ID, Score: 100,
-		SubtaskScores: json.RawMessage(`[30, 70]`)}))
+	_, err = q.UpsertParticipationTaskScore(ctx, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: p.ID, TaskID: task.ID, Score: 100,
+		SubtaskScores: json.RawMessage(`[30, 70]`)})
+	must(err)
 	// A deleted row leaves a gap in the sequence (restored exactly too).
 	extra, err := q.CreateUser(ctx, sqlc.CreateUserParams{Username: "gone", PasswordHash: "h", PreferredLanguages: []string{}})
 	must(err)

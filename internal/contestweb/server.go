@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -106,6 +107,13 @@ func (s *Server) loadTemplates() error {
 		"testrow": func(p *page, v testView) testCtx { return testCtx{P: p, T: v} },
 		"cell":    ranking.Display,
 		"fscore":  ranking.FormatScore,
+		// signed writes a score change with its sign (+5, -2.5).
+		"signed": func(v float64) string {
+			if v > 0 {
+				return "+" + strconv.FormatFloat(v, 'f', -1, 64)
+			}
+			return strconv.FormatFloat(v, 'f', -1, 64)
+		},
 	}
 	base, err := template.New("").Funcs(funcs).ParseFS(web.Templates, "cws/layout.html", "cws/partials.html")
 	if err != nil {

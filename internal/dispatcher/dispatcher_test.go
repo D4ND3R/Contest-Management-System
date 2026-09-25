@@ -703,4 +703,27 @@ func TestInvalidatedSubmissionsDoNotCount(t *testing.T) {
 	}, "restored")
 	// Tester runs cannot be invalidated; unknown submissions are ignored.
 	notify(1 << 40)
+
+	// A manual adjustment (SPEC_CLOSE D2) survives re-aggregations, and
+	// the dispatcher tells the rankings about it.
+	before, _ := e.rdb.XLen(ctx, e.q.RankingStream()).Result()
+	if err := q.ApplyScoreAdjustment(ctx, sqlc.ApplyScoreAdjustmentParams{ParticipationID: e.part.ID, TaskID: e.task.ID, Points: -10}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.q.Notify(ctx, queue.Event{Kind: queue.EventReaggregate, ParticipationID: e.part.ID, TaskID: e.task.ID}); err != nil {
+		t.Fatal(err)
+	}
+	waitScore(func(ts sqlc.ParticipationTaskScore) bool { return ts.Score == 90 && ts.Adjustment == -10 }, "adjusted")
+	deadline := time.Now().Add(5 * time.Second)
+	for n, _ := e.rdb.XLen(ctx, e.q.RankingStream()).Result(); n <= before; n, _ = e.rdb.XLen(ctx, e.q.RankingStream()).Result() {
+		if time.Now().After(deadline) {
+			t.Fatal("no ranking update after the adjustment")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	notify(wa)
+	time.Sleep(200 * time.Millisecond)
+	if ts := e.taskScore(); ts.Score != 90 {
+		t.Fatalf("adjustment lost by a re-aggregation: %v", ts.Score)
+	}
 }

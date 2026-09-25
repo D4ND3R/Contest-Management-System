@@ -11,8 +11,61 @@ import (
 	"time"
 )
 
+const applyScoreAdjustment = `-- name: ApplyScoreAdjustment :exec
+INSERT INTO participation_task_scores (participation_id, task_id, score, adjustment, updated_at)
+VALUES ($1, $2, $3::float8, $3::float8, now())
+ON CONFLICT (participation_id, task_id) DO UPDATE SET
+    score = participation_task_scores.score + EXCLUDED.adjustment,
+    adjustment = participation_task_scores.adjustment + EXCLUDED.adjustment, updated_at = now()
+`
+
+type ApplyScoreAdjustmentParams struct {
+	ParticipationID int64   `json:"participation_id"`
+	TaskID          int64   `json:"task_id"`
+	Points          float64 `json:"points"`
+}
+
+// Adds points to a task score and to its adjustment (creating the row).
+func (q *Queries) ApplyScoreAdjustment(ctx context.Context, arg ApplyScoreAdjustmentParams) error {
+	_, err := q.db.Exec(ctx, applyScoreAdjustment, arg.ParticipationID, arg.TaskID, arg.Points)
+	return err
+}
+
+const createScoreAdjustment = `-- name: CreateScoreAdjustment :one
+INSERT INTO score_adjustments (participation_id, task_id, points, reason, admin_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, participation_id, task_id, points, reason, admin_id, created_at
+`
+
+type CreateScoreAdjustmentParams struct {
+	ParticipationID int64   `json:"participation_id"`
+	TaskID          int64   `json:"task_id"`
+	Points          float64 `json:"points"`
+	Reason          string  `json:"reason"`
+	AdminID         *int64  `json:"admin_id"`
+}
+
+func (q *Queries) CreateScoreAdjustment(ctx context.Context, arg CreateScoreAdjustmentParams) (ScoreAdjustment, error) {
+	row := q.db.QueryRow(ctx, createScoreAdjustment,
+		arg.ParticipationID,
+		arg.TaskID,
+		arg.Points,
+		arg.Reason,
+		arg.AdminID,
+	)
+	var i ScoreAdjustment
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipationID,
+		&i.TaskID,
+		&i.Points,
+		&i.Reason,
+		&i.AdminID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getParticipationTaskScore = `-- name: GetParticipationTaskScore :one
-SELECT participation_id, task_id, score, subtask_scores, icpc_solved, icpc_attempts, icpc_solved_at, pending, last_submission_at, updated_at FROM participation_task_scores WHERE participation_id = $1 AND task_id = $2
+SELECT participation_id, task_id, score, subtask_scores, icpc_solved, icpc_attempts, icpc_solved_at, pending, last_submission_at, updated_at, adjustment FROM participation_task_scores WHERE participation_id = $1 AND task_id = $2
 `
 
 type GetParticipationTaskScoreParams struct {
@@ -34,12 +87,54 @@ func (q *Queries) GetParticipationTaskScore(ctx context.Context, arg GetParticip
 		&i.Pending,
 		&i.LastSubmissionAt,
 		&i.UpdatedAt,
+		&i.Adjustment,
 	)
 	return i, err
 }
 
+const listContestScoreAdjustments = `-- name: ListContestScoreAdjustments :many
+SELECT a.participation_id, a.task_id, a.points, a.created_at
+FROM score_adjustments a
+JOIN participations p ON p.id = a.participation_id
+WHERE p.contest_id = $1
+ORDER BY a.created_at, a.id
+`
+
+type ListContestScoreAdjustmentsRow struct {
+	ParticipationID int64     `json:"participation_id"`
+	TaskID          int64     `json:"task_id"`
+	Points          float64   `json:"points"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+// Every adjustment of a contest, for the ranking replay.
+func (q *Queries) ListContestScoreAdjustments(ctx context.Context, contestID int64) ([]ListContestScoreAdjustmentsRow, error) {
+	rows, err := q.db.Query(ctx, listContestScoreAdjustments, contestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListContestScoreAdjustmentsRow{}
+	for rows.Next() {
+		var i ListContestScoreAdjustmentsRow
+		if err := rows.Scan(
+			&i.ParticipationID,
+			&i.TaskID,
+			&i.Points,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listParticipationTaskScoresByContest = `-- name: ListParticipationTaskScoresByContest :many
-SELECT s.participation_id, s.task_id, s.score, s.subtask_scores, s.icpc_solved, s.icpc_attempts, s.icpc_solved_at, s.pending, s.last_submission_at, s.updated_at FROM participation_task_scores s
+SELECT s.participation_id, s.task_id, s.score, s.subtask_scores, s.icpc_solved, s.icpc_attempts, s.icpc_solved_at, s.pending, s.last_submission_at, s.updated_at, s.adjustment FROM participation_task_scores s
 JOIN participations p ON p.id = s.participation_id
 WHERE p.contest_id = $1
 `
@@ -64,6 +159,7 @@ func (q *Queries) ListParticipationTaskScoresByContest(ctx context.Context, cont
 			&i.Pending,
 			&i.LastSubmissionAt,
 			&i.UpdatedAt,
+			&i.Adjustment,
 		); err != nil {
 			return nil, err
 		}
@@ -75,14 +171,71 @@ func (q *Queries) ListParticipationTaskScoresByContest(ctx context.Context, cont
 	return items, nil
 }
 
-const upsertParticipationTaskScore = `-- name: UpsertParticipationTaskScore :exec
+const listScoreAdjustments = `-- name: ListScoreAdjustments :many
+SELECT a.id, a.participation_id, a.task_id, a.points, a.reason, a.admin_id, a.created_at, t.name AS task_name, COALESCE(ad.username, '')::text AS admin_username, u.username
+FROM score_adjustments a
+JOIN tasks t ON t.id = a.task_id
+JOIN participations p ON p.id = a.participation_id
+JOIN users u ON u.id = p.user_id
+LEFT JOIN admins ad ON ad.id = a.admin_id
+WHERE a.participation_id = ANY($1::bigint[])
+ORDER BY a.created_at, a.id
+`
+
+type ListScoreAdjustmentsRow struct {
+	ID              int64     `json:"id"`
+	ParticipationID int64     `json:"participation_id"`
+	TaskID          int64     `json:"task_id"`
+	Points          float64   `json:"points"`
+	Reason          string    `json:"reason"`
+	AdminID         *int64    `json:"admin_id"`
+	CreatedAt       time.Time `json:"created_at"`
+	TaskName        string    `json:"task_name"`
+	AdminUsername   string    `json:"admin_username"`
+	Username        string    `json:"username"`
+}
+
+// The adjustments of some participations (a contestant or a team), oldest first.
+func (q *Queries) ListScoreAdjustments(ctx context.Context, participationIds []int64) ([]ListScoreAdjustmentsRow, error) {
+	rows, err := q.db.Query(ctx, listScoreAdjustments, participationIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListScoreAdjustmentsRow{}
+	for rows.Next() {
+		var i ListScoreAdjustmentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParticipationID,
+			&i.TaskID,
+			&i.Points,
+			&i.Reason,
+			&i.AdminID,
+			&i.CreatedAt,
+			&i.TaskName,
+			&i.AdminUsername,
+			&i.Username,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertParticipationTaskScore = `-- name: UpsertParticipationTaskScore :one
 INSERT INTO participation_task_scores (participation_id, task_id, score, subtask_scores, icpc_solved,
     icpc_attempts, icpc_solved_at, pending, last_submission_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
 ON CONFLICT (participation_id, task_id) DO UPDATE SET
-    score = EXCLUDED.score, subtask_scores = EXCLUDED.subtask_scores, icpc_solved = EXCLUDED.icpc_solved,
-    icpc_attempts = EXCLUDED.icpc_attempts, icpc_solved_at = EXCLUDED.icpc_solved_at,
+    score = EXCLUDED.score + participation_task_scores.adjustment, subtask_scores = EXCLUDED.subtask_scores,
+    icpc_solved = EXCLUDED.icpc_solved, icpc_attempts = EXCLUDED.icpc_attempts, icpc_solved_at = EXCLUDED.icpc_solved_at,
     pending = EXCLUDED.pending, last_submission_at = EXCLUDED.last_submission_at, updated_at = now()
+RETURNING score
 `
 
 type UpsertParticipationTaskScoreParams struct {
@@ -97,8 +250,10 @@ type UpsertParticipationTaskScoreParams struct {
 	LastSubmissionAt *time.Time      `json:"last_submission_at"`
 }
 
-func (q *Queries) UpsertParticipationTaskScore(ctx context.Context, arg UpsertParticipationTaskScoreParams) error {
-	_, err := q.db.Exec(ctx, upsertParticipationTaskScore,
+// Stores the score computed from the submissions plus the manual
+// adjustments of the row; returns the stored score.
+func (q *Queries) UpsertParticipationTaskScore(ctx context.Context, arg UpsertParticipationTaskScoreParams) (float64, error) {
+	row := q.db.QueryRow(ctx, upsertParticipationTaskScore,
 		arg.ParticipationID,
 		arg.TaskID,
 		arg.Score,
@@ -109,5 +264,7 @@ func (q *Queries) UpsertParticipationTaskScore(ctx context.Context, arg UpsertPa
 		arg.Pending,
 		arg.LastSubmissionAt,
 	)
-	return err
+	var score float64
+	err := row.Scan(&score)
+	return score, err
 }

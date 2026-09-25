@@ -363,6 +363,8 @@ type taskScore struct {
 	solved   bool
 	attempts int32
 	solvedAt time.Time
+	// adjustment made by the organizers (included in score).
+	adjustment float64
 }
 
 func mergeScores(rows []sqlc.ListScoresByParticipationsRow, tasks map[int64]*taskView) map[int64]taskScore {
@@ -372,6 +374,7 @@ func mergeScores(rows []sqlc.ListScoresByParticipationsRow, tasks map[int64]*tas
 		ts := out[r.TaskID]
 		ts.pending += r.Pending
 		ts.score = max(ts.score, r.Score)
+		ts.adjustment += r.Adjustment
 		switch {
 		case r.IcpcSolved && r.IcpcSolvedAt != nil && (!ts.solved || r.IcpcSolvedAt.Before(ts.solvedAt)):
 			ts.solved, ts.attempts, ts.solvedAt = true, r.IcpcAttempts, *r.IcpcSolvedAt
@@ -397,11 +400,11 @@ func mergeScores(rows []sqlc.ListScoresByParticipationsRow, tasks map[int64]*tas
 		if t == nil || t.ScoreMode != "max_subtask" || len(best) == 0 {
 			continue
 		}
-		sum := 0.0
+		ts := out[id]
+		sum := ts.adjustment
 		for _, v := range best {
 			sum += v
 		}
-		ts := out[id]
 		ts.score = scoring.Round(sum, t.Precision)
 		out[id] = ts
 	}

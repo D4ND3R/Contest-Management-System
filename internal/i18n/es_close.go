@@ -237,6 +237,21 @@ var esClose = map[string]string{
 	"Download as zip": "Descargar en zip",
 	"Every submission matching the filters (not only this page), with an index.csv": "Todos los envíos que cumplen los filtros (no solo esta página), con un index.csv",
 	"Times are in the contest's timezone (%s).":                                     "Las horas están en la zona horaria del concurso (%s).",
+	// D2: score adjustments.
+	"Adjusted":          "Ajuste",
+	"Score adjustments": "Ajustes de puntaje",
+	"Admin":             "Administrador",
+	"Adjust a score":    "Ajustar un puntaje",
+	"Change this contestant's score? The change and its reason are kept for good (the contestant sees them).": "¿Cambiar el puntaje de este concursante? El cambio y su motivo quedan registrados para siempre (el concursante los ve).",
+	"Points (negative to remove)": "Puntos (negativos para quitar)",
+	"Reason (required)":           "Motivo (obligatorio)",
+	"Adjust":                      "Ajustar",
+	"In ICPC contests adjustments change the score, not the problems solved: invalidate or rejudge submissions instead.": "En concursos ICPC los ajustes cambian el puntaje, no los problemas resueltos: invalida o reevalúa envíos en su lugar.",
+	"adjusted by the organizers: %s":                          "ajustado por los organizadores: %s",
+	"The reason is required (5 to 1000 characters).":          "El motivo es obligatorio (de 5 a 1000 caracteres).",
+	"Write the points to add (negative to remove), not zero.": "Escribe los puntos a sumar (negativos para quitar), distintos de cero.",
+	"Choose a task of the contest.":                           "Elige un problema del concurso.",
+	"Score adjusted.":                                         "Puntaje ajustado.",
 }
 
 func init() {

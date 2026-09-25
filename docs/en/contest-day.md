@@ -64,6 +64,11 @@ web site; commands run on the main server unless noted.
   the task: *rescore* (only recompute scores), *reevaluate* (run again),
   *recompile* (compile and run again). The same buttons exist per
   submission, per user and for the whole contest.
+- A score that must change by hand (e.g. a jury decision): **Participations
+  → the participant → Adjust a score**: points to add (negative to remove)
+  and a mandatory reason. Adjustments are kept for good (a correction is
+  another adjustment), shown to the contestant with the reason, audited,
+  and survive any rejudge; rankings update at once.
 - A submission that must not count (cheating, a mistake of the
   organisers): **Invalidate** it on its page with the reason; the
   contestant sees the reason and the score updates at once. It can be

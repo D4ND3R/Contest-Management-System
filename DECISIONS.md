@@ -599,3 +599,22 @@ files; being a bulk export, it is audited like a change (GET routes can
 now carry an audit action; backup downloads use it too). Date filters are
 read in the contest's timezone, as the contest's times are entered.
 
+## D60. Score adjustments are an additive term of the task score
+A manual adjustment is a row of `score_adjustments` (participation, task,
+points, mandatory reason, admin, time) and its sum is kept in
+`participation_task_scores.adjustment`. The aggregation upsert always
+stores "computed from the submissions + adjustment", so a rejudge, an
+invalidation or a new dataset never loses it, and every reader of the
+stored score (rankings, contestant overview, exports) sees the same
+number with no extra query. Readers that rebuild a score from subtask
+scores (best per subtask across a team) add the members' adjustments.
+The ranking replay applies adjustments at the time they were made, so a
+frozen board does not reveal those made during the freeze and the score
+history shows them as steps. Adjustments are append-only (corrections are
+new adjustments), visible to the contestant with the reason, and audited.
+They change scores, not ICPC solved counts: in ICPC contests submissions
+are invalidated or rejudged instead. After writing the adjustment the
+admin web server asks the dispatcher (reaggregate event with the
+participation and task) to recompute and push the ranking update, keeping
+the dispatcher the only writer of ranking updates.
+

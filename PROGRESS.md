@@ -671,3 +671,15 @@ with an index.csv; bulk downloads (this one and backups) are audited.
 Tests: highlight.TestHighlight (+ benchmark),
 adminweb.TestSubmissionFiltersSourceAndZip.
 
+## SPEC_CLOSE D2 — Manual score adjustments (done)
+Skipping skills: immersive-web-design, master skill.
+
+Administrators add or remove points on a contestant's task score with a
+mandatory reason (participation page). Adjustments are append-only, kept
+in the stored score by every re-aggregation, counted by live and frozen
+rankings (from their time) and team merges, shown to the contestant with
+the reason and audited. Tests: adminweb.TestScoreAdjust,
+db.TestParticipationTaskScores, dispatcher.TestInvalidatedSubmissionsDoNotCount
+(real judging), ranking.TestScoreAdjustments,
+contestweb.TestScoreAdjustmentShown.
+

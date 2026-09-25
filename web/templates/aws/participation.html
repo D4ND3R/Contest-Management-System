@@ -7,9 +7,28 @@
 <section class="card">
 <h2>{{.T "Scores"}}</h2>
 <table>
-<thead><tr><th>{{.T "Task"}}</th><th class="num">{{.T "Score"}}</th><th class="num">{{.T "Pending"}}</th></tr></thead>
-<tbody>{{range .Data.Scores}}<tr><td>{{.Task}}</td><td class="num">{{score .Score .Precision}}</td><td class="num">{{if .Pending}}{{.Pending}}{{end}}</td></tr>{{end}}</tbody>
+<thead><tr><th>{{.T "Task"}}</th><th class="num">{{.T "Score"}}</th><th class="num">{{.T "Adjusted"}}</th><th class="num">{{.T "Pending"}}</th></tr></thead>
+<tbody>{{range .Data.Scores}}<tr><td>{{.Task}}</td><td class="num">{{score .Score .Precision}}</td><td class="num">{{if .Adjustment}}{{signed .Adjustment}}{{end}}</td><td class="num">{{if .Pending}}{{.Pending}}{{end}}</td></tr>{{end}}</tbody>
 </table>
+{{with .Data.Adjustments}}
+<h3>{{$.T "Score adjustments"}}</h3>
+<table>
+<thead><tr><th>{{$.T "Time (UTC)"}}</th><th>{{$.T "Task"}}</th><th class="num">{{$.T "Points"}}</th><th>{{$.T "Reason"}}</th><th>{{$.T "Admin"}}</th></tr></thead>
+<tbody>{{range .}}<tr><td>{{dt .CreatedAt}}</td><td>{{.TaskName}}</td><td class="num">{{signed .Points}}</td><td>{{.Reason}}</td><td>{{.AdminUsername}}</td></tr>{{end}}</tbody>
+</table>
+{{end}}
+{{if .CanWrite}}
+<details><summary>{{.T "Adjust a score"}}</summary>
+<form method="post" action="/participations/{{$p.ID}}/adjust" class="inline-form" data-confirm="{{.T "Change this contestant's score? The change and its reason are kept for good (the contestant sees them)."}}">
+  {{template "csrf" .CSRF}}
+  <label>{{.T "Task"}} <select name="task_id" required>{{range .Data.Tasks}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
+  <label>{{.T "Points (negative to remove)"}} <input name="points" size="6" inputmode="decimal" required></label>
+  <label>{{.T "Reason (required)"}} <input name="reason" size="40" minlength="5" maxlength="1000" required></label>
+  <button class="secondary">{{.T "Adjust"}}</button>
+</form>
+{{if eq .Data.Contest.ScoringMode "icpc"}}<p class="muted small">{{.T "In ICPC contests adjustments change the score, not the problems solved: invalidate or rejudge submissions instead."}}</p>{{end}}
+</details>
+{{end}}
 {{if .CanWrite}}<h3>{{.T "Reevaluate this participation"}}</h3>{{template "reevaluate" (reeval $ "participation_id" $p.ID (printf "/participations/%d" $p.ID))}}{{end}}
 </section>
 <form method="post" action="/participations/{{$p.ID}}" class="card">

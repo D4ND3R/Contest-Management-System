@@ -40,7 +40,7 @@ func TestBalloons(t *testing.T) {
 	start := time.Now().Add(-50 * time.Minute)
 	solve := func(p int64, minute int) {
 		at := start.Add(time.Duration(minute) * time.Minute)
-		if err := f.q.UpsertParticipationTaskScore(bg, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: p, TaskID: f.task.ID,
+		if _, err := f.q.UpsertParticipationTaskScore(bg, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: p, TaskID: f.task.ID,
 			Score: 100, SubtaskScores: json.RawMessage(`[]`), IcpcSolved: true, IcpcSolvedAt: &at}); err != nil {
 			t.Fatal(err)
 		}

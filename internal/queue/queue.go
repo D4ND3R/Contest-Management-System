@@ -333,6 +333,8 @@ type Event struct {
 	// For "submission" and "user_test".
 	SubmissionID int64 `json:"submission_id,omitempty"`
 	UserTestID   int64 `json:"user_test_id,omitempty"`
+	// ParticipationID with TaskID: a task score to recompute.
+	ParticipationID int64 `json:"participation_id,omitempty"`
 	// Scope of reevaluations and dataset changes.
 	TaskID    int64 `json:"task_id,omitempty"`
 	DatasetID int64 `json:"dataset_id,omitempty"`
@@ -345,7 +347,7 @@ const (
 	EventUserTest       = "user_test"
 	EventReevaluate     = "reevaluate"      // results were invalidated: enqueue what is missing
 	EventDatasetChanged = "dataset_changed" // dataset content or the live dataset changed
-	EventReaggregate    = "reaggregate"     // a submission stopped or started counting (invalidation)
+	EventReaggregate    = "reaggregate"     // a submission stopped or started counting, or a score was adjusted
 )
 
 // Notify sends an event to the dispatcher.

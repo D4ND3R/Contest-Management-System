@@ -122,3 +122,19 @@ func midID(ids []int64) int64 {
 	}
 	return 0
 }
+
+// TestScoreAdjustmentShown (SPEC_CLOSE D2): the contestant sees an adjusted
+// score with the adjustment and its reason.
+func TestScoreAdjustmentShown(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	c := f.client()
+	f.login(c, "ana", "secret")
+	f.q.UpsertParticipationTaskScore(bg, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: f.part.ID, TaskID: f.task.ID,
+		Score: 50, SubtaskScores: json.RawMessage(`[]`)})
+	f.q.CreateScoreAdjustment(bg, sqlc.CreateScoreAdjustmentParams{ParticipationID: f.part.ID, TaskID: f.task.ID, Points: 10, Reason: "wrong test data"})
+	f.q.ApplyScoreAdjustment(bg, sqlc.ApplyScoreAdjustmentParams{ParticipationID: f.part.ID, TaskID: f.task.ID, Points: 10})
+	_, body := f.get(c, "/ioi/")
+	if !strings.Contains(body, "60 / 100") || !strings.Contains(body, "adjusted by the organizers: &#43;10") || !strings.Contains(body, "10: wrong test data") {
+		t.Fatalf("overview:\n%s", body)
+	}
+}

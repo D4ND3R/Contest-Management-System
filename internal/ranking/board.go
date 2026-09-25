@@ -67,6 +67,8 @@ type BoardCell struct {
 	Solved    bool      `json:"solved,omitempty"`
 	Attempts  int       `json:"attempts,omitempty"`
 	Minute    int       `json:"minute,omitempty"`
+	// Adjustment (included in Score) matters when team scores are merged.
+	Adjustment float64 `json:"-"`
 }
 
 // ParticipationKey is the board key of a participation.
@@ -120,7 +122,7 @@ func BuildBoard(r *Ranking, c sqlc.Contest, now time.Time) *Board {
 		}
 		for _, cell := range row.Cells {
 			bc := BoardCell{Score: cell.Score, Submitted: cell.Submitted, Pending: cell.Pending,
-				Subtasks: append([]float64(nil), cell.Subtasks...)}
+				Subtasks: append([]float64(nil), cell.Subtasks...), Adjustment: cell.Adjustment}
 			if r.ICPC {
 				bc.Solved, bc.Attempts, bc.Minute = cell.Solved, cell.Attempts, cell.SolvedMinute
 			}
@@ -215,8 +217,10 @@ func mergeTeam(t *BoardRow, m BoardRow, icpc bool, tasks []Task) {
 			}
 		}
 		tc.Score = max(tc.Score, mc.Score)
+		// Manual adjustments of any member count for the team.
+		tc.Adjustment += mc.Adjustment
 		if tasks[i].scoreMode == "max_subtask" && len(tc.Subtasks) > 0 {
-			sum := 0.0
+			sum := tc.Adjustment
 			for _, v := range tc.Subtasks {
 				sum += v
 			}

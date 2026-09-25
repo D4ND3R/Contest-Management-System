@@ -3,16 +3,19 @@ package adminweb
 import (
 	"context"
 	"errors"
+	"math"
 	"net/http"
 	"net/netip"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/auth"
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
+	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -117,13 +120,17 @@ type participationPage struct {
 	Sites    []sqlc.Site
 	Scores   []scoreRow
 	Sessions []sessionView
+	Tasks    []sqlc.Task
+	// Adjustments are the manual score changes, oldest first.
+	Adjustments []sqlc.ListScoreAdjustmentsRow
 }
 
 type scoreRow struct {
-	Task      string
-	Score     float64
-	Precision int32
-	Pending   int32
+	Task       string
+	Score      float64
+	Precision  int32
+	Pending    int32
+	Adjustment float64
 }
 
 func (s *Server) loadParticipation(w http.ResponseWriter, r *http.Request, rc *reqCtx) (sqlc.AdminGetParticipationRow, bool) {
@@ -170,14 +177,19 @@ func (s *Server) handleParticipation(w http.ResponseWriter, r *http.Request, rc 
 		s.internalError(w, r, rc, err)
 		return
 	}
+	d.Tasks = tasks
 	for _, t := range tasks {
 		row := scoreRow{Task: t.Name, Precision: t.ScorePrecision}
 		for _, sc := range scores {
 			if sc.TaskID == t.ID {
-				row.Score, row.Pending = sc.Score, sc.Pending
+				row.Score, row.Pending, row.Adjustment = sc.Score, sc.Pending, sc.Adjustment
 			}
 		}
 		d.Scores = append(d.Scores, row)
+	}
+	if d.Adjustments, err = s.q.ListScoreAdjustments(r.Context(), []int64{p.ID}); err != nil {
+		s.internalError(w, r, rc, err)
+		return
 	}
 	s.render(w, "participation", http.StatusOK, s.newPage(w, r, rc, p.Username+" in "+p.ContestName, "contests", d).
 		crumb("Contests", "/contests").crumb(p.ContestName, "/contests/"+strconv.FormatInt(p.ContestID, 10)).
@@ -320,4 +332,56 @@ func (s *Server) handleParticipationReject(w http.ResponseWriter, r *http.Reques
 	rc.note("username", p.Username)
 	s.contestChanged(r.Context(), p.ContestID, p.ID)
 	s.done(w, r, "/contests/"+strconv.FormatInt(p.ContestID, 10)+"/participations", "Registration rejected.")
+}
+
+// handleScoreAdjust adds points to (or removes them from) a contestant's
+// task score, with a mandatory reason. Adjustments are never edited or
+// deleted: a correction is another adjustment.
+func (s *Server) handleScoreAdjust(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	p, ok := s.loadParticipation(w, r, rc)
+	if !ok {
+		return
+	}
+	f := newForm(r)
+	taskID, _ := strconv.ParseInt(f.str("task_id"), 10, 64)
+	task, err := s.q.GetTask(r.Context(), taskID)
+	if err != nil || task.ContestID == nil || *task.ContestID != p.ContestID {
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "Choose a task of the contest.")
+		return
+	}
+	points, ok := f.float("points", "Points")
+	reason := f.str("reason")
+	switch {
+	case f.err != nil:
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, f.err.Error())
+		return
+	case !ok || points == 0 || math.IsNaN(points) || math.Abs(points) > 1e6:
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "Write the points to add (negative to remove), not zero.")
+		return
+	case utf8.RuneCountInString(reason) < 5 || utf8.RuneCountInString(reason) > 1000:
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "The reason is required (5 to 1000 characters).")
+		return
+	}
+	err = db.InTx(r.Context(), s.pool, func(tx pgx.Tx, q *sqlc.Queries) error {
+		if _, err := q.CreateScoreAdjustment(r.Context(), sqlc.CreateScoreAdjustmentParams{ParticipationID: p.ID, TaskID: task.ID,
+			Points: points, Reason: reason, AdminID: &rc.admin.ID}); err != nil {
+			return err
+		}
+		return q.ApplyScoreAdjustment(r.Context(), sqlc.ApplyScoreAdjustmentParams{ParticipationID: p.ID, TaskID: task.ID, Points: points})
+	})
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	// The dispatcher recomputes the score (with the adjustment) and tells
+	// the rankings.
+	if err := s.queue.Notify(r.Context(), queue.Event{Kind: queue.EventReaggregate, ParticipationID: p.ID, TaskID: task.ID}); err != nil {
+		s.log.Warn("notify dispatcher", "error", err)
+	}
+	rc.target("participation", p.ID)
+	rc.note("task", task.Name)
+	rc.note("points", points)
+	rc.note("reason", reason)
+	s.contestChanged(r.Context(), p.ContestID, p.ID)
+	s.done(w, r, "/participations/"+strconv.FormatInt(p.ID, 10), "Score adjusted.")
 }

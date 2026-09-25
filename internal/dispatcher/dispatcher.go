@@ -178,6 +178,9 @@ func (d *Dispatcher) handleEvent(ctx context.Context, e *queue.Event) error {
 	case queue.EventReevaluate:
 		d.RequestSweep()
 	case queue.EventReaggregate:
+		if e.SubmissionID == 0 {
+			return d.reaggregate(ctx, e.ParticipationID, e.TaskID) // a manual adjustment
+		}
 		return d.reaggregateSubmission(ctx, e.SubmissionID)
 	case queue.EventDatasetChanged:
 		d.datasets.invalidate()

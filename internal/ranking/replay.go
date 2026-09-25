@@ -70,6 +70,27 @@ func Replay(ctx context.Context, q *sqlc.Queries, contestID int64, cutoff *time.
 		}
 		groups[k] = append(groups[k], s)
 	}
+	// Manual adjustments (scores only; ICPC counts solved tasks) made
+	// before the cutoff, in time order.
+	adjusts := map[key][]sqlc.ListContestScoreAdjustmentsRow{}
+	if !b.r.ICPC {
+		adjs, err := q.ListContestScoreAdjustments(ctx, contestID)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, a := range adjs {
+			if cutoff != nil && !a.CreatedAt.Before(*cutoff) {
+				continue
+			}
+			k := key{a.ParticipationID, a.TaskID}
+			if _, ok := groups[k]; !ok {
+				if _, seen := adjusts[k]; !seen {
+					order = append(order, k)
+				}
+			}
+			adjusts[k] = append(adjusts[k], a)
+		}
+	}
 	type change struct {
 		t     time.Time
 		tid   int64
@@ -85,11 +106,23 @@ func Replay(ctx context.Context, q *sqlc.Queries, contestID int64, cutoff *time.
 		task := b.r.Tasks[ti]
 		var prefix []scoring.Submission
 		after := 0
+		adjs, ai := adjusts[k], 0
+		adjusted, lastScore := 0.0, 0.0
+		// adjustUntil applies the adjustments made before t, each a point
+		// of the history.
+		adjustUntil := func(t *time.Time) {
+			for ai < len(adjs) && (t == nil || adjs[ai].CreatedAt.Before(*t)) {
+				adjusted += adjs[ai].Points
+				changes[k.pid] = append(changes[k.pid], change{adjs[ai].CreatedAt, k.tid, lastScore + adjusted})
+				ai++
+			}
+		}
 		for _, s := range groups[k] {
 			if cutoff != nil && !s.SubmittedAt.Before(*cutoff) {
 				after++
 				continue
 			}
+			adjustUntil(&s.SubmittedAt)
 			ss := scoring.Submission{ID: s.ID, Time: s.SubmittedAt, Official: true, Tokened: s.Tokened, Scored: s.ScoredAt != nil,
 				CompileError: s.CompilationOutcome != nil && *s.CompilationOutcome == "fail"}
 			if s.Score != nil {
@@ -100,7 +133,8 @@ func Replay(ctx context.Context, q *sqlc.Queries, contestID int64, cutoff *time.
 			}
 			prefix = append(prefix, ss)
 			if ss.Scored {
-				v := scoring.Aggregate(task.scoreMode, prefix, task.Precision).Score
+				lastScore = scoring.Aggregate(task.scoreMode, prefix, task.Precision).Score
+				v := lastScore + adjusted
 				if b.r.ICPC {
 					v = 0
 					if scoring.ICPC(prefix, task.MaxScore).Solved {
@@ -110,10 +144,11 @@ func Replay(ctx context.Context, q *sqlc.Queries, contestID int64, cutoff *time.
 				changes[k.pid] = append(changes[k.pid], change{s.SubmittedAt, k.tid, v})
 			}
 		}
+		adjustUntil(nil)
 		ts := scoring.Aggregate(task.scoreMode, prefix, task.Precision)
 		icpc := scoring.ICPC(prefix, task.MaxScore)
-		cell := Cell{Score: ts.Score, Subtasks: ts.Subtasks, Submitted: len(prefix)+after > 0, Pending: ts.Pending + after,
-			Solved: icpc.Solved, Attempts: icpc.Attempts, SolvedAt: icpc.SolvedAt}
+		cell := Cell{Score: ts.Score + adjusted, Subtasks: ts.Subtasks, Submitted: len(prefix)+after > 0 || adjusted != 0,
+			Pending: ts.Pending + after, Solved: icpc.Solved, Attempts: icpc.Attempts, SolvedAt: icpc.SolvedAt, Adjustment: adjusted}
 		if cell.Solved {
 			cell.SolvedMinute = b.solvedMinute(k.pid, cell.SolvedAt)
 		}

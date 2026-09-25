@@ -357,6 +357,13 @@ func (s *Server) funcs() template.FuncMap {
 			return reevalForm{P: p, CSRF: p.CSRF, Field: field, ID: id, Back: back}
 		},
 		"part": func(p *page, v any) wrap { return wrap{P: p, V: v} },
+		// signed writes a score change with its sign (+5, -2.5).
+		"signed": func(v float64) string {
+			if v > 0 {
+				return "+" + strconv.FormatFloat(v, 'f', -1, 64)
+			}
+			return strconv.FormatFloat(v, 'f', -1, 64)
+		},
 		"printForm": func(p *page, id int64, action, label, class, site string) printForm {
 			return printForm{P: p, ID: id, Action: action, Label: label, Class: class, Site: site}
 		},

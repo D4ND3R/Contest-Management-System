@@ -223,6 +223,7 @@ type ParticipationTaskScore struct {
 	Pending          int32           `json:"pending"`
 	LastSubmissionAt *time.Time      `json:"last_submission_at"`
 	UpdatedAt        time.Time       `json:"updated_at"`
+	Adjustment       float64         `json:"adjustment"`
 }
 
 type PrintJob struct {
@@ -253,6 +254,16 @@ type Question struct {
 	ContestID       int64      `json:"contest_id"`
 	TaskID          *int64     `json:"task_id"`
 	Public          bool       `json:"public"`
+}
+
+type ScoreAdjustment struct {
+	ID              int64     `json:"id"`
+	ParticipationID int64     `json:"participation_id"`
+	TaskID          int64     `json:"task_id"`
+	Points          float64   `json:"points"`
+	Reason          string    `json:"reason"`
+	AdminID         *int64    `json:"admin_id"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type Site struct {

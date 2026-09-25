@@ -10,13 +10,13 @@ LEFT JOIN sites s ON s.id = p.site_id
 WHERE p.id = $1;
 
 -- name: ListScoresByParticipation :many
-SELECT task_id, score, subtask_scores, icpc_solved, icpc_attempts, icpc_solved_at, pending
+SELECT task_id, score, subtask_scores, icpc_solved, icpc_attempts, icpc_solved_at, pending, adjustment
 FROM participation_task_scores WHERE participation_id = $1;
 
 -- name: ListScoresByParticipations :many
 -- Task scores of a contestant, or of every member of a team (merged by the
 -- caller).
-SELECT participation_id, task_id, score, subtask_scores, pending, icpc_solved, icpc_attempts, icpc_solved_at
+SELECT participation_id, task_id, score, subtask_scores, pending, icpc_solved, icpc_attempts, icpc_solved_at, adjustment
 FROM participation_task_scores WHERE participation_id = ANY(@participation_ids::bigint[]);
 
 -- name: ListSubmissionsWithResults :many
