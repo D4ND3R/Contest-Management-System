@@ -110,6 +110,28 @@ var esClose = map[string]string{
 	"No token is available now.":                         "No hay tokens disponibles ahora.",
 	"A token was already played on this submission.":     "Ya se usó un token en este envío.",
 	"Token": "Token",
+
+	// B5: submissions and user tests.
+	"Maximum size of a submitted file (KiB)": "Tamaño máximo de un archivo enviado (KiB)",
+	"Run test":                               "Ejecutar prueba",
+	"Runs your program on an input you choose, with the task's limits, and shows its output. Tests are not graded.": "Ejecuta tu programa con una entrada que elijas, con los límites del problema, y muestra su salida. Las pruebas no se califican.",
+	"Test your solution": "Prueba tu solución",
+	"User tests (enabled above) use the same limits as submissions for the sources; their number and frequency are limited like submissions (contest and task).": "Las pruebas (activables arriba) usan para los códigos los mismos límites que los envíos; su cantidad y frecuencia se limitan como los envíos (concurso y problema).",
+	"compiler messages":              "mensajes del compilador",
+	"or type the input":              "o escribe la entrada",
+	"server default":                 "el del servidor",
+	"show":                           "ver",
+	"Running…":                       "Ejecutando…",
+	"Done":                           "Listo",
+	"Tests (contest)":                "Pruebas (concurso)",
+	"Tests (task)":                   "Pruebas (problema)",
+	"Minimum interval between tests": "Intervalo mínimo entre pruebas",
+	"Maximum file size":              "Tamaño máximo de archivo",
+	"Test rejected":                  "Prueba rechazada",
+	"Tests are not available now.":   "Las pruebas no están disponibles ahora.",
+	"You have reached the maximum number of tests.": "Alcanzaste la cantidad máxima de pruebas.",
+	"Please wait before testing again.":             "Espera antes de volver a probar.",
+	"The input is too large.":                       "La entrada es demasiado grande.",
 }
 
 func init() {

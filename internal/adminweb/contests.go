@@ -198,6 +198,12 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 	t := parseTokens(f)
 	c.TokenMode, c.TokenMaxNumber, c.TokenMinIntervalS = t.Mode, t.MaxNumber, t.MinIntervalS
 	c.TokenGenInitial, c.TokenGenNumber, c.TokenGenIntervalS, c.TokenGenMax = t.GenInitial, t.GenNumber, t.GenIntervalS, t.GenMax
+	if k := f.optPositive64("max_submission_kib", "Maximum size of a submitted file (KiB)"); k != nil {
+		b := *k << 10
+		c.MaxSubmissionBytes = &b
+	} else {
+		c.MaxSubmissionBytes = nil
+	}
 	c.MaxSubmissionNumber = f.optInt32("max_submission_number", "Maximum submissions")
 	c.MaxUserTestNumber = f.optInt32("max_user_test_number", "Maximum user tests")
 	c.MinSubmissionIntervalS = f.optInt64("min_submission_interval_s", "Minimum interval between submissions")

@@ -106,6 +106,9 @@ type langChoice struct{ ID, Name string }
 type taskData struct {
 	Task         *taskView
 	Tokens       *tokenView
+	TestsEnabled bool
+	Tests        []testView
+	TestLimits   [][2]string
 	Subs         []subView
 	CanSubmit    bool
 	CannotSubmit string
@@ -137,6 +140,22 @@ func (s *Server) taskData(r *http.Request, rc *reqCtx, p *page, t *taskView) (*t
 	if d.Tokens, err = s.tokenView(r, rc, t); err != nil {
 		return nil, err
 	}
+	if d.TestsEnabled = testsEnabled(rc, t) && rc.status.CanSubmit; testsEnabled(rc, t) {
+		if d.Tests, err = s.listTests(r, rc, p, t); err != nil {
+			return nil, err
+		}
+		if m := rc.contest.MaxUserTestNumber; m != nil {
+			d.TestLimits = append(d.TestLimits, [2]string{p.T("Tests (contest)"), p.T("at most %d", *m)})
+		}
+		if m := t.MaxUserTestNumber; m != nil {
+			d.TestLimits = append(d.TestLimits, [2]string{p.T("Tests (task)"), p.T("at most %d", *m)})
+		}
+		for _, m := range []*int64{rc.contest.MinUserTestIntervalS, t.MinUserTestIntervalS} {
+			if m != nil && *m > 0 {
+				d.TestLimits = append(d.TestLimits, [2]string{p.T("Minimum interval between tests"), p.Dur(*m)})
+			}
+		}
+	}
 	return d, nil
 }
 
@@ -153,6 +172,11 @@ func (s *Server) limitsText(p *page, rc *reqCtx, t *taskView) [][2]string {
 	}
 	if m := t.MinSubmissionIntervalS; m != nil && *m > 0 {
 		out = append(out, [2]string{p.T("Minimum interval (task)"), p.Dur(*m)})
+	}
+	if m := rc.contest.MaxSubmissionBytes; m != nil && (t.SourceLimit <= 0 || *m < t.SourceLimit) {
+		out = append(out, [2]string{p.T("Maximum file size"), p.Bytes(*m)})
+	} else if t.SourceLimit > 0 {
+		out = append(out, [2]string{p.T("Maximum file size"), p.Bytes(t.SourceLimit)})
 	}
 	return out
 }
@@ -338,6 +362,12 @@ func (s *Server) readSubmission(w http.ResponseWriter, r *http.Request, rc *reqC
 	if max <= 0 {
 		max = 1 << 20
 	}
+	return s.readSources(w, r, rc, t, max)
+}
+
+// readSources reads the files (and language) of a submission or a user
+// test from a multipart request of at most max bytes.
+func (s *Server) readSources(w http.ResponseWriter, r *http.Request, rc *reqCtx, t *taskView, max int64) ([]submittedFile, *langs.Language, string) {
 	r.Body = http.MaxBytesReader(w, r.Body, max+64<<10)
 	if err := r.ParseMultipartForm(max); err != nil {
 		return nil, nil, "The submission is too large."
@@ -357,6 +387,9 @@ func (s *Server) readSubmission(w http.ResponseWriter, r *http.Request, rc *reqC
 	perFile := t.SourceLimit
 	if perFile <= 0 {
 		perFile = max
+	}
+	if m := rc.contest.MaxSubmissionBytes; m != nil && *m < perFile {
+		perFile = *m
 	}
 	var files []submittedFile
 	for _, format := range t.Formats {

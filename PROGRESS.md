@@ -599,3 +599,14 @@ contestant UI: the task page shows the tokens available and when the next
 one comes, each own official submission offers "use a token", which shows
 its full result and re-aggregates the score. Tests: contest.TestTokens,
 contestweb.TestTokens, contestweb.TestScoreVisibilityAndCompilerOutput.
+
+## SPEC_CLOSE B5 — Submissions and user tests (done)
+Skipping skills: immersive-web-design, master skill.
+
+A per-contest maximum file size (shown with the task limits) caps every
+submitted file. Contestants can now test: on the task page they send their
+source with an uploaded or typed input, follow the status live, see the
+first 4 KiB of the output inline and download input and output; the number
+and frequency of tests follow the contest and task limits, and the contest
+toggle hides it all. Tests: contestweb.TestUserTests,
+e2e.TestUserTestJudged (real judge).

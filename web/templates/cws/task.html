@@ -32,6 +32,28 @@
   </form>
   {{else}}<p class="muted">{{$d.CannotSubmit}}</p>{{end}}
 </section>
+{{if or $d.TestsEnabled $d.Tests}}
+<section class="card" id="tests">
+  <h2>{{.T "Test your solution"}}</h2>
+  <p class="muted">{{.T "Runs your program on an input you choose, with the task's limits, and shows its output. Tests are not graded."}}{{range $d.TestLimits}} {{index . 0}}: {{index . 1}}.{{end}}</p>
+  {{if $d.TestsEnabled}}
+  <form method="post" action="{{.Base}}tasks/{{$t.Name}}/test" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" required></label>{{end}}
+    {{if $t.NeedsLanguage}}<label>{{.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
+    <label>{{.T "Input file"}} <input type="file" name="input"></label>
+    <label>{{.T "or type the input"}} <textarea name="input_text" rows="3"></textarea></label>
+    <button>{{.T "Run test"}}</button>
+  </form>
+  {{end}}
+  {{if $d.Tests}}
+  <table>
+  <tr><th>{{.T "Time"}}</th><th>{{.T "Language"}}</th><th>{{.T "Status"}}</th><th>{{.T "Output"}}</th></tr>
+  {{range $d.Tests}}{{template "testrow" (testrow $ .)}}{{end}}
+  </table>
+  {{end}}
+</section>
+{{end}}
 <h2>{{.T "Submissions"}}</h2>
 {{with $d.Tokens}}<p class="muted" id="tokens">{{if .Unlimited}}{{$.T "Tokens: unlimited."}}{{else}}{{$.T "Tokens available: %d." .Available}}{{end}}
   {{if .Wait}}{{$.T "The next one can be played in %s." ($.Dur .Wait)}}{{else if not .Next.IsZero}}{{$.T "Next token at %s." ($.Time .Next)}}{{end}}

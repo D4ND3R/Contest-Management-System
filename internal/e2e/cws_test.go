@@ -2,8 +2,10 @@ package e2e
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"sort"
@@ -169,5 +171,39 @@ func TestExternalWorker(t *testing.T) {
 			t.Fatalf("not judged through the blob server: %+v %v", ts, err)
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// TestUserTestJudged (SPEC_CLOSE B5): a contestant's test runs on the real
+// judge and its output appears on the task page.
+func TestUserTestJudged(t *testing.T) {
+	s := newStack(t, stackOpts{workers: true})
+	s.addContestant("ana")
+	b := s.login("ana")
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	mw.WriteField("csrf", b.csrf)
+	mw.WriteField("language", "c11")
+	mw.WriteField("input_text", "20 22")
+	fw, _ := mw.CreateFormFile("sum.%l", "sum.c")
+	fw.Write([]byte("#include <stdio.h>\nint main(void){long a,b;scanf(\"%ld %ld\",&a,&b);printf(\"%ld\\n\",a+b);return 0;}\n"))
+	mw.Close()
+	req, _ := http.NewRequest("POST", s.cwsURL+"/e2e/tasks/sum/test", &body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	resp, err := b.c.Do(req)
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("test = %v %v", resp.StatusCode, err)
+	}
+	resp.Body.Close()
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		_, page := b.get("/e2e/tasks/sum")
+		if strings.Contains(page, "<pre>42\n</pre>") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("test output never appeared:\n%s", page)
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }

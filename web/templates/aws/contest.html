@@ -110,6 +110,12 @@
 </fieldset>
 {{template "token-fields" (part $ $c)}}
 {{template "limit-fields" (part $ $c)}}
+<fieldset><legend>{{.T "Files"}}</legend>
+<div class="grid">
+  <label>{{.T "Maximum size of a submitted file (KiB)"}} <input name="max_submission_kib" value="{{kib $c.MaxSubmissionBytes}}" inputmode="numeric" placeholder="{{.T "server default"}}"></label>
+</div>
+<p class="muted small">{{.T "User tests (enabled above) use the same limits as submissions for the sources; their number and frequency are limited like submissions (contest and task)."}}</p>
+</fieldset>
 <fieldset><legend>{{.T "Scoring and ranking"}}</legend>
 <div class="grid">
   <label>{{.T "Mode"}} <select name="scoring_mode"><option value="ioi" {{if eq $c.ScoringMode "ioi"}}selected{{end}}>{{.T "IOI (scores)"}}</option><option value="icpc" {{if eq $c.ScoringMode "icpc"}}selected{{end}}>{{.T "ICPC (solved + penalty)"}}</option></select></label>

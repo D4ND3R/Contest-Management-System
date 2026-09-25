@@ -121,6 +121,66 @@ func (q *Queries) GetUserTestResult(ctx context.Context, arg GetUserTestResultPa
 	return i, err
 }
 
+const getUserTestWithResult = `-- name: GetUserTestWithResult :one
+SELECT u.id, u.participation_id, u.task_id, u.submitted_at, u.language, u.input_digest,
+       r.compilation_outcome, r.compilation_text, r.compilation_stdout, r.compilation_stderr,
+       r.evaluation_text, r.exit_status, r.execution_time, r.execution_memory, r.output_digest,
+       r.system_error, r.completed_at
+FROM user_tests u
+LEFT JOIN user_test_results r ON r.user_test_id = u.id AND r.dataset_id = $1::bigint
+WHERE u.id = $2::bigint
+`
+
+type GetUserTestWithResultParams struct {
+	DatasetID int64 `json:"dataset_id"`
+	ID        int64 `json:"id"`
+}
+
+type GetUserTestWithResultRow struct {
+	ID                 int64      `json:"id"`
+	ParticipationID    int64      `json:"participation_id"`
+	TaskID             int64      `json:"task_id"`
+	SubmittedAt        time.Time  `json:"submitted_at"`
+	Language           *string    `json:"language"`
+	InputDigest        string     `json:"input_digest"`
+	CompilationOutcome *string    `json:"compilation_outcome"`
+	CompilationText    *string    `json:"compilation_text"`
+	CompilationStdout  *string    `json:"compilation_stdout"`
+	CompilationStderr  *string    `json:"compilation_stderr"`
+	EvaluationText     *string    `json:"evaluation_text"`
+	ExitStatus         *string    `json:"exit_status"`
+	ExecutionTime      *float64   `json:"execution_time"`
+	ExecutionMemory    *int64     `json:"execution_memory"`
+	OutputDigest       *string    `json:"output_digest"`
+	SystemError        *string    `json:"system_error"`
+	CompletedAt        *time.Time `json:"completed_at"`
+}
+
+func (q *Queries) GetUserTestWithResult(ctx context.Context, arg GetUserTestWithResultParams) (GetUserTestWithResultRow, error) {
+	row := q.db.QueryRow(ctx, getUserTestWithResult, arg.DatasetID, arg.ID)
+	var i GetUserTestWithResultRow
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipationID,
+		&i.TaskID,
+		&i.SubmittedAt,
+		&i.Language,
+		&i.InputDigest,
+		&i.CompilationOutcome,
+		&i.CompilationText,
+		&i.CompilationStdout,
+		&i.CompilationStderr,
+		&i.EvaluationText,
+		&i.ExitStatus,
+		&i.ExecutionTime,
+		&i.ExecutionMemory,
+		&i.OutputDigest,
+		&i.SystemError,
+		&i.CompletedAt,
+	)
+	return i, err
+}
+
 const insertUserTestExecutable = `-- name: InsertUserTestExecutable :exec
 INSERT INTO user_test_executables (user_test_id, dataset_id, filename, digest) VALUES ($1, $2, $3, $4)
 ON CONFLICT (user_test_id, dataset_id, filename) DO UPDATE SET digest = EXCLUDED.digest
@@ -325,6 +385,78 @@ func (q *Queries) ListUserTestsByParticipationTask(ctx context.Context, arg List
 			&i.SubmittedAt,
 			&i.Language,
 			&i.InputDigest,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserTestsWithResults = `-- name: ListUserTestsWithResults :many
+SELECT u.id, u.submitted_at, u.language,
+       r.compilation_outcome, r.compilation_text, r.compilation_stdout, r.compilation_stderr,
+       r.evaluation_text, r.exit_status, r.execution_time, r.execution_memory, r.output_digest,
+       r.system_error, r.completed_at
+FROM user_tests u
+LEFT JOIN user_test_results r ON r.user_test_id = u.id AND r.dataset_id = $1::bigint
+WHERE u.participation_id = $2::bigint AND u.task_id = $3::bigint
+ORDER BY u.submitted_at DESC, u.id DESC
+LIMIT 50
+`
+
+type ListUserTestsWithResultsParams struct {
+	DatasetID       int64 `json:"dataset_id"`
+	ParticipationID int64 `json:"participation_id"`
+	TaskID          int64 `json:"task_id"`
+}
+
+type ListUserTestsWithResultsRow struct {
+	ID                 int64      `json:"id"`
+	SubmittedAt        time.Time  `json:"submitted_at"`
+	Language           *string    `json:"language"`
+	CompilationOutcome *string    `json:"compilation_outcome"`
+	CompilationText    *string    `json:"compilation_text"`
+	CompilationStdout  *string    `json:"compilation_stdout"`
+	CompilationStderr  *string    `json:"compilation_stderr"`
+	EvaluationText     *string    `json:"evaluation_text"`
+	ExitStatus         *string    `json:"exit_status"`
+	ExecutionTime      *float64   `json:"execution_time"`
+	ExecutionMemory    *int64     `json:"execution_memory"`
+	OutputDigest       *string    `json:"output_digest"`
+	SystemError        *string    `json:"system_error"`
+	CompletedAt        *time.Time `json:"completed_at"`
+}
+
+// A contestant's latest tests on a task with their result on the live
+// dataset (index: user_tests_participation_task_idx + result PK).
+func (q *Queries) ListUserTestsWithResults(ctx context.Context, arg ListUserTestsWithResultsParams) ([]ListUserTestsWithResultsRow, error) {
+	rows, err := q.db.Query(ctx, listUserTestsWithResults, arg.DatasetID, arg.ParticipationID, arg.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserTestsWithResultsRow{}
+	for rows.Next() {
+		var i ListUserTestsWithResultsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SubmittedAt,
+			&i.Language,
+			&i.CompilationOutcome,
+			&i.CompilationText,
+			&i.CompilationStdout,
+			&i.CompilationStderr,
+			&i.EvaluationText,
+			&i.ExitStatus,
+			&i.ExecutionTime,
+			&i.ExecutionMemory,
+			&i.OutputDigest,
+			&i.SystemError,
+			&i.CompletedAt,
 		); err != nil {
 			return nil, err
 		}

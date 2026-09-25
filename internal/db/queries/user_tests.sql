@@ -60,3 +60,25 @@ UPDATE user_test_results SET system_error = $3, completed_at = now() WHERE user_
 -- name: ListPendingUserTestResults :many
 SELECT user_test_id, dataset_id, generation, compilation_outcome, compilation_tries, evaluation_tries
 FROM user_test_results WHERE completed_at IS NULL ORDER BY user_test_id LIMIT $1;
+
+-- name: ListUserTestsWithResults :many
+-- A contestant's latest tests on a task with their result on the live
+-- dataset (index: user_tests_participation_task_idx + result PK).
+SELECT u.id, u.submitted_at, u.language,
+       r.compilation_outcome, r.compilation_text, r.compilation_stdout, r.compilation_stderr,
+       r.evaluation_text, r.exit_status, r.execution_time, r.execution_memory, r.output_digest,
+       r.system_error, r.completed_at
+FROM user_tests u
+LEFT JOIN user_test_results r ON r.user_test_id = u.id AND r.dataset_id = @dataset_id::bigint
+WHERE u.participation_id = @participation_id::bigint AND u.task_id = @task_id::bigint
+ORDER BY u.submitted_at DESC, u.id DESC
+LIMIT 50;
+
+-- name: GetUserTestWithResult :one
+SELECT u.id, u.participation_id, u.task_id, u.submitted_at, u.language, u.input_digest,
+       r.compilation_outcome, r.compilation_text, r.compilation_stdout, r.compilation_stderr,
+       r.evaluation_text, r.exit_status, r.execution_time, r.execution_memory, r.output_digest,
+       r.system_error, r.completed_at
+FROM user_tests u
+LEFT JOIN user_test_results r ON r.user_test_id = u.id AND r.dataset_id = @dataset_id::bigint
+WHERE u.id = @id::bigint;

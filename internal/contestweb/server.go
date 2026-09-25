@@ -101,10 +101,11 @@ func New(cfg config.ContestWeb, d Deps, log *slog.Logger) (*Server, error) {
 
 func (s *Server) loadTemplates() error {
 	funcs := template.FuncMap{
-		"static": s.static.URL,
-		"row":    func(p *page, sv subView) rowCtx { return rowCtx{P: p, S: sv} },
-		"cell":   ranking.Display,
-		"fscore": ranking.FormatScore,
+		"static":  s.static.URL,
+		"row":     func(p *page, sv subView) rowCtx { return rowCtx{P: p, S: sv} },
+		"testrow": func(p *page, v testView) testCtx { return testCtx{P: p, T: v} },
+		"cell":    ranking.Display,
+		"fscore":  ranking.FormatScore,
 	}
 	base, err := template.New("").Funcs(funcs).ParseFS(web.Templates, "cws/layout.html", "cws/partials.html")
 	if err != nil {
@@ -161,6 +162,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{contest}/tasks/{task}/statement/{lang}", auth(s.handleStatement))
 	mux.HandleFunc("GET /{contest}/tasks/{task}/attachments/{file}", auth(s.handleAttachment))
 	mux.HandleFunc("POST /{contest}/tasks/{task}/submit", auth(s.handleSubmit))
+	mux.HandleFunc("POST /{contest}/tasks/{task}/test", auth(s.handleUserTest))
+	mux.HandleFunc("GET /{contest}/tests/{id}/row", auth(s.handleUserTestRow))
+	mux.HandleFunc("GET /{contest}/tests/{id}/{which}", auth(s.handleUserTestFile))
 	mux.HandleFunc("GET /{contest}/tasks/{task}/submissions", auth(s.handleSubmissionList))
 	mux.HandleFunc("GET /{contest}/submissions/{id}", auth(s.handleSubmission))
 	mux.HandleFunc("GET /{contest}/submissions/{id}/row", auth(s.handleSubmissionRow))

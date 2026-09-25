@@ -2,10 +2,12 @@ package contestweb
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -14,6 +16,7 @@ import (
 	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/auth"
+	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/events"
 )
@@ -343,5 +346,107 @@ func TestTokens(t *testing.T) {
 	f.setContest(t, "token_gen_initial = 5")
 	if _, page := f.get(c, "/ioi/tasks/sum"); strings.Contains(page, "use a token") {
 		t.Fatal("token offered on a task without tokens")
+	}
+}
+
+// postTest sends a user test (source and typed input).
+func (f *fixture) postTest(c *http.Client, csrf, src, input string) (int, string) {
+	f.t.Helper()
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	mw.WriteField("csrf", csrf)
+	mw.WriteField("language", "c11")
+	mw.WriteField("input_text", input)
+	fw, _ := mw.CreateFormFile("sum.%l", "sum.c")
+	fw.Write([]byte(src))
+	mw.Close()
+	req, _ := http.NewRequest("POST", f.url+"/ioi/tasks/sum/test", &body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	resp, err := c.Do(req)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(b)
+}
+
+// TestUserTests (SPEC_CLOSE B5): a contestant runs a test with a typed
+// input, sees its output (inline and as a download) and is limited like
+// submissions; tests can be disabled; the contest's file size limit
+// applies to submissions.
+func TestUserTests(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	c := f.client()
+	_, page := f.login(c, "ana", "secret")
+	if code, _ := f.get(c, "/ioi/tasks/sum"); code != 200 {
+		t.Fatal(code)
+	}
+	_, page = f.get(c, "/ioi/tasks/sum")
+	if !strings.Contains(page, "Test your solution") {
+		t.Fatalf("no test form:\n%s", page)
+	}
+	code, body := f.postTest(c, csrfOf(t, page), "int main(){}", "2 3")
+	if code != 200 || !strings.Contains(body, `id="tests"`) {
+		t.Fatalf("test = %d\n%s", code, body)
+	}
+	var id int64
+	var input string
+	if err := f.pool.QueryRow(bg, "SELECT id, input_digest FROM user_tests WHERE participation_id = $1", f.part.ID).Scan(&id, &input); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := blob.ReadAll(bg, f.store, input); string(b) != "2 3\n" {
+		t.Fatalf("input %q", b)
+	}
+	if !strings.Contains(body, fmt.Sprintf(`id="test-%d"`, id)) || !strings.Contains(body, "Compiling") {
+		t.Fatalf("pending test row:\n%s", body)
+	}
+	// The dispatcher's part, simulated.
+	f.q.EnsureUserTestResult(bg, sqlc.EnsureUserTestResultParams{UserTestID: id, DatasetID: f.ds.ID})
+	ok := "ok"
+	f.q.SetUserTestCompilation(bg, sqlc.SetUserTestCompilationParams{UserTestID: id, DatasetID: f.ds.ID, CompilationOutcome: &ok, CompilationText: "Compilation succeeded"})
+	out, _ := f.store.PutBytes(bg, []byte("5\n"))
+	tm, mem, st := 0.004, int64(1<<20), "ok"
+	f.q.SetUserTestEvaluation(bg, sqlc.SetUserTestEvaluationParams{UserTestID: id, DatasetID: f.ds.ID, EvaluationText: "Execution completed successfully",
+		OutputDigest: &out.Digest, ExecutionTime: &tm, ExecutionMemory: &mem, ExitStatus: &st})
+	_, row := f.get(c, fmt.Sprintf("/ioi/tests/%d/row", id))
+	if !strings.Contains(row, "<pre>5\n</pre>") || strings.Contains(row, "pending") {
+		t.Fatalf("finished row:\n%s", row)
+	}
+	if _, b := f.get(c, fmt.Sprintf("/ioi/tests/%d/output", id)); b != "5\n" {
+		t.Fatalf("output download %q", b)
+	}
+	if _, b := f.get(c, fmt.Sprintf("/ioi/tests/%d/input", id)); b != "2 3\n" {
+		t.Fatalf("input download %q", b)
+	}
+	// Someone else's tests are not visible.
+	hash, _ := auth.HashPassword("secret")
+	beto, _ := f.q.CreateUser(bg, sqlc.CreateUserParams{Username: "beto", PasswordHash: hash, PreferredLanguages: []string{}})
+	f.q.CreateParticipation(bg, sqlc.CreateParticipationParams{ContestID: f.contest.ID, UserID: beto.ID, Ip: []netip.Prefix{}})
+	bc := f.client()
+	f.login(bc, "beto", "secret")
+	if code, _ := f.get(bc, fmt.Sprintf("/ioi/tests/%d/output", id)); code != 404 {
+		t.Fatalf("other contestant's test = %d", code)
+	}
+	// Limits.
+	f.setContest(t, "max_user_test_number = 1")
+	if code, body := f.postTest(c, csrfOf(t, page), "int main(){}", "1 1"); code != 429 || !strings.Contains(body, "maximum number of tests") {
+		t.Fatalf("second test = %d\n%s", code, body)
+	}
+	f.setContest(t, "allow_user_tests = false")
+	if _, page := f.get(c, "/ioi/tasks/sum"); strings.Contains(page, "Run test") {
+		t.Fatal("test form shown with tests disabled")
+	}
+	if code, _ := f.postTest(c, csrfOf(t, page), "int main(){}", "1 1"); code != 403 {
+		t.Fatalf("test with tests disabled = %d", code)
+	}
+	// Contest-wide file size limit.
+	f.setContest(t, "max_submission_bytes = 16")
+	_, page = f.get(c, "/ioi/tasks/sum")
+	if !strings.Contains(page, "Maximum file size") || !strings.Contains(page, "16 B") {
+		t.Fatalf("file size limit not shown:\n%s", page)
+	}
+	if code, body := f.submit(c, csrfOf(t, page), "c11", "int main(){ return 0; }", false); code != 400 || !strings.Contains(body, "size limit") {
+		t.Fatalf("oversized file = %d\n%s", code, body)
 	}
 }

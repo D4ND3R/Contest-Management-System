@@ -71,3 +71,15 @@
 {{end}}
 </div>
 {{end}}
+
+{{define "testrow"}}{{$p := .P}}{{$u := .T}}
+<tr id="test-{{$u.ID}}" data-src="{{$p.Base}}tests/{{$u.ID}}/row" {{if $u.Pending}}class="pending"{{end}}>
+  <td>{{$p.Time $u.Time}}</td>
+  <td>{{$u.Language}}</td>
+  <td class="{{$u.Class}}">{{$u.StatusText}}{{with $u.Resources}} <small class="muted">({{.}})</small>{{end}}
+    {{with $u.Compiler}}<details><summary>{{$p.T "compiler messages"}}</summary><pre>{{.}}</pre></details>{{end}}</td>
+  <td>{{if $u.HasOutput}}<details><summary>{{$p.T "show"}}</summary><pre>{{$u.Output}}{{if $u.Truncated}}
+…{{end}}</pre></details>
+    <a href="{{$p.Base}}tests/{{$u.ID}}/output">{{$p.T "output"}}</a> · {{end}}<a href="{{$p.Base}}tests/{{$u.ID}}/input">{{$p.T "input"}}</a></td>
+</tr>
+{{end}}
