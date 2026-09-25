@@ -1,5 +1,7 @@
 # Documentación (español)
 
+- [Guía del administrador: un concurso desde cero, cada tipo de problema paso a paso](guia-del-admin.md)
+- [Simulacro: un concurso de ensayo con checklist](simulacro.md)
 - [Despliegue en un VPS: paso a paso, script de instalación, systemd, HTTPS](despliegue.md)
 - [Agregar un worker en otra máquina](worker-externo.md)
 - [Manual del día del concurso](dia-del-concurso.md)
