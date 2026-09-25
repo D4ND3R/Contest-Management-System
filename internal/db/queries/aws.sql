@@ -258,3 +258,8 @@ RETURNING *;
 -- name: ClearSubmissionInvalidated :one
 UPDATE submissions SET invalidated_at = NULL, invalidated_reason = '', invalidated_by = NULL
 WHERE id = $1 RETURNING *;
+
+-- name: AdminStorageStats :one
+-- Blob store and database size for the system panel.
+SELECT (SELECT count(*) FROM blobs)::bigint AS blobs, (SELECT COALESCE(sum(size), 0) FROM blobs)::bigint AS blob_bytes,
+       pg_database_size(current_database())::bigint AS db_bytes;

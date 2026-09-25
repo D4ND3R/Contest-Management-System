@@ -36,6 +36,9 @@ web site; commands run on the main server unless noted.
 
 **What to watch**
 
+- **Workers & queues** also shows the CPU, memory and free disk of this
+  server and of every worker's machine, and the size of the blob store and
+  the database: keep an eye on free disk.
 - **Workers & queues**: all workers alive; waiting jobs should drain within
   seconds. A queue that keeps growing means not enough judging power (add
   a worker, see [external workers](external-worker.md)) or a stuck worker.
@@ -79,6 +82,7 @@ web site; commands run on the main server unless noted.
 | Symptom | What happens | What to do |
 |---------|--------------|------------|
 | A worker crashes or its machine dies | After 10 s without heartbeat its jobs go back to the queue and other workers take them. | Restart it (`systemctl restart cms-worker`); nothing to redo. |
+| A job looks stuck (flagged *stuck?* on **Workers & queues**: running for over 2 minutes or on a dead worker) | The monitor requeues it by itself after the job timeout (10 minutes) or 10 s after the worker's heartbeat stops. | Don't wait: **requeue** takes it back and queues it again at once. |
 | A job fails 3 times | The submission shows "evaluation failed"; an alert appears. | Look at the alert (usually a checker or a missing toolchain), fix, **Reevaluate** that submission. |
 | A web service crashes | systemd restarts it within 2 s; sessions survive. | Check `journalctl -u cms-contest-web`. |
 | The VPS reboots | Everything starts again by itself; Valkey keeps the queues (append-only file) and PostgreSQL the data; the dispatcher re-sends whatever was in flight. | Check **Workers & queues** and one submission. The contest clock does not stop: extend the time if the outage was long. |

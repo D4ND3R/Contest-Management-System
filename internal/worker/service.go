@@ -12,6 +12,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/app"
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/config"
+	"github.com/D4ND3R/Contest-Management-System/internal/hoststat"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 	"github.com/D4ND3R/Contest-Management-System/internal/version"
 )
@@ -32,6 +33,10 @@ type Service struct {
 	slots    []queue.SlotStatus
 	jobsDone atomic.Int64
 	errors   atomic.Int64
+
+	// The machine's load, reported with every heartbeat.
+	host hoststat.Sampler
+	dirs [][2]string
 }
 
 // NewService builds the worker service.
@@ -40,7 +45,8 @@ func NewService(cfg config.Worker, store blob.Store, q *queue.Queue, log *slog.L
 	if err != nil {
 		return nil, err
 	}
-	s := &Service{exec: exec, q: q, log: log, interval: cfg.HeartbeatInterval.D(), started: time.Now().UTC()}
+	s := &Service{exec: exec, q: q, log: log, interval: cfg.HeartbeatInterval.D(), started: time.Now().UTC(),
+		dirs: [][2]string{{"work", cfg.WorkDir}, {"cache", cfg.CacheDir}}}
 	if s.interval <= 0 {
 		s.interval = 2 * time.Second
 	}
@@ -141,9 +147,10 @@ func (s *Service) heartbeat(ctx context.Context) {
 	t := time.NewTicker(s.interval)
 	defer t.Stop()
 	for {
+		hs := s.host.Sample(s.dirs...)
 		s.mu.Lock()
 		st := &queue.WorkerStatus{Name: s.exec.Name, Hostname: host, Version: version.String(), StartedAt: s.started,
-			Slots: append([]queue.SlotStatus(nil), s.slots...), JobsDone: s.jobsDone.Load(), Errors: s.errors.Load()}
+			Slots: append([]queue.SlotStatus(nil), s.slots...), JobsDone: s.jobsDone.Load(), Errors: s.errors.Load(), Host: &hs}
 		s.mu.Unlock()
 		if err := s.q.Heartbeat(ctx, st, 4*s.interval); err != nil && ctx.Err() == nil {
 			s.log.Warn("heartbeat", "error", err)

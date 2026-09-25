@@ -683,3 +683,19 @@ db.TestParticipationTaskScores, dispatcher.TestInvalidatedSubmissionsDoNotCount
 (real judging), ranking.TestScoreAdjustments,
 contestweb.TestScoreAdjustmentShown.
 
+## SPEC_CLOSE D3 — System panel (done)
+Skipping skills: immersive-web-design, master skill.
+
+Workers & queues now shows, live: the jobs in flight (stuck ones flagged,
+with an audited requeue), the CPU, load, memory and free disk of the main
+server and of every worker's machine (sent with the heartbeat), the blob
+store and database sizes, and the system errors with reevaluate. Tests:
+adminweb.TestSystemPanel, queue.TestInFlightAndManualRequeue,
+hoststat.TestSample.
+
+Fix found on the way (D62): spurious "exit code 127" runtime errors on
+multi-core workers — a forked child could briefly hold an executable open
+for writing while another slot ran it (ETXTBSY). Executables are now
+written with forks held off; regression test
+worker.TestExecutablesUnderConcurrentSlots.
+

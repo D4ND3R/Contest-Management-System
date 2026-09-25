@@ -618,3 +618,36 @@ admin web server asks the dispatcher (reaggregate event with the
 participation and task) to recompute and push the ranking update, keeping
 the dispatcher the only writer of ranking updates.
 
+## D61. Machine load travels with the worker heartbeat
+The system panel needs the load of machines the admin server cannot see.
+Workers already send a heartbeat every second; it now carries a small
+snapshot (CPU use since the previous heartbeat, load average, memory,
+free space of the work and cache directories) read from /proc and statfs
+— a few microseconds, no agent, no new port. The admin server samples its
+own machine the same way (blob, backup and temporary directories) and adds
+the blob store and database sizes, cached for 30 s because counting blobs
+is not for every 2-second poll. In-flight jobs come from the Redis pending
+lists with their payload (one pipelined XRANGE per job); a job is flagged
+stuck after 2 minutes or when its worker's heartbeat is gone, and an
+administrator can requeue it at once with the monitor's own mechanism
+(claim, re-add, acknowledge) but without the attempt limit, since it is a
+deliberate decision; a result arriving later from the old run is handled
+idempotently as for monitor requeues. The system-errors list got a
+partial index (errors are rare, the result table is not).
+
+## D62. No fork while an executable is being written (ETXTBSY)
+A full test run showed a correct TwoSteps solution judged "runtime error,
+exit code 127" on one testcase. A stress test (many TwoSteps evaluations
+on three slots at once) reproduced it: the executable was in the box, yet
+isolate's execve failed. Cause: while one slot copies an executable into
+its box, another slot forks to start isolate; the child inherits the
+still-open write descriptor (close-on-exec only closes it at exec), and
+executing a file that some process holds open for writing fails with
+ETXTBSY, which isolate reports as exit code 127. Any multi-core worker
+could hit it in a contest. The sandbox now holds syscall.ForkLock for
+reading from opening to closing a file written with an executable mode;
+every fork of the Go runtime takes that lock for writing, so no child can
+be created in that window, while writes of data files are not held back
+and the copies themselves still run in parallel. The stress test is kept
+(worker.TestExecutablesUnderConcurrentSlots) and fails without the lock.
+

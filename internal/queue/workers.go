@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/hoststat"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -33,6 +34,8 @@ type WorkerStatus struct {
 	Errors    int64        `json:"errors"`
 	LastSeen  time.Time    `json:"last_seen"`
 	Alive     bool         `json:"alive"`
+	// Host is the load of the worker's machine.
+	Host *hoststat.Stats `json:"host,omitempty"`
 }
 
 func (q *Queue) workerKey(name string) string { return q.Key("worker", name) }

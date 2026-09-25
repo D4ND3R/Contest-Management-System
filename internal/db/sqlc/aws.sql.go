@@ -915,6 +915,25 @@ func (q *Queries) AdminPackageSolutionRuns(ctx context.Context, taskID int64) ([
 	return items, nil
 }
 
+const adminStorageStats = `-- name: AdminStorageStats :one
+SELECT (SELECT count(*) FROM blobs)::bigint AS blobs, (SELECT COALESCE(sum(size), 0) FROM blobs)::bigint AS blob_bytes,
+       pg_database_size(current_database())::bigint AS db_bytes
+`
+
+type AdminStorageStatsRow struct {
+	Blobs     int64 `json:"blobs"`
+	BlobBytes int64 `json:"blob_bytes"`
+	DbBytes   int64 `json:"db_bytes"`
+}
+
+// Blob store and database size for the system panel.
+func (q *Queries) AdminStorageStats(ctx context.Context) (AdminStorageStatsRow, error) {
+	row := q.db.QueryRow(ctx, adminStorageStats)
+	var i AdminStorageStatsRow
+	err := row.Scan(&i.Blobs, &i.BlobBytes, &i.DbBytes)
+	return i, err
+}
+
 const adminTaskSubmissionStats = `-- name: AdminTaskSubmissionStats :many
 SELECT t.id AS task_id,
        count(s.id) AS submissions,

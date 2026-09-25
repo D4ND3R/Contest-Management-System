@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -453,6 +454,57 @@ func (q *Queue) Requeue(ctx context.Context, pe Pending, maxAttempts int) (reque
 		return nil, nil, err
 	}
 	return requeued, exhausted, nil
+}
+
+// InFlight is a delivered, unacknowledged job and what it is about.
+type InFlight struct {
+	Pending
+	Kind         string
+	SubmissionID int64
+	UserTestID   int64
+	DatasetID    int64
+	Attempt      int
+}
+
+// InFlightJobs lists the jobs being run (or lost) with their content.
+func (q *Queue) InFlightJobs(ctx context.Context) ([]InFlight, error) {
+	ps, err := q.PendingJobs(ctx)
+	if err != nil || len(ps) == 0 {
+		return nil, err
+	}
+	pipe := q.rdb.Pipeline()
+	cmds := make([]*redis.XMessageSliceCmd, len(ps))
+	for i, p := range ps {
+		cmds[i] = pipe.XRange(ctx, q.JobStream(p.Priority), p.ID, p.ID)
+	}
+	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
+		return nil, err
+	}
+	out := make([]InFlight, len(ps))
+	for i, p := range ps {
+		out[i].Pending = p
+		if msgs, _ := cmds[i].Result(); len(msgs) == 1 {
+			if j, _ := decodeJob(msgs[0]); j != nil {
+				out[i].Kind, out[i].SubmissionID, out[i].UserTestID = string(j.Kind), j.SubmissionID, j.UserTestID
+				out[i].DatasetID, out[i].Attempt = j.DatasetID, j.Attempt
+			}
+		}
+	}
+	return out, nil
+}
+
+// RequeueByID takes an in-flight job back from its worker and queues it
+// again (an administrator's decision: no attempt limit). It returns false
+// when the job is no longer in flight.
+func (q *Queue) RequeueByID(ctx context.Context, p Priority, id string) (bool, error) {
+	ps, err := q.rdb.XPendingExt(ctx, &redis.XPendingExtArgs{Stream: q.JobStream(p), Group: workersGroup,
+		Start: id, End: id, Count: 1}).Result()
+	if err != nil || len(ps) == 0 {
+		return false, err
+	}
+	re, _, err := q.Requeue(ctx, Pending{Priority: p, ID: id, Consumer: ps[0].Consumer, Idle: ps[0].Idle,
+		Deliveries: ps[0].RetryCount}, math.MaxInt32)
+	return re != nil, err
 }
 
 // Stats summarises the queues.

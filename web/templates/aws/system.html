@@ -1,5 +1,17 @@
 {{define "content"}}
 <h1>{{.T "Workers and queues"}} <small class="muted">{{.T "live"}}</small></h1>
-{{template "system-status" .Data}}
+{{template "system-status" .Data.Status}}
 <p class="muted small">{{.T "Queues are served in priority order: compile, evaluate, user tests, background (rejudges and non-live datasets). A job running longer than the monitor's job timeout, or on a worker whose heartbeat stopped, is requeued automatically."}} <a href="/languages">{{.T "Languages"}}</a>.</p>
+<h2>{{.T "System errors"}}</h2>
+{{if .Data.Errors}}
+<table>
+<thead><tr><th>{{.T "Submission"}}</th><th>{{.T "User"}}</th><th>{{.T "Task"}}</th><th>{{.T "Error"}}</th><th></th></tr></thead>
+<tbody>
+{{range .Data.Errors}}
+<tr><td><a href="/submissions/{{.SubmissionID}}">#{{.SubmissionID}}</a></td><td>{{.Username}}</td><td>{{.TaskName}}</td><td class="bad">{{deref .SystemError}}</td>
+<td>{{if $.CanWrite}}{{template "reevaluate" (reeval $ "submission_id" .SubmissionID "/system")}}{{end}}</td></tr>
+{{end}}
+</tbody>
+</table>
+{{else}}<p class="muted">{{.T "None."}}</p>{{end}}
 {{end}}

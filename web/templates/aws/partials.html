@@ -51,19 +51,48 @@
   <div class="stat"><b>{{.Busy}} / {{.Slots}}</b><span>{{.T "slots busy"}}</span></div>
   {{range .Priorities}}<div class="stat"><b>{{index $.Queues.Waiting .}}</b><span>{{$.T "%s waiting (%d running)" ($.T .) (index $.Queues.Pending .)}}</span></div>{{end}}
   <div class="stat"><b>{{.Queues.Results}}</b><span>{{.T "results to process"}}</span></div>
+  {{if .Stuck}}<div class="stat bad"><b>{{.Stuck}}</b><span>{{.T "jobs that look stuck"}}</span></div>{{end}}
 </div>
+<h2>{{.T "This server"}}</h2>
+<div class="stats">
+  {{with .Host}}<div class="stat"><b>{{percent .CPUPercent}}</b><span>{{$.T "CPU (%d cores), load %.2f" .CPUs .Load1}}</span></div>
+  {{if .MemTotal}}<div class="stat"><b>{{percent .MemPercent}}</b><span>{{$.T "memory: %s of %s" (bytes .MemUsed) (bytes .MemTotal)}}</span></div>{{end}}
+  {{range .Disks}}<div class="stat {{if gt .UsedPercent 90.0}}bad{{end}}"><b>{{bytes .Free}}</b><span>{{$.T "free for %s (%s used)" ($.T .Name) (percent .UsedPercent)}}</span></div>{{end}}{{end}}
+  {{with .Storage}}<div class="stat"><b>{{bytes .BlobBytes}}</b><span>{{$.T "blob store: %d files" .Blobs}}</span></div>
+  <div class="stat"><b>{{bytes .DbBytes}}</b><span>{{$.T "database"}}</span></div>{{end}}
+</div>
+{{if .InFlight}}
+<h2>{{.T "Jobs running"}}</h2>
 <table>
-<thead><tr><th>{{.T "Worker"}}</th><th>{{.T "Host"}}</th><th>{{.T "Version"}}</th><th>{{.T "State"}}</th><th class="num">{{.T "Jobs"}}</th><th class="num">{{.T "Errors"}}</th><th>{{.T "Slots"}}</th></tr></thead>
+<thead><tr><th>{{.T "Queue"}}</th><th>{{.T "Job"}}</th><th>{{.T "Worker"}}</th><th>{{.T "Running for"}}</th><th class="num">{{.T "Attempt"}}</th><th></th></tr></thead>
+<tbody>
+{{range .InFlight}}
+<tr class="{{if .Stuck}}pending{{end}}">
+  <td>{{$.T .Priority}}</td>
+  <td>{{.Kind}}{{if .SubmissionID}} <a href="/submissions/{{.SubmissionID}}">#{{.SubmissionID}}</a>{{end}}{{if .UserTestID}} {{$.T "test %d" .UserTestID}}{{end}}</td>
+  <td>{{.Worker}}{{if not .Alive}} <span class="bad">{{$.T "dead"}}</span>{{end}}</td>
+  <td>{{dur .Idle}}{{if .Stuck}} <span class="tag bad">{{$.T "stuck?"}}</span>{{end}}</td>
+  <td class="num">{{.Attempt}}</td>
+  <td>{{if and $.CanWrite .Stuck}}<form method="post" action="/system/jobs/requeue" class="inline" data-confirm="{{$.T "Take the job back from its worker and queue it again?"}}"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="priority" value="{{.Priority}}"><input type="hidden" name="id" value="{{.ID}}"><button class="link">{{$.T "requeue"}}</button></form>{{end}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+{{end}}
+<h2>{{.T "Workers"}}</h2>
+<table>
+<thead><tr><th>{{.T "Worker"}}</th><th>{{.T "Host"}}</th><th>{{.T "Version"}}</th><th>{{.T "State"}}</th><th>{{.T "Machine"}}</th><th class="num">{{.T "Jobs"}}</th><th class="num">{{.T "Errors"}}</th><th>{{.T "Slots"}}</th></tr></thead>
 <tbody>
 {{range .Workers}}
 <tr class="{{if not .Alive}}pending{{end}}">
   <td>{{.Name}}</td><td>{{.Hostname}}</td><td>{{.Version}}</td>
   <td>{{if .Alive}}<span class="ok">{{$.T "alive"}}</span>{{else}}<span class="bad">{{$.T "dead"}}</span> ({{$.T "last seen %s" (dt .LastSeen)}}){{end}}</td>
+  <td class="small">{{with .Host}}{{$.T "CPU %s, load %.2f" (percent .CPUPercent) .Load1}} · {{$.T "memory %s" (percent .MemPercent)}}{{range .Disks}} · <span class="{{if gt .UsedPercent 90.0}}bad{{end}}">{{$.T "%s free for %s" (bytes .Free) ($.T .Name)}}</span>{{end}}{{end}}</td>
   <td class="num">{{.JobsDone}}</td><td class="num">{{.Errors}}</td>
   <td>{{range .Slots}}<span class="slot {{if .JobID}}busy{{end}}" title="{{$.T "core %d" .Core}}">{{if .JobID}}{{.Kind}}{{if .SubmissionID}} <a href="/submissions/{{.SubmissionID}}">#{{.SubmissionID}}</a>{{end}}{{if .UserTestID}} {{$.T "test %d" .UserTestID}}{{end}} · {{since .Since}}{{else}}{{$.T "idle"}}{{end}}</span>{{end}}</td>
 </tr>
 {{else}}
-<tr><td colspan="7" class="muted">{{.T "No worker has reported yet."}}</td></tr>
+<tr><td colspan="8" class="muted">{{.T "No worker has reported yet."}}</td></tr>
 {{end}}
 </tbody>
 </table>

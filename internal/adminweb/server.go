@@ -25,6 +25,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/config"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/events"
+	"github.com/D4ND3R/Contest-Management-System/internal/hoststat"
 	"github.com/D4ND3R/Contest-Management-System/internal/httpx"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/metrics"
@@ -64,8 +65,12 @@ type Server struct {
 	rankingURL string
 	// backups takes and lists backups (nil: not configured).
 	backups *backup.Runner
-	checks  []httpx.Check
-	now     func() time.Time
+	// The system panel: this machine's load and storage.
+	host         hoststat.Sampler
+	dirs         [][2]string
+	storageCache storageCache
+	checks       []httpx.Check
+	now          func() time.Time
 	// MaxUploadBytes bounds multipart requests (testcase archives).
 	maxUpload int64
 }
@@ -86,6 +91,9 @@ type Deps struct {
 	RankingURL string
 	// Backups takes the backups ("Back up now") and lists them.
 	Backups *backup.Runner
+	// Dirs are the directories whose disks the system panel shows
+	// (name, path).
+	Dirs [][2]string
 }
 
 // New builds a server.
@@ -106,7 +114,7 @@ func New(cfg config.AdminWeb, d Deps, log *slog.Logger) (*Server, error) {
 		ips: ips, limiter: webkit.NewLimiter(d.Redis, d.NS), admins: &adminCache{q: q, m: map[int64]adminEntry{}},
 		hub: &adminHub{clients: map[chan []byte]struct{}{}}, checks: d.Checks, now: time.Now,
 		sessions: webkit.NewSessionTracker(d.Redis, d.NS), secret: d.Secret, contestListen: d.ContestListen, rankingURL: d.RankingURL, backups: d.Backups,
-		maxUpload: 1 << 30,
+		maxUpload: 1 << 30, dirs: d.Dirs,
 	}
 	if err := s.loadTemplates(); err != nil {
 		return nil, err
@@ -315,6 +323,7 @@ func (s *Server) Handler() http.Handler {
 
 	get("/system", s.handleSystem)
 	get("/system/status", s.handleSystemStatus)
+	post("/system/jobs/requeue", permAll, "job.requeue", s.handleJobRequeue)
 	get("/languages", s.handleLanguages)
 	get("/audit", s.handleAudit)
 	s.registerExtra(route)

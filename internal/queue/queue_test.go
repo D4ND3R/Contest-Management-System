@@ -258,3 +258,38 @@ func BenchmarkEnqueueNextComplete(b *testing.B) {
 		q.Complete(ctx, d, &jobs.Result{JobID: d.Job.ID})
 	}
 }
+
+// TestInFlightAndManualRequeue (SPEC_CLOSE D3): the system panel lists the
+// jobs being run with what they are about and can queue one again.
+func TestInFlightAndManualRequeue(t *testing.T) {
+	q := newQueue(t)
+	ctx := context.Background()
+	q.Enqueue(ctx, PriorityEvaluate, &jobs.Job{ID: "e1", Kind: jobs.KindEvaluate, SubmissionID: 42, DatasetID: 7, Attempt: 2})
+	d, err := q.Next(ctx, "w1/0", 100*time.Millisecond, nil)
+	if err != nil || d == nil {
+		t.Fatalf("next: %v", err)
+	}
+	fl, err := q.InFlightJobs(ctx)
+	if err != nil || len(fl) != 1 {
+		t.Fatalf("in flight %+v %v", fl, err)
+	}
+	if j := fl[0]; j.Kind != string(jobs.KindEvaluate) || j.SubmissionID != 42 || j.DatasetID != 7 || j.Attempt != 2 || j.Consumer != "w1/0" {
+		t.Fatalf("in flight %+v", j)
+	}
+	ok, err := q.RequeueByID(ctx, fl[0].Priority, fl[0].ID)
+	if err != nil || !ok {
+		t.Fatalf("requeue %v %v", ok, err)
+	}
+	st, _ := q.Stats(ctx)
+	if st.Waiting[PriorityEvaluate.String()] != 1 || st.Pending[PriorityEvaluate.String()] != 0 {
+		t.Fatalf("stats %+v", st)
+	}
+	// Not in flight any more.
+	if ok, err := q.RequeueByID(ctx, fl[0].Priority, fl[0].ID); ok || err != nil {
+		t.Fatalf("second requeue %v %v", ok, err)
+	}
+	d, _ = q.Next(ctx, "w2/0", 100*time.Millisecond, nil)
+	if d == nil || d.Job.ID != "e1" || d.Job.Attempt != 3 {
+		t.Fatalf("requeued job %+v", d)
+	}
+}

@@ -367,6 +367,8 @@ func (s *Server) funcs() template.FuncMap {
 		"printForm": func(p *page, id int64, action, label, class, site string) printForm {
 			return printForm{P: p, ID: id, Action: action, Label: label, Class: class, Site: site}
 		},
+		"percent": func(v float64) string { return strconv.FormatFloat(v, 'f', 0, 64) + "%" },
+		"dur":     func(d time.Duration) string { return d.Round(time.Second).String() },
 		"since": func(t time.Time) string {
 			if t.IsZero() {
 				return ""

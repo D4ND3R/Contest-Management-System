@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/adminweb"
@@ -114,6 +115,7 @@ func runAdminWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) erro
 	srv, err := adminweb.New(cfg.AdminWeb, adminweb.Deps{
 		Pool: d.DB, Redis: d.Redis, Blobs: d.Blobs, Langs: reg, Secret: cfg.Secret(), NS: cfg.Redis.Namespace, Checks: d.Checks(),
 		ContestListen: cfg.ContestWeb.Listen, RankingURL: cfg.RankingWeb.PublicURL, Backups: backups,
+		Dirs: [][2]string{{"blobs", localBlobDir(cfg)}, {"backups", cfg.Backup.Dir}, {"temporary files", os.TempDir()}},
 	}, log)
 	if err != nil {
 		return err
@@ -211,4 +213,12 @@ func runBlobServer(ctx context.Context, cfg *config.Config, log *slog.Logger) er
 		return err
 	}
 	return srv.Run(ctx, cfg.BlobServer.Listen, nil)
+}
+
+// localBlobDir is the blob directory when blobs are stored on this machine.
+func localBlobDir(cfg *config.Config) string {
+	if cfg.Blob.Backend == "local" {
+		return cfg.Blob.LocalDir
+	}
+	return ""
 }

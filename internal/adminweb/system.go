@@ -2,15 +2,17 @@ package adminweb
 
 import (
 	"context"
-	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/auth"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
+	"github.com/D4ND3R/Contest-Management-System/internal/hoststat"
+	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 )
@@ -26,14 +28,56 @@ type systemStatus struct {
 	Time       time.Time
 	QueueError string
 	Lang       string
+	// Host is this machine (the main server); workers report theirs.
+	Host hoststat.Stats
+	// InFlight are the jobs being run; Stuck counts those that look lost.
+	InFlight []inFlightJob
+	Stuck    int
+	Storage  *sqlc.AdminStorageStatsRow
+	// CanWrite: the viewer may requeue jobs; CSRF is its token.
+	CanWrite bool
+	CSRF     string
+}
+
+// inFlightJob is a job being run, as the panel shows it.
+type inFlightJob struct {
+	queue.InFlight
+	Priority string
+	Worker   string
+	Alive    bool
+	Stuck    bool
+}
+
+// stuckAfter is how long a job may run before the panel flags it (the
+// monitor requeues it after its job timeout anyway).
+const stuckAfter = 2 * time.Minute
+
+// storageCache keeps the storage figures for a while: counting blobs and
+// sizing the database is not for every poll.
+type storageCache struct {
+	mu   sync.Mutex
+	at   time.Time
+	stat *sqlc.AdminStorageStatsRow
+}
+
+func (s *Server) storage(ctx context.Context) *sqlc.AdminStorageStatsRow {
+	c := &s.storageCache
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stat == nil || s.now().Sub(c.at) > 30*time.Second {
+		if st, err := s.q.AdminStorageStats(ctx); err == nil {
+			c.stat, c.at = &st, s.now()
+		}
+	}
+	return c.stat
 }
 
 // T translates for the status partial (polled without a page).
 func (st *systemStatus) T(msg string, args ...any) string { return i18n.T(st.Lang, msg, args...) }
 
-func (s *Server) systemStatus(r *http.Request) *systemStatus {
+func (s *Server) systemStatus(r *http.Request, rc *reqCtx) *systemStatus {
 	ctx := r.Context()
-	st := &systemStatus{Time: s.now(), Lang: adminLang(r)}
+	st := &systemStatus{Time: s.now(), Lang: adminLang(r), CanWrite: roleAllows(rc.admin.Role, permAll), CSRF: s.csrf.Token(rc.sess.ID)}
 	for _, p := range queue.Priorities() {
 		st.Priorities = append(st.Priorities, p.String())
 	}
@@ -45,7 +89,9 @@ func (s *Server) systemStatus(r *http.Request) *systemStatus {
 	if st.Workers, err = s.queue.Workers(ctx, 10*time.Minute); err != nil && st.QueueError == "" {
 		st.QueueError = err.Error()
 	}
+	alive := map[string]bool{}
 	for _, w := range st.Workers {
+		alive[w.Name] = w.Alive
 		if w.Alive {
 			st.Alive++
 			st.Slots += len(w.Slots)
@@ -56,7 +102,44 @@ func (s *Server) systemStatus(r *http.Request) *systemStatus {
 			}
 		}
 	}
+	if fl, err := s.queue.InFlightJobs(ctx); err == nil {
+		for _, j := range fl {
+			v := inFlightJob{InFlight: j, Priority: j.Priority.String(), Worker: queue.WorkerOfConsumer(j.Consumer)}
+			v.Alive = alive[v.Worker]
+			v.Stuck = j.Idle > stuckAfter || !v.Alive
+			if v.Stuck {
+				st.Stuck++
+			}
+			st.InFlight = append(st.InFlight, v)
+		}
+		// Longest running first.
+		sort.SliceStable(st.InFlight, func(i, j int) bool { return st.InFlight[i].Idle > st.InFlight[j].Idle })
+	}
+	st.Host = s.host.Sample(s.dirs...)
+	st.Storage = s.storage(ctx)
 	return st
+}
+
+// handleJobRequeue takes an in-flight job back and queues it again.
+func (s *Server) handleJobRequeue(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	p, ok := queue.ParsePriority(r.FormValue("priority"))
+	id := r.FormValue("id")
+	if !ok || id == "" {
+		s.errorPage(w, r, rc, http.StatusBadRequest, "Invalid request.")
+		return
+	}
+	done, err := s.queue.RequeueByID(r.Context(), p, id)
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	rc.note("priority", p.String())
+	rc.note("job", id)
+	if !done {
+		s.done(w, r, "/system", "The job had already finished.")
+		return
+	}
+	s.done(w, r, "/system", "Job queued again.")
 }
 
 type dashboard struct {
@@ -80,7 +163,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request, rc *req
 	for _, c := range counts {
 		byID[c.ID] = c
 	}
-	d := &dashboard{Status: s.systemStatus(r)}
+	d := &dashboard{Status: s.systemStatus(r, rc)}
 	now := s.now()
 	for _, c := range list {
 		// Current and upcoming contests first; old ones are on /contests.
@@ -105,14 +188,25 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request, rc *req
 	s.render(w, "dashboard", http.StatusOK, s.newPage(w, r, rc, "Overview", "home", d))
 }
 
+type systemPage struct {
+	Status *systemStatus
+	Errors []sqlc.AdminListSystemErrorsRow
+}
+
 func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	s.render(w, "system", http.StatusOK, s.newPage(w, r, rc, "Workers and queues", "system", s.systemStatus(r)))
+	d := &systemPage{Status: s.systemStatus(r, rc)}
+	var err error
+	if d.Errors, err = s.q.AdminListSystemErrors(r.Context()); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	s.render(w, "system", http.StatusOK, s.newPage(w, r, rc, "Workers and queues", "system", d))
 }
 
 // handleSystemStatus is polled by the system page (htmx).
 func (s *Server) handleSystemStatus(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	w.Header().Set("Cache-Control", "no-store")
-	s.renderPartial(w, "system-status", s.systemStatus(r))
+	s.renderPartial(w, "system-status", s.systemStatus(r, rc))
 }
 
 func (s *Server) handleLanguages(w http.ResponseWriter, r *http.Request, rc *reqCtx) {

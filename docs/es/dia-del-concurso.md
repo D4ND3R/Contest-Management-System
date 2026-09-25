@@ -38,6 +38,9 @@ principal salvo que se indique otra cosa.
 
 **Qué vigilar**
 
+- **Workers y colas** también muestra CPU, memoria y disco libre de este
+  servidor y de la máquina de cada worker, y el tamaño del almacén de blobs
+  y de la base de datos: vigila el disco libre.
 - **Workers y colas**: todos los workers activos; los trabajos en espera
   deberían vaciarse en segundos. Una cola que no deja de crecer significa
   falta de capacidad de evaluación (agrega un worker, ver [workers
@@ -82,6 +85,7 @@ principal salvo que se indique otra cosa.
 | Síntoma | Qué pasa | Qué hacer |
 |---------|----------|-----------|
 | Un worker se cae o su máquina muere | Tras 10 s sin latido sus trabajos vuelven a la cola y otros workers los toman. | Reinícialo (`systemctl restart cms-worker`); no hay nada que rehacer. |
+| Un trabajo parece trabado (marcado *¿trabado?* en **Workers y colas**: más de 2 minutos en curso o en un worker caído) | El monitor lo reencola solo tras el tiempo límite del trabajo (10 minutos) o 10 s después de que se detenga el latido del worker. | No esperes: **reencolar** se lo quita y lo vuelve a encolar al instante. |
 | Un trabajo falla 3 veces | El envío muestra "la evaluación falló"; aparece una alerta. | Lee la alerta (suele ser un checker o un compilador faltante), corrige y **Reevalúa** ese envío. |
 | Un servicio web se cae | systemd lo reinicia en 2 s; las sesiones sobreviven. | Revisa `journalctl -u cms-contest-web`. |
 | El VPS se reinicia | Todo arranca solo; Valkey conserva las colas (archivo append-only) y PostgreSQL los datos; el dispatcher reenvía lo que estaba en curso. | Revisa **Workers y colas** y un envío. El reloj del concurso no se detiene: extiende el tiempo si el corte fue largo. |
