@@ -49,3 +49,11 @@ UPDATE contests SET ranking_unfrozen = $2, updated_at = now() WHERE id = $1;
 
 -- name: DeleteContest :exec
 DELETE FROM contests WHERE id = $1;
+
+-- name: ExtendContest :exec
+-- Moves the end (and each per-user window) by some minutes.
+UPDATE contests SET
+    stop_time = stop_time + (sqlc.arg(minutes)::integer * interval '1 minute'),
+    per_user_time_s = per_user_time_s + (sqlc.arg(minutes)::integer * 60),
+    updated_at = now()
+WHERE id = sqlc.arg(id)::bigint;

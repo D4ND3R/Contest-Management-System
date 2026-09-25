@@ -142,7 +142,7 @@ func (c *cache) load(ctx context.Context, name string) (*contestView, error) {
 		cv.Loc = time.UTC
 	}
 	cv.Rules = contest.Rules{Start: ct.StartTime, Stop: ct.StopTime, AnalysisEnabled: ct.AnalysisEnabled,
-		AnalysisStart: ct.AnalysisStart, AnalysisStop: ct.AnalysisStop}
+		AnalysisStart: ct.AnalysisStart, AnalysisStop: ct.AnalysisStop, Practice: ct.PracticeEnabled}
 	if ct.PerUserTimeS != nil {
 		cv.Rules.PerUserTime = time.Duration(*ct.PerUserTimeS) * time.Second
 	}

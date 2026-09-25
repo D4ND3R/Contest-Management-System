@@ -167,6 +167,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{contest}/submissions/{id}/file/{name}", auth(s.handleSubmissionFile))
 	mux.HandleFunc("GET /{contest}/documentation", auth(s.handleDocumentation))
 	mux.HandleFunc("GET /{contest}/events", auth(s.handleEvents))
+	mux.HandleFunc("GET /{contest}/clock", auth(s.handleClock))
 	s.registerExtra(mux, auth)
 
 	var h http.Handler = top
@@ -203,6 +204,9 @@ func (s *Server) onEvent(e events.Event) {
 		if e.ParticipationID != 0 {
 			s.cache.invalidateParticipation(e.ParticipationID)
 		}
+		// Times may have changed (an extension, extra time): open pages ask
+		// for their clock again.
+		s.hub.publish(events.Event{Type: "clock", ContestID: e.ContestID, ParticipationID: e.ParticipationID})
 		return
 	case events.TypeAlert, events.TypeQuestionNew:
 		return // for admins only

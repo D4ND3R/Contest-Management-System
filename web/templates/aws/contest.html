@@ -74,6 +74,7 @@
   <label><input type="checkbox" name="analysis_enabled" {{if $c.AnalysisEnabled}}checked{{end}}> {{.T "Analysis mode"}}</label>
   <label>{{.T "from"}} <input type="datetime-local" step="1" name="analysis_start" value="{{local $c.AnalysisStart $c.Timezone}}"></label>
   <label>{{.T "to"}} <input type="datetime-local" step="1" name="analysis_stop" value="{{local $c.AnalysisStop $c.Timezone}}"></label>
+  <label><input type="checkbox" name="practice_enabled" {{if $c.PracticeEnabled}}checked{{end}}> {{.T "Practice after the contest (unofficial submissions, no end)"}}</label>
 </p>
 </fieldset>
 <fieldset><legend>{{.T "Languages"}}</legend>
@@ -143,6 +144,15 @@
 </form>
 
 {{if and (not .Data.New) .CanWrite}}
+<section class="card">
+<h2>{{.T "Extend the contest"}}</h2>
+<form method="post" action="/contests/{{$c.ID}}/extend" class="inline-form" data-confirm="{{.T "Change the end of the contest for everybody now?"}}">
+  {{template "csrf" .CSRF}}
+  <label>{{.T "Minutes"}} <input name="minutes" value="10" inputmode="numeric" size="4"></label>
+  <button>{{.T "Extend"}}</button>
+</form>
+<p class="muted small">{{.T "Moves the end (and each contestant's window with per-user time) at once; open contest pages update their clocks. A negative number shortens it. For one contestant, give extra time on the participation instead."}}</p>
+</section>
 <section class="card">
 <h2>{{.T "Copy this contest"}}</h2>
 <p class="muted small">{{.T "The copy is a draft with the same settings, sites and tasks (statements, attachments, datasets, testcases); it has no submissions. Task names get a suffix because they are unique."}}</p>

@@ -175,6 +175,7 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 	if c.AnalysisStart != nil && c.AnalysisStop != nil && c.AnalysisStop.Before(*c.AnalysisStart) {
 		f.fail("the analysis ends before it starts")
 	}
+	c.PracticeEnabled = f.check("practice_enabled")
 	c.SubmissionsDownloadAllowed = f.check("submissions_download_allowed")
 	c.AllowQuestions = f.check("allow_questions")
 	if f.str("questions_per_minute") != "" {
@@ -427,4 +428,36 @@ func (s *Server) loadContest(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 		return c, false
 	}
 	return c, true
+}
+
+// handleContestExtend moves the end of the contest (and, with per-user
+// time, every contestant's window) by a number of minutes, live: open
+// contest pages update their clocks.
+func (s *Server) handleContestExtend(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	c, ok := s.loadContest(w, r, rc)
+	if !ok {
+		return
+	}
+	f := newForm(r)
+	minutes := f.int32("minutes", "Minutes", 0)
+	if f.err == nil && (minutes == 0 || minutes < -600 || minutes > 600) {
+		f.fail("give a number of minutes between -600 and 600 (not 0)")
+	}
+	if f.err == nil && c.StopTime.Add(time.Duration(minutes)*time.Minute).Before(c.StartTime) {
+		f.fail("the contest ends before it starts")
+	}
+	if f.err == nil && c.PerUserTimeS != nil && *c.PerUserTimeS+int64(minutes)*60 <= 0 {
+		f.fail("the per-user time would not be positive")
+	}
+	if f.err != nil {
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, f.err.Error())
+		return
+	}
+	if err := s.q.ExtendContest(r.Context(), sqlc.ExtendContestParams{ID: c.ID, Minutes: minutes}); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	rc.target("contest", c.ID)
+	s.contestChanged(r.Context(), c.ID, 0)
+	s.done(w, r, "/contests/"+strconv.FormatInt(c.ID, 10), "End of the contest moved by %d minutes; contestants' clocks are updated.", minutes)
 }

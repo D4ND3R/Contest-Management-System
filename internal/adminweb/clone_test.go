@@ -108,3 +108,35 @@ WHERE p.contest_id = $1 AND p.user_id = $2 AND s.contest_id = $1`, nc.ID, f.user
 		t.Fatalf("duplicate contest name = %d", code)
 	}
 }
+
+// TestContestExtend (SPEC_CLOSE B2): the end moves for everybody (and the
+// per-user window too); bad amounts are refused; practice is a setting.
+func TestContestExtend(t *testing.T) {
+	f := newFixture(t)
+	a := f.login("all")
+	path := fmt.Sprintf("/contests/%d/extend", f.contest.ID)
+	f.pool.Exec(bg, "UPDATE contests SET per_user_time_s = 3600 WHERE id = $1", f.contest.ID)
+	if code, body := a.Post(path, url.Values{"minutes": {"15"}}); code != 200 || !strings.Contains(body, "moved by 15 minutes") {
+		t.Fatalf("extend = %d\n%s", code, body)
+	}
+	c, _ := f.q.GetContest(bg, f.contest.ID)
+	if got := c.StopTime.Sub(f.contest.StopTime); got.Minutes() != 15 || *c.PerUserTimeS != 3600+15*60 {
+		t.Fatalf("stop moved by %v, per-user time %d", got, *c.PerUserTimeS)
+	}
+	for _, bad := range []string{"0", "x", "601", "-100000"} {
+		if code, _ := a.Post(path, url.Values{"minutes": {bad}}); code != 422 {
+			t.Errorf("minutes=%s: %d", bad, code)
+		}
+	}
+	if code, _ := f.login("read_only").Post(path, url.Values{"minutes": {"5"}}); code != http.StatusForbidden {
+		t.Fatalf("read-only extend = %d", code)
+	}
+	rows, _ := f.q.ListAuditLog(bg, sqlc.ListAuditLogParams{Limit: 20})
+	found := false
+	for _, r := range rows {
+		found = found || r.Action == "contest.extend"
+	}
+	if !found {
+		t.Error("extension not audited")
+	}
+}

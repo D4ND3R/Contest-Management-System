@@ -76,6 +76,19 @@
       });
     });
     es.addEventListener("reload", function () { location.reload(); });
+    // The organizers changed the times: fetch this contestant's window
+    // (spread over two seconds so thousands of pages do not ask at once).
+    es.addEventListener("clock", function () {
+      setTimeout(function () {
+        fetch(meta("cms-clock"), { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (c) {
+          if (c.phase !== meta("cms-phase")) { location.reload(); return; }
+          document.querySelectorAll("[data-countdown]").forEach(function (el) {
+            el.dataset.countdown = String(c.end);
+            delete el.dataset.done;
+          });
+        }).catch(function () { /* next event */ });
+      }, Math.random() * 2000);
+    });
   }
 
   function countdowns() {

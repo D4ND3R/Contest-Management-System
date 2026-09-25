@@ -464,3 +464,16 @@ announcements and tester runs never travel. `db.TestRowToUpdateCopiesEveryField`
 guards the other direction: every column an update query sets is copied
 from the row by the `*ToUpdate` helpers, so edit forms cannot reset a
 column they do not show.
+
+## D52. Live time changes reach open pages as a "clock" event
+Every contest change already publishes a `contest` event (cache
+invalidation). The contest web server now also forwards a `clock` event to
+the open pages of that contest (or participation); each page fetches
+`/<contest>/clock` — its own window, since extra time, delays, sites and
+per-user time differ per contestant — after a random delay of up to two
+seconds so thousands of pages do not hit the server at once, then updates
+its countdown in place, or reloads when the phase changed (e.g. an
+extension reopened a finished contest). Nothing a contestant was typing is
+lost by a mere extension. "Extend the contest" moves `stop_time` and the
+per-user duration in one UPDATE; analysis windows are left alone (analysis
+only starts once the contestant's window is over).

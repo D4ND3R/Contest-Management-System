@@ -567,3 +567,13 @@ optionally the participants, never submissions. Programming languages,
 interface languages and the timezone were already per contest; tests now
 cover them. Tests: adminweb.TestContestClone, contestweb.TestContestStatus,
 db.TestRowToUpdateCopiesEveryField.
+
+## SPEC_CLOSE B2 — Schedule (done)
+Skipping skills: immersive-web-design, master skill.
+
+Practice (upsolving) after the contest: unofficial submissions with no end.
+"Extend the contest" (± minutes, audited) moves the end and every per-user
+window; open contest pages receive a `clock` event and update their
+countdown without reloading. Per-user windows with Start, analysis mode and
+the countdown were already in place. Tests: contestweb.TestPracticeMode,
+contestweb.TestClockFollowsExtension, adminweb.TestContestExtend.

@@ -9,6 +9,7 @@
 <meta name="server-time" content="{{.ServerTime}}">
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0}'>
 {{with .EventsURL}}<meta name="cms-events" content="{{.}}">{{end}}
+{{if .Contest}}<meta name="cms-clock" content="/{{.Contest.Name}}/clock"><meta name="cms-phase" content="{{.Status.Phase}}">{{end}}
 <script src="{{static "htmx.min.js"}}" defer></script>
 <script src="{{static "app.js"}}" defer></script>
 </head>

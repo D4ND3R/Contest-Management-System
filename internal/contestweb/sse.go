@@ -1,11 +1,13 @@
 package contestweb
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/contest"
 	"github.com/D4ND3R/Contest-Management-System/internal/events"
 	"github.com/D4ND3R/Contest-Management-System/internal/metrics"
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
@@ -91,4 +93,16 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request, rc *reqCtx
 	s.hub.add(c)
 	defer s.hub.remove(c)
 	webkit.ServeSSE(w, r, c.ch, 25*time.Second, 3*time.Second)
+}
+
+// handleClock tells an open page the contestant's current window, after
+// a "clock" event (the organizers changed the times).
+func (s *Server) handleClock(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	var end int64
+	if rc.status.Phase == contest.Running {
+		end = rc.status.End.UnixMilli()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	fmt.Fprintf(w, `{"phase":%q,"end":%d,"server":%d}`, rc.status.Phase.String(), end, rc.now.UnixMilli())
 }

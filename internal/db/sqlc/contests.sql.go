@@ -184,6 +184,25 @@ func (q *Queries) DeleteContest(ctx context.Context, id int64) error {
 	return err
 }
 
+const extendContest = `-- name: ExtendContest :exec
+UPDATE contests SET
+    stop_time = stop_time + ($1::integer * interval '1 minute'),
+    per_user_time_s = per_user_time_s + ($1::integer * 60),
+    updated_at = now()
+WHERE id = $2::bigint
+`
+
+type ExtendContestParams struct {
+	Minutes int32 `json:"minutes"`
+	ID      int64 `json:"id"`
+}
+
+// Moves the end (and each per-user window) by some minutes.
+func (q *Queries) ExtendContest(ctx context.Context, arg ExtendContestParams) error {
+	_, err := q.db.Exec(ctx, extendContest, arg.Minutes, arg.ID)
+	return err
+}
+
 const getContest = `-- name: GetContest :one
 SELECT id, name, description, allowed_localizations, languages, submissions_download_allowed, allow_questions, allow_user_tests, allow_printing, block_hidden_participations, allow_password_authentication, ip_restriction, ip_autologin, single_login, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, start_time, stop_time, analysis_enabled, analysis_start, analysis_stop, timezone, per_user_time_s, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, score_precision, scoring_mode, icpc_penalty_minutes, ranking_freeze_time, ranking_unfrozen, max_print_jobs, max_print_pages, created_at, updated_at, team_mode, max_team_size, questions_per_minute, ranking_visibility, ranking_contestant_view, ranking_when, ranking_freeze_minutes, ranking_show_subtasks, ranking_show_flags, ranking_show_institutions, ranking_show_hidden, ranking_anonymous, status, practice_enabled, default_score_mode, score_visibility, show_compilation_output, max_submission_bytes, registration, invitation_code, password_min_length, session_minutes FROM contests WHERE id = $1
 `

@@ -72,6 +72,17 @@ var esClose = map[string]string{
 	"the task name suffix may only have letters, digits, '_', '.' and '-'": "el sufijo de los problemas solo puede tener letras, dígitos, '_', '.' y '-'",
 	"The name is already taken:":                                           "El nombre ya está en uso:",
 	"This contest is archived: you can look at it but not submit.":         "Este concurso está archivado: puedes verlo pero no enviar.",
+
+	// B2: schedule.
+	"Practice after the contest (unofficial submissions, no end)": "Práctica después del concurso (envíos no oficiales, sin fin)",
+	"Extend the contest": "Extender el concurso",
+	"Change the end of the contest for everybody now?": "¿Cambiar ahora el fin del concurso para todos?",
+	"Minutes": "Minutos",
+	"Extend":  "Extender",
+	"Moves the end (and each contestant's window with per-user time) at once; open contest pages update their clocks. A negative number shortens it. For one contestant, give extra time on the participation instead.": "Mueve el fin (y la ventana de cada concursante con tiempo por usuario) al instante; las páginas abiertas del concurso actualizan su reloj. Un número negativo lo acorta. Para un solo concursante, da tiempo extra en su participación.",
+	"give a number of minutes between -600 and 600 (not 0)":                    "indica una cantidad de minutos entre -600 y 600 (distinta de 0)",
+	"the per-user time would not be positive":                                  "el tiempo por usuario no sería positivo",
+	"End of the contest moved by %d minutes; contestants' clocks are updated.": "Fin del concurso movido %d minutos; los relojes de los concursantes se actualizaron.",
 }
 
 func init() {
