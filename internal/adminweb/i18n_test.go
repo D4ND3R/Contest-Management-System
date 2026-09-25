@@ -2,6 +2,7 @@ package adminweb
 
 import (
 	"fmt"
+	"github.com/D4ND3R/Contest-Management-System/internal/backup"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -106,6 +107,7 @@ func TestDynamicKeysTranslated(t *testing.T) {
 		"the points must be a non-negative number", "the number of testcases must be a positive integer", // score editor
 		"choose at least one testcase", "write a regular expression", "the threshold must be a number", "GroupThreshold needs a threshold",
 		"public", "contestants", "admins", "hidden", // ranking visibility
+		backup.KindScheduled, backup.KindManual, backup.KindCLI, "external", "Kind", "done", "failed", // backups
 		"Bad Request", "Unauthorized", "Forbidden", "Not Found", "Method Not Allowed", "Conflict",
 		"Request Entity Too Large", "Unprocessable Entity", "Too Many Requests", "Internal Server Error"}
 	for _, v := range problempkg.Verdicts {
@@ -156,6 +158,7 @@ func TestAdminInSpanish(t *testing.T) {
 		"/users/" + id(f.user.ID):       {"Participaciones", "Sesiones"},
 		"/system":                       {"Workers y colas", "workers activos"},
 		"/contests/" + id(f.contest.ID) + "/stats": {"puntaje completo"},
+		"/backups": {"Respaldar ahora", "Rotación", "Todavía no hay respaldos."},
 	} {
 		code, body := b.Get(path)
 		webtest.MustOK(t, path, code, body)

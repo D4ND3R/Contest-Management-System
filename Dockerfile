@@ -35,7 +35,8 @@ RUN git clone --depth 1 --branch ${ISOLATE_VERSION} https://github.com/ioi/isola
 FROM debian:trixie-slim AS cms
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata cups-client \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --home /var/lib/cms --create-home cms
+    && useradd --system --home /var/lib/cms --create-home cms \
+    && install -d -o cms -g cms /var/lib/cms/ranking /var/lib/cms/backups
 COPY --from=build /out/cms /out/cmsctl /usr/local/bin/
 COPY config/languages /etc/cms/languages
 COPY deploy/docker/cms.yaml /etc/cms/cms.yaml

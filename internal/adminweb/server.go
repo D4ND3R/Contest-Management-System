@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/D4ND3R/Contest-Management-System/internal/backup"
 	"html/template"
 	"io/fs"
 	"log/slog"
@@ -61,8 +62,10 @@ type Server struct {
 	contestListen string
 	// rankingURL is the public address of the ranking web server (links).
 	rankingURL string
-	checks     []httpx.Check
-	now        func() time.Time
+	// backups takes and lists backups (nil: not configured).
+	backups *backup.Runner
+	checks  []httpx.Check
+	now     func() time.Time
 	// MaxUploadBytes bounds multipart requests (testcase archives).
 	maxUpload int64
 }
@@ -81,6 +84,8 @@ type Deps struct {
 	ContestListen string
 	// RankingURL is the public address of the ranking web server.
 	RankingURL string
+	// Backups takes the backups ("Back up now") and lists them.
+	Backups *backup.Runner
 }
 
 // New builds a server.
@@ -100,7 +105,7 @@ func New(cfg config.AdminWeb, d Deps, log *slog.Logger) (*Server, error) {
 		signer: webkit.NewSigner(d.Secret, "aws-session"), flash: webkit.NewSigner(d.Secret, "aws-flash"),
 		ips: ips, limiter: webkit.NewLimiter(d.Redis, d.NS), admins: &adminCache{q: q, m: map[int64]adminEntry{}},
 		hub: &adminHub{clients: map[chan []byte]struct{}{}}, checks: d.Checks, now: time.Now,
-		sessions: webkit.NewSessionTracker(d.Redis, d.NS), secret: d.Secret, contestListen: d.ContestListen, rankingURL: d.RankingURL,
+		sessions: webkit.NewSessionTracker(d.Redis, d.NS), secret: d.Secret, contestListen: d.ContestListen, rankingURL: d.RankingURL, backups: d.Backups,
 		maxUpload: 1 << 30,
 	}
 	if err := s.loadTemplates(); err != nil {
@@ -258,6 +263,10 @@ func (s *Server) Handler() http.Handler {
 	post("/testcases/{id}/delete", permAll, "testcase.delete", s.handleTestcaseDelete)
 	get("/testcases/{id}/{which}", s.handleTestcaseDownload)
 
+	get("/backups", s.handleBackups)
+	post("/backups", permAll, "backup.create", s.handleBackupCreate)
+	route("GET /backups/{name}/download", permAll, "", s.handleBackupDownload)
+	post("/backups/{name}/delete", permAll, "backup.delete", s.handleBackupDelete)
 	get("/submissions/diff", s.handleSubmissionDiff)
 	get("/submissions/{id}", s.handleSubmission)
 	get("/submissions/{id}/files/{name}", s.handleSubmissionFile)

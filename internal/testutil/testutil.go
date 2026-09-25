@@ -166,6 +166,39 @@ func DBWithURL(t testing.TB) (*pgxpool.Pool, string) {
 	return pool, dbURL
 }
 
+// EmptyDB returns a pool and URL for a fresh database without any
+// migration applied (restore targets); it is dropped when the test ends.
+func EmptyDB(t testing.TB) (*pgxpool.Pool, string) {
+	t.Helper()
+	base := requireEnv(t, "CMS_TEST_DATABASE_URL")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	admin, err := pgx.Connect(ctx, base)
+	if err != nil {
+		t.Fatalf("connect admin database: %v", err)
+	}
+	defer admin.Close(context.Background())
+	name := "cms_e_" + RandomID()
+	if _, err := admin.Exec(ctx, "CREATE DATABASE "+name+" TEMPLATE template0"); err != nil {
+		t.Fatalf("create empty database: %v", err)
+	}
+	dbURL := withDatabase(base, name)
+	pool, err := db.Open(ctx, dbURL, 16)
+	if err != nil {
+		t.Fatalf("open empty database: %v", err)
+	}
+	t.Cleanup(func() {
+		pool.Close()
+		c, err := pgx.Connect(context.Background(), base)
+		if err != nil {
+			return
+		}
+		defer c.Close(context.Background())
+		_, _ = c.Exec(context.Background(), "DROP DATABASE IF EXISTS "+name+" WITH (FORCE)")
+	})
+	return pool, dbURL
+}
+
 // Redis returns a client and a unique key namespace (ending in ":"); every
 // key under the namespace is deleted when the test ends.
 func Redis(t testing.TB) (*redis.Client, string) {

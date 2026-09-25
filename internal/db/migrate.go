@@ -61,6 +61,12 @@ func Migrations() ([]Migration, error) {
 
 // Migrate applies every pending migration and returns the names applied.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+	return MigrateTo(ctx, pool, int(^uint(0)>>1))
+}
+
+// MigrateTo applies the pending migrations up to version last (a restore
+// loads data into the schema the backup was taken with, then migrates on).
+func MigrateTo(ctx context.Context, pool *pgxpool.Pool, last int) ([]string, error) {
 	migs, err := Migrations()
 	if err != nil {
 		return nil, err
@@ -94,7 +100,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	}
 	var done []string
 	for _, m := range migs {
-		if applied[m.Version] {
+		if applied[m.Version] || m.Version > last {
 			continue
 		}
 		err := pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {

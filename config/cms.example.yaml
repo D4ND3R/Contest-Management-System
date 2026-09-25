@@ -95,3 +95,21 @@ printing:
   lp_path: lp
   max_pages: 10
   paper_size: A4
+
+# Backups (database + blobs in one verifiable file). The admin web server
+# takes the scheduled ones and the "Back up now" ones; "cmsctl dump" and
+# "cmsctl restore" work from the command line.
+backup:
+  dir: /var/lib/cms/backups
+  interval: 24h              # when no contest is running (0 = off)
+  contest_interval: 15m      # from 30 min before a contest to 30 min after (0 = off)
+  keep: 48                   # scheduled backups kept
+  max_rate: 32MiB            # read throttle per second (0 = unlimited)
+  s3:                        # optional off-site copy
+    endpoint: ""
+    bucket: ""
+    access_key: ""
+    secret_key: ""
+    region: ""
+    use_ssl: true
+    prefix: "backups/"

@@ -21,3 +21,4 @@ worker:
   cache_dir: /var/cache/cms/testcases
 monitor: {metrics_listen: ":9103"}
 printing: {metrics_listen: ":9104"}
+backup: {dir: /var/lib/cms/backups}

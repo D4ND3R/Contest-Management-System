@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/D4ND3R/Contest-Management-System/internal/backup"
+	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 	"io"
 	"net"
 	"net/http"
@@ -48,6 +50,7 @@ type fixture struct {
 	team    sqlc.Team
 	rdb     *redis.Client
 	ns      string
+	backups *backup.Runner
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -74,8 +77,12 @@ func newFixture(t *testing.T) *fixture {
 	f.seed()
 	cfg := config.Default().AdminWeb
 	cfg.LoginRateLimit = 1000
+	bcfg := config.Default().Backup
+	bcfg.Dir, bcfg.MaxRate = t.TempDir(), 0
+	f.backups = backup.NewRunner(pool, store, bcfg, queue.New(rdb, ns), nil, logging.Discard())
+	t.Cleanup(f.backups.Wait)
 	srv, err := New(cfg, Deps{Pool: pool, Redis: rdb, Blobs: blob.NewTracked(store, f.q), Langs: reg,
-		Secret: bytes.Repeat([]byte("a"), 32), NS: ns, RankingURL: "https://ranking.example.org"}, logging.Discard())
+		Secret: bytes.Repeat([]byte("a"), 32), NS: ns, RankingURL: "https://ranking.example.org", Backups: f.backups}, logging.Discard())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,6 +276,7 @@ func TestEveryPageRenders(t *testing.T) {
 		"/submissions/diff?a=" + id(f.subs[0]) + "&b=" + id(f.subs[1]),
 		"/users", "/users?q=an", "/users/new", "/users/" + u, "/teams", "/teams/" + id(f.team.ID),
 		"/admins", "/admins/" + id(f.admins["read_only"].ID), "/system", "/system/status", "/languages", "/audit",
+		"/backups", "/backups?fragment=1",
 	}
 	for _, p := range pages {
 		code, body := b.Get(p)

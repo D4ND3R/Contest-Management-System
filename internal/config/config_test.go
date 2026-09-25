@@ -126,3 +126,15 @@ func TestSecretGeneratedWhenMissing(t *testing.T) {
 		t.Fatal("secret must be stable once generated")
 	}
 }
+
+// TestExampleConfigLoads keeps config/cms.example.yaml in sync with the
+// configuration structs (unknown fields are rejected).
+func TestExampleConfigLoads(t *testing.T) {
+	cfg, err := Load(filepath.Join("..", "..", "config", "cms.example.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Backup.ContestInterval.D() != 15*time.Minute || cfg.Backup.Keep != 48 || cfg.Backup.MaxRate != 32<<20 || cfg.Backup.S3.Enabled() {
+		t.Fatalf("backup section %+v", cfg.Backup)
+	}
+}

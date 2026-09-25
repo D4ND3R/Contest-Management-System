@@ -371,3 +371,33 @@ and pushes the ranking update through the usual path, taking about as long
 as a normal scoring. Invalidated submissions still count toward submission
 limits and intervals, like in CMS (they were really submitted); tester runs
 cannot be invalidated.
+
+## D48. Backups: one self-verifying file, taken by the admin web server
+A backup is a zstd tar with a JSON header, each table's `COPY` text output
+(in 8 MiB members, since tar needs sizes up front and the memory must stay
+bounded), the sequences, every registered blob named by its SHA-256, and a
+manifest with the SHA-256 of every other member, written last. Why not
+`pg_dump`: it is not always installed next to the services, its version
+must match the server, and it knows nothing about the blob store; one
+format carrying both, readable by our own binary, makes "restore on a fresh
+VPS" a single command. The database is read in one REPEATABLE READ
+snapshot; blobs (immutable) are streamed afterwards so the snapshot is
+short. A restore migrates the target to the backup's migration, drops the
+foreign keys, loads every table in one transaction while the blobs go to
+the store (Put re-hashes them), checks the manifest, restores sequences and
+foreign keys (which validates the data), commits, then applies newer
+migrations — so a backup from an older CMS restores into a newer one, and a
+damaged file never commits anything. Blob uploads are left outside the
+transaction: they are content-addressed, so a failed restore leaves only
+unreferenced files that the blob GC removes.
+
+Scheduled and on-demand backups run inside the admin web server (always
+running during a contest; the button needs it anyway) under a Redis lease,
+at most one at a time. The list lives in the backup directory (a JSON file
+next to each archive), not in the database, so it stays true after a
+restore and shows archives copied in by hand. To protect the 1-core web
+tier, reads are throttled (`backup.max_rate`, 32 MiB/s by default: 1 GiB in
+~30 s) and compression uses zstd's fastest level on one goroutine; the
+throttle also back-pressures PostgreSQL's COPY. Restoring is deliberately
+CLI-only: it needs every service stopped. Rotation applies to scheduled
+backups only; manual ones are kept until someone deletes them.

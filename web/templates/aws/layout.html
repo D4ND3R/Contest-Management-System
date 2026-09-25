@@ -25,6 +25,7 @@
     <a href="/questions" {{if eq .Active "questions"}}class="active"{{end}}>{{.T "Questions"}} {{template "question-count" .}}</a>
     {{template "nav-extra" .}}
     <a href="/system" {{if eq .Active "system"}}class="active"{{end}}>{{.T "Workers & queues"}}</a>
+    <a href="/backups" {{if eq .Active "backups"}}class="active"{{end}}>{{.T "Backups"}}</a>
     <a href="/admins" {{if eq .Active "admins"}}class="active"{{end}}>{{.T "Admins"}}</a>
     <a href="/audit">{{.T "Audit log"}}</a>
   </nav>

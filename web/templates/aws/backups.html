@@ -1,0 +1,18 @@
+{{define "content"}}{{$v := .Data}}
+<h1>{{.T "Backups"}}</h1>
+{{if not $v.Enabled}}<p class="alert">{{.T "Backups are not configured."}}</p>{{else}}
+<section class="card">
+<p>{{.T "Each backup holds the whole database and every file (statements, testcases, submissions) in a single file whose hashes are checked when it is restored."}}</p>
+<dl class="meta">
+  <dt>{{.T "Folder"}}</dt><dd><code>{{$v.Dir}}</code></dd>
+  <dt>{{.T "During contests"}}</dt><dd>{{with $v.ContestInterval}}{{$.T "every %s" .}}{{else}}{{$.T "no scheduled backups"}}{{end}}</dd>
+  <dt>{{.T "Otherwise"}}</dt><dd>{{with $v.Interval}}{{$.T "every %s" .}}{{else}}{{$.T "no scheduled backups"}}{{end}}</dd>
+  <dt>{{.T "Rotation"}}</dt><dd>{{.T "the newest %d scheduled backups are kept; manual ones stay until deleted" $v.Keep}}</dd>
+  <dt>{{.T "Off-site copy"}}</dt><dd>{{if $v.S3}}S3{{else}}{{.T "not configured (backup.s3)"}}{{end}}</dd>
+</dl>
+{{if .CanWrite}}<form method="post" action="/backups">{{template "csrf" .CSRF}}<button>{{.T "Back up now"}}</button></form>{{end}}
+<p class="muted small">{{.T "To restore one, stop every CMS service and run: cmsctl restore <file> (the operations guide has the details)."}}</p>
+</section>
+{{template "backup-list" (part . $v)}}
+{{end}}
+{{end}}

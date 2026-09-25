@@ -2,17 +2,19 @@ package cli
 
 import (
 	"context"
-	"github.com/D4ND3R/Contest-Management-System/internal/adminweb"
+	"encoding/json"
 	"log/slog"
 	"time"
 
-	"encoding/json"
+	"github.com/D4ND3R/Contest-Management-System/internal/adminweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/app"
+	"github.com/D4ND3R/Contest-Management-System/internal/backup"
 	"github.com/D4ND3R/Contest-Management-System/internal/config"
 	"github.com/D4ND3R/Contest-Management-System/internal/contestweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/deps"
 	"github.com/D4ND3R/Contest-Management-System/internal/dispatcher"
+	"github.com/D4ND3R/Contest-Management-System/internal/events"
 	"github.com/D4ND3R/Contest-Management-System/internal/httpx"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/monitor"
@@ -96,14 +98,27 @@ func runAdminWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) erro
 	if err != nil {
 		return err
 	}
+	// Backups (scheduled and "Back up now") run here, one at a time across
+	// admin servers thanks to a Redis lease.
+	remote, err := backup.NewS3Remote(cfg.Backup.S3)
+	if err != nil {
+		return err
+	}
+	backups := backup.NewRunner(d.DB, d.Blobs, cfg.Backup, queue.New(d.Redis, cfg.Redis.Namespace), remote, log)
+	backups.Alert = func(ctx context.Context, msg string) {
+		_ = events.Publish(ctx, d.Redis, cfg.Redis.Namespace, events.Event{Type: events.TypeAlert, Text: msg})
+	}
 	srv, err := adminweb.New(cfg.AdminWeb, adminweb.Deps{
 		Pool: d.DB, Redis: d.Redis, Blobs: d.Blobs, Langs: reg, Secret: cfg.Secret(), NS: cfg.Redis.Namespace, Checks: d.Checks(),
-		ContestListen: cfg.ContestWeb.Listen, RankingURL: cfg.RankingWeb.PublicURL,
+		ContestListen: cfg.ContestWeb.Listen, RankingURL: cfg.RankingWeb.PublicURL, Backups: backups,
 	}, log)
 	if err != nil {
 		return err
 	}
-	return srv.Run(ctx, cfg.AdminWeb.Listen, nil)
+	g, ctx := app.NewGroup(ctx)
+	g.Go(backups.Run)
+	g.Go(func(ctx context.Context) error { return srv.Run(ctx, cfg.AdminWeb.Listen, nil) })
+	return g.Wait()
 }
 
 func runDispatcher(ctx context.Context, cfg *config.Config, log *slog.Logger) error {

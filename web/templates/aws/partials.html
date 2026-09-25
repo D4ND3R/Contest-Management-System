@@ -199,3 +199,31 @@
   {{end}}
 </article>
 {{end}}
+
+{{define "backup-list"}}{{$v := .V}}
+<div id="backup-list" {{if $v.Running}}hx-get="/backups?fragment=1" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+{{with $v.Running}}<p class="info">{{$.T "Backup in progress (%s, started %s ago): %s read." ($.T .Kind) (since .Started) (bytes .Bytes)}}</p>{{end}}
+{{with $v.Error}}<p class="alert">{{.}}</p>{{end}}
+<table>
+<thead><tr><th>{{.T "Time (UTC)"}}</th><th>{{.T "Kind"}}</th><th>{{.T "Status"}}</th><th class="num">{{.T "Size"}}</th><th class="num">{{.T "Files"}}</th><th>{{.T "Took"}}</th><th>S3</th><th>SHA-256</th><th></th></tr></thead>
+<tbody>
+{{range $v.Entries}}
+<tr>
+  <td>{{dt .Started}}</td>
+  <td>{{$.T .Kind}}{{with .By}} <small class="muted">({{.}})</small>{{end}}</td>
+  <td>{{if eq .Status "done"}}<span class="ok">{{$.T "done"}}</span>{{if .Missing}} <span class="warn" title="{{$.T "registered but missing from the store when the backup was taken"}}">{{$.T "%d files missing" .Missing}}</span>{{end}}{{else}}<span class="bad">{{$.T "failed"}}</span> <small>{{.Error}}</small>{{end}}</td>
+  <td class="num">{{if .Size}}{{bytes .Size}}{{end}}</td>
+  <td class="num">{{if eq .Status "done"}}{{.Blobs}}{{end}}</td>
+  <td>{{if eq .Status "done"}}{{.Duration}}{{end}}</td>
+  <td>{{if .Remote}}<span class="ok">✓</span>{{else if .RemoteError}}<span class="bad" title="{{.RemoteError}}">✗</span>{{end}}</td>
+  <td><code class="small" title="{{.SHA256}}">{{if .SHA256}}{{slice .SHA256 0 12}}…{{end}}</code></td>
+  <td>{{if and $.P.CanWrite (eq .Status "done")}}<a href="/backups/{{.Name}}/download">{{$.T "download"}}</a>{{end}}
+    {{if $.P.CanWrite}}<form method="post" action="/backups/{{.Name}}/delete" class="inline" data-confirm="{{$.T "Delete this backup for good?"}}">{{template "csrf" $.P.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td>
+</tr>
+{{else}}
+<tr><td colspan="9" class="muted">{{.T "No backups yet."}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{end}}

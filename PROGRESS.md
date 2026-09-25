@@ -498,3 +498,21 @@ list and the reason on the submission page; the admin list tags it too.
 Tests: dispatcher.TestInvalidatedSubmissionsDoNotCount (score and ICPC
 attempts go and come back), e2e.TestInvalidateSubmissionFromAdminUI
 (through both web servers with a real judge, audit rows).
+
+## SPEC_CLOSE A4 — Backups (done)
+Skipping skills: immersive-web-design, master skill.
+
+`cmsctl dump` writes the database and every blob into one zstd tar whose
+manifest holds the SHA-256 of every member; `cmsctl backup-verify` checks
+it (and the whole-file digest), `cmsctl restore` loads it into an empty
+database (or `-force`), older backups included (they are migrated forward).
+The admin web server takes scheduled backups (every `contest_interval`
+from 30 minutes before a contest to 30 minutes after, `interval`
+otherwise), rotates them, throttles its reads and copies them to S3 when
+configured; failures raise admin alerts and a metric. The admin page lists
+them with progress, "Back up now", download and delete (full admins,
+audited). Docs: docs/en/backups.md, docs/es/respaldos.md. Tests: dump →
+empty database → restore → every table, sequence, migration and blob
+identical; damaged/truncated archives rejected without committing; forced
+replacement; older schema; throttle; schedule, rotation and S3 copy; CLI;
+admin page.

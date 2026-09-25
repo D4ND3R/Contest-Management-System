@@ -203,6 +203,35 @@ type Printing struct {
 	PaperSize string `yaml:"paper_size"`
 }
 
+// Backup configures the backups taken by the admin web server (scheduled
+// and on demand) and "cmsctl dump".
+type Backup struct {
+	// Dir receives every backup (always local; S3 gets a copy).
+	Dir string `yaml:"dir"`
+	// Interval between scheduled backups when no contest is running, and
+	// while one is (from 30 minutes before its start to 30 minutes after
+	// its end). 0 disables that schedule.
+	Interval        Duration `yaml:"interval"`
+	ContestInterval Duration `yaml:"contest_interval"`
+	// Keep is how many scheduled backups are kept (older ones are deleted,
+	// also from S3); manual ones stay until deleted from the admin.
+	Keep int `yaml:"keep"`
+	// MaxRate bounds the bytes read per second while backing up (0: no
+	// limit) so the contest web server keeps its latency.
+	MaxRate ByteSize `yaml:"max_rate"`
+	// S3 receives a copy of every backup when Endpoint and Bucket are set.
+	S3 BackupS3 `yaml:"s3"`
+}
+
+// BackupS3 is an S3-compatible off-site destination for backups.
+type BackupS3 struct {
+	S3     `yaml:",inline"`
+	Prefix string `yaml:"prefix"`
+}
+
+// Enabled reports whether an off-site copy is configured.
+func (b BackupS3) Enabled() bool { return b.Endpoint != "" && b.Bucket != "" }
+
 // Config is the root configuration.
 type Config struct {
 	Log          Log        `yaml:"log"`
@@ -218,6 +247,7 @@ type Config struct {
 	Worker       Worker     `yaml:"worker"`
 	Monitor      Monitor    `yaml:"monitor"`
 	Printing     Printing   `yaml:"printing"`
+	Backup       Backup     `yaml:"backup"`
 
 	// Path the config was loaded from ("" when defaults only).
 	Path string `yaml:"-"`
@@ -253,6 +283,8 @@ func Default() *Config {
 			JobTimeout: Duration(10 * time.Minute), CheckInterval: Duration(2 * time.Second),
 		},
 		Printing: Printing{MetricsListen: ":9104", LPPath: "lp", MaxPages: 10, PaperSize: "A4"},
+		Backup: Backup{Dir: "./data/backups", Interval: Duration(24 * time.Hour), ContestInterval: Duration(15 * time.Minute),
+			Keep: 48, MaxRate: 32 << 20, S3: BackupS3{S3: S3{UseSSL: true}, Prefix: "backups/"}},
 	}
 }
 
@@ -314,6 +346,7 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 		"CMS_MONITOR_METRICS":    &c.Monitor.MetricsListen,
 		"CMS_PRINTING_METRICS":   &c.Printing.MetricsListen,
 		"CMS_PRINTER":            &c.Printing.Printer,
+		"CMS_BACKUP_DIR":         &c.Backup.Dir,
 	}
 	for k, p := range str {
 		if v, ok := lookup(k); ok {
@@ -439,6 +472,15 @@ func (c *Config) Validate() error {
 	}
 	if c.Dispatcher.TestcasesPerJob < 1 {
 		errs = append(errs, errors.New("dispatcher.testcases_per_job must be >= 1"))
+	}
+	if c.Backup.Dir == "" {
+		errs = append(errs, errors.New("backup.dir is required"))
+	}
+	if c.Backup.Keep < 1 {
+		errs = append(errs, errors.New("backup.keep must be >= 1"))
+	}
+	if c.Backup.Interval < 0 || c.Backup.ContestInterval < 0 || c.Backup.MaxRate < 0 {
+		errs = append(errs, errors.New("backup intervals and max_rate cannot be negative"))
 	}
 	return errors.Join(errs...)
 }

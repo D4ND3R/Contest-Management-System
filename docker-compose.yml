@@ -72,6 +72,7 @@ services:
     <<: *cms
     command: ["admin-web"]
     ports: ["8889:8889"]
+    volumes: [backups:/var/lib/cms/backups]
     healthcheck:
       <<: *hc
       test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:8889/healthz"]
@@ -133,3 +134,4 @@ volumes:
   redisdata:
   miniodata:
   rankingdata:
+  backups:
