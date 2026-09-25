@@ -36,6 +36,8 @@ type page struct {
 	// ViewAs is set when an administrator views the contest as this
 	// contestant (read-only).
 	ViewAs string
+	// Unread is the number of unread announcements, messages and answers.
+	Unread int64
 	loc    *time.Location
 }
 

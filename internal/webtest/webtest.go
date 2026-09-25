@@ -69,6 +69,21 @@ func (b *Browser) Post(path string, form url.Values) (int, string) {
 	return b.do(req)
 }
 
+// PostHTMX submits a urlencoded form as htmx does (HX-Request header).
+func (b *Browser) PostHTMX(path string, form url.Values) (int, string) {
+	b.T.Helper()
+	if form == nil {
+		form = url.Values{}
+	}
+	if form.Get("csrf") == "" {
+		form.Set("csrf", b.CSRF)
+	}
+	req, _ := http.NewRequest("POST", b.Base+path, bytes.NewBufferString(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+	return b.do(req)
+}
+
 // File is a file field of a multipart post.
 type File struct {
 	Field, Name string

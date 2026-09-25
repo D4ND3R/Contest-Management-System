@@ -28,6 +28,8 @@ type page struct {
 	Crumbs     []crumb
 	CanWrite   bool
 	CanMessage bool
+	// Pending is the number of unanswered questions (menu counter).
+	Pending    int64
 	Data       any
 	ServerTime time.Time
 }
@@ -42,6 +44,9 @@ func (s *Server) newPage(w http.ResponseWriter, r *http.Request, rc *reqCtx, tit
 		p.CSRF = s.csrf.Token(rc.sess.ID)
 		p.CanWrite = roleAllows(rc.admin.Role, permAll)
 		p.CanMessage = roleAllows(rc.admin.Role, permMessaging)
+		if n, err := s.q.CountPendingQuestions(r.Context()); err == nil {
+			p.Pending = n
+		}
 	}
 	p.Flash = s.takeFlash(w, r)
 	return p
@@ -305,10 +310,13 @@ func (s *Server) funcs() template.FuncMap {
 		"has":      contains,
 		"joinHead": joinHead,
 		"num":      fmtNum,
-		"cidrs":    formatPrefixes,
-		"add":      func(a, b int) int { return a + b },
-		"deref":    derefStr,
-		"ptr64":    func(v int64) *int64 { return &v },
+		"card": func(q sqlc.AdminListQuestionsRow, d *questionsPage) questionCard {
+			return questionCard{Q: q, Quick: d.Quick, CanAnswer: d.CanAnswer}
+		},
+		"cidrs": formatPrefixes,
+		"add":   func(a, b int) int { return a + b },
+		"deref": derefStr,
+		"ptr64": func(v int64) *int64 { return &v },
 		"deref32": func(v *int32) int32 {
 			if v == nil {
 				return 0

@@ -1,0 +1,19 @@
+{{define "content"}}{{$d := .Data}}
+<h1>{{.T "Communication"}}</h1>
+<p class="actions">
+  <button type="button" id="sound-toggle" class="link" data-on="{{.T "Sound: on"}}" data-off="{{.T "Sound: off"}}">{{.T "Sound: off"}}</button>
+  <button type="button" id="enable-notifications" class="link" hidden>{{.T "Enable desktop notifications"}}</button>
+</p>
+{{if $d.CanAsk}}
+<section class="card">
+<h2>{{.T "Ask a question"}}</h2>
+<form method="post" action="{{.Base}}questions">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <label>{{.T "About"}} <select name="task"><option value="">{{.T "General"}}</option>{{range .Tasks}}<option value="{{.Name}}">{{.Name}} — {{.Title}}</option>{{end}}</select></label>
+  <label>{{.T "Question"}} <textarea name="text" rows="4" maxlength="4000" required></textarea></label>
+  <button>{{.T "Send question"}}</button>
+</form>
+</section>
+{{end}}
+{{template "communication" .}}
+{{end}}

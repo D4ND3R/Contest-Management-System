@@ -208,6 +208,7 @@ func (s *Server) onEvent(e events.Event) {
 
 // reqCtx is the per-request state of an authenticated contestant.
 type reqCtx struct {
+	ctx     context.Context
 	contest *contestView
 	part    sqlc.GetParticipationViewRow
 	sess    *webkit.Session
@@ -288,7 +289,7 @@ func (s *Server) withAuth(h func(http.ResponseWriter, *http.Request, *reqCtx)) h
 			return
 		}
 		now := s.now()
-		rc := &reqCtx{contest: cv, part: part, sess: sess, ip: ip, now: now,
+		rc := &reqCtx{ctx: r.Context(), contest: cv, part: part, sess: sess, ip: ip, now: now,
 			lang: s.language(r, cv, part.PreferredLanguages, sess.Lang)}
 		rc.status = contest.Compute(cv.Rules, participantOf(part), now)
 		if r.Method == http.MethodPost && sess.ReadOnly {
@@ -360,6 +361,12 @@ func (s *Server) newPage(rc *reqCtx, title, active string) *page {
 	}
 	if rc.sess.ReadOnly {
 		p.ViewAs = rc.part.Username
+	}
+	// Unread announcements, messages and answers (the nav badge; live
+	// updates arrive over SSE).
+	if n, err := s.q.CountUnreadCommunication(rc.ctx, sqlc.CountUnreadCommunicationParams{ParticipationID: rc.part.ID,
+		ContestID: rc.contest.ID}); err == nil {
+		p.Unread = n
 	}
 	if rc.status.Phase != contest.NotStarted && rc.status.Phase != contest.WaitingStart || rc.part.Unrestricted {
 		p.Tasks = rc.contest.Tasks

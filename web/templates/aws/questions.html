@@ -1,0 +1,11 @@
+{{define "content"}}{{$d := .Data}}
+<h1>{{.T "Questions"}}</h1>
+<form method="get" class="filters">
+  <label>{{.T "Contest"}} <select name="contest"><option value="">{{.T "all"}}</option>{{range $d.Contests}}<option value="{{.ID}}" {{if eq .ID $d.Contest}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  <label>{{.T "Task"}} <select name="task"><option value="">{{.T "all"}}</option>{{range $d.Tasks}}<option value="{{.ID}}" {{if eq .ID $d.Task}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  <label><input type="checkbox" name="all" value="1" {{if $d.All}}checked{{end}}> {{.T "include answered and ignored"}}</label>
+  <button>{{.T "Filter"}}</button>
+</form>
+<p class="muted small">{{.T "Pending questions come first, the oldest at the top. New questions appear here and in the menu counter as they arrive."}}</p>
+{{template "questions-list" (part $ $d)}}
+{{end}}

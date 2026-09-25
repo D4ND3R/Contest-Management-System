@@ -324,3 +324,16 @@ the solution does not get the full score and shows that kind on some
 testcase. Imported tasks stay outside contests (and imported datasets are
 not live) until an administrator publishes them. The CLI import does not
 run solutions (it has no administrator identity); the admin panel does.
+
+## D45. Communication: seen timestamp, English quick answers, fan-out
+Unread counts come from one timestamp per participation (last visit to the
+communication page) compared with announcements, messages and answers in
+a single indexed query, read from the database rather than the
+participation cache so a visit resets the badge at once; live events only
+bump the badge client-side. Quick answers are stored as their English text
+and translated when shown, so each contestant reads them in their own
+language. A message to a team is one message per member (their existing
+per-participation index and SSE routing need nothing new). The question
+limit uses the Redis rate limiter (no database write on rejection). The
+admin SSE hub forwards only alerts and new questions: submission events are
+far too frequent to fan out to staff browsers that ignore them.

@@ -169,3 +169,33 @@
   <p class="checks"><label><input type="checkbox" name="run_solutions" {{if $d.Run}}checked{{end}}> {{.T "Run the reference solutions (solutions/) and show the validation report"}}</label></p>
 </fieldset>
 {{end}}
+
+{{define "question-count"}}<span id="q-count" class="badge" data-src="/questions/count" title="{{.T "unanswered questions"}}" {{if not .Pending}}hidden{{end}}>{{.Pending}}</span>{{end}}
+
+{{define "questions-list"}}{{$d := .V}}
+<div id="questions" data-src="/questions?fragment=1{{with $d.Query}}&amp;{{.}}{{end}}">
+{{range $d.Rows}}{{template "question" (part $.P (card . $d))}}{{else}}<p class="muted">{{$.T "No questions to answer."}}</p>{{end}}
+</div>
+{{end}}
+
+{{define "question"}}{{$c := .V}}{{$q := $c.Q}}
+<article class="card question {{if $q.Pending}}pending{{end}}" id="question-{{$q.ID}}">
+  <h3>{{$q.Username}} · {{if $q.TaskName}}{{deref $q.TaskName}}{{else}}{{.T "General"}}{{end}} <small class="muted">{{$q.ContestName}} · {{dt $q.AskedAt}} UTC</small>
+    {{if $q.Pending}}<span class="tag bad">{{.T "pending"}}</span>{{else if $q.Ignored}}<span class="tag">{{.T "ignored"}}</span>{{else}}<span class="tag ok">{{.T "answered"}}</span>{{if $q.Public}} <span class="tag">{{.T "public"}}</span>{{end}}{{end}}</h3>
+  <p class="pre">{{$q.Text}}</p>
+  {{if $q.ReplyAt}}<p class="answer"><b>{{.T (deref $q.ReplySubject)}}</b> <span class="pre">{{deref $q.ReplyText}}</span></p>{{end}}
+  {{if $c.CanAnswer}}
+  <form method="post" action="/questions/{{$q.ID}}/reply" hx-post="/questions/{{$q.ID}}/reply" hx-target="closest article" hx-swap="outerHTML" class="reply">
+    <input type="hidden" name="csrf" value="{{.P.CSRF}}"><input type="hidden" name="back" value="/questions">
+    <p class="quick">{{range $c.Quick}}<button name="quick" value="{{.}}" class="secondary small">{{$.T .}}</button> {{end}}</p>
+    <textarea name="text" rows="2" placeholder="{{.T "Answer (optional with a quick answer)"}}" aria-label="{{.T "Answer"}}"></textarea>
+    <p class="checks"><label><input type="checkbox" name="public"> {{.T "Show the question and the answer to everyone in the contest"}}</label>
+    <button>{{.T "Answer"}}</button></p>
+  </form>
+  {{if $q.Pending}}<form method="post" action="/questions/{{$q.ID}}/ignore" hx-post="/questions/{{$q.ID}}/ignore" hx-target="closest article" hx-swap="outerHTML" class="inline">
+    <input type="hidden" name="csrf" value="{{.P.CSRF}}"><input type="hidden" name="ignore" value="1"><button class="link">{{.T "ignore"}}</button></form>
+  {{else if $q.Ignored}}<form method="post" action="/questions/{{$q.ID}}/ignore" hx-post="/questions/{{$q.ID}}/ignore" hx-target="closest article" hx-swap="outerHTML" class="inline">
+    <input type="hidden" name="csrf" value="{{.P.CSRF}}"><input type="hidden" name="ignore" value="0"><button class="link">{{.T "back to pending"}}</button></form>{{end}}
+  {{end}}
+</article>
+{{end}}

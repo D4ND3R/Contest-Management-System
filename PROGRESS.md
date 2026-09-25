@@ -456,3 +456,16 @@ preview/conflicts/export), contestweb (task languages), cli, and
 e2e.TestProblemPackagesFromAdminUI (every example type imported through the
 UI and validated by the real judge; a checker that does not compile is
 reported; the export imports back as a second dataset).
+
+## SPEC_CLOSE A1 — Communication (done)
+Skipping skills: immersive-web-design, master skill.
+
+Contestants ask about a task or in general (with a per-minute limit),
+read announcements, private messages, their answers and the answers made
+public for everyone; an unread badge in the menu follows new items live
+over SSE with an optional sound. The staff inbox lists pending questions
+oldest first (contest and task filters, a live counter in the admin menu)
+and answers privately or publicly with free text or one of five quick
+answers; announcements and messages to a user or a whole team. Tests:
+e2e.TestCommunicationFlow (both web servers, SSE, unread counts, Spanish),
+adminweb.TestQuestionInbox, contestweb.TestAskQuestion.

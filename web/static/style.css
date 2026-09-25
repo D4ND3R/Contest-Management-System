@@ -36,3 +36,10 @@ progress{width:6rem;vertical-align:middle}
 .notice{background:var(--fg);color:#fff;padding:.7rem 1rem;border-radius:6px;max-width:22rem;cursor:pointer}
 .htmx-request button{opacity:.6}
 @media (max-width:640px){header.top nav{order:3;flex-basis:100%}th,td{padding:.35rem}}
+.badge{display:inline-block;min-width:1.2rem;padding:0 .35rem;border-radius:.6rem;background:var(--bad);color:#fff;font-size:.75rem;text-align:center;line-height:1.2rem}
+.badge[hidden]{display:none}
+article.msg{border-top:1px solid var(--line);padding:.5rem 0}
+article.msg:first-of-type{border-top:0}
+article.msg h3{margin:.2rem 0;font-size:1rem}
+.pre{white-space:pre-wrap}
+p.answer{background:#f3f8f4;border-left:3px solid var(--ok);padding:.3rem .6rem;margin:.3rem 0}

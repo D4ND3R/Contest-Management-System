@@ -7,7 +7,9 @@
   <a href="/contests/{{$c.ID}}/submissions">{{.T "Submissions"}}{{with .Data.Counts}} ({{.Submissions}}){{end}}</a> ·
   <a href="/contests/{{$c.ID}}/ranking">{{.T "Ranking"}}</a> ·
   <a href="/contests/{{$c.ID}}/stats">{{.T "Statistics"}}</a> ·
-  <a href="/contests/{{$c.ID}}/sites">{{.T "Sites"}}</a>
+  <a href="/contests/{{$c.ID}}/sites">{{.T "Sites"}}</a> ·
+  <a href="/contests/{{$c.ID}}/communication">{{.T "Communication"}}</a> ·
+  <a href="/questions?contest={{$c.ID}}">{{.T "Questions"}}</a>
   {{template "extra-contest-links" .}}
 </p>
 <section class="card">
@@ -85,6 +87,7 @@
 </p>
 <p class="checks">
   <label><input type="checkbox" name="allow_questions" {{if $c.AllowQuestions}}checked{{end}}> {{.T "Questions"}}</label>
+  <label>{{.T "at most"}} <input name="questions_per_minute" value="{{$c.QuestionsPerMinute}}" size="3" inputmode="numeric"> {{.T "per minute and contestant (0: no limit)"}}</label>
   <label><input type="checkbox" name="allow_user_tests" {{if $c.AllowUserTests}}checked{{end}}> {{.T "User tests"}}</label>
   <label><input type="checkbox" name="allow_printing" {{if $c.AllowPrinting}}checked{{end}}> {{.T "Printing"}}</label>
   <label><input type="checkbox" name="submissions_download_allowed" {{if $c.SubmissionsDownloadAllowed}}checked{{end}}> {{.T "Contestants can download their submissions"}}</label>

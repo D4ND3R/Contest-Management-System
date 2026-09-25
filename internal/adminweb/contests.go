@@ -177,6 +177,12 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 	}
 	c.SubmissionsDownloadAllowed = f.check("submissions_download_allowed")
 	c.AllowQuestions = f.check("allow_questions")
+	if f.str("questions_per_minute") != "" {
+		c.QuestionsPerMinute = f.int32("questions_per_minute", "Questions per minute", 3)
+		if c.QuestionsPerMinute < 0 {
+			f.fail("%s must not be negative", "Questions per minute")
+		}
+	}
 	c.AllowUserTests = f.check("allow_user_tests")
 	c.AllowPrinting = f.check("allow_printing")
 	c.BlockHiddenParticipations = f.check("block_hidden_participations")

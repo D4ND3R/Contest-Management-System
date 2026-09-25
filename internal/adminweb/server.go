@@ -204,6 +204,15 @@ func (s *Server) Handler() http.Handler {
 	get("/contests/{id}/ranking.json", s.handleRankingJSON)
 	get("/contests/{id}/stats", s.handleStats)
 
+	get("/questions", s.handleQuestions)
+	get("/questions/count", s.handleQuestionCount)
+	post("/questions/{id}/reply", permMessaging, "question.reply", s.handleQuestionReply)
+	post("/questions/{id}/ignore", permMessaging, "question.ignore", s.handleQuestionIgnore)
+	get("/contests/{id}/communication", s.handleContestCommunication)
+	post("/contests/{id}/announcements", permMessaging, "announcement.create", s.handleAnnouncementCreate)
+	post("/announcements/{id}/delete", permMessaging, "announcement.delete", s.handleAnnouncementDelete)
+	post("/contests/{id}/messages", permMessaging, "message.create", s.handleMessageCreate)
+
 	get("/participations/{id}", s.handleParticipation)
 	post("/participations/{id}", permAll, "participation.update", s.handleParticipationUpdate)
 	post("/participations/{id}/delete", permAll, "participation.delete", s.handleParticipationDelete)
@@ -584,8 +593,10 @@ type adminHub struct {
 	clients map[chan []byte]struct{}
 }
 
+// publish forwards the events administrators see live (system alerts and
+// new questions); submission events are far too many to fan out here.
 func (h *adminHub) publish(e events.Event) {
-	if e.Type == events.TypeContest {
+	if e.Type != events.TypeAlert && e.Type != events.TypeQuestionNew {
 		return
 	}
 	data, _ := json.Marshal(e)

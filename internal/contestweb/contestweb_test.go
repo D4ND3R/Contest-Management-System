@@ -519,3 +519,56 @@ func TestTaskLanguages(t *testing.T) {
 		t.Fatalf("allowed language: %s", body)
 	}
 }
+
+// TestAskQuestion covers the contestant side of A1: validation, the
+// contest switch and the event that reaches the staff.
+func TestAskQuestion(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	c := f.client()
+	_, page := f.login(c, "ana", "secret")
+	csrf := csrfOf(t, page)
+	sub := f.rdb.Subscribe(bg, events.Channel(f.ns))
+	defer sub.Close()
+	sub.Receive(bg)
+	ask := func(v url.Values) (int, string) {
+		v.Set("csrf", csrf)
+		req, _ := http.NewRequest("POST", f.url+"/ioi/questions", strings.NewReader(v.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+		resp, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+	if code, _ := ask(url.Values{"text": {"  "}}); code != 400 {
+		t.Fatalf("empty = %d", code)
+	}
+	if code, _ := ask(url.Values{"text": {"x"}, "task": {"nope"}}); code != 400 {
+		t.Fatalf("unknown task = %d", code)
+	}
+	if code, _ := ask(url.Values{"text": {strings.Repeat("a", 4001)}}); code != 400 {
+		t.Fatalf("too long = %d", code)
+	}
+	code, body := ask(url.Values{"text": {"¿Hay límite de memoria?"}, "task": {"sum"}})
+	if code != 200 || !strings.Contains(body, `id="communication"`) || !strings.Contains(body, "¿Hay límite de memoria?") {
+		t.Fatalf("ask = %d\n%s", code, body)
+	}
+	m, err := sub.ReceiveMessage(bg)
+	if err != nil || !strings.Contains(m.Payload, `"type":"question_new"`) || !strings.Contains(m.Payload, "ana · sum") {
+		t.Fatalf("staff event %v %v", m, err)
+	}
+	// Questions switched off in the contest (the cache reloads on the
+	// contest event).
+	f.pool.Exec(bg, "UPDATE contests SET allow_questions = false WHERE id = $1", f.contest.ID)
+	events.Publish(bg, f.rdb, f.ns, events.Event{Type: events.TypeContest, ContestID: f.contest.ID})
+	time.Sleep(100 * time.Millisecond)
+	if code, _ := ask(url.Values{"text": {"otra"}}); code != 403 {
+		t.Fatalf("questions closed = %d", code)
+	}
+	if _, body := f.get(c, "/ioi/communication"); strings.Contains(body, `action="/ioi/questions"`) {
+		t.Fatal("the form is shown while questions are closed")
+	}
+}

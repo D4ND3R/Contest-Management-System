@@ -27,6 +27,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/testutil"
 	"github.com/D4ND3R/Contest-Management-System/internal/webtest"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 var bg = context.Background()
@@ -45,6 +46,8 @@ type fixture struct {
 	part    sqlc.Participation
 	subs    []int64
 	team    sqlc.Team
+	rdb     *redis.Client
+	ns      string
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -59,7 +62,7 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fixture{t: t, pool: pool, q: sqlc.New(pool), store: store, admins: map[string]sqlc.Admin{}}
+	f := &fixture{t: t, pool: pool, q: sqlc.New(pool), store: store, admins: map[string]sqlc.Admin{}, rdb: rdb, ns: ns}
 	hash, _ := auth.HashPassword("password1")
 	for _, role := range []string{"all", "messaging", "read_only"} {
 		a, err := f.q.CreateAdmin(bg, sqlc.CreateAdminParams{Name: role, Username: "admin_" + role, PasswordHash: hash, Enabled: true, Role: role})

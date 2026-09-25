@@ -28,6 +28,27 @@
     }
   }
 
+  // Optional sound on announcements, messages and answers (per browser).
+  function store(k, v) {
+    try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (err) { return null; }
+    return null;
+  }
+  function beep() {
+    if (store("cms-sound") !== "1") return;
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext, c = new Ctx(), o = c.createOscillator(), g = c.createGain();
+      o.frequency.value = 880; g.gain.value = 0.08; o.connect(g); g.connect(c.destination);
+      o.start(); o.stop(c.currentTime + 0.25); o.onended = function () { c.close(); };
+    } catch (err) { /* no audio */ }
+  }
+  function soundToggle() {
+    var b = document.getElementById("sound-toggle");
+    if (!b) return;
+    var show = function () { b.textContent = store("cms-sound") === "1" ? b.dataset.on : b.dataset.off; };
+    b.addEventListener("click", function () { store("cms-sound", store("cms-sound") === "1" ? "0" : "1"); show(); beep(); });
+    show();
+  }
+
   function connect() {
     var url = meta("cms-events");
     if (!url || !window.EventSource) return;
@@ -47,7 +68,11 @@
       es.addEventListener(t, function (e) {
         var d = JSON.parse(e.data);
         notify(d.text || t);
-        refresh(document.getElementById("communication"));
+        beep();
+        var page = document.getElementById("communication");
+        if (page) { refresh(page); return; } // the list marks it read
+        var badge = document.getElementById("unread");
+        if (badge) { badge.textContent = String(Number(badge.textContent || 0) + 1); badge.hidden = false; }
       });
     });
     es.addEventListener("reload", function () { location.reload(); });
@@ -73,6 +98,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     connect();
     countdowns();
+    soundToggle();
     var ask = document.getElementById("enable-notifications");
     if (ask && window.Notification) {
       ask.hidden = Notification.permission !== "default";

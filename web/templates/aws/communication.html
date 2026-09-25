@@ -1,0 +1,38 @@
+{{define "content"}}{{$d := .Data}}{{$c := $d.Contest}}
+<h1>{{.T "Communication in %s" $c.Name}}</h1>
+<p class="actions"><a href="/questions?contest={{$c.ID}}">{{.T "Questions of this contest"}}</a></p>
+<div class="row">
+<section class="card">
+<h2>{{.T "Announcements"}}</h2>
+{{if .CanMessage}}
+<form method="post" action="/contests/{{$c.ID}}/announcements">
+  {{template "csrf" .CSRF}}
+  <label>{{.T "Subject"}} <input name="subject" required maxlength="200"></label>
+  <label>{{.T "Text"}} <textarea name="text" rows="3"></textarea></label>
+  <button>{{.T "Publish to everyone"}}</button>
+</form>
+{{end}}
+{{range $d.Announcements}}<article class="msg"><h3>{{.Subject}} <small class="muted">{{dt .CreatedAt}} UTC</small>
+  {{if $.CanMessage}}<form method="post" action="/announcements/{{.ID}}/delete" class="inline" data-confirm="{{$.T "Delete the announcement?"}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</h3>
+  <p class="pre">{{.Text}}</p></article>
+{{else}}<p class="muted">{{.T "No announcements."}}</p>{{end}}
+</section>
+<section class="card">
+<h2>{{.T "Private messages"}}</h2>
+{{if .CanMessage}}
+<form method="post" action="/contests/{{$c.ID}}/messages">
+  {{template "csrf" .CSRF}}
+  <label>{{.T "To (username or team code)"}} <input name="to" required list="teams"></label>
+  <datalist id="teams">{{range $d.Teams}}<option value="{{.Code}}">{{.Name}}</option>{{end}}</datalist>
+  <label>{{.T "Subject"}} <input name="subject" required maxlength="200"></label>
+  <label>{{.T "Text"}} <textarea name="text" rows="3"></textarea></label>
+  <button>{{.T "Send"}}</button>
+</form>
+{{end}}
+<table><thead><tr><th>{{.T "Time (UTC)"}}</th><th>{{.T "To"}}</th><th>{{.T "Subject"}}</th><th>{{.T "By"}}</th></tr></thead><tbody>
+{{range $d.Messages}}<tr><td>{{dt .CreatedAt}}</td><td>{{.Username}}</td><td>{{.Subject}}</td><td>{{deref .AdminUsername}}</td></tr>
+{{else}}<tr><td colspan="4" class="muted">{{.T "No messages."}}</td></tr>{{end}}
+</tbody></table>
+</section>
+</div>
+{{end}}

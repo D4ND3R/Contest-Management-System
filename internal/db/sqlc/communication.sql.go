@@ -10,6 +10,96 @@ import (
 	"time"
 )
 
+const adminListQuestions = `-- name: AdminListQuestions :many
+SELECT q.id, q.participation_id, q.asked_at, q.subject, q.text, q.reply_at, q.reply_subject, q.reply_text, q.reply_admin_id, q.ignored, q.contest_id, q.task_id, q.public, u.username, c.name AS contest_name, t.name AS task_name,
+       (q.reply_at IS NULL AND NOT q.ignored)::boolean AS pending
+FROM questions q
+JOIN participations p ON p.id = q.participation_id
+JOIN users u ON u.id = p.user_id
+JOIN contests c ON c.id = q.contest_id
+LEFT JOIN tasks t ON t.id = q.task_id
+WHERE ($1::bigint IS NULL OR q.contest_id = $1)
+  AND ($2::bigint IS NULL OR q.task_id = $2)
+  AND ($3::bigint IS NULL OR q.id = $3)
+  AND ($4::boolean OR (q.reply_at IS NULL AND NOT q.ignored))
+ORDER BY (q.reply_at IS NULL AND NOT q.ignored) DESC,
+         CASE WHEN q.reply_at IS NULL AND NOT q.ignored THEN q.asked_at END ASC,
+         COALESCE(q.reply_at, q.asked_at) DESC
+LIMIT 300
+`
+
+type AdminListQuestionsParams struct {
+	ContestID    *int64 `json:"contest_id"`
+	TaskID       *int64 `json:"task_id"`
+	QuestionID   *int64 `json:"question_id"`
+	WithAnswered bool   `json:"with_answered"`
+}
+
+type AdminListQuestionsRow struct {
+	ID              int64      `json:"id"`
+	ParticipationID int64      `json:"participation_id"`
+	AskedAt         time.Time  `json:"asked_at"`
+	Subject         string     `json:"subject"`
+	Text            string     `json:"text"`
+	ReplyAt         *time.Time `json:"reply_at"`
+	ReplySubject    *string    `json:"reply_subject"`
+	ReplyText       *string    `json:"reply_text"`
+	ReplyAdminID    *int64     `json:"reply_admin_id"`
+	Ignored         bool       `json:"ignored"`
+	ContestID       int64      `json:"contest_id"`
+	TaskID          *int64     `json:"task_id"`
+	Public          bool       `json:"public"`
+	Username        string     `json:"username"`
+	ContestName     string     `json:"contest_name"`
+	TaskName        *string    `json:"task_name"`
+	Pending         bool       `json:"pending"`
+}
+
+// Staff inbox: pending questions oldest first (questions_pending_idx), then
+// the most recently answered or ignored ones; optionally one contest/task.
+func (q *Queries) AdminListQuestions(ctx context.Context, arg AdminListQuestionsParams) ([]AdminListQuestionsRow, error) {
+	rows, err := q.db.Query(ctx, adminListQuestions,
+		arg.ContestID,
+		arg.TaskID,
+		arg.QuestionID,
+		arg.WithAnswered,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminListQuestionsRow{}
+	for rows.Next() {
+		var i AdminListQuestionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParticipationID,
+			&i.AskedAt,
+			&i.Subject,
+			&i.Text,
+			&i.ReplyAt,
+			&i.ReplySubject,
+			&i.ReplyText,
+			&i.ReplyAdminID,
+			&i.Ignored,
+			&i.ContestID,
+			&i.TaskID,
+			&i.Public,
+			&i.Username,
+			&i.ContestName,
+			&i.TaskName,
+			&i.Pending,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const claimPrintJob = `-- name: ClaimPrintJob :one
 UPDATE print_jobs SET status = 'printing'
 WHERE id = (SELECT id FROM print_jobs WHERE status = 'queued' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED)
@@ -33,6 +123,18 @@ func (q *Queries) ClaimPrintJob(ctx context.Context) (PrintJob, error) {
 	return i, err
 }
 
+const countPendingQuestions = `-- name: CountPendingQuestions :one
+SELECT count(*) FROM questions WHERE reply_at IS NULL AND NOT ignored
+`
+
+// Admin menu counter (questions_pending_idx).
+func (q *Queries) CountPendingQuestions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countPendingQuestions)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countPrintJobsByParticipation = `-- name: CountPrintJobsByParticipation :one
 SELECT count(*) FROM print_jobs WHERE participation_id = $1
 `
@@ -42,6 +144,30 @@ func (q *Queries) CountPrintJobsByParticipation(ctx context.Context, participati
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countUnreadCommunication = `-- name: CountUnreadCommunication :one
+WITH seen AS (SELECT communication_seen_at AS since FROM participations WHERE id = $2)
+SELECT ((SELECT count(*) FROM announcements a, seen WHERE a.contest_id = $1 AND a.created_at > seen.since)
+      + (SELECT count(*) FROM messages m, seen WHERE m.participation_id = $2 AND m.created_at > seen.since)
+      + (SELECT count(*) FROM questions q, seen WHERE q.participation_id = $2 AND q.reply_at > seen.since)
+      + (SELECT count(*) FROM questions q, seen WHERE q.contest_id = $1 AND q.public AND q.reply_at > seen.since
+             AND q.participation_id <> $2))::bigint AS unread
+`
+
+type CountUnreadCommunicationParams struct {
+	ContestID       int64 `json:"contest_id"`
+	ParticipationID int64 `json:"participation_id"`
+}
+
+// Announcements, messages and answers (own, or public ones of others)
+// newer than the participant's last visit to the communication page (read
+// here, not from the participation cache, so a visit resets it at once).
+func (q *Queries) CountUnreadCommunication(ctx context.Context, arg CountUnreadCommunicationParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countUnreadCommunication, arg.ContestID, arg.ParticipationID)
+	var unread int64
+	err := row.Scan(&unread)
+	return unread, err
 }
 
 const createAnnouncement = `-- name: CreateAnnouncement :one
@@ -137,11 +263,14 @@ func (q *Queries) CreatePrintJob(ctx context.Context, arg CreatePrintJobParams) 
 }
 
 const createQuestion = `-- name: CreateQuestion :one
-INSERT INTO questions (participation_id, asked_at, subject, text) VALUES ($1, $2, $3, $4) RETURNING id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored
+INSERT INTO questions (participation_id, contest_id, task_id, asked_at, subject, text)
+VALUES ($1, (SELECT contest_id FROM participations WHERE id = $1), $2, $3, $4, $5)
+RETURNING id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public
 `
 
 type CreateQuestionParams struct {
 	ParticipationID int64     `json:"participation_id"`
+	TaskID          *int64    `json:"task_id"`
 	AskedAt         time.Time `json:"asked_at"`
 	Subject         string    `json:"subject"`
 	Text            string    `json:"text"`
@@ -150,6 +279,7 @@ type CreateQuestionParams struct {
 func (q *Queries) CreateQuestion(ctx context.Context, arg CreateQuestionParams) (Question, error) {
 	row := q.db.QueryRow(ctx, createQuestion,
 		arg.ParticipationID,
+		arg.TaskID,
 		arg.AskedAt,
 		arg.Subject,
 		arg.Text,
@@ -166,6 +296,9 @@ func (q *Queries) CreateQuestion(ctx context.Context, arg CreateQuestionParams) 
 		&i.ReplyText,
 		&i.ReplyAdminID,
 		&i.Ignored,
+		&i.ContestID,
+		&i.TaskID,
+		&i.Public,
 	)
 	return i, err
 }
@@ -200,8 +333,26 @@ func (q *Queries) FinishPrintJob(ctx context.Context, arg FinishPrintJobParams) 
 	return err
 }
 
+const getAnnouncement = `-- name: GetAnnouncement :one
+SELECT id, contest_id, created_at, subject, text, admin_id FROM announcements WHERE id = $1
+`
+
+func (q *Queries) GetAnnouncement(ctx context.Context, id int64) (Announcement, error) {
+	row := q.db.QueryRow(ctx, getAnnouncement, id)
+	var i Announcement
+	err := row.Scan(
+		&i.ID,
+		&i.ContestID,
+		&i.CreatedAt,
+		&i.Subject,
+		&i.Text,
+		&i.AdminID,
+	)
+	return i, err
+}
+
 const getQuestion = `-- name: GetQuestion :one
-SELECT id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored FROM questions WHERE id = $1
+SELECT id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public FROM questions WHERE id = $1
 `
 
 func (q *Queries) GetQuestion(ctx context.Context, id int64) (Question, error) {
@@ -218,6 +369,9 @@ func (q *Queries) GetQuestion(ctx context.Context, id int64) (Question, error) {
 		&i.ReplyText,
 		&i.ReplyAdminID,
 		&i.Ignored,
+		&i.ContestID,
+		&i.TaskID,
+		&i.Public,
 	)
 	return i, err
 }
@@ -242,6 +396,58 @@ func (q *Queries) ListAnnouncements(ctx context.Context, contestID int64) ([]Ann
 			&i.Subject,
 			&i.Text,
 			&i.AdminID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMessagesByContest = `-- name: ListMessagesByContest :many
+SELECT m.id, m.participation_id, m.created_at, m.subject, m.text, m.admin_id, u.username, a.username AS admin_username
+FROM messages m
+JOIN participations p ON p.id = m.participation_id
+JOIN users u ON u.id = p.user_id
+LEFT JOIN admins a ON a.id = m.admin_id
+WHERE p.contest_id = $1
+ORDER BY m.created_at DESC, m.id DESC
+LIMIT 200
+`
+
+type ListMessagesByContestRow struct {
+	ID              int64     `json:"id"`
+	ParticipationID int64     `json:"participation_id"`
+	CreatedAt       time.Time `json:"created_at"`
+	Subject         string    `json:"subject"`
+	Text            string    `json:"text"`
+	AdminID         *int64    `json:"admin_id"`
+	Username        string    `json:"username"`
+	AdminUsername   *string   `json:"admin_username"`
+}
+
+// Messages sent in a contest, newest first (for the staff).
+func (q *Queries) ListMessagesByContest(ctx context.Context, contestID int64) ([]ListMessagesByContestRow, error) {
+	rows, err := q.db.Query(ctx, listMessagesByContest, contestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMessagesByContestRow{}
+	for rows.Next() {
+		var i ListMessagesByContestRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParticipationID,
+			&i.CreatedAt,
+			&i.Subject,
+			&i.Text,
+			&i.AdminID,
+			&i.Username,
+			&i.AdminUsername,
 		); err != nil {
 			return nil, err
 		}
@@ -366,12 +572,52 @@ func (q *Queries) ListPrintJobsByParticipation(ctx context.Context, participatio
 	return items, nil
 }
 
+const listPublicAnswers = `-- name: ListPublicAnswers :many
+SELECT id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public FROM questions WHERE contest_id = $1 AND public AND reply_at IS NOT NULL
+ORDER BY reply_at DESC LIMIT 200
+`
+
+// Public answers of a contest, newest first (questions_public_idx).
+func (q *Queries) ListPublicAnswers(ctx context.Context, contestID int64) ([]Question, error) {
+	rows, err := q.db.Query(ctx, listPublicAnswers, contestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Question{}
+	for rows.Next() {
+		var i Question
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParticipationID,
+			&i.AskedAt,
+			&i.Subject,
+			&i.Text,
+			&i.ReplyAt,
+			&i.ReplySubject,
+			&i.ReplyText,
+			&i.ReplyAdminID,
+			&i.Ignored,
+			&i.ContestID,
+			&i.TaskID,
+			&i.Public,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQuestionsByContest = `-- name: ListQuestionsByContest :many
-SELECT q.id, q.participation_id, q.asked_at, q.subject, q.text, q.reply_at, q.reply_subject, q.reply_text, q.reply_admin_id, q.ignored, u.username
+SELECT q.id, q.participation_id, q.asked_at, q.subject, q.text, q.reply_at, q.reply_subject, q.reply_text, q.reply_admin_id, q.ignored, q.contest_id, q.task_id, q.public, u.username
 FROM questions q
 JOIN participations p ON p.id = q.participation_id
 JOIN users u ON u.id = p.user_id
-WHERE p.contest_id = $1
+WHERE q.contest_id = $1
 ORDER BY (q.reply_at IS NULL AND NOT q.ignored) DESC, q.asked_at DESC
 `
 
@@ -386,6 +632,9 @@ type ListQuestionsByContestRow struct {
 	ReplyText       *string    `json:"reply_text"`
 	ReplyAdminID    *int64     `json:"reply_admin_id"`
 	Ignored         bool       `json:"ignored"`
+	ContestID       int64      `json:"contest_id"`
+	TaskID          *int64     `json:"task_id"`
+	Public          bool       `json:"public"`
 	Username        string     `json:"username"`
 }
 
@@ -409,6 +658,9 @@ func (q *Queries) ListQuestionsByContest(ctx context.Context, contestID int64) (
 			&i.ReplyText,
 			&i.ReplyAdminID,
 			&i.Ignored,
+			&i.ContestID,
+			&i.TaskID,
+			&i.Public,
 			&i.Username,
 		); err != nil {
 			return nil, err
@@ -422,7 +674,7 @@ func (q *Queries) ListQuestionsByContest(ctx context.Context, contestID int64) (
 }
 
 const listQuestionsByParticipation = `-- name: ListQuestionsByParticipation :many
-SELECT id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored FROM questions WHERE participation_id = $1 ORDER BY asked_at DESC, id DESC
+SELECT id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public FROM questions WHERE participation_id = $1 ORDER BY asked_at DESC, id DESC
 `
 
 func (q *Queries) ListQuestionsByParticipation(ctx context.Context, participationID int64) ([]Question, error) {
@@ -445,6 +697,9 @@ func (q *Queries) ListQuestionsByParticipation(ctx context.Context, participatio
 			&i.ReplyText,
 			&i.ReplyAdminID,
 			&i.Ignored,
+			&i.ContestID,
+			&i.TaskID,
+			&i.Public,
 		); err != nil {
 			return nil, err
 		}
@@ -456,9 +711,41 @@ func (q *Queries) ListQuestionsByParticipation(ctx context.Context, participatio
 	return items, nil
 }
 
+const listTeamParticipations = `-- name: ListTeamParticipations :many
+SELECT p.id FROM participations p WHERE p.contest_id = $1 AND p.team_id = $2
+`
+
+type ListTeamParticipationsParams struct {
+	ContestID int64  `json:"contest_id"`
+	TeamID    *int64 `json:"team_id"`
+}
+
+// Participations of a team in a contest (messages to a team; a rare staff
+// action scanning the contest's participations).
+func (q *Queries) ListTeamParticipations(ctx context.Context, arg ListTeamParticipationsParams) ([]int64, error) {
+	rows, err := q.db.Query(ctx, listTeamParticipations, arg.ContestID, arg.TeamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const replyQuestion = `-- name: ReplyQuestion :one
-UPDATE questions SET reply_at = now(), reply_subject = $2, reply_text = $3, reply_admin_id = $4, ignored = false
-WHERE id = $1 RETURNING id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored
+UPDATE questions SET reply_at = now(), reply_subject = $2, reply_text = $3, reply_admin_id = $4, ignored = false,
+    public = $5
+WHERE id = $1 RETURNING id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public
 `
 
 type ReplyQuestionParams struct {
@@ -466,6 +753,7 @@ type ReplyQuestionParams struct {
 	ReplySubject *string `json:"reply_subject"`
 	ReplyText    *string `json:"reply_text"`
 	ReplyAdminID *int64  `json:"reply_admin_id"`
+	Public       bool    `json:"public"`
 }
 
 func (q *Queries) ReplyQuestion(ctx context.Context, arg ReplyQuestionParams) (Question, error) {
@@ -474,6 +762,7 @@ func (q *Queries) ReplyQuestion(ctx context.Context, arg ReplyQuestionParams) (Q
 		arg.ReplySubject,
 		arg.ReplyText,
 		arg.ReplyAdminID,
+		arg.Public,
 	)
 	var i Question
 	err := row.Scan(
@@ -487,8 +776,20 @@ func (q *Queries) ReplyQuestion(ctx context.Context, arg ReplyQuestionParams) (Q
 		&i.ReplyText,
 		&i.ReplyAdminID,
 		&i.Ignored,
+		&i.ContestID,
+		&i.TaskID,
+		&i.Public,
 	)
 	return i, err
+}
+
+const setCommunicationSeen = `-- name: SetCommunicationSeen :exec
+UPDATE participations SET communication_seen_at = now() WHERE id = $1
+`
+
+func (q *Queries) SetCommunicationSeen(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, setCommunicationSeen, id)
+	return err
 }
 
 const setQuestionIgnored = `-- name: SetQuestionIgnored :exec

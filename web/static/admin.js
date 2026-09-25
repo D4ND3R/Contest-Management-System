@@ -42,8 +42,10 @@
     es.addEventListener("question_new", function (e) {
       var d = JSON.parse(e.data);
       notify((t.question || "New question:") + " " + (d.text || ""));
-      var list = document.getElementById("questions");
-      if (list && list.dataset.src && window.htmx) htmx.ajax("GET", list.dataset.src, { target: list, swap: "outerHTML" });
+      ["questions", "q-count"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.dataset.src && window.htmx) htmx.ajax("GET", el.dataset.src, { target: el, swap: "outerHTML" });
+      });
     });
   }
 

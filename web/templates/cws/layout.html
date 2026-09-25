@@ -19,7 +19,7 @@
   <nav>
     <a href="{{.Base}}" {{if eq .Active "overview"}}class="active"{{end}}>{{.T "Overview"}}</a>
     {{range .Tasks}}<a href="{{$.Base}}tasks/{{.Name}}" {{if eq $.Active .Name}}class="active"{{end}}>{{.Name}}</a>{{end}}
-    <a href="{{.Base}}communication" {{if eq .Active "communication"}}class="active"{{end}}>{{.T "Communication"}}</a>
+    <a href="{{.Base}}communication" {{if eq .Active "communication"}}class="active"{{end}}>{{.T "Communication"}} <span id="unread" class="badge" title="{{.T "unread"}}" {{if not .Unread}}hidden{{end}}>{{.Unread}}</span></a>
     {{if .Contest.AllowUserTests}}<a href="{{.Base}}testing" {{if eq .Active "testing"}}class="active"{{end}}>{{.T "Testing"}}</a>{{end}}
     {{if .Contest.AllowPrinting}}<a href="{{.Base}}printing" {{if eq .Active "printing"}}class="active"{{end}}>{{.T "Printing"}}</a>{{end}}
     <a href="{{.Base}}documentation" {{if eq .Active "documentation"}}class="active"{{end}}>{{.T "Documentation"}}</a>

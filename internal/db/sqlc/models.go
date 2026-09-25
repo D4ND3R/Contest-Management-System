@@ -99,6 +99,7 @@ type Contest struct {
 	UpdatedAt                   time.Time  `json:"updated_at"`
 	TeamMode                    bool       `json:"team_mode"`
 	MaxTeamSize                 *int32     `json:"max_team_size"`
+	QuestionsPerMinute          int32      `json:"questions_per_minute"`
 }
 
 type Dataset struct {
@@ -167,19 +168,20 @@ type Message struct {
 }
 
 type Participation struct {
-	ID           int64          `json:"id"`
-	ContestID    int64          `json:"contest_id"`
-	UserID       int64          `json:"user_id"`
-	TeamID       *int64         `json:"team_id"`
-	PasswordHash *string        `json:"password_hash"`
-	Ip           []netip.Prefix `json:"ip"`
-	StartingTime *time.Time     `json:"starting_time"`
-	DelayTimeS   int64          `json:"delay_time_s"`
-	ExtraTimeS   int64          `json:"extra_time_s"`
-	Hidden       bool           `json:"hidden"`
-	Unrestricted bool           `json:"unrestricted"`
-	LoginNonce   int64          `json:"login_nonce"`
-	SiteID       *int64         `json:"site_id"`
+	ID                  int64          `json:"id"`
+	ContestID           int64          `json:"contest_id"`
+	UserID              int64          `json:"user_id"`
+	TeamID              *int64         `json:"team_id"`
+	PasswordHash        *string        `json:"password_hash"`
+	Ip                  []netip.Prefix `json:"ip"`
+	StartingTime        *time.Time     `json:"starting_time"`
+	DelayTimeS          int64          `json:"delay_time_s"`
+	ExtraTimeS          int64          `json:"extra_time_s"`
+	Hidden              bool           `json:"hidden"`
+	Unrestricted        bool           `json:"unrestricted"`
+	LoginNonce          int64          `json:"login_nonce"`
+	SiteID              *int64         `json:"site_id"`
+	CommunicationSeenAt time.Time      `json:"communication_seen_at"`
 }
 
 type ParticipationTaskScore struct {
@@ -217,6 +219,9 @@ type Question struct {
 	ReplyText       *string    `json:"reply_text"`
 	ReplyAdminID    *int64     `json:"reply_admin_id"`
 	Ignored         bool       `json:"ignored"`
+	ContestID       int64      `json:"contest_id"`
+	TaskID          *int64     `json:"task_id"`
+	Public          bool       `json:"public"`
 }
 
 type Site struct {

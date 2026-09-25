@@ -36,6 +36,7 @@ func ContestToUpdate(c sqlc.Contest) sqlc.UpdateContestParams {
 		MinUserTestIntervalS: c.MinUserTestIntervalS, ScorePrecision: c.ScorePrecision,
 		ScoringMode: c.ScoringMode, IcpcPenaltyMinutes: c.IcpcPenaltyMinutes,
 		RankingFreezeTime: c.RankingFreezeTime, MaxPrintJobs: c.MaxPrintJobs, MaxPrintPages: c.MaxPrintPages,
+		QuestionsPerMinute: c.QuestionsPerMinute,
 	}
 }
 
