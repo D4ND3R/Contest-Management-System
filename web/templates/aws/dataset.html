@@ -1,0 +1,94 @@
+{{define "content"}}
+{{$d := .Data.D}}{{$ds := .Data.Dataset}}
+<h1>Dataset {{$ds.Description}} <small class="muted">task <a href="/tasks/{{.Data.Task.ID}}">{{.Data.Task.Name}}</a></small>
+  {{if .Data.Live}}<span class="tag ok">live</span>{{end}}{{if $ds.Autojudge}}<span class="tag">autojudge</span>{{end}}</h1>
+{{if .CanWrite}}<p class="actions">
+  {{if not .Data.Live}}<form method="post" action="/datasets/{{$ds.ID}}/activate" class="inline" data-confirm="Make this the live dataset? Scores will change.">{{template "csrf" .CSRF}}<button>Make live</button></form>{{end}}
+  Reevaluate on this dataset: {{template "reevaluate" (reeval .CSRF "dataset_id" $ds.ID (printf "/datasets/%d" $ds.ID))}}
+</p>{{end}}
+{{with .Data.ScoreError}}<p class="alert">Score type: {{.}}</p>{{else}}<p>Maximum score <b>{{score .Data.MaxScore .Data.Task.ScorePrecision}}</b>{{if gt (len .Data.Subtasks) 1}} (subtasks: {{range $i, $x := .Data.Subtasks}}{{if $i}}, {{end}}{{score $x $.Data.Task.ScorePrecision}}{{end}}){{end}}.</p>{{end}}
+{{with .Data.Missing}}<p class="alert">Missing managers for this configuration: {{join . ", "}}.</p>{{end}}
+
+<form method="post" action="/datasets/{{$ds.ID}}" class="card">
+{{template "csrf" .CSRF}}
+<fieldset {{if not .CanWrite}}disabled{{end}}>
+<div class="grid">
+  <label>Description <input name="description" value="{{$d.Description}}" required></label>
+  <label>Time limit (s) <input name="time_limit" value="{{msToS $d.TimeLimitMs}}" inputmode="decimal"></label>
+  <label>Wall time limit (s) <input name="wall_time_limit" value="{{msToS $d.WallTimeLimitMs}}" inputmode="decimal" placeholder="max(2×TL, TL+1s)"></label>
+  <label>Memory limit (MiB) <input name="memory_limit_mib" value="{{mib $d.MemoryLimitBytes}}" inputmode="decimal"></label>
+  <label>Output limit (MiB) <input name="output_limit_mib" value="{{mib (ptr64 $d.OutputLimitBytes)}}" inputmode="decimal"></label>
+  <label>Processes <input name="process_limit" value="{{$d.ProcessLimit}}" inputmode="numeric"></label>
+  <label>Source size limit (KiB) <input name="source_size_limit_kib" value="{{kib $d.SourceSizeLimitBytes}}" inputmode="decimal" placeholder="none"></label>
+</div>
+<p class="checks"><label><input type="checkbox" name="autojudge" {{if $d.Autojudge}}checked{{end}}> Judge new submissions on this dataset in the background (to compare with the live one)</label></p>
+<div class="row">
+<label>Task type <select name="task_type" data-defaults="{{.Data.Defaults}}" data-params="task_type_params">{{range .Data.TaskTypes}}<option {{if eq . $d.TaskType}}selected{{end}}>{{.}}</option>{{end}}</select>
+  <textarea name="task_type_params" id="task_type_params" rows="7" class="code">{{.Data.ParamsJSON}}</textarea>
+  <small class="muted">See the task type documentation for the parameters.</small></label>
+<label>Score type <select name="score_type">{{range .Data.ScoreTypes}}<option {{if eq . $d.ScoreType}}selected{{end}}>{{.}}</option>{{end}}</select>
+  <textarea name="score_type_params" rows="7" class="code">{{.Data.ScoreJSON}}</textarea>
+  <small class="muted">Sum: points per testcase (e.g. <code>10</code>). Group*: <code>[[40, "1_.*"], [60, 5]]</code> (max score, regex/count/list[, threshold]).</small></label>
+</div>
+{{if .CanWrite}}<button>Save</button>{{end}}
+</fieldset>
+</form>
+
+<section class="card" id="managers">
+<h2>Managers <small class="muted">checkers, graders, stubs, headers</small></h2>
+<ul>{{range .Data.Managers}}<li><a href="/datasets/{{$ds.ID}}/managers/{{.Filename}}">{{.Filename}}</a>
+  {{if $.CanWrite}}<form method="post" action="/datasets/{{$ds.ID}}/managers/{{.Filename}}/delete" class="inline" data-confirm="Delete {{.Filename}}?">{{template "csrf" $.CSRF}}<button class="link">delete</button></form>{{end}}</li>
+{{else}}<li class="muted">None.</li>{{end}}</ul>
+{{with .Data.Required}}<p class="muted small">This configuration uses: {{join . ", "}}.</p>{{end}}
+{{if .CanWrite}}
+<form method="post" action="/datasets/{{$ds.ID}}/managers" enctype="multipart/form-data">
+  {{template "csrf" .CSRF}}<input type="file" name="files" multiple required> <button>Upload</button>
+</form>
+{{end}}
+</section>
+
+<section class="card" id="testcases">
+<h2>Testcases <small class="muted">{{len .Data.Testcases}}</small></h2>
+{{if .CanWrite}}
+<div class="row">
+<form method="post" action="/datasets/{{$ds.ID}}/testcases/archive" enctype="multipart/form-data">
+  {{template "csrf" .CSRF}}
+  <h3>From a zip archive</h3>
+  <div class="grid"><label>Input names <input name="input_template" value="*.in"></label><label>Output names <input name="output_template" value="*.out"></label></div>
+  <input type="file" name="archive" accept=".zip,application/zip" required>
+  <p class="checks"><label><input type="checkbox" name="overwrite"> Overwrite existing</label> <label><input type="checkbox" name="public"> Public</label></p>
+  <button>Import</button>
+</form>
+<form method="post" action="/datasets/{{$ds.ID}}/testcases" enctype="multipart/form-data">
+  {{template "csrf" .CSRF}}
+  <h3>Single testcase</h3>
+  <label>Codename <input name="codename" required></label>
+  <div class="grid"><label>Input <input type="file" name="input" required></label><label>Output <input type="file" name="output" required></label></div>
+  <p class="checks"><label><input type="checkbox" name="public"> Public</label></p>
+  <button>Add</button>
+</form>
+</div>
+{{end}}
+<table>
+<thead><tr><th>Codename</th><th>Public</th><th>Input</th><th>Output</th><th></th></tr></thead>
+<tbody>
+{{range .Data.Testcases}}
+<tr><td>{{.Codename}}</td>
+<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/public" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="public" value="{{if .Public}}0{{else}}1{{end}}"><button class="link">{{if .Public}}yes{{else}}no{{end}}</button></form>{{else}}{{if .Public}}yes{{else}}no{{end}}{{end}}</td>
+<td><a href="/testcases/{{.ID}}/input">input</a></td><td><a href="/testcases/{{.ID}}/output">output</a></td>
+<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/delete" class="inline" data-confirm="Delete testcase {{.Codename}}?">{{template "csrf" $.CSRF}}<button class="link">delete</button></form>{{end}}</td></tr>
+{{else}}
+<tr><td colspan="5" class="muted">No testcases.</td></tr>
+{{end}}
+</tbody>
+</table>
+</section>
+
+{{if and .CanWrite (not .Data.Live)}}
+<section class="card danger">
+<form method="post" action="/datasets/{{$ds.ID}}/delete" data-confirm="Delete this dataset and its results?">
+  {{template "csrf" .CSRF}}<button class="danger">Delete dataset</button>
+</form>
+</section>
+{{end}}
+{{end}}

@@ -1,0 +1,125 @@
+{{define "content"}}
+{{$c := .Data.C}}
+<h1>{{if .Data.New}}New contest{{else}}Contest {{$c.Name}}{{end}}</h1>
+{{if not .Data.New}}
+<p class="actions">
+  <a href="/contests/{{$c.ID}}/participations">Participations{{with .Data.Counts}} ({{.Participations}}){{end}}</a> ·
+  <a href="/contests/{{$c.ID}}/submissions">Submissions{{with .Data.Counts}} ({{.Submissions}}){{end}}</a> ·
+  <a href="/contests/{{$c.ID}}/ranking">Ranking</a> ·
+  <a href="/contests/{{$c.ID}}/stats">Statistics</a>
+  {{template "extra-contest-links" .}}
+</p>
+<section class="card">
+<h2>Tasks</h2>
+<table>
+<thead><tr><th>#</th><th>Name</th><th>Title</th><th></th></tr></thead>
+<tbody>
+{{range $i, $t := .Data.Tasks}}
+<tr>
+  <td>{{add $i 1}}</td><td><a href="/tasks/{{$t.ID}}">{{$t.Name}}</a></td><td>{{$t.Title}}</td>
+  <td>{{if $.CanWrite}}
+    <form method="post" action="/contests/{{$c.ID}}/tasks/{{$t.ID}}/move" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="dir" value="up"><button class="link" title="Move up">↑</button></form>
+    <form method="post" action="/contests/{{$c.ID}}/tasks/{{$t.ID}}/move" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="dir" value="down"><button class="link" title="Move down">↓</button></form>
+    <form method="post" action="/contests/{{$c.ID}}/tasks/{{$t.ID}}/remove" class="inline" data-confirm="Remove {{$t.Name}} from the contest? (The task and its submissions are kept.)">{{template "csrf" $.CSRF}}<button class="link">remove</button></form>
+  {{end}}</td>
+</tr>
+{{else}}
+<tr><td colspan="4" class="muted">No tasks yet.</td></tr>
+{{end}}
+</tbody>
+</table>
+{{if .CanWrite}}
+<div class="row">
+<form method="post" action="/tasks" class="card">
+  {{template "csrf" .CSRF}}
+  <input type="hidden" name="contest_id" value="{{$c.ID}}">
+  <h3>New task</h3>
+  <label>Name (short, used in URLs) <input name="name" required pattern="[A-Za-z0-9_.\-]+"></label>
+  <label>Title <input name="title"></label>
+  <button>Create task</button>
+</form>
+{{if .Data.Unassigned}}
+<form method="post" action="/contests/{{$c.ID}}/tasks" class="card">
+  {{template "csrf" .CSRF}}
+  <h3>Add an existing task</h3>
+  <label>Task <select name="task_id">{{range .Data.Unassigned}}<option value="{{.ID}}">{{.Name}} — {{.Title}}</option>{{end}}</select></label>
+  <button>Add</button>
+</form>
+{{end}}
+</div>
+{{end}}
+</section>
+{{end}}
+
+<form method="post" action="{{if .Data.New}}/contests{{else}}/contests/{{$c.ID}}{{end}}" class="card">
+{{template "csrf" .CSRF}}
+<fieldset {{if not .CanWrite}}disabled{{end}}>
+<fieldset><legend>General</legend>
+<div class="grid">
+  <label>Name <input name="name" value="{{$c.Name}}" required pattern="[A-Za-z0-9_.\-]+"></label>
+  <label>Description <input name="description" value="{{$c.Description}}"></label>
+  <label>Timezone <input name="timezone" value="{{$c.Timezone}}" placeholder="e.g. America/Mexico_City"></label>
+  <label>Start ({{$c.Timezone}}) <input type="datetime-local" step="1" name="start_time" value="{{local $c.StartTime $c.Timezone}}" required></label>
+  <label>End ({{$c.Timezone}}) <input type="datetime-local" step="1" name="stop_time" value="{{local $c.StopTime $c.Timezone}}" required></label>
+  <label>Per-user time (minutes) <input name="per_user_time_min" value="{{div60 $c.PerUserTimeS}}" inputmode="numeric" placeholder="off: everybody shares the window"></label>
+</div>
+<p class="checks">
+  <label><input type="checkbox" name="analysis_enabled" {{if $c.AnalysisEnabled}}checked{{end}}> Analysis mode</label>
+  <label>from <input type="datetime-local" step="1" name="analysis_start" value="{{local $c.AnalysisStart $c.Timezone}}"></label>
+  <label>to <input type="datetime-local" step="1" name="analysis_stop" value="{{local $c.AnalysisStop $c.Timezone}}"></label>
+</p>
+</fieldset>
+<fieldset><legend>Languages</legend>
+<p class="checks">{{range .Data.Languages}}<label><input type="checkbox" name="languages" value="{{.ID}}" {{if has $c.Languages .ID}}checked{{end}}> {{.Name}}</label>{{end}}</p>
+<p class="muted small">No language checked means every configured language.</p>
+<p class="checks">Interface: {{range .Data.Localizations}}<label><input type="checkbox" name="localizations" value="{{.Code}}" {{if has $c.AllowedLocalizations .Code}}checked{{end}}> {{.Name}}</label>{{end}}</p>
+</fieldset>
+<fieldset><legend>Access and features</legend>
+<p class="checks">
+  <label><input type="checkbox" name="allow_password_authentication" {{if $c.AllowPasswordAuthentication}}checked{{end}}> Password login</label>
+  <label><input type="checkbox" name="ip_restriction" {{if $c.IpRestriction}}checked{{end}}> Restrict by IP</label>
+  <label><input type="checkbox" name="ip_autologin" {{if $c.IpAutologin}}checked{{end}}> Automatic login by IP</label>
+  <label><input type="checkbox" name="single_login" {{if $c.SingleLogin}}checked{{end}}> Block simultaneous logins</label>
+  <label><input type="checkbox" name="block_hidden_participations" {{if $c.BlockHiddenParticipations}}checked{{end}}> Block hidden users</label>
+</p>
+<p class="checks">
+  <label><input type="checkbox" name="allow_questions" {{if $c.AllowQuestions}}checked{{end}}> Questions</label>
+  <label><input type="checkbox" name="allow_user_tests" {{if $c.AllowUserTests}}checked{{end}}> User tests</label>
+  <label><input type="checkbox" name="allow_printing" {{if $c.AllowPrinting}}checked{{end}}> Printing</label>
+  <label><input type="checkbox" name="submissions_download_allowed" {{if $c.SubmissionsDownloadAllowed}}checked{{end}}> Contestants can download their submissions</label>
+</p>
+</fieldset>
+{{template "token-fields" $c}}
+{{template "limit-fields" $c}}
+<fieldset><legend>Scoring and ranking</legend>
+<div class="grid">
+  <label>Mode <select name="scoring_mode"><option value="ioi" {{if eq $c.ScoringMode "ioi"}}selected{{end}}>IOI (scores)</option><option value="icpc" {{if eq $c.ScoringMode "icpc"}}selected{{end}}>ICPC (solved + penalty)</option></select></label>
+  <label>Score precision (decimals) <input name="score_precision" value="{{$c.ScorePrecision}}" inputmode="numeric"></label>
+  <label>ICPC penalty per rejected attempt (min) <input name="icpc_penalty_minutes" value="{{$c.IcpcPenaltyMinutes}}" inputmode="numeric"></label>
+  <label>Freeze the public ranking at ({{$c.Timezone}}) <input type="datetime-local" step="1" name="ranking_freeze_time" value="{{local $c.RankingFreezeTime $c.Timezone}}"></label>
+</div>
+</fieldset>
+<fieldset><legend>Printing</legend>
+<div class="grid">
+  <label>Max. print jobs per user <input name="max_print_jobs" value="{{$c.MaxPrintJobs}}" inputmode="numeric"></label>
+  <label>Max. pages per job <input name="max_print_pages" value="{{$c.MaxPrintPages}}" inputmode="numeric"></label>
+</div>
+</fieldset>
+{{if .CanWrite}}<button>{{if .Data.New}}Create contest{{else}}Save{{end}}</button>{{end}}
+</fieldset>
+</form>
+
+{{if and (not .Data.New) .CanWrite}}
+<section class="card danger">
+<h2>Reevaluate the whole contest</h2>
+{{template "reevaluate" (reeval .CSRF "contest_id" $c.ID (printf "/contests/%d" $c.ID))}}
+<h2>Delete</h2>
+<form method="post" action="/contests/{{$c.ID}}/delete" data-confirm="Delete the contest, its participations and ALL their submissions?">
+  {{template "csrf" .CSRF}}
+  <label>Type <b>{{$c.Name}}</b> to confirm <input name="confirm" autocomplete="off"></label>
+  <button class="danger">Delete contest</button>
+</form>
+</section>
+{{end}}
+{{end}}
+{{define "extra-contest-links"}}{{end}}

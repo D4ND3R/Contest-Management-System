@@ -9,8 +9,8 @@ Status of each phase of SPEC.md §9. Updated at the end of every phase.
 | F2 Sandbox + worker | done (cgroup v2 path: pending verification on real hardware) |
 | F3 Task types, checkers, languages | done |
 | F4 Dispatcher | done |
-| F5 CWS | pending |
-| F6 AWS | pending |
+| F5 CWS | done (3000-user target: F10) |
+| F6 AWS | done |
 | F7 RWS | pending |
 | F8 Tokens, limits, user tests, Q&A, printing, analysis, ICPC | pending |
 | F9 Import/export | pending |
@@ -339,3 +339,65 @@ strings translated, JS budget) and `internal/e2e`:
   latencies are only reported.
 - The 3000-contestant target (p95 < 15 ms, p99 < 40 ms on 4 vCPU / 8 GB) is
   measured in F10 with k6; **pendiente de verificar en hardware real**.
+
+## F6 — Admin web server (AWS) (done)
+Skipping skills: immersive-web-design, master skill.
+
+- `internal/adminweb` (`cms admin-web`): administrator login (argon2id,
+  rate limited, constant time for unknown names), signed session cookies
+  bound to the admin's password hash and role (changing either logs every
+  session out), CSRF on every POST, strict CSP, roles enforced per route:
+  `all` (everything), `messaging` (read + communication), `read_only`.
+- Audit log of every mutating request, written by the routing middleware
+  after a successful response (action, target, sanitized form values and
+  uploaded file names — never passwords or CSRF tokens —, client IP) plus
+  logins, failed logins and logouts; `/audit` with filters and paging.
+- Contests: list with phase and counters, create/edit every setting
+  (timezone-aware times, languages, localizations, per-user time, analysis
+  mode, access, tokens, limits, IOI/ICPC, freeze time, printing), delete
+  with typed confirmation, task order (move up/down), add/remove tasks.
+- Tasks: create (with a live default dataset), edit (submission format,
+  primary statements, score mode, feedback, precision, tokens, limits),
+  statements per language, attachments, datasets (create, clone, edit
+  limits and task/score type parameters validated server-side, make live →
+  dispatcher re-aggregates and judges, delete non-live), managers upload,
+  testcases (single upload, zip archive with `*.in`/`*.out` templates, zip
+  bomb guard, public toggle, download), maximum score and missing-manager
+  hints.
+- Users: search/paging, create/edit/delete, password reset, CSV import
+  (header row, any column order, atomic: nothing is imported when a row is
+  invalid, optional update of existing users, generated passwords shown
+  once as a table and CSV, parallel argon2id hashing, participations with
+  team/IP/hidden/unrestricted/delay/extra), teams with flag and photo.
+- Participations: bulk add by username, edit team, IPs, delay, extra time,
+  hidden, unrestricted, contest-specific password, reset start, log out
+  everywhere.
+- Submissions: filters (task, user, status, language, score range),
+  keyset paging, detail with sources, compilation output and per-dataset
+  per-testcase evaluations, source download, line diff between two
+  submissions (Myers), reevaluation (recompile / reevaluate / rescore) by
+  submission, participation, user, task, dataset or contest.
+- Live status: workers (slots, current job, jobs/errors) and queues
+  (waiting/running per priority, results backlog) refreshed every 2 s;
+  system errors on the overview; alerts and new questions pushed to the
+  admin pages over SSE.
+- Ranking view and exports (CSV/JSON, optional hidden users) from the
+  shared `internal/ranking` package (IOI totals with shared ranks, ICPC
+  solved/penalty); per-task statistics (counters, score histogram, testcase
+  verdict distribution with times and memory).
+- Administrators: create/edit/disable/delete, cannot delete oneself or
+  remove the last enabled `all` administrator.
+
+Verification (`make test`): `internal/adminweb` (login/roles/CSRF/audit,
+every page renders without inline code, downloads, task/dataset/testcase
+management incl. zip import and dataset switch, CSV import with
+generated passwords and participations, reevaluation and open-redirect
+guard, administrator safety, diff and template unit tests),
+`internal/ranking` (IOI ties + hidden, ICPC order/penalty, CSV) and
+**`internal/e2e.TestSetUpContestFromAdminUI` (F6 exit)**: from an empty
+system with one bootstrap administrator, a contest, task, statement,
+dataset limits and scoring, 4 testcases (zip), team and two users (CSV,
+generated passwords) are created only through the admin web; the contestant
+logs into the CWS with the generated password, submits, and is judged by
+the real dispatcher + isolate worker (100/100); the admin submission list,
+ranking CSV, statistics and audit log reflect it.

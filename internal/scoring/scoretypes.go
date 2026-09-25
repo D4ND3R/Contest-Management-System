@@ -73,6 +73,8 @@ type ScoreType interface {
 	MaxPublicScore() float64
 	// NumSubtasks is the number of entries of Result.RankingDetails.
 	NumSubtasks() int
+	// SubtaskMaxScores are the maximum of each RankingDetails entry.
+	SubtaskMaxScores() []float64
 	// Compute scores testcases (which must be the dataset's testcases).
 	Compute(tcs []Testcase) Result
 }
@@ -141,6 +143,8 @@ func newSum(params json.RawMessage, defs []testcaseDef, precision int) (*sum, er
 
 func (s *sum) MaxScore() float64 { return round(s.points*float64(len(s.defs)), s.precision) }
 func (s *sum) NumSubtasks() int  { return 1 }
+
+func (s *sum) SubtaskMaxScores() []float64 { return []float64{s.MaxScore()} }
 
 func (s *sum) MaxPublicScore() float64 {
 	n := 0
@@ -321,6 +325,14 @@ func newGroup(kind string, params json.RawMessage, defs []testcaseDef, precision
 }
 
 func (g *group) NumSubtasks() int { return len(g.subtasks) }
+
+func (g *group) SubtaskMaxScores() []float64 {
+	out := make([]float64, len(g.subtasks))
+	for i, st := range g.subtasks {
+		out[i] = round(st.maxScore, g.precision)
+	}
+	return out
+}
 
 func (g *group) MaxScore() float64 {
 	var s float64

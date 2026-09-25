@@ -1,0 +1,16 @@
+{{define "content"}}
+<h1>Audit log</h1>
+<form method="get" class="filters"><label>Administrator <select name="admin"><option value="">all</option>{{range .Data.Admins}}<option value="{{.ID}}" {{if eq .ID $.Data.Admin}}selected{{end}}>{{.Username}}</option>{{end}}</select></label> <button>Filter</button></form>
+<table class="audit">
+<thead><tr><th>Time (UTC)</th><th>Administrator</th><th>Action</th><th>Target</th><th>Details</th><th>IP</th></tr></thead>
+<tbody>
+{{range .Data.Rows}}
+<tr><td>{{dt .CreatedAt}}</td><td>{{deref .AdminUsername}}</td><td><code>{{.Action}}</code></td>
+<td>{{.TargetType}}{{if .TargetID}} {{deref64 .TargetID}}{{end}}</td><td><code class="small">{{printf "%s" .Details}}</code></td><td>{{.Ip}}</td></tr>
+{{else}}
+<tr><td colspan="6" class="muted">Nothing yet.</td></tr>
+{{end}}
+</tbody>
+</table>
+{{with .Data.Next}}<p><a href="?{{.}}">Older →</a></p>{{end}}
+{{end}}

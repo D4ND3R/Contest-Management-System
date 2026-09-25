@@ -1,0 +1,23 @@
+{{define "content"}}
+{{$a := .Data.A}}
+<h1>Administrator {{$a.Username}}</h1>
+<form method="post" action="/admins/{{$a.ID}}" class="card">
+{{template "csrf" .CSRF}}
+<fieldset {{if not .CanWrite}}disabled{{end}}>
+<div class="grid">
+  <label>Username <input name="username" value="{{$a.Username}}" required autocomplete="off"></label>
+  <label>Name <input name="name" value="{{$a.Name}}"></label>
+  <label>Role <select name="role">{{range .Data.Roles}}<option {{if eq . $a.Role}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <label>New password <input type="password" name="password" minlength="8" autocomplete="new-password" placeholder="leave empty to keep"></label>
+</div>
+<p class="checks"><label><input type="checkbox" name="enabled" {{if $a.Enabled}}checked{{end}}> Enabled</label></p>
+{{if .CanWrite}}<button>Save</button>{{end}}
+</fieldset>
+</form>
+<p><a href="/audit?admin={{$a.ID}}">Actions of {{$a.Username}}</a></p>
+{{if .CanWrite}}
+<form method="post" action="/admins/{{$a.ID}}/delete" class="card danger" data-confirm="Delete administrator {{$a.Username}}?">
+  {{template "csrf" .CSRF}}<button class="danger">Delete administrator</button>
+</form>
+{{end}}
+{{end}}

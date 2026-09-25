@@ -1,0 +1,45 @@
+{{define "content"}}
+{{$p := .Data.P}}
+<h1>{{$p.Username}} <small class="muted">{{$p.FirstName}} {{$p.LastName}} · {{$p.ContestName}}</small></h1>
+<p class="actions"><a href="/users/{{$p.UserID}}">User</a> · <a href="/contests/{{$p.ContestID}}/submissions?participation={{$p.ID}}">Submissions</a>{{template "extra-participation-links" .}}</p>
+<div class="row">
+<section class="card">
+<h2>Scores</h2>
+<table>
+<thead><tr><th>Task</th><th class="num">Score</th><th class="num">Pending</th></tr></thead>
+<tbody>{{range .Data.Scores}}<tr><td>{{.Task}}</td><td class="num">{{score .Score .Precision}}</td><td class="num">{{if .Pending}}{{.Pending}}{{end}}</td></tr>{{end}}</tbody>
+</table>
+{{if .CanWrite}}<h3>Reevaluate this participation</h3>{{template "reevaluate" (reeval .CSRF "participation_id" $p.ID (printf "/participations/%d" $p.ID))}}{{end}}
+</section>
+<form method="post" action="/participations/{{$p.ID}}" class="card">
+{{template "csrf" .CSRF}}
+<fieldset {{if not .CanWrite}}disabled{{end}}>
+  <label>Team <select name="team_id"><option value="">—</option>{{range .Data.Teams}}<option value="{{.ID}}" {{if and $p.TeamID (eq .ID (deref64 $p.TeamID))}}selected{{end}}>{{.Code}} — {{.Name}}</option>{{end}}</select></label>
+  <label>Allowed addresses (IPs or subnets) <input name="ip" value="{{cidrs $p.Ip}}" placeholder="any"></label>
+  <div class="grid">
+    <label>Delay (s) <input name="delay_time_s" value="{{$p.DelayTimeS}}" inputmode="numeric"></label>
+    <label>Extra time (s) <input name="extra_time_s" value="{{$p.ExtraTimeS}}" inputmode="numeric"></label>
+  </div>
+  <p class="checks">
+    <label><input type="checkbox" name="hidden" {{if $p.Hidden}}checked{{end}}> Hidden (not in the ranking)</label>
+    <label><input type="checkbox" name="unrestricted" {{if $p.Unrestricted}}checked{{end}}> Unrestricted (no time or limit checks)</label>
+  </p>
+  <p>Started: {{if $p.StartingTime}}{{dt $p.StartingTime}} UTC <label class="inline"><input type="checkbox" name="reset_start"> reset</label>{{else}}<span class="muted">not yet</span>{{end}}</p>
+  <label>Contest-specific password <input type="password" name="participation_password" autocomplete="new-password" placeholder="{{if $p.PasswordHash}}set — leave empty to keep{{else}}none (the user's password is used){{end}}"></label>
+  <p class="checks">{{if $p.PasswordHash}}<label><input type="checkbox" name="clear_password"> Remove the contest-specific password</label>{{end}}
+    <label><input type="checkbox" name="logout"> Log out all sessions</label></p>
+  {{if .CanWrite}}<button>Save</button>{{end}}
+</fieldset>
+</form>
+</div>
+{{if .CanWrite}}
+<section class="card danger">
+<form method="post" action="/participations/{{$p.ID}}/delete" data-confirm="Delete the participation and its submissions?">
+  {{template "csrf" .CSRF}}
+  <label>Type <b>{{$p.Username}}</b> to delete the participation <input name="confirm" autocomplete="off"></label>
+  <button class="danger">Delete participation</button>
+</form>
+</section>
+{{end}}
+{{end}}
+{{define "extra-participation-links"}}{{end}}

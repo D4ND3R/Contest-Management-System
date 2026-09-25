@@ -1,0 +1,40 @@
+{{define "content"}}
+{{$u := .Data.U}}
+<h1>{{if .Data.New}}New user{{else}}User {{$u.Username}}{{end}}</h1>
+<form method="post" action="{{if .Data.New}}/users{{else}}/users/{{$u.ID}}{{end}}" class="card">
+{{template "csrf" .CSRF}}
+<fieldset {{if not .CanWrite}}disabled{{end}}>
+<div class="grid">
+  <label>Username <input name="username" value="{{$u.Username}}" required autocomplete="off"></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" {{if .Data.New}}required{{else}}placeholder="leave empty to keep"{{end}}></label>
+  <label>First name <input name="first_name" value="{{$u.FirstName}}"></label>
+  <label>Last name <input name="last_name" value="{{$u.LastName}}"></label>
+  <label>Email <input type="email" name="email" value="{{$u.Email}}"></label>
+  <label>Timezone <input name="timezone" value="{{deref $u.Timezone}}" placeholder="contest timezone"></label>
+</div>
+<p class="checks">Interface language: {{range .Data.Localizations}}<label><input type="checkbox" name="preferred_languages" value="{{.Code}}" {{if has $u.PreferredLanguages .Code}}checked{{end}}> {{.Name}}</label>{{end}}</p>
+{{if .Data.New}}<label>Add to contest <select name="contest_id"><option value="">none</option>{{range .Data.Contests}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
+{{if .CanWrite}}<button>{{if .Data.New}}Create user{{else}}Save{{end}}</button>{{end}}
+</fieldset>
+</form>
+{{if not .Data.New}}
+<section class="card">
+<h2>Participations</h2>
+<table><thead><tr><th>Contest</th><th>Team</th><th>Flags</th><th></th></tr></thead><tbody>
+{{range .Data.Participations}}<tr><td><a href="/participations/{{.ID}}">{{.ContestName}}</a></td><td>{{deref .TeamCode}}</td><td>{{if .Hidden}}<span class="tag">hidden</span>{{end}}{{if .Unrestricted}}<span class="tag">unrestricted</span>{{end}}</td>
+<td><a href="/contests/{{.ContestID}}/submissions?participation={{.ID}}">submissions</a></td></tr>
+{{else}}<tr><td colspan="4" class="muted">None.</td></tr>{{end}}
+</tbody></table>
+{{if .CanWrite}}<p>Reevaluate all of this user's submissions: {{template "reevaluate" (reeval .CSRF "user_id" $u.ID (printf "/users/%d" $u.ID))}}</p>{{end}}
+</section>
+{{if .CanWrite}}
+<section class="card danger">
+<form method="post" action="/users/{{$u.ID}}/delete" data-confirm="Delete the user and all their submissions?">
+  {{template "csrf" .CSRF}}
+  <label>Type <b>{{$u.Username}}</b> to delete the user <input name="confirm" autocomplete="off"></label>
+  <button class="danger">Delete user</button>
+</form>
+</section>
+{{end}}
+{{end}}
+{{end}}

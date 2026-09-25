@@ -1,0 +1,14 @@
+{{define "content"}}
+<h1>Languages</h1>
+<table>
+<thead><tr><th>Id</th><th>Name</th><th>Extensions</th><th>Compilation</th><th>Execution</th></tr></thead>
+<tbody>
+{{range .Data.Languages}}
+<tr><td><code>{{.ID}}</code></td><td>{{.Name}}</td><td>{{join .SourceExtensions " "}}</td>
+<td>{{if .Compile}}<pre class="small">{{cmds .Compile}}</pre>{{else}}<span class="muted">interpreted</span>{{end}}</td>
+<td><pre class="small">{{args .Run}}</pre></td></tr>
+{{end}}
+</tbody>
+</table>
+<p class="muted small">Languages are defined by the YAML files in <code>config/languages/</code>; adding one needs no code change.</p>
+{{end}}

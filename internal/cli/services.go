@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"github.com/D4ND3R/Contest-Management-System/internal/adminweb"
 	"log/slog"
 	"time"
 
@@ -21,7 +22,7 @@ import (
 
 func init() {
 	services["contest-web"] = runContestWeb
-	services["admin-web"] = stub("admin-web", func(c *config.Config) string { return c.AdminWeb.Listen })
+	services["admin-web"] = runAdminWeb
 	services["ranking-web"] = stub("ranking-web", func(c *config.Config) string { return c.RankingWeb.Listen })
 	services["dispatcher"] = runDispatcher
 	services["worker"] = runWorker
@@ -81,6 +82,25 @@ func runContestWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) er
 		return err
 	}
 	return srv.Run(ctx, cfg.ContestWeb.Listen, nil)
+}
+
+func runAdminWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
+	d, err := deps.Open(ctx, cfg, log, deps.Need{DB: true, Redis: true, Blobs: true})
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	reg, err := langs.Load(cfg.LanguagesDir)
+	if err != nil {
+		return err
+	}
+	srv, err := adminweb.New(cfg.AdminWeb, adminweb.Deps{
+		Pool: d.DB, Redis: d.Redis, Blobs: d.Blobs, Langs: reg, Secret: cfg.Secret(), NS: cfg.Redis.Namespace, Checks: d.Checks(),
+	}, log)
+	if err != nil {
+		return err
+	}
+	return srv.Run(ctx, cfg.AdminWeb.Listen, nil)
 }
 
 func runDispatcher(ctx context.Context, cfg *config.Config, log *slog.Logger) error {

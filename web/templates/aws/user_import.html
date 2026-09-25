@@ -1,0 +1,19 @@
+{{define "content"}}
+<h1>User import</h1>
+{{with .Data.Errors}}
+<div class="alert"><p>Nothing was imported. Fix these problems and upload the file again:</p><ul>{{range .}}<li>{{.}}</li>{{end}}</ul></div>
+{{else}}
+<p class="info">{{.Data.Created}} users created, {{.Data.Updated}} updated, {{.Data.Participations}} participations added.</p>
+{{end}}
+{{with .Data.Credentials}}
+<section class="card">
+<h2>Generated passwords</h2>
+<p class="alert">Save or print them now: they are stored hashed and cannot be shown again.</p>
+<textarea rows="8" class="code" readonly>{{$.Data.CSV}}</textarea>
+<table><thead><tr><th>Username</th><th>Password</th></tr></thead><tbody>
+{{range .}}<tr><td>{{.Username}}</td><td><code>{{.Password}}</code></td></tr>{{end}}
+</tbody></table>
+</section>
+{{end}}
+<p><a href="/users">Back to users</a></p>
+{{end}}

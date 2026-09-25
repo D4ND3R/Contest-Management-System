@@ -1,0 +1,21 @@
+{{define "content"}}
+{{$t := .Data}}
+<h1>Team {{$t.Code}}</h1>
+<form method="post" action="/teams/{{$t.ID}}" enctype="multipart/form-data" class="card">
+{{template "csrf" .CSRF}}
+<fieldset {{if not .CanWrite}}disabled{{end}}>
+<div class="grid">
+  <label>Code <input name="code" value="{{$t.Code}}" required pattern="[A-Za-z0-9_.\-]+"></label>
+  <label>Name <input name="name" value="{{$t.Name}}" required></label>
+  <label>Flag {{if $t.FlagDigest}}<img src="/teams/{{$t.ID}}/flag" alt="" class="flag"> <label class="inline"><input type="checkbox" name="remove_flag"> remove</label>{{end}} <input type="file" name="flag" accept="image/*"></label>
+  <label>Photo {{if $t.PhotoDigest}}<a href="/teams/{{$t.ID}}/photo">current</a> <label class="inline"><input type="checkbox" name="remove_photo"> remove</label>{{end}} <input type="file" name="photo" accept="image/*"></label>
+</div>
+{{if .CanWrite}}<button>Save</button>{{end}}
+</fieldset>
+</form>
+{{if .CanWrite}}
+<form method="post" action="/teams/{{$t.ID}}/delete" class="card danger" data-confirm="Delete team {{$t.Code}}? Participations keep existing without a team.">
+  {{template "csrf" .CSRF}}<button class="danger">Delete team</button>
+</form>
+{{end}}
+{{end}}

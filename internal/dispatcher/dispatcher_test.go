@@ -448,6 +448,14 @@ func TestKillWorkerMidEvaluation(t *testing.T) {
 		cases = append(cases, [2]string{fmt.Sprintf("%d %d", i, i), fmt.Sprintf("%d", 2*i)})
 	}
 	slow := e.newDataset("slow", false, cases, `[[50, 4], [50, 4]]`)
+	// Generous limits: this test is about crash recovery, and parallel test
+	// packages pin their sandboxes to the same cores.
+	up := db.DatasetToUpdate(slow)
+	tl := int32(3000)
+	up.TimeLimitMs = &tl
+	if _, err := q.UpdateDataset(ctx, up); err != nil {
+		t.Fatal(err)
+	}
 	if err := q.SetActiveDataset(ctx, sqlc.SetActiveDatasetParams{ID: e.task.ID, ActiveDatasetID: &slow.ID}); err != nil {
 		t.Fatal(err)
 	}

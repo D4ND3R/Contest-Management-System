@@ -1,0 +1,44 @@
+{{define "content"}}
+{{$c := .Data.Contest}}
+<h1>Participations in {{$c.Name}} <small class="muted">{{len .Data.Rows}} ({{.Data.Hidden}} hidden)</small></h1>
+{{if .CanWrite}}
+<div class="row">
+<form method="post" action="/contests/{{$c.ID}}/participations" class="card">
+  {{template "csrf" .CSRF}}
+  <h3>Add users</h3>
+  <label>Usernames (separated by spaces, commas or lines) <textarea name="usernames" rows="3" required></textarea></label>
+  <label>Team <select name="team_id"><option value="">—</option>{{range .Data.Teams}}<option value="{{.ID}}">{{.Code}} — {{.Name}}</option>{{end}}</select></label>
+  <p class="checks"><label><input type="checkbox" name="hidden"> Hidden</label> <label><input type="checkbox" name="unrestricted"> Unrestricted</label></p>
+  <button>Add</button>
+</form>
+<form method="post" action="/users/import" enctype="multipart/form-data" class="card">
+  {{template "csrf" .CSRF}}
+  <input type="hidden" name="contest_id" value="{{$c.ID}}">
+  <h3>Import users from CSV into this contest</h3>
+  <p class="muted small">Columns: username, password, first_name, last_name, email, timezone, team, ip, hidden, unrestricted, delay_time, extra_time.</p>
+  <input type="file" name="file" accept=".csv,text/csv" required>
+  <p class="checks"><label><input type="checkbox" name="update"> Update existing users</label> <label><input type="checkbox" name="generate" checked> Generate missing passwords</label></p>
+  <button>Import</button>
+</form>
+</div>
+{{end}}
+<table>
+<thead><tr><th>User</th><th>Name</th><th>Team</th><th>Flags</th><th>IP</th><th class="num">Delay (s)</th><th class="num">Extra (s)</th><th>Started</th><th></th></tr></thead>
+<tbody>
+{{range .Data.Rows}}{{$p := .Participation}}
+<tr>
+  <td><a href="/participations/{{$p.ID}}">{{.Username}}</a></td>
+  <td>{{.FirstName}} {{.LastName}}</td>
+  <td>{{deref .TeamCode}}</td>
+  <td>{{if $p.Hidden}}<span class="tag">hidden</span>{{end}}{{if $p.Unrestricted}}<span class="tag">unrestricted</span>{{end}}{{if $p.PasswordHash}}<span class="tag">own password</span>{{end}}</td>
+  <td>{{cidrs $p.Ip}}</td>
+  <td class="num">{{$p.DelayTimeS}}</td><td class="num">{{$p.ExtraTimeS}}</td>
+  <td>{{dt $p.StartingTime}}</td>
+  <td><a href="/contests/{{$c.ID}}/submissions?participation={{$p.ID}}">submissions</a></td>
+</tr>
+{{else}}
+<tr><td colspan="9" class="muted">Nobody takes part yet.</td></tr>
+{{end}}
+</tbody>
+</table>
+{{end}}

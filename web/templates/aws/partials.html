@@ -1,0 +1,70 @@
+{{define "csrf"}}<input type="hidden" name="csrf" value="{{.}}">{{end}}
+
+{{define "reevaluate"}}
+<form method="post" action="/reevaluate" class="inline reeval" data-confirm="Reevaluate every selected result?">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="{{.Field}}" value="{{.ID}}">
+  <input type="hidden" name="back" value="{{.Back}}">
+  <select name="level" aria-label="Reevaluation level">
+    <option value="rescore">Rescore</option>
+    <option value="reevaluate">Reevaluate</option>
+    <option value="recompile">Recompile</option>
+  </select>
+  <button class="secondary">Run</button>
+</form>
+{{end}}
+
+{{define "token-fields"}}
+<fieldset><legend>Tokens</legend>
+<div class="grid">
+  <label>Mode <select name="token_mode">
+    {{range $m := (split "disabled finite infinite")}}<option value="{{$m}}" {{if eq $m $.TokenMode}}selected{{end}}>{{$m}}</option>{{end}}
+  </select></label>
+  <label>Maximum tokens <input name="token_max_number" value="{{opt .TokenMaxNumber}}" inputmode="numeric" placeholder="unlimited"></label>
+  <label>Min. interval between tokens (s) <input name="token_min_interval_s" value="{{.TokenMinIntervalS}}" inputmode="numeric"></label>
+  <label>Initial tokens <input name="token_gen_initial" value="{{.TokenGenInitial}}" inputmode="numeric"></label>
+  <label>Tokens generated <input name="token_gen_number" value="{{.TokenGenNumber}}" inputmode="numeric"></label>
+  <label>Generation interval (s) <input name="token_gen_interval_s" value="{{.TokenGenIntervalS}}" inputmode="numeric"></label>
+  <label>Max. accumulated <input name="token_gen_max" value="{{opt .TokenGenMax}}" inputmode="numeric" placeholder="unlimited"></label>
+</div>
+</fieldset>
+{{end}}
+
+{{define "limit-fields"}}
+<fieldset><legend>Submission limits</legend>
+<div class="grid">
+  <label>Max. submissions <input name="max_submission_number" value="{{opt .MaxSubmissionNumber}}" inputmode="numeric" placeholder="unlimited"></label>
+  <label>Max. user tests <input name="max_user_test_number" value="{{opt .MaxUserTestNumber}}" inputmode="numeric" placeholder="unlimited"></label>
+  <label>Min. interval between submissions (s) <input name="min_submission_interval_s" value="{{opt .MinSubmissionIntervalS}}" inputmode="numeric" placeholder="none"></label>
+  <label>Min. interval between user tests (s) <input name="min_user_test_interval_s" value="{{opt .MinUserTestIntervalS}}" inputmode="numeric" placeholder="none"></label>
+</div>
+</fieldset>
+{{end}}
+
+{{define "system-status"}}
+<div id="system-status" hx-get="/system/status" hx-trigger="every 2s" hx-swap="outerHTML">
+{{with .QueueError}}<p class="alert">Redis: {{.}}</p>{{end}}
+<div class="stats">
+  <div class="stat"><b>{{.Alive}}</b><span>workers alive</span></div>
+  <div class="stat"><b>{{.Busy}} / {{.Slots}}</b><span>slots busy</span></div>
+  {{range .Priorities}}<div class="stat"><b>{{index $.Queues.Waiting .}}</b><span>{{.}} waiting ({{index $.Queues.Pending .}} running)</span></div>{{end}}
+  <div class="stat"><b>{{.Queues.Results}}</b><span>results to process</span></div>
+</div>
+<table>
+<thead><tr><th>Worker</th><th>Host</th><th>Version</th><th>State</th><th class="num">Jobs</th><th class="num">Errors</th><th>Slots</th></tr></thead>
+<tbody>
+{{range .Workers}}
+<tr class="{{if not .Alive}}pending{{end}}">
+  <td>{{.Name}}</td><td>{{.Hostname}}</td><td>{{.Version}}</td>
+  <td>{{if .Alive}}<span class="ok">alive</span>{{else}}<span class="bad">dead</span> (last seen {{dt .LastSeen}}){{end}}</td>
+  <td class="num">{{.JobsDone}}</td><td class="num">{{.Errors}}</td>
+  <td>{{range .Slots}}<span class="slot {{if .JobID}}busy{{end}}" title="core {{.Core}}">{{if .JobID}}{{.Kind}}{{if .SubmissionID}} <a href="/submissions/{{.SubmissionID}}">#{{.SubmissionID}}</a>{{end}}{{if .UserTestID}} test {{.UserTestID}}{{end}} · {{since .Since}}{{else}}idle{{end}}</span>{{end}}</td>
+</tr>
+{{else}}
+<tr><td colspan="7" class="muted">No worker has reported yet.</td></tr>
+{{end}}
+</tbody>
+</table>
+<p class="muted small">Updated {{dt .Time}} UTC.</p>
+</div>
+{{end}}

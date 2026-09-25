@@ -1,0 +1,27 @@
+{{define "content"}}
+{{$r := .Data}}
+<h1>Ranking of {{$r.Contest}} {{if $r.ICPC}}<span class="tag">ICPC</span>{{end}}</h1>
+<p class="actions"><a href="/contests/{{$r.ContestID}}/ranking.csv">Export CSV</a> · <a href="/contests/{{$r.ContestID}}/ranking.json">Export JSON</a> ·
+  <a href="?hidden=1">include hidden users</a> · <a href="/contests/{{$r.ContestID}}/stats">statistics</a></p>
+<table class="ranking">
+<thead><tr><th class="num">#</th><th>User</th><th>Team</th>{{range $r.Tasks}}<th class="num" title="{{.Title}}">{{.Name}}<br><small class="muted">{{score .MaxScore .Precision}}</small></th>{{end}}<th class="num">Total</th>{{if $r.ICPC}}<th class="num">Penalty</th>{{end}}</tr></thead>
+<tbody>
+{{range $r.Rows}}
+<tr class="{{if .Hidden}}pending{{end}}">
+  <td class="num">{{.Rank}}</td>
+  <td><a href="/participations/{{.ParticipationID}}">{{.Username}}</a> <span class="muted">{{.FirstName}} {{.LastName}}</span></td>
+  <td>{{.TeamCode}}</td>
+  {{range $i, $c := .Cells}}{{$t := index $r.Tasks $i}}
+  <td class="num {{if not $c.Submitted}}muted{{else if and (gt $t.MaxScore 0.0) (ge $c.Score $t.MaxScore)}}ok{{else if gt $c.Score 0.0}}warn{{else}}bad{{end}}">
+    {{if $r.ICPC}}{{if $c.Solved}}+{{if $c.Attempts}}{{$c.Attempts}}{{end}} <small>{{$c.SolvedMinute}}'</small>{{else if $c.Attempts}}−{{$c.Attempts}}{{else}}·{{end}}
+    {{else}}{{if $c.Submitted}}{{score $c.Score $t.Precision}}{{else}}–{{end}}{{end}}{{if $c.Pending}} <small title="pending">…</small>{{end}}
+  </td>{{end}}
+  <td class="num"><b>{{if $r.ICPC}}{{.Solved}}{{else}}{{score .Total $r.Precision}}{{end}}</b></td>
+  {{if $r.ICPC}}<td class="num">{{.Penalty}}</td>{{end}}
+</tr>
+{{else}}
+<tr><td colspan="99" class="muted">Nobody takes part yet.</td></tr>
+{{end}}
+</tbody>
+</table>
+{{end}}

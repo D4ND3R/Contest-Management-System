@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/adminweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/auth"
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/config"
@@ -51,6 +52,7 @@ type stack struct {
 	store   blob.Store
 	langs   *langs.Registry
 	cwsURL  string
+	awsURL  string
 	secret  []byte
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -61,6 +63,8 @@ type stack struct {
 
 type stackOpts struct {
 	workers bool // start a worker (needs isolate + root)
+	admin   bool // start the admin web server
+	empty   bool // no contest fixture (created through the admin UI)
 }
 
 var boxBase = 300
@@ -117,11 +121,24 @@ func newStack(t testing.TB, o stackOpts) *stack {
 	ready := make(chan net.Addr, 1)
 	s.run(func() { cws.Run(ctx, "127.0.0.1:0", ready) })
 	s.cwsURL = "http://" + (<-ready).String()
+	if o.admin {
+		acfg := config.Default().AdminWeb
+		acfg.LoginRateLimit = 1000
+		aws, err := adminweb.New(acfg, adminweb.Deps{Pool: pool, Redis: rdb, Blobs: s.store, Langs: reg, Secret: s.secret, NS: ns}, logging.Discard())
+		if err != nil {
+			t.Fatal(err)
+		}
+		ready := make(chan net.Addr, 1)
+		s.run(func() { aws.Run(ctx, "127.0.0.1:0", ready) })
+		s.awsURL = "http://" + (<-ready).String()
+	}
 	t.Cleanup(func() {
 		cancel()
 		s.wg.Wait()
 	})
-	s.fixture()
+	if !o.empty {
+		s.fixture()
+	}
 	time.Sleep(100 * time.Millisecond)
 	return s
 }

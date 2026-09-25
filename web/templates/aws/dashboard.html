@@ -1,0 +1,33 @@
+{{define "content"}}
+<h1>Overview</h1>
+{{template "system-status" .Data.Status}}
+<h2>Current and upcoming contests</h2>
+<table>
+<thead><tr><th>Contest</th><th>Phase</th><th>Start (UTC)</th><th>End (UTC)</th><th class="num">Tasks</th><th class="num">Participants</th><th class="num">Submissions</th><th></th></tr></thead>
+<tbody>
+{{range .Data.Contests}}
+<tr>
+  <td><a href="/contests/{{.ID}}">{{.Name}}</a> <span class="muted">{{.Description}}</span></td>
+  <td><span class="phase {{.Phase}}">{{.Phase}}</span></td>
+  <td>{{dt .StartTime}}</td><td>{{dt .StopTime}}</td>
+  <td class="num">{{.Tasks}}</td><td class="num">{{.Participations}}</td><td class="num">{{.Submissions}}</td>
+  <td><a href="/contests/{{.ID}}/submissions">submissions</a> · <a href="/contests/{{.ID}}/ranking">ranking</a></td>
+</tr>
+{{else}}
+<tr><td colspan="8" class="muted">No current contest. <a href="/contests/new">Create one</a>.</td></tr>
+{{end}}
+</tbody>
+</table>
+<h2>System errors</h2>
+{{if .Data.Errors}}
+<table>
+<thead><tr><th>Submission</th><th>User</th><th>Task</th><th>Error</th><th></th></tr></thead>
+<tbody>
+{{range .Data.Errors}}
+<tr><td><a href="/submissions/{{.SubmissionID}}">#{{.SubmissionID}}</a></td><td>{{.Username}}</td><td>{{.TaskName}}</td><td class="bad">{{deref .SystemError}}</td>
+<td>{{if $.CanWrite}}{{template "reevaluate" (reeval $.CSRF "submission_id" .SubmissionID "/")}}{{end}}</td></tr>
+{{end}}
+</tbody>
+</table>
+{{else}}<p class="muted">None.</p>{{end}}
+{{end}}

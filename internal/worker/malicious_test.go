@@ -46,9 +46,9 @@ func maliciousCases(t *testing.T, listenerPort int, connections *atomic.Int64) [
 		{name: "control_ac", file: "sum_ok.c", input: "2 3\n", limits: lim, want: []string{"ok"}, outcome: 1},
 		{name: "control_wa", file: "sum_wrong.c", input: "2 3\n", limits: lim, want: []string{"ok"}},
 		{name: "control_ce", file: "syntax_error.c", want: []string{"compile_error"}},
-		{name: "fork_bomb", file: "fork_bomb.c", input: "", limits: lim, want: []string{"timeout"},
+		{name: "fork_bomb", file: "fork_bomb.c", input: "", limits: lim, want: tle,
 			check: func(t *testing.T, _ string) { assertNoSandboxProcesses(t) }},
-		{name: "fork_bomb_64_procs", file: "fork_bomb_wide.c", input: "", limits: wide, want: []string{"timeout"},
+		{name: "fork_bomb_64_procs", file: "fork_bomb_wide.c", input: "", limits: wide, want: tle,
 			check: func(t *testing.T, _ string) { assertNoSandboxProcesses(t) }},
 		{name: "read_passwd", file: "read_passwd.c", input: "", limits: lim, want: []string{"ok"},
 			check: func(t *testing.T, out string) {
@@ -93,7 +93,7 @@ func maliciousCases(t *testing.T, listenerPort int, connections *atomic.Int64) [
 		{name: "include_dev_random", file: "include_dev_random.c", want: []string{"compile_error"}},
 		{name: "include_dev_zero", file: "include_dev_zero.c", want: []string{"compile_error"}},
 		{name: "threads_no_allowance", file: "threads.cpp", input: "", limits: lim, want: []string{"signal"}},
-		{name: "threads_with_allowance", file: "threads.cpp", input: "", limits: wide, want: []string{"timeout"},
+		{name: "threads_with_allowance", file: "threads.cpp", input: "", limits: wide, want: tle,
 			check: func(t *testing.T, _ string) { assertNoSandboxProcesses(t) }},
 		// kill(1) is ignored (namespace init) and kill(-1) cannot reach
 		// anything outside the sandbox's pid namespace.
@@ -207,6 +207,19 @@ func runBattery(t *testing.T, h *harness) map[string]string {
 	return summary
 }
 
+// tle accepts both time limits for programs that burn CPU: on an
+// overloaded machine the wall-clock limit (2×TL) can expire before the
+// program accumulates TL of CPU time. Both are "time limit exceeded".
+var tle = []string{"timeout", "timeout_wall"}
+
+// verdictClass is the verdict a contestant sees (both time limits are TLE).
+func verdictClass(status string) string {
+	if status == "timeout" || status == "timeout_wall" {
+		return "TLE"
+	}
+	return status
+}
+
 // lastOutput re-runs a program as a user test to capture its stdout (the
 // evaluation itself only stores the verdict).
 func (h *harness) lastOutput(t *testing.T, lang, name string, src []byte, c maliciousCase) string {
@@ -240,7 +253,7 @@ func TestMaliciousBattery(t *testing.T) {
 	var report strings.Builder
 	for _, n := range names {
 		fmt.Fprintf(&report, "| %s | %s | %s |\n", n, first[n], second[n])
-		if first[n] != second[n] {
+		if verdictClass(first[n]) != verdictClass(second[n]) {
 			t.Errorf("%s: verdict changed between runs: %s vs %s", n, first[n], second[n])
 		}
 	}

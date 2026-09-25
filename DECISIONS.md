@@ -186,3 +186,34 @@ Performance targets are asserted by dedicated runs (`make test-e2e`, and
 the k6 scenarios of F10), never inside `go test ./...`, where packages run
 in parallel with CPU-heavy sandbox tests and on shared CI runners. There the
 same tests still run and report their percentiles.
+
+## D29. Audit log written by the routing middleware
+Every mutating admin route declares an action name; the middleware records
+it after the handler succeeded (status < 400), with the target set by the
+handler and the sanitized form values. New routes cannot forget auditing,
+and failed validations do not pollute the log. The insert happens after
+the change (not in the same transaction); a failure is logged loudly.
+
+## D30. Destructive admin actions need the object's name typed
+Deleting contests, tasks, users and participations cascades to
+submissions, so the form requires typing the name (on top of a browser
+confirmation). The live dataset cannot be deleted; the last enabled `all`
+administrator cannot be demoted, disabled or deleted.
+
+## D31. CSV user import is all-or-nothing
+The file is validated completely first (unknown columns, duplicates, teams,
+timezones, IPs); any error aborts the import and lists every problem.
+Missing passwords can be generated (readable 10-character passwords from
+an unambiguous alphabet) and are shown exactly once. Hashing runs in
+parallel (argon2id is deliberately slow).
+
+## D32. Admin sessions are bound to the password hash and role
+The admin cookie carries a fingerprint of the admin's password hash and
+role, checked against a 3 s cache of the admin row: disabling, deleting,
+changing the password or the role of an administrator ends their sessions
+within seconds without a session table.
+
+## D33. Worker/queue status by polling, events by SSE
+The system page polls a small HTML fragment every 2 s (cheap Redis reads,
+always consistent after reconnects); discrete events (system error alerts,
+new questions) are pushed to administrators over SSE.

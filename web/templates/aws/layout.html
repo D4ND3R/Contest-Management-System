@@ -1,0 +1,43 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · CMS admin</title>
+<link rel="stylesheet" href="{{static "style.css"}}">
+<link rel="stylesheet" href="{{static "admin.css"}}">
+<meta name="csrf-token" content="{{.CSRF}}">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0}'>
+{{if .Admin}}<meta name="cms-events" content="/events">{{end}}
+<script src="{{static "htmx.min.js"}}" defer></script>
+<script src="{{static "admin.js"}}" defer></script>
+</head>
+<body class="admin">
+<header class="top">
+  <a class="brand" href="/">CMS admin</a>
+  {{if .Admin}}
+  <nav>
+    <a href="/" {{if eq .Active "home"}}class="active"{{end}}>Overview</a>
+    <a href="/contests" {{if eq .Active "contests"}}class="active"{{end}}>Contests</a>
+    <a href="/tasks" {{if eq .Active "tasks"}}class="active"{{end}}>Tasks</a>
+    <a href="/users" {{if eq .Active "users"}}class="active"{{end}}>Users</a>
+    <a href="/teams" {{if eq .Active "teams"}}class="active"{{end}}>Teams</a>
+    <a href="/system" {{if eq .Active "system"}}class="active"{{end}}>Workers &amp; queues</a>
+    <a href="/admins" {{if eq .Active "admins"}}class="active"{{end}}>Admins</a>
+    <a href="/audit">Audit log</a>
+  </nav>
+  <div class="user">
+    <span>{{.Admin.Username}} <small class="muted">({{.Admin.Role}})</small></span>
+    <form method="post" action="/logout" class="inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link">Log out</button></form>
+  </div>
+  {{end}}
+</header>
+<main class="wide">
+{{if .Crumbs}}<p class="crumbs">{{range .Crumbs}}<a href="{{.URL}}">{{.Name}}</a> › {{end}}</p>{{end}}
+{{with .Flash}}<p class="info" role="status">{{.}}</p>{{end}}
+{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+{{template "content" .}}
+</main>
+<div id="notifications" aria-live="polite"></div>
+</body>
+</html>{{end}}

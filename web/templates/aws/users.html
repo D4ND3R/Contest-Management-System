@@ -1,0 +1,28 @@
+{{define "content"}}
+<h1>Users <small class="muted">{{.Data.Total}}</small> {{if .CanWrite}}<a class="button small" href="/users/new">New user</a>{{end}}</h1>
+{{if .CanWrite}}
+<form method="post" action="/users/import" enctype="multipart/form-data" class="card inline-form">
+  {{template "csrf" .CSRF}}
+  <b>Import CSV</b>
+  <input type="file" name="file" accept=".csv,text/csv" required>
+  <label>and add to <select name="contest_id"><option value="">no contest</option>{{range .Data.Contests}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
+  <label><input type="checkbox" name="update"> update existing</label>
+  <label><input type="checkbox" name="generate" checked> generate missing passwords</label>
+  <button>Import</button>
+  <p class="muted small">Header row required. Columns: username, password, first_name, last_name, email, timezone, team (code), ip, hidden, unrestricted, delay_time, extra_time. Nothing is imported if a row is invalid.</p>
+</form>
+{{end}}
+<form method="get" class="filters"><label>Search <input name="q" value="{{.Data.Search}}" placeholder="username or name"></label> <button>Search</button></form>
+<table>
+<thead><tr><th>Username</th><th>Name</th><th>Email</th><th class="num">Contests</th></tr></thead>
+<tbody>
+{{range .Data.Users}}
+<tr><td><a href="/users/{{.ID}}">{{.Username}}</a></td><td>{{.FirstName}} {{.LastName}}</td><td>{{.Email}}</td><td class="num">{{.Participations}}</td></tr>
+{{else}}
+<tr><td colspan="4" class="muted">No users.</td></tr>
+{{end}}
+</tbody>
+</table>
+<p>{{if .Data.Page}}<a href="?q={{urlquery .Data.Search}}&amp;page={{add .Data.Page -1}}">← previous</a>{{end}}
+{{if .Data.HasMore}}<a class="right" href="?q={{urlquery .Data.Search}}&amp;page={{add .Data.Page 1}}">next →</a>{{end}}</p>
+{{end}}

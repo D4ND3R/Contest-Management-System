@@ -129,6 +129,9 @@ type AdminWeb struct {
 	Listen         string   `yaml:"listen"`
 	CookieSecure   bool     `yaml:"cookie_secure"`
 	TrustedProxies []string `yaml:"trusted_proxies"`
+	// MaxUploadBytes bounds uploads (testcase archives, statements).
+	MaxUploadBytes ByteSize `yaml:"max_upload_bytes"`
+	LoginRateLimit int      `yaml:"login_rate_limit_per_minute"`
 	Pprof          bool     `yaml:"pprof"`
 }
 
@@ -227,7 +230,7 @@ func Default() *Config {
 			MaxSubmissionBytes: 1 << 20, MaxUserTestBytes: 8 << 20, MaxPrintBytes: 2 << 20,
 			RateLimitPerMinute: 120, LoginRateLimit: 20,
 		},
-		AdminWeb:   AdminWeb{Listen: ":8889"},
+		AdminWeb:   AdminWeb{Listen: ":8889", MaxUploadBytes: 1 << 30, LoginRateLimit: 20},
 		RankingWeb: RankingWeb{Listen: ":8890", DataDir: "./data/ranking", Title: "Ranking", MaxClients: 20000},
 		Dispatcher: Dispatcher{
 			MetricsListen: ":9101", SweepInterval: Duration(30 * time.Second),
