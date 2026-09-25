@@ -27,6 +27,20 @@ type board struct {
 	pages    map[string][]byte // rendered page per language
 	subs     map[chan []byte]struct{}
 	dirty    bool // not yet saved to disk
+	// shown is the sequence number at which the rows spectators see last
+	// changed: pages carry it and every update says it starts from it.
+	shown int64
+}
+
+// snapshot copies a board deeply enough to diff against later: rows are
+// replaced, never modified in place.
+func snapshot(b *ranking.Board) *ranking.Board {
+	if b == nil {
+		return nil
+	}
+	c := *b
+	c.Rows = append([]ranking.BoardRow(nil), b.Rows...)
+	return &c
 }
 
 func newBoard() *board {

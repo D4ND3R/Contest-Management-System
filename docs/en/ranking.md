@@ -37,8 +37,10 @@ runs inside the dispatcher. The pusher recomputes a contest's board when
 scores change (at most every 250 ms, every 2 s while frozen), sends only the
 rows that changed and a full board when a server is new or behind; the
 server sends spectators the changed rows as ready-made HTML over
-Server-Sent Events. A score reaches the scoreboard well under a second after
-it is computed.
+Server-Sent Events, and the rows that only moved as rank shifts (a climb
+past hundreds of rows is a few bytes). A page that missed an update (a
+dropped connection, a restart) notices and reloads itself. A score reaches
+the scoreboard well under a second after it is computed.
 
 Configuration:
 

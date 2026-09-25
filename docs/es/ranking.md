@@ -40,8 +40,11 @@ dentro del dispatcher. El publicador recalcula el marcador de un concurso
 cuando cambian los puntajes (a lo más cada 250 ms, cada 2 s mientras está
 congelado), envía solo las filas que cambiaron y un marcador completo cuando
 un servidor es nuevo o quedó atrás; el servidor envía a los espectadores las
-filas cambiadas como HTML listo por Server-Sent Events. Un puntaje llega al
-marcador muy por debajo de un segundo después de calcularse.
+filas cambiadas como HTML listo por Server-Sent Events, y las filas que solo
+se movieron como desplazamientos de lugar (un ascenso que pasa a cientos de
+filas ocupa unos pocos bytes). Una página que se perdió una actualización
+(una conexión caída, un reinicio) lo nota y se recarga sola. Un puntaje
+llega al marcador muy por debajo de un segundo después de calcularse.
 
 Configuración:
 

@@ -133,6 +133,9 @@ func (s *Server) Handler() http.Handler {
 	top.Handle("GET /static/", s.static)
 	top.Handle("GET /healthz", httpx.HealthHandler("ranking-web"))
 	top.Handle("GET /metrics", metrics.Handler())
+	if s.cfg.Pprof {
+		webkit.Profiling(top)
+	}
 	top.HandleFunc("POST /push", s.handlePush)
 	top.HandleFunc("PUT /assets/{digest}", s.handleAssetPut)
 	top.HandleFunc("GET /assets/{digest}", s.handleAsset)
@@ -238,11 +241,10 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]int64{"seq": seq})
 			return
 		}
-		prev := *bd.b
-		prev.Rows = append([]ranking.BoardRow(nil), bd.b.Rows...)
+		prev := snapshot(bd.b)
 		bd.apply(&p)
 		bd.rebuild()
-		s.announce(bd, &prev)
+		s.announce(bd, prev)
 		seq := bd.seq
 		bd.mu.Unlock()
 		pushes.WithLabelValues("delta", "ok").Inc()
@@ -252,23 +254,32 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// announce tells spectators what changed from old (under bd.mu): the
-// changed rows as ready-made HTML, or a reload when the header (tasks,
-// settings, freezing) changed. Unfreezing sends the rows bottom-up, marked
-// "unfrozen", and the page reveals them one by one.
+// announce tells spectators what changed from old to the current board
+// (under bd.mu): rows whose content changed as ready-made HTML, rows that
+// only moved as runs of ranks, or a reload when the header (tasks,
+// settings, freezing) changed. Every update names the sequence it starts
+// from and a page the sequence it shows: a page that missed an update (a
+// frame dropped for a slow client, a reconnection, a restart) reloads
+// instead of applying changes meant for another state. Unfreezing sends
+// every changed row bottom-up, marked "unfrozen", and the page reveals
+// them one by one.
 func (s *Server) announce(bd *board, old *ranking.Board) {
+	base := bd.shown
 	if len(bd.subs) == 0 {
+		bd.shown = bd.seq // nobody to tell: pages rendered from now on start here
 		return
 	}
 	unfrozen := old != nil && old.Frozen && !bd.b.Frozen && sameHeader(unfreezeHeader(old), unfreezeHeader(bd.b))
 	if !unfrozen && (old == nil || !sameHeader(old, bd.b)) {
+		bd.shown = bd.seq
 		bd.broadcast(webkit.SSEFrame("reload", []byte("{}")))
 		return
 	}
 	changed, removed := ranking.Diff(old, bd.b)
 	if len(changed) == 0 && len(removed) == 0 && !unfrozen {
-		return
+		return // nothing visible changed (the score history, say)
 	}
+	bd.shown = bd.seq
 	if unfrozen {
 		// Worst previous rank first, as a resolver reveals them.
 		prevRank := make(map[string]int, len(old.Rows))
@@ -284,12 +295,31 @@ func (s *Server) announce(bd *board, old *ranking.Board) {
 		HTML string `json:"html"`
 	}
 	msg := struct {
-		Seq      int64     `json:"seq"`
-		Rows     []rowHTML `json:"rows"`
-		Removed  []string  `json:"removed,omitempty"`
-		Unfrozen bool      `json:"unfrozen,omitempty"`
-	}{Seq: bd.seq, Removed: removed, Unfrozen: unfrozen}
+		Seq      int64          `json:"seq"`
+		Base     int64          `json:"base"`
+		Rows     []rowHTML      `json:"rows"`
+		Shift    [][3]int       `json:"shift,omitempty"` // rows that only moved, by old rank
+		Ranks    map[string]int `json:"ranks,omitempty"` // … and those that moved on their own
+		Removed  []string       `json:"removed,omitempty"`
+		Unfrozen bool           `json:"unfrozen,omitempty"`
+	}{Seq: bd.seq, Base: base, Removed: removed, Unfrozen: unfrozen}
+	// When one contestant climbs, every row it passes changes rank: those
+	// travel as runs of ranks, not as their whole rows, which keeps an
+	// update small (one write per stream) on a board of hundreds.
+	var before map[string]ranking.BoardRow
+	if !unfrozen {
+		before = make(map[string]ranking.BoardRow, len(old.Rows))
+		for _, r := range old.Rows {
+			before[r.Key] = r
+		}
+	}
+	moved, content := map[string]int{}, map[string]bool{}
 	for _, r := range changed {
+		if o, ok := before[r.Key]; ok && onlyRank(o, r) {
+			moved[r.Key] = r.Rank
+			continue
+		}
+		content[r.Key] = true
 		var sb strings.Builder
 		if err := s.pages["partials"].ExecuteTemplate(&sb, "row", rowView{B: bd.b, R: r}); err != nil {
 			s.log.Error("render row", "error", err)
@@ -297,8 +327,79 @@ func (s *Server) announce(bd *board, old *ranking.Board) {
 		}
 		msg.Rows = append(msg.Rows, rowHTML{Key: r.Key, Rank: r.Rank, Name: r.Name, HTML: sb.String()})
 	}
+	if len(moved) > 0 {
+		for _, k := range removed {
+			content[k] = true
+		}
+		msg.Shift, msg.Ranks = shifts(old.Rows, moved, content)
+	}
 	data, _ := json.Marshal(msg)
 	bd.broadcast(webkit.SSEFrame("rows", data))
+}
+
+// shifts encodes the new ranks of the rows that only moved (moved: key →
+// new rank) as runs {from, to, delta}: every row whose old rank is in
+// [from, to] moves by delta. Rows tied at a rank whose score did not
+// change move together, so a climb past hundreds of rows is one run. The
+// rows of a rank that would move differently (not the case for a board
+// ranked by score) travel one by one. Rows in skip (replaced or removed)
+// do not count; old is sorted by rank.
+func shifts(old []ranking.BoardRow, moved map[string]int, skip map[string]bool) (runs [][3]int, ranks map[string]int) {
+	type group struct {
+		rank, delta int
+		mixed       bool
+		keys        []string
+	}
+	var groups []*group
+	for _, r := range old {
+		if skip[r.Key] {
+			continue
+		}
+		d := 0
+		if nr, ok := moved[r.Key]; ok {
+			d = nr - r.Rank
+		}
+		g := (*group)(nil)
+		if n := len(groups); n > 0 && groups[n-1].rank == r.Rank {
+			g = groups[n-1]
+		} else {
+			g = &group{rank: r.Rank, delta: d}
+			groups = append(groups, g)
+		}
+		g.mixed = g.mixed || g.delta != d
+		g.keys = append(g.keys, r.Key)
+	}
+	extend := false // whether the last run may grow
+	for _, g := range groups {
+		switch {
+		case g.mixed:
+			for _, k := range g.keys {
+				if nr, ok := moved[k]; ok {
+					if ranks == nil {
+						ranks = map[string]int{}
+					}
+					ranks[k] = nr
+				}
+			}
+			extend = false
+		case g.delta == 0:
+			extend = false
+		case extend && runs[len(runs)-1][2] == g.delta:
+			runs[len(runs)-1][1] = g.rank
+		default:
+			runs = append(runs, [3]int{g.rank, g.rank, g.delta})
+			extend = true
+		}
+	}
+	return runs, ranks
+}
+
+// onlyRank reports whether two versions of a row differ in rank only.
+func onlyRank(a, b ranking.BoardRow) bool {
+	a.Rank = b.Rank
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return string(x) == string(y)
 }
 
 // unfreezeHeader is b without its freeze state.
@@ -389,6 +490,7 @@ func (s *Server) load() error {
 		}
 		bd.rebuild()
 		bd.dirty = false
+		bd.shown = bd.seq
 		s.boards[p.Contest] = bd
 	}
 	return nil
@@ -440,6 +542,7 @@ type page struct {
 	Key   string
 	Data  any
 	Live  bool
+	Seq   int64 // the sequence the rows shown correspond to (live pages)
 }
 
 func (p *page) T(msg string, args ...any) string { return i18n.T(p.Lang, msg, args...) }
@@ -511,7 +614,7 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, name string
 	w.Header().Set("Cache-Control", "no-cache")
 	if cached == nil {
 		bd.mu.Lock()
-		p := &page{Lang: l, Title: bd.b.Title, Board: bd.b, Name: name, Live: true}
+		p := &page{Lang: l, Title: bd.b.Title, Board: bd.b, Name: name, Live: true, Seq: bd.shown}
 		var sb strings.Builder
 		if err := s.pages["board"].ExecuteTemplate(&sb, "layout", p); err != nil {
 			bd.mu.Unlock()

@@ -6,7 +6,7 @@
 <title>{{.Title}}</title>
 <link rel="stylesheet" href="{{static "style.css"}}">
 <link rel="stylesheet" href="{{static "rws.css"}}">
-{{if .Live}}<meta name="rws-events" content="/{{.Name}}/events"><script src="{{static "rws.js"}}" defer></script>{{end}}
+{{if .Live}}<meta name="rws-events" content="/{{.Name}}/events" data-seq="{{.Seq}}"><script src="{{static "rws.js"}}" defer></script>{{end}}
 </head>
 <body class="rws">
 <main class="wide">

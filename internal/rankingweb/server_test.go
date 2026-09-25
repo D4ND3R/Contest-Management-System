@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -133,7 +134,7 @@ func TestPushProtocolAndLiveRows(t *testing.T) {
 		t.Fatalf("full = %d %d", code, seq)
 	}
 	code, _, body2 := get(t, ts.URL+"/omi/")
-	if code != 200 || !strings.Contains(body2, `id="r-p1"`) || !strings.Contains(body2, "UNAM") || !strings.Contains(body2, "40 · 60") {
+	if code != 200 || !strings.Contains(body2, `id="r-p1"`) || !strings.Contains(body2, "UNAM") || !strings.Contains(body2, "40 · 60") || !strings.Contains(body2, `data-seq="1"`) {
 		t.Fatalf("board page = %d\n%s", code, body2)
 	}
 	if _, _, idx := get(t, ts.URL+"/"); !strings.Contains(idx, `href="/omi/"`) {
@@ -164,7 +165,8 @@ func TestPushProtocolAndLiveRows(t *testing.T) {
 		t.Fatalf("delta = %d %d", code, seq)
 	}
 	m := next(t, ch)
-	if !strings.HasPrefix(m, "rows ") || !strings.Contains(m, `"key":"p2"`) || !strings.Contains(m, `data-rank=\"1\"`) || strings.Contains(m, `"key":"p1"`) {
+	if !strings.HasPrefix(m, "rows ") || !strings.Contains(m, `"key":"p2"`) || !strings.Contains(m, `data-rank=\"1\"`) || strings.Contains(m, `"key":"p1"`) ||
+		!strings.Contains(m, `"seq":2,"base":1`) {
 		t.Fatalf("rows event %s", m)
 	}
 	// A stale delta is refused with the current sequence.
@@ -219,6 +221,9 @@ func TestPrivateBoardsAssetsAndLimits(t *testing.T) {
 	if _, _, idx := get(t, ts.URL+"/"); strings.Contains(idx, "/staff/") {
 		t.Fatal("private board listed")
 	}
+	if code, _, _ := get(t, ts.URL+"/debug/pprof/cmdline"); code != 404 {
+		t.Fatalf("profiler without the pprof option = %d", code)
+	}
 	// Assets: only images whose digest matches.
 	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89")
 	digest := sha256hex(png)
@@ -254,5 +259,76 @@ func TestPrivateBoardsAssetsAndLimits(t *testing.T) {
 	s3, _ := New(config.RankingWeb{DataDir: dir, PushToken: token}, logging.Discard())
 	if s3.board("omi", false) == nil || s3.board("staff", false) != nil {
 		t.Fatal("persistence")
+	}
+}
+
+// TestCompactUpdates: rows that only move travel as their rank.
+func TestCompactUpdates(t *testing.T) {
+	_, ts := newTest(t, t.TempDir(), 100)
+	row := func(key, name string, rank int, score float64) ranking.BoardRow {
+		return ranking.BoardRow{Key: key, Rank: rank, Name: name, Total: score, Cells: []ranking.BoardCell{{Score: score, Submitted: true}}}
+	}
+	b := sampleBoard()
+	b.Subtasks, b.Tasks[0].SubtaskMax = false, nil
+	b.Rows = []ranking.BoardRow{row("p1", "Ana", 1, 90), row("p2", "Beto", 2, 40), row("p3", "Caro", 3, 20)}
+	push(t, ts, ranking.Push{Contest: "omi", Kind: "full", Seq: 1, Board: b})
+	ch, stop := sse(t, ts.URL+"/omi/events")
+	defer stop()
+
+	// Caro climbs to first: her row as HTML, the two she passed as ranks.
+	push(t, ts, ranking.Push{Contest: "omi", Kind: "delta", Seq: 2, Base: 1, Rows: []ranking.BoardRow{row("p3", "Caro", 1, 100), row("p1", "Ana", 2, 90), row("p2", "Beto", 3, 40)}})
+	m := next(t, ch)
+	if !strings.Contains(m, `"seq":2,"base":1`) || !strings.Contains(m, `"key":"p3"`) || strings.Contains(m, `"key":"p1"`) || strings.Contains(m, `"key":"p2"`) ||
+		!strings.Contains(m, `"shift":[[1,2,1]]`) || strings.Contains(m, `"ranks"`) {
+		t.Fatalf("climb event %s", m)
+	}
+	// A score change without a move: the row, no ranks.
+	push(t, ts, ranking.Push{Contest: "omi", Kind: "delta", Seq: 3, Base: 2, Rows: []ranking.BoardRow{row("p2", "Beto", 3, 50)}})
+	if m := next(t, ch); !strings.Contains(m, `"seq":3,"base":2`) || !strings.Contains(m, `"key":"p2"`) || strings.Contains(m, `"shift"`) {
+		t.Fatalf("score event %s", m)
+	}
+	// Only the score history changes: nothing to tell, and the next update
+	// still starts from what pages show.
+	push(t, ts, ranking.Push{Contest: "omi", Kind: "delta", Seq: 4, Base: 3,
+		History: map[string][]ranking.Point{"p2": {{Time: time.Date(2030, 1, 1, 13, 0, 0, 0, time.UTC), Total: 50}}}})
+	if _, _, page := get(t, ts.URL+"/omi/"); !strings.Contains(page, `data-seq="3"`) {
+		t.Fatal("the page does not carry the sequence of what it shows")
+	}
+	push(t, ts, ranking.Push{Contest: "omi", Kind: "delta", Seq: 5, Base: 4, Rows: []ranking.BoardRow{row("p2", "Beto", 3, 60)}})
+	if m := next(t, ch); !strings.Contains(m, `"seq":5,"base":3`) {
+		t.Fatalf("event after a history-only push %s", m)
+	}
+}
+
+func TestShifts(t *testing.T) {
+	rows := func(kr ...any) []ranking.BoardRow {
+		var out []ranking.BoardRow
+		for i := 0; i < len(kr); i += 2 {
+			out = append(out, ranking.BoardRow{Key: kr[i].(string), Rank: kr[i+1].(int)})
+		}
+		return out
+	}
+	for _, c := range []struct {
+		name  string
+		old   []ranking.BoardRow
+		moved map[string]int
+		skip  map[string]bool
+		runs  string
+		ranks map[string]int
+	}{
+		// e (rank 5) climbs to first: everybody above moves down one,
+		// the tie at rank 2 included.
+		{"climb", rows("a", 1, "b", 2, "c", 2, "d", 4, "e", 5), map[string]int{"a": 2, "b": 3, "c": 3, "d": 5}, map[string]bool{"e": true}, "[[1 4 1]]", nil},
+		// a drops from first to last: the others move up; nothing below.
+		{"drop", rows("a", 1, "b", 2, "c", 3, "d", 4), map[string]int{"b": 1, "c": 2}, map[string]bool{"a": true}, "[[2 3 -1]]", nil},
+		// Unchanged ranks split the runs.
+		{"split", rows("a", 1, "b", 2, "c", 3, "d", 4), map[string]int{"a": 2, "c": 4}, nil, "[[1 1 1] [3 3 1]]", nil},
+		// A tie that would split travels row by row.
+		{"mixed", rows("a", 1, "b", 1, "c", 3), map[string]int{"a": 2, "c": 4}, nil, "[[3 3 1]]", map[string]int{"a": 2}},
+	} {
+		runs, ranks := shifts(c.old, c.moved, c.skip)
+		if fmt.Sprint(runs) != c.runs || fmt.Sprint(ranks) != fmt.Sprint(c.ranks) {
+			t.Errorf("%s: runs %v ranks %v, want %s %v", c.name, runs, ranks, c.runs, c.ranks)
+		}
 	}
 }
