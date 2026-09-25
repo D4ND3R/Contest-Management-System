@@ -29,6 +29,7 @@ const (
 	KindScheduled = "scheduled"
 	KindManual    = "manual"
 	KindCLI       = "cli"
+	KindUpgrade   = "upgrade" // taken by cmsctl upgrade before migrating
 )
 
 // Entry describes one backup; it is stored next to the archive as

@@ -445,6 +445,47 @@ func (q *Queries) ListContests(ctx context.Context) ([]Contest, error) {
 	return items, nil
 }
 
+const listRunningContests = `-- name: ListRunningContests :many
+SELECT c.id, c.name,
+       (c.stop_time + make_interval(secs => coalesce(max(p.delay_time_s + p.extra_time_s), 0)::double precision))::timestamptz AS ends_at
+FROM contests c
+LEFT JOIN participations p ON p.contest_id = c.id
+WHERE c.status = 'published' AND c.start_time <= now()
+GROUP BY c.id
+HAVING c.stop_time + make_interval(secs => coalesce(max(p.delay_time_s + p.extra_time_s), 0)::double precision) > now()
+ORDER BY c.start_time
+`
+
+type ListRunningContestsRow struct {
+	ID     int64     `json:"id"`
+	Name   string    `json:"name"`
+	EndsAt time.Time `json:"ends_at"`
+}
+
+// Published contests whose official window is open now for somebody (the
+// stop time plus the longest delay and extra time of a participant):
+// `cmsctl upgrade` does not stop the services then. Few contests: the scan
+// needs no index (participations are read through their contest_id index).
+func (q *Queries) ListRunningContests(ctx context.Context) ([]ListRunningContestsRow, error) {
+	rows, err := q.db.Query(ctx, listRunningContests)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRunningContestsRow{}
+	for rows.Next() {
+		var i ListRunningContestsRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.EndsAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setContestRankingUnfrozen = `-- name: SetContestRankingUnfrozen :exec
 UPDATE contests SET ranking_unfrozen = $2, updated_at = now() WHERE id = $1
 `

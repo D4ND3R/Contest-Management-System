@@ -107,7 +107,7 @@ func TestDynamicKeysTranslated(t *testing.T) {
 		"the points must be a non-negative number", "the number of testcases must be a positive integer", // score editor
 		"choose at least one testcase", "write a regular expression", "the threshold must be a number", "GroupThreshold needs a threshold",
 		"public", "contestants", "admins", "hidden", // ranking visibility
-		backup.KindScheduled, backup.KindManual, backup.KindCLI, "external", "Kind", "done", "failed", // backups
+		backup.KindScheduled, backup.KindManual, backup.KindCLI, backup.KindUpgrade, "external", "Kind", "done", "failed", // backups
 		"draft", "published", "archived", // contest status
 		"blobs", "backups", "temporary files", "work", "cache", // disks of the system panel
 		"Results: %s", "Contestant", "Team / institution", "Total", "Solved", "Penalty", "page", // printable ranking

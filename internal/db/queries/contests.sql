@@ -57,3 +57,17 @@ UPDATE contests SET
     per_user_time_s = per_user_time_s + (sqlc.arg(minutes)::integer * 60),
     updated_at = now()
 WHERE id = sqlc.arg(id)::bigint;
+
+-- name: ListRunningContests :many
+-- Published contests whose official window is open now for somebody (the
+-- stop time plus the longest delay and extra time of a participant):
+-- `cmsctl upgrade` does not stop the services then. Few contests: the scan
+-- needs no index (participations are read through their contest_id index).
+SELECT c.id, c.name,
+       (c.stop_time + make_interval(secs => coalesce(max(p.delay_time_s + p.extra_time_s), 0)::double precision))::timestamptz AS ends_at
+FROM contests c
+LEFT JOIN participations p ON p.contest_id = c.id
+WHERE c.status = 'published' AND c.start_time <= now()
+GROUP BY c.id
+HAVING c.stop_time + make_interval(secs => coalesce(max(p.delay_time_s + p.extra_time_s), 0)::double precision) > now()
+ORDER BY c.start_time;
