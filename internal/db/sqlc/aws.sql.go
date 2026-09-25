@@ -254,7 +254,7 @@ func (q *Queries) AdminGetSubmission(ctx context.Context, id int64) (AdminGetSub
 }
 
 const adminListSubmissionResults = `-- name: AdminListSubmissionResults :many
-SELECT sr.submission_id, sr.dataset_id, sr.generation, sr.compilation_outcome, sr.compilation_text, sr.compilation_stdout, sr.compilation_stderr, sr.compilation_tries, sr.compilation_time, sr.compilation_wall_time, sr.compilation_memory, sr.compilation_worker, sr.evaluation_outcome, sr.evaluation_tries, sr.testcases_total, sr.testcases_done, sr.score, sr.score_details, sr.public_score, sr.public_score_details, sr.ranking_score_details, sr.scored_at, sr.system_error, sr.created_at, sr.jobs_enqueued_at, d.description AS dataset_description, (d.id = t.active_dataset_id)::boolean AS live
+SELECT sr.submission_id, sr.dataset_id, sr.generation, sr.compilation_outcome, sr.compilation_text, sr.compilation_stdout, sr.compilation_stderr, sr.compilation_tries, sr.compilation_time, sr.compilation_wall_time, sr.compilation_memory, sr.compilation_worker, sr.evaluation_outcome, sr.evaluation_tries, sr.testcases_total, sr.testcases_done, sr.score, sr.score_details, sr.public_score, sr.public_score_details, sr.ranking_score_details, sr.scored_at, sr.system_error, sr.created_at, sr.jobs_enqueued_at, sr.verdict, d.description AS dataset_description, (d.id = t.active_dataset_id)::boolean AS live
 FROM submission_results sr
 JOIN datasets d ON d.id = sr.dataset_id
 JOIN tasks t ON t.id = d.task_id
@@ -288,6 +288,7 @@ type AdminListSubmissionResultsRow struct {
 	SystemError         *string         `json:"system_error"`
 	CreatedAt           time.Time       `json:"created_at"`
 	JobsEnqueuedAt      *time.Time      `json:"jobs_enqueued_at"`
+	Verdict             *string         `json:"verdict"`
 	DatasetDescription  string          `json:"dataset_description"`
 	Live                bool            `json:"live"`
 }
@@ -328,6 +329,7 @@ func (q *Queries) AdminListSubmissionResults(ctx context.Context, submissionID i
 			&i.SystemError,
 			&i.CreatedAt,
 			&i.JobsEnqueuedAt,
+			&i.Verdict,
 			&i.DatasetDescription,
 			&i.Live,
 		); err != nil {

@@ -446,12 +446,13 @@ func (d *Dispatcher) scoreResult(ctx context.Context, q *sqlc.Queries, eff *effe
 		}
 	}
 	res := sc.di.scoreType.Compute(tcs)
+	verdict := scoring.ICPCVerdict(res.Details, res.Score, sc.di.scoreType.MaxScore())
 	details, _ := json.Marshal(res.Details)
 	pdetails, _ := json.Marshal(res.PublicDetails)
 	ranking, _ := json.Marshal(res.RankingDetails)
 	if err := q.SetScore(ctx, sqlc.SetScoreParams{
 		SubmissionID: sc.meta.ID, DatasetID: sc.di.ds.ID, Score: &res.Score, ScoreDetails: details,
-		PublicScore: &res.PublicScore, PublicScoreDetails: pdetails, RankingScoreDetails: ranking,
+		PublicScore: &res.PublicScore, PublicScoreDetails: pdetails, RankingScoreDetails: ranking, Verdict: &verdict,
 	}); err != nil {
 		return err
 	}
@@ -469,6 +470,11 @@ func (d *Dispatcher) aggregateIfLive(ctx context.Context, q *sqlc.Queries, eff *
 	}
 	up.Time = sc.meta.SubmittedAt
 	eff.ranking = append(eff.ranking, *up)
+	if up.ICPCSolved && up.ICPCSolvedAt != nil && up.ICPCSolvedAt.Equal(sc.meta.SubmittedAt) {
+		// This submission solved the task: a balloon for the staff.
+		eff.events = append(eff.events, events.Event{Type: events.TypeBalloon, ContestID: sc.meta.ContestID,
+			ParticipationID: sc.meta.ParticipationID, TaskID: sc.meta.TaskID, SubmissionID: sc.meta.ID})
+	}
 	return nil
 }
 

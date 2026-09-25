@@ -47,7 +47,7 @@ LIMIT $1;
 -- name: SetCompilationFailedScore :exec
 -- A submission that does not compile scores zero.
 UPDATE submission_results SET score = 0, public_score = 0, score_details = '{}', public_score_details = '{}',
-    ranking_score_details = '[]', scored_at = now()
+    ranking_score_details = '[]', verdict = 'CE', scored_at = now()
 WHERE submission_id = $1 AND dataset_id = $2;
 
 -- name: ListTaskSubmissionsForScore :many

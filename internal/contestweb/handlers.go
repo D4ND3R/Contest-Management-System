@@ -35,6 +35,9 @@ type overviewRow struct {
 	Score, Max  float64
 	Precision   int
 	Pending     bool
+	// ICPC contests: solved, and the rejected attempts (before solving).
+	Solved   bool
+	Attempts int32
 }
 
 type overviewData struct {
@@ -63,12 +66,13 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqC
 		row := overviewRow{Name: t.Name, Title: t.Title, Max: t.MaxScore, Precision: t.Precision}
 		if sc, ok := byTask[t.ID]; ok {
 			row.HasScore, row.Score, row.Pending = true, sc.score, sc.pending > 0
+			row.Solved, row.Attempts = sc.solved, sc.attempts
 		}
 		d.Total += row.Score
 		d.MaxTotal += row.Max
 		d.Rows = append(d.Rows, row)
 	}
-	d.ShowTotal = len(d.Rows) > 1 && !d.Hidden
+	d.ShowTotal = len(d.Rows) > 1 && !d.Hidden && !rc.contest.ICPC()
 	p.Data = d
 	s.render(w, "overview", http.StatusOK, p)
 }

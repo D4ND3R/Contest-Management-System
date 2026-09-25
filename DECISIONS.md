@@ -538,3 +538,23 @@ already long random strings. The session duration is the age of the
 session (issue time), checked on every request, so shortening it closes
 existing sessions too; without a setting sessions last 24 hours as before.
 
+## D57. ICPC verdicts are stored; balloons are derived
+The binary verdict is computed by the dispatcher when it scores a
+submission (`scoring.ICPCVerdict`: accepted at full score, otherwise the
+failure kind of the first testcase that did not pass, in the order of the
+score details) and stored in `submission_results.verdict`, so listing a
+contestant's submissions never reads the score details. Results scored
+before the column existed fall back on the score (accepted or "rejected").
+ICPC contestants see verdicts only: the per-testcase table would give away
+which tests fail, which ICPC does not show. Balloons need no bookkeeping of
+their own: the solved (participation, task) pairs are already in
+`participation_task_scores`; the balloons page groups them by ranking key
+(the team in team contests) and only deliveries are stored, keyed by task
+and that key. When an aggregation makes the submission being scored the
+first accepted one, the dispatcher publishes a `balloon` event; open
+balloon pages reload their list on it (and every 30 s as a fallback, e.g.
+after a rejudge). Unfreezing no longer reloads public scoreboards: the
+pusher's full board differs only in the freeze state, so the RWS sends the
+changed rows ordered by their frozen rank, worst first, and the page reveals
+them one by one (at most 30 s in all).
+

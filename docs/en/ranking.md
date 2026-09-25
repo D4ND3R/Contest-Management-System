@@ -25,7 +25,9 @@ ICPC mode the member who solved first.
 
 The freeze stays until an administrator presses **Unfreeze now** on the
 ranking page (**Freeze again** undoes it). The admin ranking is never
-frozen.
+frozen. Open public scoreboards do not reload when unfreezing: the rows
+that changed are revealed one by one from the bottom up (half a minute at
+most), each highlighted as it moves.
 
 ## Ranking web server
 

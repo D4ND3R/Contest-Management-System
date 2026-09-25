@@ -27,7 +27,10 @@ primero.
 
 El congelamiento se mantiene hasta que un administrador pulsa
 **Descongelar ahora** en la página del ranking (**Congelar de nuevo** lo
-revierte). El ranking del panel nunca se congela.
+revierte). El ranking del panel nunca se congela. Los marcadores públicos
+abiertos no se recargan al descongelar: las filas que cambiaron se revelan
+una por una de abajo hacia arriba (medio minuto como máximo), resaltadas al
+moverse.
 
 ## Servidor de ranking
 

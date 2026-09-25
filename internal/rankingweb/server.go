@@ -254,18 +254,28 @@ func (s *Server) handlePush(w http.ResponseWriter, r *http.Request) {
 
 // announce tells spectators what changed from old (under bd.mu): the
 // changed rows as ready-made HTML, or a reload when the header (tasks,
-// settings, freeze) changed.
+// settings, freezing) changed. Unfreezing sends the rows bottom-up, marked
+// "unfrozen", and the page reveals them one by one.
 func (s *Server) announce(bd *board, old *ranking.Board) {
 	if len(bd.subs) == 0 {
 		return
 	}
-	if old == nil || !sameHeader(old, bd.b) {
+	unfrozen := old != nil && old.Frozen && !bd.b.Frozen && sameHeader(unfreezeHeader(old), unfreezeHeader(bd.b))
+	if !unfrozen && (old == nil || !sameHeader(old, bd.b)) {
 		bd.broadcast(webkit.SSEFrame("reload", []byte("{}")))
 		return
 	}
 	changed, removed := ranking.Diff(old, bd.b)
-	if len(changed) == 0 && len(removed) == 0 {
+	if len(changed) == 0 && len(removed) == 0 && !unfrozen {
 		return
+	}
+	if unfrozen {
+		// Worst previous rank first, as a resolver reveals them.
+		prevRank := make(map[string]int, len(old.Rows))
+		for _, r := range old.Rows {
+			prevRank[r.Key] = r.Rank
+		}
+		sort.SliceStable(changed, func(i, j int) bool { return prevRank[changed[i].Key] > prevRank[changed[j].Key] })
 	}
 	type rowHTML struct {
 		Key  string `json:"key"`
@@ -274,10 +284,11 @@ func (s *Server) announce(bd *board, old *ranking.Board) {
 		HTML string `json:"html"`
 	}
 	msg := struct {
-		Seq     int64     `json:"seq"`
-		Rows    []rowHTML `json:"rows"`
-		Removed []string  `json:"removed,omitempty"`
-	}{Seq: bd.seq, Removed: removed}
+		Seq      int64     `json:"seq"`
+		Rows     []rowHTML `json:"rows"`
+		Removed  []string  `json:"removed,omitempty"`
+		Unfrozen bool      `json:"unfrozen,omitempty"`
+	}{Seq: bd.seq, Removed: removed, Unfrozen: unfrozen}
 	for _, r := range changed {
 		var sb strings.Builder
 		if err := s.pages["partials"].ExecuteTemplate(&sb, "row", rowView{B: bd.b, R: r}); err != nil {
@@ -288,6 +299,13 @@ func (s *Server) announce(bd *board, old *ranking.Board) {
 	}
 	data, _ := json.Marshal(msg)
 	bd.broadcast(webkit.SSEFrame("rows", data))
+}
+
+// unfreezeHeader is b without its freeze state.
+func unfreezeHeader(b *ranking.Board) *ranking.Board {
+	h := b.Header()
+	h.Frozen, h.FreezeAt = false, nil
+	return &h
 }
 
 func sameHeader(a, b *ranking.Board) bool {

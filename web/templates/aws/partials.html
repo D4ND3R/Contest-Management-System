@@ -227,3 +227,46 @@
 </table>
 </div>
 {{end}}
+
+{{define "balloon-list"}}{{$v := .V}}{{$src := printf "/contests/%d/balloons?fragment=1&%s" $v.C.ID $v.Query}}
+<div id="balloons" data-src="{{$src}}" data-refresh="balloon" hx-get="{{$src}}" hx-trigger="every 30s" hx-swap="outerHTML">
+<h2>{{.T "To deliver"}} <small class="muted">({{len $v.Pending}})</small></h2>
+<table>
+<thead><tr><th>{{.T "Solved at"}}</th><th>{{.T "Team"}}</th><th>{{.T "Site"}}</th><th>{{.T "Task"}}</th><th></th></tr></thead>
+<tbody>
+{{range $v.Pending}}
+<tr>
+  <td>{{dt .SolvedAt}}</td>
+  <td><b>{{.Who}}</b>{{with .Solver}} <small class="muted">({{.}})</small>{{end}}</td>
+  <td>{{.Site}}</td>
+  <td><b>{{.Task}}</b>{{if .First}} <span class="tag ok">{{$.T "first solve"}}</span>{{end}}</td>
+  <td>{{if $.P.CanMessage}}<form method="post" action="/contests/{{$v.C.ID}}/balloons/deliver" class="inline" hx-post="/contests/{{$v.C.ID}}/balloons/deliver" hx-target="#balloons" hx-swap="outerHTML">{{template "csrf" $.P.CSRF}}
+    <input type="hidden" name="task_id" value="{{.TaskID}}"><input type="hidden" name="recipient" value="{{.Recipient}}"><input type="hidden" name="site" value="{{$v.Site}}">
+    <button>{{$.T "delivered"}}</button></form>{{end}}</td>
+</tr>
+{{else}}
+<tr><td colspan="5" class="muted">{{.T "Nothing to deliver."}}</td></tr>
+{{end}}
+</tbody>
+</table>
+{{with $v.Delivered}}
+<h2>{{$.T "Delivered"}} <small class="muted">({{len .}})</small></h2>
+<table>
+<thead><tr><th>{{$.T "Delivered"}}</th><th>{{$.T "Team"}}</th><th>{{$.T "Site"}}</th><th>{{$.T "Task"}}</th><th></th></tr></thead>
+<tbody>
+{{range .}}
+<tr class="muted">
+  <td>{{dt .DeliveredAt}}{{with .DeliveredBy}} <small>({{.}})</small>{{end}}</td>
+  <td>{{.Who}}</td>
+  <td>{{.Site}}</td>
+  <td>{{.Task}}{{if .First}} <span class="tag">{{$.T "first solve"}}</span>{{end}}</td>
+  <td>{{if $.P.CanMessage}}<form method="post" action="/contests/{{$v.C.ID}}/balloons/deliver" class="inline" hx-post="/contests/{{$v.C.ID}}/balloons/deliver" hx-target="#balloons" hx-swap="outerHTML">{{template "csrf" $.P.CSRF}}
+    <input type="hidden" name="task_id" value="{{.TaskID}}"><input type="hidden" name="recipient" value="{{.Recipient}}"><input type="hidden" name="site" value="{{$v.Site}}"><input type="hidden" name="undo" value="1">
+    <button class="link">{{$.T "undo"}}</button></form>{{end}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+{{end}}
+</div>
+{{end}}

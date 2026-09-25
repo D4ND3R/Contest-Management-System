@@ -69,6 +69,29 @@ registrarse de nuevo: los organizadores lo agregan al concurso.
   página del concurso muestra los tokens disponibles y cuándo llega el
   siguiente.
 
+## Concursos ICPC
+
+Con el modo de puntuación **ICPC (resueltos + penalización)**:
+
+- Un envío es *aceptado* cuando obtiene el puntaje completo del problema.
+  Los concursantes solo ven un veredicto: **Aceptado**, **Respuesta
+  incorrecta**, **Tiempo límite excedido**, **Memoria excedida**, **Error en
+  tiempo de ejecución**, **Límite de salida excedido** (decide el primer caso
+  de prueba que falló) o **Error de compilación**; nunca puntajes ni el
+  detalle de los casos. Su resumen muestra los problemas aceptados y los
+  intentos rechazados.
+- El ranking ordena por problemas resueltos y luego por penalización: los
+  minutos desde el inicio hasta cada envío aceptado más la *penalización
+  ICPC por intento rechazado* (los errores de compilación no cuentan).
+  Congelamiento y descongelamiento como en [rankings](ranking.md).
+- **Globos** (enlace en la página del concurso): la lista para el staff de
+  cada problema resuelto por un equipo, del más antiguo al más reciente, con
+  la sede y quién lo resolvió; se marca la primera solución de cada
+  problema. Se actualiza sola; el botón *entregado* pasa el globo a la lista
+  de entregados (con quién y cuándo; *deshacer* lo devuelve). Filtra por
+  sede para repartir sala por sala. El staff con rol de *mensajería* puede
+  marcar entregas; las participaciones ocultas no reciben globos.
+
 ## Envíos y pruebas
 
 - **Tamaño máximo de un archivo enviado** (vacío: el valor del servidor,

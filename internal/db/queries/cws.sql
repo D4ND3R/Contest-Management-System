@@ -16,7 +16,7 @@ FROM participation_task_scores WHERE participation_id = $1;
 -- name: ListScoresByParticipations :many
 -- Task scores of a contestant, or of every member of a team (merged by the
 -- caller).
-SELECT participation_id, task_id, score, subtask_scores, pending
+SELECT participation_id, task_id, score, subtask_scores, pending, icpc_solved, icpc_attempts, icpc_solved_at
 FROM participation_task_scores WHERE participation_id = ANY(@participation_ids::bigint[]);
 
 -- name: ListSubmissionsWithResults :many
@@ -25,7 +25,7 @@ FROM participation_task_scores WHERE participation_id = ANY(@participation_ids::
 SELECT s.id, s.submitted_at, s.language, s.official, (k.submission_id IS NOT NULL)::boolean AS tokened,
        s.invalidated_at, s.invalidated_reason, u.username AS author,
        sr.compilation_outcome, sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
-       sr.score, sr.public_score, sr.scored_at, sr.system_error
+       sr.score, sr.public_score, sr.scored_at, sr.system_error, sr.verdict
 FROM submissions s
 JOIN participations p ON p.id = s.participation_id
 JOIN users u ON u.id = p.user_id
@@ -40,7 +40,7 @@ SELECT s.id, s.participation_id, s.task_id, s.submitted_at, s.language, s.offici
        sr.compilation_outcome, sr.compilation_text, sr.compilation_stdout, sr.compilation_stderr,
        sr.compilation_time, sr.compilation_memory,
        sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
-       sr.score, sr.score_details, sr.public_score, sr.public_score_details, sr.scored_at, sr.system_error,
+       sr.score, sr.score_details, sr.public_score, sr.public_score_details, sr.scored_at, sr.system_error, sr.verdict,
        COALESCE(u.username, '')::text AS author
 FROM submissions s
 LEFT JOIN participations p ON p.id = s.participation_id

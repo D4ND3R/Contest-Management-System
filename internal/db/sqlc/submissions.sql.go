@@ -152,7 +152,7 @@ func (q *Queries) GetSubmission(ctx context.Context, id int64) (Submission, erro
 }
 
 const getSubmissionResult = `-- name: GetSubmissionResult :one
-SELECT submission_id, dataset_id, generation, compilation_outcome, compilation_text, compilation_stdout, compilation_stderr, compilation_tries, compilation_time, compilation_wall_time, compilation_memory, compilation_worker, evaluation_outcome, evaluation_tries, testcases_total, testcases_done, score, score_details, public_score, public_score_details, ranking_score_details, scored_at, system_error, created_at, jobs_enqueued_at FROM submission_results WHERE submission_id = $1 AND dataset_id = $2
+SELECT submission_id, dataset_id, generation, compilation_outcome, compilation_text, compilation_stdout, compilation_stderr, compilation_tries, compilation_time, compilation_wall_time, compilation_memory, compilation_worker, evaluation_outcome, evaluation_tries, testcases_total, testcases_done, score, score_details, public_score, public_score_details, ranking_score_details, scored_at, system_error, created_at, jobs_enqueued_at, verdict FROM submission_results WHERE submission_id = $1 AND dataset_id = $2
 `
 
 type GetSubmissionResultParams struct {
@@ -189,6 +189,7 @@ func (q *Queries) GetSubmissionResult(ctx context.Context, arg GetSubmissionResu
 		&i.SystemError,
 		&i.CreatedAt,
 		&i.JobsEnqueuedAt,
+		&i.Verdict,
 	)
 	return i, err
 }
@@ -238,7 +239,7 @@ UPDATE submission_results SET
     evaluation_tries = CASE WHEN $3::text = 'score' THEN evaluation_tries ELSE 0 END,
     testcases_done = CASE WHEN $3::text = 'score' THEN testcases_done ELSE 0 END,
     score = NULL, score_details = NULL, public_score = NULL, public_score_details = NULL,
-    ranking_score_details = NULL, scored_at = NULL, system_error = NULL, jobs_enqueued_at = NULL
+    ranking_score_details = NULL, verdict = NULL, scored_at = NULL, system_error = NULL, jobs_enqueued_at = NULL
 WHERE submission_id = $1 AND dataset_id = $2
 RETURNING generation
 `
@@ -511,7 +512,7 @@ func (q *Queries) ListSubmissionFilesBySubmissions(ctx context.Context, ids []in
 }
 
 const listSubmissionResultsBySubmissions = `-- name: ListSubmissionResultsBySubmissions :many
-SELECT submission_id, dataset_id, generation, compilation_outcome, compilation_text, compilation_stdout, compilation_stderr, compilation_tries, compilation_time, compilation_wall_time, compilation_memory, compilation_worker, evaluation_outcome, evaluation_tries, testcases_total, testcases_done, score, score_details, public_score, public_score_details, ranking_score_details, scored_at, system_error, created_at, jobs_enqueued_at FROM submission_results WHERE submission_id = ANY($1::bigint[]) AND dataset_id = ANY($2::bigint[])
+SELECT submission_id, dataset_id, generation, compilation_outcome, compilation_text, compilation_stdout, compilation_stderr, compilation_tries, compilation_time, compilation_wall_time, compilation_memory, compilation_worker, evaluation_outcome, evaluation_tries, testcases_total, testcases_done, score, score_details, public_score, public_score_details, ranking_score_details, scored_at, system_error, created_at, jobs_enqueued_at, verdict FROM submission_results WHERE submission_id = ANY($1::bigint[]) AND dataset_id = ANY($2::bigint[])
 `
 
 type ListSubmissionResultsBySubmissionsParams struct {
@@ -554,6 +555,7 @@ func (q *Queries) ListSubmissionResultsBySubmissions(ctx context.Context, arg Li
 			&i.SystemError,
 			&i.CreatedAt,
 			&i.JobsEnqueuedAt,
+			&i.Verdict,
 		); err != nil {
 			return nil, err
 		}
@@ -767,7 +769,7 @@ func (q *Queries) SetEvaluationDone(ctx context.Context, arg SetEvaluationDonePa
 
 const setScore = `-- name: SetScore :exec
 UPDATE submission_results SET score = $3, score_details = $4, public_score = $5,
-    public_score_details = $6, ranking_score_details = $7, scored_at = now()
+    public_score_details = $6, ranking_score_details = $7, verdict = $8, scored_at = now()
 WHERE submission_id = $1 AND dataset_id = $2
 `
 
@@ -779,6 +781,7 @@ type SetScoreParams struct {
 	PublicScore         *float64        `json:"public_score"`
 	PublicScoreDetails  json.RawMessage `json:"public_score_details"`
 	RankingScoreDetails json.RawMessage `json:"ranking_score_details"`
+	Verdict             *string         `json:"verdict"`
 }
 
 func (q *Queries) SetScore(ctx context.Context, arg SetScoreParams) error {
@@ -790,6 +793,7 @@ func (q *Queries) SetScore(ctx context.Context, arg SetScoreParams) error {
 		arg.PublicScore,
 		arg.PublicScoreDetails,
 		arg.RankingScoreDetails,
+		arg.Verdict,
 	)
 	return err
 }

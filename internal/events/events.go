@@ -24,6 +24,7 @@ const (
 	TypeQuestionNew  = "question_new" // for admins
 	TypeAlert        = "alert"        // system errors, for admins
 	TypeContest      = "contest"      // contest settings changed (caches)
+	TypeBalloon      = "balloon"      // a first accepted submission, for admins
 )
 
 // Event is a notification. ParticipationID 0 with a ContestID means every

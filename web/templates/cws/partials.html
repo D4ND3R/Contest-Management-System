@@ -2,7 +2,7 @@
 <div id="submissions" data-task="{{$d.Task.ID}}" data-src="{{.Base}}tasks/{{$d.Task.Name}}/submissions">
 {{if $d.Subs}}
 <table>
-<tr><th>{{.T "Time"}}</th><th>{{.T "Language"}}</th><th>{{.T "Status"}}</th><th class="num">{{.T "Score"}}</th><th></th></tr>
+<tr><th>{{.T "Time"}}</th><th>{{.T "Language"}}</th><th>{{if .Contest.ICPC}}{{.T "Verdict"}}{{else}}{{.T "Status"}}{{end}}</th>{{if not .Contest.ICPC}}<th class="num">{{.T "Score"}}</th>{{end}}<th></th></tr>
 {{range $d.Subs}}{{template "subrow" (row $ .)}}{{end}}
 </table>
 {{else}}<p class="muted">{{.T "No submissions yet."}}</p>{{end}}
@@ -14,7 +14,7 @@
   <td>{{$p.Time $s.Time}}{{with $s.Author}} <small class="muted">· {{.}}</small>{{end}}{{if not $s.Official}} <span class="muted">({{$p.T "unofficial"}})</span>{{end}}{{if $s.Invalidated}} <span class="tag bad" title="{{$s.InvalidatedReason}}">{{$p.T "invalidated"}}</span>{{end}}</td>
   <td>{{$s.Language}}</td>
   <td class="{{$s.Class}}">{{$s.StatusText}}{{if $s.Evaluating}} <progress max="{{$s.Total}}" value="{{$s.Done}}"></progress>{{end}}</td>
-  <td class="num">{{if $s.HasScore}}{{$p.Score $s.Score $s.Precision}} / {{$p.Score $s.Max $s.Precision}}{{end}}{{if $s.Tokened}} <span title="{{$p.T "token played"}}">★</span>{{end}}</td>
+  {{if not $p.Contest.ICPC}}<td class="num">{{if $s.HasScore}}{{$p.Score $s.Score $s.Precision}} / {{$p.Score $s.Max $s.Precision}}{{end}}{{if $s.Tokened}} <span title="{{$p.T "token played"}}">★</span>{{end}}</td>{{end}}
   <td><a href="{{$p.Base}}submissions/{{$s.ID}}">{{$p.T "details"}}</a>{{if $s.CanToken}}
     <form method="post" action="{{$p.Base}}submissions/{{$s.ID}}/token" class="inline"><input type="hidden" name="csrf" value="{{$p.CSRF}}"><button class="link">{{$p.T "use a token"}}</button></form>{{end}}</td>
 </tr>

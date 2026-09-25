@@ -1,0 +1,11 @@
+{{define "content"}}{{$d := .Data}}
+<h1>{{.T "Balloons of %s" $d.C.Name}}</h1>
+<p class="muted">{{.T "Every task solved by a team, oldest first; the first solve of each task is marked. The list updates by itself: mark each balloon when it is delivered."}}</p>
+{{if $d.Sites}}
+<form method="get" class="filters">
+  <label>{{.T "Site"}} <select name="site"><option value="">{{.T "all"}}</option>{{range $d.Sites}}<option value="{{.Name}}" {{if eq .Name $d.Site}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  <button class="secondary">{{.T "Filter"}}</button>
+</form>
+{{end}}
+{{template "balloon-list" (part . $d)}}
+{{end}}

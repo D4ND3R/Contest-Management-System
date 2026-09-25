@@ -23,10 +23,11 @@
 <h2>{{.T "Tasks"}}</h2>
 {{if $d.Hidden}}<p class="muted">{{if eq .Contest.ScoreVisibility "after"}}{{.T "Scores will be shown when the contest is over."}}{{else}}{{.T "Scores are not shown in this contest."}}{{end}}</p>{{end}}
 <table>
-<tr><th>{{.T "Task"}}</th><th>{{.T "Title"}}</th>{{if not $d.Hidden}}<th class="num">{{.T "Score"}}</th>{{end}}</tr>
+<tr><th>{{.T "Task"}}</th><th>{{.T "Title"}}</th>{{if not $d.Hidden}}<th class="num">{{if .Contest.ICPC}}{{.T "Result"}}{{else}}{{.T "Score"}}{{end}}</th>{{end}}</tr>
 {{range $d.Rows}}<tr>
   <td><a href="{{$.Base}}tasks/{{.Name}}">{{.Name}}</a></td><td>{{.Title}}</td>
-  {{if not $d.Hidden}}<td class="num">{{if .HasScore}}{{$.Score .Score .Precision}} / {{$.Score .Max .Precision}}{{else}}<span class="muted">—</span>{{end}}{{if .Pending}} <span class="muted" title="{{$.T "being evaluated"}}">…</span>{{end}}</td>{{end}}
+  {{if $d.Hidden}}{{else if $.Contest.ICPC}}<td class="num">{{if .Solved}}<span class="ok">{{$.T "Accepted"}}</span>{{if .Attempts}} <small class="muted">({{$.T "%d rejected" .Attempts}})</small>{{end}}{{else if .Attempts}}<span class="bad">{{$.T "%d rejected" .Attempts}}</span>{{else}}<span class="muted">—</span>{{end}}{{if .Pending}} <span class="muted" title="{{$.T "being evaluated"}}">…</span>{{end}}</td>
+  {{else}}<td class="num">{{if .HasScore}}{{$.Score .Score .Precision}} / {{$.Score .Max .Precision}}{{else}}<span class="muted">—</span>{{end}}{{if .Pending}} <span class="muted" title="{{$.T "being evaluated"}}">…</span>{{end}}</td>{{end}}
 </tr>{{end}}
 {{if $d.ShowTotal}}<tr><th colspan="2">{{.T "Total"}}</th><th class="num">{{.Score $d.Total 2}} / {{.Score $d.MaxTotal 2}}</th></tr>{{end}}
 </table>

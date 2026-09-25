@@ -44,6 +44,8 @@ web site; commands run on the main server unless noted.
 - System alerts (red notices in the admin): evaluation errors after the
   retries, failed backups.
 - `journalctl -u 'cms-*' -p warning -f` on the main server.
+- ICPC contests: the **Balloons** page (contest page) open for the runners;
+  it updates by itself.
 
 **Extending time**
 

@@ -173,6 +173,25 @@ var esClose = map[string]string{
 	"The email address is not valid.":                                                       "El correo electrónico no es válido.",
 	"The invitation code is not valid.":                                                     "El código de invitación no es válido.",
 	"This username is taken. If it is yours, ask the organizers to add you to the contest.": "Ese usuario ya existe. Si es tuyo, pide a los organizadores que te agreguen al concurso.",
+	// B7: ICPC verdicts and balloons.
+	"Accepted":            "Aceptado",
+	"Wrong answer":        "Respuesta incorrecta",
+	"Time limit exceeded": "Tiempo límite excedido",
+	"Runtime error":       "Error en tiempo de ejecución",
+	"Rejected":            "Rechazado",
+	"Result":              "Resultado",
+	"%d rejected":         "%d rechazados",
+	"Balloons":            "Globos",
+	"Balloons of %s":      "Globos de %s",
+	"Every task solved by a team, oldest first; the first solve of each task is marked. The list updates by itself: mark each balloon when it is delivered.": "Cada problema resuelto por un equipo, del más antiguo al más reciente; se marca la primera solución de cada problema. La lista se actualiza sola: marca cada globo cuando lo entregues.",
+	"To deliver":          "Por entregar",
+	"Solved at":           "Resuelto",
+	"first solve":         "primera solución",
+	"delivered":           "entregado",
+	"Nothing to deliver.": "Nada por entregar.",
+	"Delivered":           "Entregados",
+	"undo":                "deshacer",
+	"Invalid request.":    "Solicitud no válida.",
 }
 
 func init() {

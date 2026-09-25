@@ -52,6 +52,34 @@ type subState struct {
 	tokened     bool
 	// hidden: the contest does not show scores now.
 	hidden bool
+	// icpc: show the verdict instead of the score.
+	icpc    bool
+	verdict *string
+}
+
+// verdictNames are the ICPC verdicts as contestants read them.
+var verdictNames = map[string]string{
+	scoring.VerdictAccepted:    "Accepted",
+	scoring.VerdictWrong:       "Wrong answer",
+	scoring.VerdictTime:        "Time limit exceeded",
+	scoring.VerdictMemory:      "Memory limit exceeded",
+	scoring.VerdictRuntime:     "Runtime error",
+	scoring.VerdictOutputLimit: "Output limit exceeded",
+}
+
+// icpcVerdict names the verdict of a scored submission; results scored
+// before verdicts were stored fall back on the score.
+func icpcVerdict(st subState, max float64) (text string, accepted bool) {
+	v := ""
+	if st.verdict != nil {
+		v = *st.verdict
+	} else if st.score != nil && max > 0 && *st.score >= max-1e-9 {
+		v = scoring.VerdictAccepted
+	}
+	if name, ok := verdictNames[v]; ok {
+		return name, v == scoring.VerdictAccepted
+	}
+	return "Rejected", false
 }
 
 func (s *Server) fillStatus(p *page, t *taskView, st subState, sv *subView) {
@@ -68,6 +96,12 @@ func (s *Server) fillStatus(p *page, t *taskView, st subState, sv *subView) {
 		sv.StatusText = p.T("Evaluating")
 	case st.hidden:
 		sv.StatusText = p.T("Evaluated")
+	case st.icpc:
+		text, ok := icpcVerdict(st, t.MaxScore)
+		sv.StatusText, sv.Class = p.T(text), "bad"
+		if ok {
+			sv.Class = "ok"
+		}
 	default:
 		sv.HasScore = true
 		// Contestants see the public score unless they played a token or
@@ -121,7 +155,7 @@ func (s *Server) listSubs(r *http.Request, rc *reqCtx, t *taskView) ([]subView, 
 		}
 		s.fillStatus(p, t, subState{compilation: row.CompilationOutcome, evaluation: row.EvaluationOutcome, done: done, total: total,
 			score: row.Score, pub: row.PublicScore, scored: row.ScoredAt != nil, systemError: row.SystemError, tokened: row.Tokened,
-			hidden: hidden}, &sv)
+			hidden: hidden, icpc: rc.contest.ICPC(), verdict: row.Verdict}, &sv)
 		sv.CanToken = tv != nil && tv.CanPlay && !row.Tokened && row.Official && row.InvalidatedAt == nil && row.Author == rc.part.Username
 		out = append(out, sv)
 	}
@@ -153,7 +187,7 @@ func (s *Server) subViewFromDetail(p *page, rc *reqCtx, t *taskView, row sqlc.Ge
 	}
 	s.fillStatus(p, t, subState{compilation: row.CompilationOutcome, evaluation: row.EvaluationOutcome, done: done, total: total,
 		score: row.Score, pub: row.PublicScore, scored: row.ScoredAt != nil, systemError: row.SystemError, tokened: row.Tokened,
-		hidden: !scoresVisible(rc)}, &sv)
+		hidden: !scoresVisible(rc), icpc: rc.contest.ICPC(), verdict: row.Verdict}, &sv)
 	if !row.Tokened && row.Official && row.InvalidatedAt == nil && row.ParticipationID != nil && *row.ParticipationID == rc.part.ID {
 		if tv, err := s.tokenView(nil, rc, t); err == nil && tv != nil && tv.CanPlay {
 			sv.CanToken = true
@@ -247,7 +281,8 @@ func (s *Server) detailData(r *http.Request, p *page, rc *reqCtx, t *taskView, r
 		}
 		d.Compilation = c
 	}
-	if row.ScoredAt == nil || !scoresVisible(rc) {
+	if row.ScoredAt == nil || !scoresVisible(rc) || rc.contest.ICPC() {
+		// ICPC contests show the verdict only.
 		return d, nil
 	}
 	// Full details for tokened submissions, public ones otherwise.
@@ -323,6 +358,11 @@ func replaceExt(name, ext string) string {
 type taskScore struct {
 	score   float64
 	pending int32
+	// ICPC: solved by anyone of the group; attempts of the first solver,
+	// or of everybody while unsolved.
+	solved   bool
+	attempts int32
+	solvedAt time.Time
 }
 
 func mergeScores(rows []sqlc.ListScoresByParticipationsRow, tasks map[int64]*taskView) map[int64]taskScore {
@@ -332,6 +372,12 @@ func mergeScores(rows []sqlc.ListScoresByParticipationsRow, tasks map[int64]*tas
 		ts := out[r.TaskID]
 		ts.pending += r.Pending
 		ts.score = max(ts.score, r.Score)
+		switch {
+		case r.IcpcSolved && r.IcpcSolvedAt != nil && (!ts.solved || r.IcpcSolvedAt.Before(ts.solvedAt)):
+			ts.solved, ts.attempts, ts.solvedAt = true, r.IcpcAttempts, *r.IcpcSolvedAt
+		case !ts.solved && !r.IcpcSolved:
+			ts.attempts += r.IcpcAttempts
+		}
 		var st []float64
 		if json.Unmarshal(r.SubtaskScores, &st) == nil {
 			best := subtasks[r.TaskID]

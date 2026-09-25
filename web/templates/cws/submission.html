@@ -5,7 +5,7 @@
 <dl class="meta">
   <dt>{{.T "Time"}}</dt><dd>{{.DateTime $s.Time}}</dd>
   {{with $s.Language}}<dt>{{$.T "Language"}}</dt><dd>{{.}}</dd>{{end}}
-  <dt>{{.T "Status"}}</dt><dd class="{{$s.Class}}">{{$s.StatusText}}</dd>
+  <dt>{{if .Contest.ICPC}}{{.T "Verdict"}}{{else}}{{.T "Status"}}{{end}}</dt><dd class="{{$s.Class}}">{{$s.StatusText}}</dd>
   {{if $s.HasScore}}<dt>{{if $d.Full}}{{.T "Score"}}{{else}}{{.T "Public score"}}{{end}}</dt><dd>{{.Score $s.Score $s.Precision}} / {{.Score $s.Max $s.Precision}}</dd>{{end}}
   {{if $d.Files}}<dt>{{.T "Files"}}</dt><dd>{{range $d.Files}}{{if $d.Download}}<a href="{{$.Base}}submissions/{{$s.ID}}/file/{{.}}">{{.}}</a>{{else}}{{.}}{{end}} {{end}}</dd>{{end}}
 </dl>

@@ -629,3 +629,17 @@ contestweb.TestRegistrationWithApproval, contestweb.TestRegistrationWithCode,
 contestweb.TestSessionDuration, adminweb.TestRegistrationSettings,
 ranking.TestPendingRegistrationsNotRanked.
 
+## SPEC_CLOSE B7 — ICPC mode (done)
+Skipping skills: immersive-web-design, master skill.
+
+Every scored submission now carries a binary verdict (AC, WA, TLE, MLE, RE,
+OLE, CE). In ICPC contests contestants see only verdicts — task page, rows,
+submission page — and an overview of accepted tasks and rejected attempts;
+never scores or testcase details. Penalty and freeze were in place; the
+public scoreboard now reveals the rows bottom-up when unfrozen instead of
+reloading. New staff **Balloons** page: every task solved by a team, oldest
+first, first solves marked, site filter, live refresh, delivered/undo.
+Tests: scoring.TestICPCVerdict, dispatcher.TestEndToEndScoring (real
+judging: verdicts and the balloon event), contestweb.TestICPCVerdicts,
+adminweb.TestBalloons, rankingweb.TestPushProtocolAndLiveRows.
+

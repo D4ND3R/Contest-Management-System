@@ -48,6 +48,13 @@ type AuditLog struct {
 	Ip         string          `json:"ip"`
 }
 
+type Balloon struct {
+	TaskID      int64     `json:"task_id"`
+	Recipient   string    `json:"recipient"`
+	DeliveredAt time.Time `json:"delivered_at"`
+	DeliveredBy *int64    `json:"delivered_by"`
+}
+
 type Blob struct {
 	Digest      string    `json:"digest"`
 	Size        int64     `json:"size"`
@@ -307,6 +314,7 @@ type SubmissionResult struct {
 	SystemError         *string         `json:"system_error"`
 	CreatedAt           time.Time       `json:"created_at"`
 	JobsEnqueuedAt      *time.Time      `json:"jobs_enqueued_at"`
+	Verdict             *string         `json:"verdict"`
 }
 
 type Task struct {

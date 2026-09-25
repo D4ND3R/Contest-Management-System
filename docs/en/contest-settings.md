@@ -65,6 +65,28 @@ organizers add that user to the contest instead.
   result of a submission during the contest. The contest page shows the tokens
   available and when the next one comes.
 
+## ICPC contests
+
+With the scoring mode **ICPC (solved + penalty)**:
+
+- A submission is *accepted* when it gets the task's full score. Contestants
+  see only a verdict: **Accepted**, **Wrong answer**, **Time limit
+  exceeded**, **Memory limit exceeded**, **Runtime error**, **Output limit
+  exceeded** (the first testcase that failed decides) or **Compilation
+  failed**; never scores nor testcase details. Their overview shows the
+  accepted tasks and the rejected attempts.
+- The ranking orders by tasks solved, then penalty: minutes from the start to
+  each accepted submission plus the *ICPC penalty per rejected attempt*
+  (compilation errors do not count). Freeze and unfreeze as in
+  [rankings](ranking.md).
+- **Balloons** (link on the contest page): the staff list of every task
+  solved by a team, oldest first, with the site and the solver, the first
+  solve of each task marked. It updates by itself; the *delivered* button
+  moves a balloon to the delivered list (with who and when; *undo* brings it
+  back). Filter by site to hand out balloons room by room. Staff with the
+  *messaging* role can mark deliveries; hidden participations get no
+  balloons.
+
 ## Submissions and tests
 
 - **Maximum size of a submitted file** (empty: the server's

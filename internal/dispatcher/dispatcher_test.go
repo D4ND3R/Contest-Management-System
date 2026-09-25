@@ -275,13 +275,16 @@ func TestEndToEndScoring(t *testing.T) {
 	if details["type"] != "group" || r.TestcasesDone != 4 {
 		t.Fatalf("details %v done %d", details, r.TestcasesDone)
 	}
+	if r.Verdict == nil || *r.Verdict != "AC" {
+		t.Errorf("AC verdict %v", r.Verdict)
+	}
 	wa := e.submit(srcWA, true)
-	if r := e.waitScored(wa, e.dataset.ID, 60*time.Second); *r.Score != 0 {
-		t.Fatalf("WA score %v", *r.Score)
+	if r := e.waitScored(wa, e.dataset.ID, 60*time.Second); *r.Score != 0 || r.Verdict == nil || *r.Verdict != "WA" {
+		t.Fatalf("WA score %v verdict %v", *r.Score, r.Verdict)
 	}
 	ce := e.submit(srcCE, true)
 	r = e.waitScored(ce, e.dataset.ID, 60*time.Second)
-	if *r.CompilationOutcome != "fail" || *r.Score != 0 || !strings.Contains(r.CompilationStderr, "x") {
+	if *r.CompilationOutcome != "fail" || *r.Score != 0 || !strings.Contains(r.CompilationStderr, "x") || r.Verdict == nil || *r.Verdict != "CE" {
 		t.Fatalf("CE result %+v", r)
 	}
 	ts := e.taskScore()
@@ -297,12 +300,20 @@ func TestEndToEndScoring(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	e.evMu.Lock()
 	seen := map[string]bool{}
+	var balloons []int64
 	for _, ev := range e.evs {
 		if ev.SubmissionID == ac {
 			seen[ev.Status] = true
 		}
+		if ev.Type == events.TypeBalloon {
+			balloons = append(balloons, ev.SubmissionID)
+		}
 	}
 	e.evMu.Unlock()
+	// Only the submission that solved the task raises a balloon.
+	if len(balloons) != 1 || balloons[0] != ac {
+		t.Errorf("balloon events for submissions %v, want [%d]", balloons, ac)
+	}
 	for _, st := range []string{"compiling", "evaluating", "scored"} {
 		if !seen[st] {
 			t.Errorf("no %q event for the AC submission (got %v)", st, seen)

@@ -47,6 +47,8 @@ principal salvo que se indique otra cosa.
 - Alertas del sistema (avisos rojos en el admin): errores de evaluación
   después de los reintentos, respaldos fallidos.
 - `journalctl -u 'cms-*' -p warning -f` en el servidor principal.
+- Concursos ICPC: la página de **Globos** (en la página del concurso)
+  abierta para quienes los reparten; se actualiza sola.
 
 **Extender el tiempo**
 

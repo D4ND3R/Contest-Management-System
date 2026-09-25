@@ -276,7 +276,7 @@ func TestEveryPageRenders(t *testing.T) {
 		"/submissions/diff?a=" + id(f.subs[0]) + "&b=" + id(f.subs[1]),
 		"/users", "/users?q=an", "/users/new", "/users/" + u, "/teams", "/teams/" + id(f.team.ID),
 		"/admins", "/admins/" + id(f.admins["read_only"].ID), "/system", "/system/status", "/languages", "/audit",
-		"/backups", "/backups?fragment=1",
+		"/backups", "/backups?fragment=1", "/contests/" + c + "/balloons", "/contests/" + c + "/balloons?fragment=1",
 	}
 	for _, p := range pages {
 		code, body := b.Get(p)

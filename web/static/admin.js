@@ -39,6 +39,12 @@
       var d = JSON.parse(e.data);
       notify((t.alert || "System error:") + " " + (d.text || t.overview || ""), "bad");
     });
+    // A first accepted submission: open balloon lists reload.
+    es.addEventListener("balloon", function () {
+      document.querySelectorAll('[data-refresh="balloon"]').forEach(function (el) {
+        if (el.dataset.src && window.htmx) htmx.ajax("GET", el.dataset.src, { target: el, swap: "outerHTML" });
+      });
+    });
     es.addEventListener("question_new", function (e) {
       var d = JSON.parse(e.data);
       notify((t.question || "New question:") + " " + (d.text || ""));

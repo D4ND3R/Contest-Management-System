@@ -178,6 +178,15 @@ func TestPushProtocolAndLiveRows(t *testing.T) {
 	if m := next(t, ch); !strings.HasPrefix(m, "reload") {
 		t.Fatalf("header change event %s", m)
 	}
+	// Unfreezing reveals the rows instead: bottom-up, marked unfrozen.
+	ub := sampleBoard()
+	ub.Rows[0], ub.Rows[1] = ranking.BoardRow{Key: "p2", Rank: 1, Name: "Beto", Total: 100, Cells: beto.Cells}, ranking.BoardRow{Key: "p1", Rank: 2, Name: "Ana", Total: 90,
+		Institution: "UNAM", Cells: []ranking.BoardCell{{Score: 90, Subtasks: []float64{40, 50}, Submitted: true}}}
+	push(t, ts, ranking.Push{Contest: "omi", Kind: "full", Seq: 4, Board: ub})
+	m = next(t, ch)
+	if !strings.HasPrefix(m, "rows ") || !strings.Contains(m, `"unfrozen":true`) || strings.Index(m, `"key":"p2"`) > strings.Index(m, `"key":"p1"`) {
+		t.Fatalf("unfreeze event %s", m)
+	}
 	// History page with a chart.
 	code, _, page := get(t, ts.URL+"/omi/u/p1")
 	if code != 200 || !strings.Contains(page, "<svg") || !strings.Contains(page, "2030-01-01 12:00") {
@@ -189,7 +198,7 @@ func TestPushProtocolAndLiveRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bd := s2.board("omi", false); bd == nil || bd.seq != 3 || !bd.b.Frozen || len(bd.history["p2"]) != 1 {
+	if bd := s2.board("omi", false); bd == nil || bd.seq != 4 || bd.b.Frozen || len(bd.history["p2"]) != 1 {
 		t.Fatalf("reloaded board %+v", bd)
 	}
 }

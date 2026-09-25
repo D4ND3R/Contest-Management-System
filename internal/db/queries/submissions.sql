@@ -105,7 +105,7 @@ WHERE submission_id = $1 AND dataset_id = $2 AND generation = @generation::integ
 
 -- name: SetScore :exec
 UPDATE submission_results SET score = $3, score_details = $4, public_score = $5,
-    public_score_details = $6, ranking_score_details = $7, scored_at = now()
+    public_score_details = $6, ranking_score_details = $7, verdict = $8, scored_at = now()
 WHERE submission_id = $1 AND dataset_id = $2;
 
 -- name: SetSubmissionSystemError :exec
@@ -125,7 +125,7 @@ UPDATE submission_results SET
     evaluation_tries = CASE WHEN @level::text = 'score' THEN evaluation_tries ELSE 0 END,
     testcases_done = CASE WHEN @level::text = 'score' THEN testcases_done ELSE 0 END,
     score = NULL, score_details = NULL, public_score = NULL, public_score_details = NULL,
-    ranking_score_details = NULL, scored_at = NULL, system_error = NULL, jobs_enqueued_at = NULL
+    ranking_score_details = NULL, verdict = NULL, scored_at = NULL, system_error = NULL, jobs_enqueued_at = NULL
 WHERE submission_id = $1 AND dataset_id = $2
 RETURNING generation;
 

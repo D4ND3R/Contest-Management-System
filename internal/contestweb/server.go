@@ -215,7 +215,7 @@ func (s *Server) onEvent(e events.Event) {
 		// for their clock again.
 		s.hub.publish(events.Event{Type: "clock", ContestID: e.ContestID, ParticipationID: e.ParticipationID})
 		return
-	case events.TypeAlert, events.TypeQuestionNew:
+	case events.TypeAlert, events.TypeQuestionNew, events.TypeBalloon:
 		return // for admins only
 	case events.TypeSubmission:
 		// Team contests: teammates' pages follow the submission too.

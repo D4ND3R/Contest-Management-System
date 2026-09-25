@@ -134,7 +134,7 @@ SELECT s.id, s.participation_id, s.task_id, s.submitted_at, s.language, s.offici
        sr.compilation_outcome, sr.compilation_text, sr.compilation_stdout, sr.compilation_stderr,
        sr.compilation_time, sr.compilation_memory,
        sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
-       sr.score, sr.score_details, sr.public_score, sr.public_score_details, sr.scored_at, sr.system_error,
+       sr.score, sr.score_details, sr.public_score, sr.public_score_details, sr.scored_at, sr.system_error, sr.verdict,
        COALESCE(u.username, '')::text AS author
 FROM submissions s
 LEFT JOIN participations p ON p.id = s.participation_id
@@ -174,6 +174,7 @@ type GetSubmissionWithResultRow struct {
 	PublicScoreDetails json.RawMessage `json:"public_score_details"`
 	ScoredAt           *time.Time      `json:"scored_at"`
 	SystemError        *string         `json:"system_error"`
+	Verdict            *string         `json:"verdict"`
 	Author             string          `json:"author"`
 }
 
@@ -205,6 +206,7 @@ func (q *Queries) GetSubmissionWithResult(ctx context.Context, arg GetSubmission
 		&i.PublicScoreDetails,
 		&i.ScoredAt,
 		&i.SystemError,
+		&i.Verdict,
 		&i.Author,
 	)
 	return i, err
@@ -295,7 +297,7 @@ func (q *Queries) ListScoresByParticipation(ctx context.Context, participationID
 }
 
 const listScoresByParticipations = `-- name: ListScoresByParticipations :many
-SELECT participation_id, task_id, score, subtask_scores, pending
+SELECT participation_id, task_id, score, subtask_scores, pending, icpc_solved, icpc_attempts, icpc_solved_at
 FROM participation_task_scores WHERE participation_id = ANY($1::bigint[])
 `
 
@@ -305,6 +307,9 @@ type ListScoresByParticipationsRow struct {
 	Score           float64         `json:"score"`
 	SubtaskScores   json.RawMessage `json:"subtask_scores"`
 	Pending         int32           `json:"pending"`
+	IcpcSolved      bool            `json:"icpc_solved"`
+	IcpcAttempts    int32           `json:"icpc_attempts"`
+	IcpcSolvedAt    *time.Time      `json:"icpc_solved_at"`
 }
 
 // Task scores of a contestant, or of every member of a team (merged by the
@@ -324,6 +329,9 @@ func (q *Queries) ListScoresByParticipations(ctx context.Context, participationI
 			&i.Score,
 			&i.SubtaskScores,
 			&i.Pending,
+			&i.IcpcSolved,
+			&i.IcpcAttempts,
+			&i.IcpcSolvedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -339,7 +347,7 @@ const listSubmissionsWithResults = `-- name: ListSubmissionsWithResults :many
 SELECT s.id, s.submitted_at, s.language, s.official, (k.submission_id IS NOT NULL)::boolean AS tokened,
        s.invalidated_at, s.invalidated_reason, u.username AS author,
        sr.compilation_outcome, sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
-       sr.score, sr.public_score, sr.scored_at, sr.system_error
+       sr.score, sr.public_score, sr.scored_at, sr.system_error, sr.verdict
 FROM submissions s
 JOIN participations p ON p.id = s.participation_id
 JOIN users u ON u.id = p.user_id
@@ -372,6 +380,7 @@ type ListSubmissionsWithResultsRow struct {
 	PublicScore        *float64   `json:"public_score"`
 	ScoredAt           *time.Time `json:"scored_at"`
 	SystemError        *string    `json:"system_error"`
+	Verdict            *string    `json:"verdict"`
 }
 
 // A contestant's (or a team's) submissions to a task with their result on
@@ -402,6 +411,7 @@ func (q *Queries) ListSubmissionsWithResults(ctx context.Context, arg ListSubmis
 			&i.PublicScore,
 			&i.ScoredAt,
 			&i.SystemError,
+			&i.Verdict,
 		); err != nil {
 			return nil, err
 		}

@@ -7,6 +7,7 @@
   <a href="/contests/{{$c.ID}}/submissions">{{.T "Submissions"}}{{with .Data.Counts}} ({{.Submissions}}){{end}}</a> ·
   <a href="/contests/{{$c.ID}}/ranking">{{.T "Ranking"}}</a> ·
   <a href="/contests/{{$c.ID}}/stats">{{.T "Statistics"}}</a> ·
+  {{if eq $c.ScoringMode "icpc"}}<a href="/contests/{{$c.ID}}/balloons">{{.T "Balloons"}}</a> ·{{end}}
   <a href="/contests/{{$c.ID}}/sites">{{.T "Sites"}}</a> ·
   <a href="/contests/{{$c.ID}}/communication">{{.T "Communication"}}</a> ·
   <a href="/questions?contest={{$c.ID}}">{{.T "Questions"}}</a>

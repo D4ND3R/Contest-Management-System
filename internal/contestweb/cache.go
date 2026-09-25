@@ -28,6 +28,9 @@ type contestView struct {
 	loaded     time.Time
 }
 
+// ICPC reports whether contestants see verdicts instead of scores.
+func (c *contestView) ICPC() bool { return c.ScoringMode == "icpc" }
+
 type statementView struct {
 	Lang, Name, Digest, ContentType string
 	Primary                         bool
