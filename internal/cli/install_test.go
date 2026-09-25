@@ -1,9 +1,15 @@
 package cli
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -158,5 +164,175 @@ func TestInstallScriptRender(t *testing.T) {
 	}
 	if _, ok := readTree(t, wdir)["etc/valkey/cms.conf"]; ok {
 		t.Error("a worker must not configure Valkey")
+	}
+}
+
+// fakeRelease builds a release tarball laid out as GoReleaser writes it
+// (cms_VERSION_linux_ARCH/...) from this checkout, with a stand-in cms
+// binary, and serves it the way GitHub does: /latest redirects to the tag,
+// files are under /download/vVERSION/.
+func fakeRelease(t *testing.T, version string, tamper bool) *httptest.Server {
+	t.Helper()
+	root := filepath.Join("..", "..")
+	files := map[string]string{
+		"cms":    "#!/bin/sh\necho \"cms " + version + " (test)\"\n",
+		"cmsctl": "#!/bin/sh\nexit 0\n",
+	}
+	for _, glob := range []string{"deploy/systemd/*", "scripts/*.sh", "config/languages/*.yaml", "config/cms.example.yaml"} {
+		ms, _ := filepath.Glob(filepath.Join(root, glob))
+		for _, m := range ms {
+			b, _ := os.ReadFile(m)
+			rel, _ := filepath.Rel(root, m)
+			files[filepath.ToSlash(rel)] = string(b)
+		}
+	}
+	tarballs := map[string][]byte{}
+	var sums strings.Builder
+	for _, arch := range []string{"amd64", "arm64"} {
+		name := fmt.Sprintf("cms_%s_linux_%s.tar.gz", version, arch)
+		var buf bytes.Buffer
+		zw := gzip.NewWriter(&buf)
+		tw := tar.NewWriter(zw)
+		top := strings.TrimSuffix(name, ".tar.gz")
+		for p, content := range files {
+			tw.WriteHeader(&tar.Header{Name: top + "/" + p, Mode: 0o755, Size: int64(len(content)), Typeflag: tar.TypeReg})
+			tw.Write([]byte(content))
+		}
+		tw.Close()
+		zw.Close()
+		tarballs[name] = buf.Bytes()
+		sum := sha256.Sum256(buf.Bytes())
+		if tamper {
+			sum[0] ^= 1
+		}
+		fmt.Fprintf(&sums, "%x  %s\n", sum, name)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /latest", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/tag/v"+version, http.StatusFound)
+	})
+	mux.HandleFunc("GET /tag/{tag}", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "release page") })
+	mux.HandleFunc("GET /download/{tag}/{file}", func(w http.ResponseWriter, r *http.Request) {
+		if r.PathValue("tag") != "v"+version {
+			http.NotFound(w, r)
+			return
+		}
+		if f := r.PathValue("file"); f == "checksums.txt" {
+			fmt.Fprint(w, sums.String())
+		} else if b, ok := tarballs[f]; ok {
+			w.Write(b)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+	return ts
+}
+
+// installEnv pretends the machine is a supported one (the checks read
+// these instead of the real system).
+func installEnv(t *testing.T, osRelease, arch, container, cgroupFS string) []string {
+	t.Helper()
+	f := filepath.Join(t.TempDir(), "os-release")
+	os.WriteFile(f, []byte(osRelease), 0o644)
+	return append(os.Environ(), "CMS_INSTALL_OS_RELEASE="+f, "CMS_INSTALL_ARCH="+arch,
+		"CMS_INSTALL_CONTAINER="+container, "CMS_INSTALL_CGROUP_FS="+cgroupFS)
+}
+
+func runInstallEnv(env []string, stdin string, args ...string) (string, error) {
+	var cmd *exec.Cmd
+	if stdin != "" { // curl ... | bash -s -- args
+		cmd = exec.Command("bash", append([]string{"-s", "--"}, args...)...)
+		cmd.Stdin = strings.NewReader(stdin)
+	} else {
+		cmd = exec.Command("bash", append([]string{filepath.Join("..", "..", "scripts", "install.sh")}, args...)...)
+	}
+	cmd.Env = env
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+// TestInstallFromRelease: the one-line installer resolves the latest
+// release, downloads the tarball for this architecture, verifies its
+// SHA-256 checksum and plans the installation (--dry-run changes nothing);
+// a tampered download, an unsupported machine and the uninstaller.
+func TestInstallFromRelease(t *testing.T) {
+	ubuntu := "ID=ubuntu\nVERSION_ID=\"24.04\"\nPRETTY_NAME=\"Ubuntu 24.04 LTS\"\n"
+	good := installEnv(t, ubuntu, "aarch64", "none", "cgroup2fs")
+	ts := fakeRelease(t, "9.9.9", false)
+
+	// Piped, as with curl ... | sudo bash: the script is not a file.
+	script, _ := os.ReadFile(filepath.Join("..", "..", "scripts", "install.sh"))
+	out, err := runInstallEnv(good, string(script), "--dry-run", "--release-url", ts.URL, "--domain", "cms.example.org")
+	if err != nil {
+		t.Fatalf("dry run: %v\n%s", err, out)
+	}
+	for _, want := range []string{"system: Ubuntu 24.04 LTS", "architecture: arm64", "control groups: v2", "==> release 9.9.9",
+		"downloading " + ts.URL + "/download/v9.9.9/cms_9.9.9_linux_arm64.tar.gz", "SHA-256 verified",
+		"would run: apt-get install", "would install /opt/cms/releases/9.9.9", "would write /etc/cms/cms.yaml",
+		"would write /etc/caddy/Caddyfile", "cmsctl bootstrap -admin-username admin -generate-password",
+		"would run: /usr/local/sbin/cms-verify-host", "Dry run: nothing was changed"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("plan lacks %q", want)
+		}
+	}
+	if strings.Contains(out, "BLOCKER") || t.Failed() {
+		t.Fatalf("plan:\n%s", out)
+	}
+	// A given version, from the checkout this time.
+	if out, err := runInstallEnv(good, "", "--dry-run", "--release-url", ts.URL, "--version", "v9.9.9"); err != nil || !strings.Contains(out, "==> release 9.9.9") {
+		t.Fatalf("--version: %v\n%s", err, out)
+	}
+	if out, err := runInstallEnv(good, "", "--dry-run", "--release-url", ts.URL, "--version", "1.0.0"); err == nil || !strings.Contains(out, "cannot download") {
+		t.Fatalf("missing version: %v\n%s", err, out)
+	}
+
+	// A tampered download stops everything before any change.
+	bad := fakeRelease(t, "9.9.9", true)
+	out, err = runInstallEnv(good, "", "--dry-run", "--release-url", bad.URL)
+	if err == nil || !strings.Contains(out, "checksum mismatch for cms_9.9.9_linux_arm64.tar.gz") || strings.Contains(out, "==> packages") {
+		t.Fatalf("tampered release: %v\n%s", err, out)
+	}
+
+	// Machines that cannot judge: each reason is reported.
+	unsupported := installEnv(t, "ID=centos\nVERSION_ID=\"9\"\nPRETTY_NAME=\"CentOS Stream 9\"\n", "i686", "lxc", "tmpfs")
+	out, err = runInstallEnv(unsupported, "", "--dry-run", "--release-url", ts.URL)
+	for _, want := range []string{"BLOCKER: unsupported system CentOS Stream 9", "BLOCKER: unsupported architecture i686",
+		"BLOCKER: this is a container (lxc)", "BLOCKER: control groups v2 are not active", "4 problem(s) above would stop"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("unsupported machine: no %q", want)
+		}
+	}
+	if t.Failed() {
+		t.Fatalf("%v\n%s", err, out)
+	}
+
+	// Installed already: the installer reconfigures that release, and
+	// leaves version changes to cmsctl upgrade.
+	root := t.TempDir()
+	rel := filepath.Join(root, "releases", "1.0.0")
+	os.MkdirAll(filepath.Join(rel, "deploy"), 0o755)
+	os.WriteFile(filepath.Join(rel, "cms"), []byte("#!/bin/sh\necho 'cms 1.0.0 (x)'\n"), 0o755)
+	exec.Command("cp", "-r", filepath.Join("..", "..", "deploy", "systemd"), filepath.Join(rel, "deploy")).Run()
+	os.Symlink("releases/1.0.0", filepath.Join(root, "current"))
+	installed := append(good, "CMS_INSTALL_ROOT="+root)
+	if out, err := runInstallEnv(installed, "", "--dry-run", "--release-url", ts.URL); err != nil || !strings.Contains(out, "release 1.0.0 (installed") ||
+		strings.Contains(out, "downloading") {
+		t.Fatalf("reconfigure: %v\n%s", err, out)
+	}
+	if out, err := runInstallEnv(installed, "", "--dry-run", "--release-url", ts.URL, "--version", "9.9.9"); err == nil || !strings.Contains(out, "sudo cmsctl upgrade -version 9.9.9") {
+		t.Fatalf("version change: %v\n%s", err, out)
+	}
+
+	// Uninstall: the plan keeps the data unless --purge.
+	out, err = runInstallEnv(good, "", "--uninstall", "--dry-run")
+	if err != nil || !strings.Contains(out, "would run: systemctl disable --now cms.target") || !strings.Contains(out, "rm -rf /usr/local/share/doc/cms /opt/cms") ||
+		strings.Contains(out, "rm -rf /etc/cms /var/lib/cms") || !strings.Contains(out, "its data stays") {
+		t.Fatalf("uninstall: %v\n%s", err, out)
+	}
+	out, err = runInstallEnv(good, "", "--uninstall", "--purge", "--dry-run")
+	if err != nil || !strings.Contains(out, "would run: rm -rf /etc/cms /var/lib/cms /var/cache/cms") {
+		t.Fatalf("purge: %v\n%s", err, out)
 	}
 }
