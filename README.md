@@ -20,6 +20,17 @@ make dev-native   # native processes (needs PostgreSQL 16 + Redis/Valkey locally
 - Admin / Administración: http://localhost:8889 (admin / admin)
 - Ranking: http://localhost:8890
 
+## Production / Producción
+
+```sh
+make build && sudo scripts/install.sh --domain cms.example.org --email you@example.org
+sudo cms-verify-host --config /etc/cms/cms.yaml
+```
+
+Step by step: [docs/en/deployment.md](docs/en/deployment.md) ·
+[docs/es/despliegue.md](docs/es/despliegue.md). Contest-day runbook:
+[en](docs/en/contest-day.md) · [es](docs/es/dia-del-concurso.md).
+
 ## Documentation / Documentación
 
 - English: [docs/en](docs/en/README.md)

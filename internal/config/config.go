@@ -102,11 +102,26 @@ type S3 struct {
 }
 
 type Blob struct {
-	Backend       string   `yaml:"backend"` // local | s3
-	LocalDir      string   `yaml:"local_dir"`
-	S3            S3       `yaml:"s3"`
+	Backend  string `yaml:"backend"` // local | s3 | http
+	LocalDir string `yaml:"local_dir"`
+	S3       S3     `yaml:"s3"`
+	// HTTP is a "cms blob-server" (workers on other machines).
+	HTTP          BlobHTTP `yaml:"http"`
 	CacheDir      string   `yaml:"cache_dir"`       // local LRU cache (workers, s3 backend)
 	CacheMaxBytes ByteSize `yaml:"cache_max_bytes"` // 0 disables the cache
+}
+
+// BlobHTTP points at a blob server.
+type BlobHTTP struct {
+	URL   string `yaml:"url"`
+	Token string `yaml:"token"`
+}
+
+// BlobServer serves the blob store to workers on other machines.
+type BlobServer struct {
+	Listen         string   `yaml:"listen"`
+	Token          string   `yaml:"token"`
+	MaxUploadBytes ByteSize `yaml:"max_upload_bytes"`
 }
 
 type ContestWeb struct {
@@ -248,6 +263,7 @@ type Config struct {
 	Monitor      Monitor    `yaml:"monitor"`
 	Printing     Printing   `yaml:"printing"`
 	Backup       Backup     `yaml:"backup"`
+	BlobServer   BlobServer `yaml:"blob_server"`
 
 	// Path the config was loaded from ("" when defaults only).
 	Path string `yaml:"-"`
@@ -282,7 +298,8 @@ func Default() *Config {
 			MetricsListen: ":9103", HeartbeatTimeout: Duration(10 * time.Second),
 			JobTimeout: Duration(10 * time.Minute), CheckInterval: Duration(2 * time.Second),
 		},
-		Printing: Printing{MetricsListen: ":9104", LPPath: "lp", MaxPages: 10, PaperSize: "A4"},
+		Printing:   Printing{MetricsListen: ":9104", LPPath: "lp", MaxPages: 10, PaperSize: "A4"},
+		BlobServer: BlobServer{Listen: ":8891", MaxUploadBytes: 1 << 30},
 		Backup: Backup{Dir: "./data/backups", Interval: Duration(24 * time.Hour), ContestInterval: Duration(15 * time.Minute),
 			Keep: 48, MaxRate: 32 << 20, S3: BackupS3{S3: S3{UseSSL: true}, Prefix: "backups/"}},
 	}
@@ -347,6 +364,9 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 		"CMS_PRINTING_METRICS":   &c.Printing.MetricsListen,
 		"CMS_PRINTER":            &c.Printing.Printer,
 		"CMS_BACKUP_DIR":         &c.Backup.Dir,
+		"CMS_BLOB_HTTP_URL":      &c.Blob.HTTP.URL,
+		"CMS_BLOB_HTTP_TOKEN":    &c.Blob.HTTP.Token,
+		"CMS_BLOB_SERVER_TOKEN":  &c.BlobServer.Token,
 	}
 	for k, p := range str {
 		if v, ok := lookup(k); ok {
@@ -457,6 +477,10 @@ func (c *Config) Validate() error {
 	case "s3":
 		if c.Blob.S3.Endpoint == "" || c.Blob.S3.Bucket == "" {
 			errs = append(errs, errors.New("blob.s3.endpoint and blob.s3.bucket are required for the s3 backend"))
+		}
+	case "http":
+		if c.Blob.HTTP.URL == "" || c.Blob.HTTP.Token == "" {
+			errs = append(errs, errors.New("blob.http.url and blob.http.token are required for the http backend"))
 		}
 	default:
 		errs = append(errs, fmt.Errorf("blob.backend: unknown backend %q", c.Blob.Backend))

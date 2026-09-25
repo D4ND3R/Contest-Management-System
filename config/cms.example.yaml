@@ -17,8 +17,11 @@ redis:
 
 # Content-addressed blob store (SHA-256). Blobs never live in PostgreSQL.
 blob:
-  backend: local            # local | s3
+  backend: local            # local | s3 | http (workers on other machines)
   local_dir: /var/lib/cms/blobs
+  # http:                   # a "cms blob-server" (see docs/en/external-worker.md)
+  #   url: http://10.8.0.1:8891
+  #   token: 
   # s3:
   #   endpoint: minio:9000
   #   bucket: cms
@@ -60,6 +63,12 @@ ranking_web:
   title: "Ranking"
   max_clients: 20000
   pprof: false
+
+# Serves the blob store to workers on other machines ("cms blob-server").
+blob_server:
+  listen: ":8891"
+  token: ""                  # 32+ random characters, shared with the workers
+  max_upload_bytes: 1GiB
 
 dispatcher:
   metrics_listen: ":9101"

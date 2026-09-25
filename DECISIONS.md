@@ -419,3 +419,27 @@ code and are easier to read and adapt as shell. It fails hard only on what
 makes judging unsafe or impossible; what only makes timings noisier is a
 warning with its fix. The self-test uses boxes 500+ by default so it can run
 next to a stopped (or even a running) worker with the default offset 0.
+
+## D50. Deployment: systemd units, CPU pinning by drop-ins, a blob server for remote workers
+The single-VPS layout (SPEC §2: 1 core for web + DB, 1 for a sandbox) is
+enforced by systemd, not by trust: `scripts/install.sh` writes
+`CPUAffinity=` drop-ins for every CMS service except the worker and for
+PostgreSQL, Valkey and the proxy, so none of them can run on the judging
+core, and the worker (`worker.cores`) pins each box there. Drop-ins keep
+the unit files in `deploy/systemd` host-independent. PostgreSQL gets no
+parallel query workers and no JIT (they would steal the judging core or
+cost more than short queries gain), `synchronous_commit` stays on (an
+accepted submission is never lost), Valkey never evicts and keeps an
+append-only log (the queues). The installer is idempotent: secrets are
+generated once into `/etc/cms/secrets.env`, `cms.yaml` is written only when
+missing (operators edit it), every other file is compared before being
+rewritten and services restart only through `cms.target`; `--render-only`
+lets tests and reviewers see exactly what it would write.
+
+Remote workers used to need the S3 backend (the local blob directory is not
+reachable from another machine), which forces an object store on small
+installations. `cms blob-server` serves the existing store over HTTP with a
+bearer token (GET/HEAD by digest, POST to add; no delete, no overwrite:
+content addressing makes that safe), and `blob.backend: http` lets a worker
+use it behind its usual local cache, verifying every download against its
+SHA-256. With Valkey, that is all a worker needs, over WireGuard or a VPC.

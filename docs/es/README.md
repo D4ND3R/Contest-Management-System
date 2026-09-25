@@ -1,5 +1,8 @@
 # Documentación (español)
 
+- [Despliegue en un VPS: paso a paso, script de instalación, systemd, HTTPS](despliegue.md)
+- [Agregar un worker en otra máquina](worker-externo.md)
+- [Manual del día del concurso](dia-del-concurso.md)
 - [Tipos de problema y checkers](task-types.md)
 - [Paquetes de problema: formato, importación, validación y exportación](paquete-de-problema.md)
 - [Rankings: configuración, congelamiento y servidor de ranking](ranking.md)

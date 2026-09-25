@@ -24,6 +24,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/adminweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/auth"
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
+	"github.com/D4ND3R/Contest-Management-System/internal/blobserver"
 	"github.com/D4ND3R/Contest-Management-System/internal/config"
 	"github.com/D4ND3R/Contest-Management-System/internal/contestweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
@@ -69,6 +70,9 @@ type stackOpts struct {
 	admin   bool // start the admin web server
 	empty   bool // no contest fixture (created through the admin UI)
 	ranking bool // start a ranking web server fed by the ranking pusher
+	// remoteBlobs makes the worker reach the blob store only through a
+	// blob server, like a worker on another machine.
+	remoteBlobs bool
 }
 
 // Isolate box ids of this package: 100-299 (worker tests use 400-599,
@@ -111,9 +115,19 @@ func newStack(t testing.TB, o stackOpts) *stack {
 		if boxBase+need > 300 {
 			boxBase = 100
 		}
+		var workerStore blob.Store = st
+		if o.remoteBlobs {
+			bs, err := blobserver.New(st, "e2e-blob-server-token", 0, logging.Discard())
+			if err != nil {
+				t.Fatal(err)
+			}
+			ready := make(chan net.Addr, 1)
+			s.run(func() { bs.Run(ctx, "127.0.0.1:0", ready) })
+			workerStore = blob.NewHTTP("http://"+(<-ready).String(), "e2e-blob-server-token")
+		}
 		svc, err := worker.NewService(config.Worker{Name: "e2e-worker", IsolatePath: iso.Path, IsolateCG: iso.CG,
 			IsolateBoxRoot: iso.BoxRoot, Cores: cores, BoxIDOffset: boxBase, WorkDir: filepath.Join(dir, "w"),
-			CacheDir: filepath.Join(dir, "c"), CacheMaxBytes: 1 << 30}, st, qu, logging.Discard())
+			CacheDir: filepath.Join(dir, "c"), CacheMaxBytes: 1 << 30}, workerStore, qu, logging.Discard())
 		boxBase += need
 		if err != nil {
 			t.Fatal(err)

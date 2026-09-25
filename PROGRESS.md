@@ -534,3 +534,23 @@ docs/en/verify-host.md, docs/es/verificar-host.md. Test: cli.TestVerifyHost
 runs the script end to end (OK with two judged runs; FAIL without isolate).
 On this development VM: RESULT OK with 2 warnings (legacy cgroup v1 +
 isolate 1.10; ASLR/THP), 25 programs per run in ~18 s.
+
+## SPEC_CLOSE A6 — Deployment (done)
+Skipping skills: immersive-web-design, master skill.
+
+`scripts/install.sh` installs (or upgrades) a main server or an extra
+worker on Debian/Ubuntu: packages, isolate 2 and cgroup v2, the `cms`
+user and directories, secrets generated once, `cms.yaml`, PostgreSQL and
+Valkey tuned for 2 vCPUs, systemd units (`deploy/systemd`, `cms.target`,
+restart always) with CPU-pinning drop-ins keeping everything but the
+sandbox off the judging core, Caddy or nginx with Let's Encrypt (or plain
+HTTP with `--lan`), ufw, migrations and the first admin. New `cms
+blob-server` + `blob.backend: http` let workers on other machines judge
+with only Valkey and the blob server reachable over a private network.
+Docs (es/en): deployment step by step, external worker (WireGuard),
+contest-day runbook. Tests: cli.TestInstallScriptRender (rendered files,
+idempotency, variants), blobserver.TestBlobServerRoundTrip,
+e2e.TestExternalWorker (a real judgement through the blob server),
+cli.TestDocsLinks.
+
+Block A (A1–A6) is complete.

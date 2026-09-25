@@ -1,0 +1,28 @@
+[Unit]
+Description=CMS worker (compiles and runs submissions in isolate)
+PartOf=cms.target
+After=network-online.target isolate.service valkey-server.service redis-server.service
+Wants=network-online.target isolate.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=cms
+Group=cms
+Environment=CMS_CONFIG=/etc/cms/cms.yaml
+ExecStart=/usr/local/bin/cms worker
+Restart=always
+RestartSec=2s
+# On SIGTERM the worker stops taking jobs and finishes the running ones;
+# if it is killed after the timeout, the monitor requeues them.
+KillMode=mixed
+TimeoutStopSec=60s
+LimitNOFILE=65536
+# No NoNewPrivileges/ProtectSystem here: isolate is setuid root and manages
+# its own boxes, cgroups and mounts. The worker pins every box to the
+# judging cores (worker.cores) and its own threads to the other ones.
+CacheDirectory=cms
+StateDirectory=cms
+
+[Install]
+WantedBy=cms.target

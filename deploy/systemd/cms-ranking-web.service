@@ -1,0 +1,32 @@
+[Unit]
+Description=CMS ranking web server (public scoreboard)
+PartOf=cms.target
+After=network-online.target 
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=cms
+Group=cms
+Environment=CMS_CONFIG=/etc/cms/cms.yaml
+ExecStart=/usr/local/bin/cms ranking-web
+Restart=always
+RestartSec=2s
+TimeoutStopSec=20s
+LimitNOFILE=65536
+# Hardening: the web services only write their data directories.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/cms
+
+[Install]
+WantedBy=cms.target

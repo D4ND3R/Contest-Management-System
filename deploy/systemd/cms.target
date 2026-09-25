@@ -1,0 +1,10 @@
+# Every CMS service enabled on this machine: "systemctl start cms.target",
+# "systemctl stop cms.target", "systemctl restart cms.target".
+[Unit]
+Description=Contest Management System
+Documentation=file:///usr/local/share/doc/cms/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target

@@ -3,12 +3,14 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/adminweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/app"
 	"github.com/D4ND3R/Contest-Management-System/internal/backup"
+	"github.com/D4ND3R/Contest-Management-System/internal/blobserver"
 	"github.com/D4ND3R/Contest-Management-System/internal/config"
 	"github.com/D4ND3R/Contest-Management-System/internal/contestweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
@@ -31,6 +33,7 @@ func init() {
 	services["dispatcher"] = runDispatcher
 	services["worker"] = runWorker
 	services["monitor"] = runMonitor
+	services["blob-server"] = runBlobServer
 	services["printing"] = stub("printing", func(c *config.Config) string { return c.Printing.MetricsListen })
 }
 
@@ -191,4 +194,21 @@ func runRankingWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) er
 		return err
 	}
 	return srv.Run(ctx, cfg.RankingWeb.Listen, nil)
+}
+
+// runBlobServer serves the blob store to workers on other machines.
+func runBlobServer(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
+	if cfg.Blob.Backend == "http" {
+		return errors.New("the blob server needs the local or s3 blob backend")
+	}
+	d, err := deps.Open(ctx, cfg, log, deps.Need{Blobs: true})
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	srv, err := blobserver.New(d.Blobs, cfg.BlobServer.Token, int64(cfg.BlobServer.MaxUploadBytes), log)
+	if err != nil {
+		return err
+	}
+	return srv.Run(ctx, cfg.BlobServer.Listen, nil)
 }

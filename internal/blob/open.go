@@ -27,6 +27,8 @@ func Open(ctx context.Context, cfg config.Blob) (Store, error) {
 			return nil, err
 		}
 		s = b
+	case "http":
+		s = NewHTTP(cfg.HTTP.URL, cfg.HTTP.Token)
 	default:
 		return nil, fmt.Errorf("unknown blob backend %q", cfg.Backend)
 	}

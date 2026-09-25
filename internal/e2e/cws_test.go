@@ -146,3 +146,28 @@ func TestLightLoadLatency(t *testing.T) {
 		t.Fatalf("p95 = %v, want < %v", q(0.95), limit)
 	}
 }
+
+// TestExternalWorker judges a submission with a worker that reaches the
+// blob store only through the blob server (a worker on another machine,
+// SPEC_CLOSE A6): testcases are downloaded, executables uploaded back.
+func TestExternalWorker(t *testing.T) {
+	s := newStack(t, stackOpts{workers: true, remoteBlobs: true})
+	p := s.addContestant("ana")
+	b := s.login("ana")
+	src := "#include <stdio.h>\nint main(void){long a,b;scanf(\"%ld %ld\",&a,&b);printf(\"%ld\\n\",a+b);return 0;}\n"
+	if code := b.submit("c11", "sum.c", src); code != 200 {
+		t.Fatalf("submit = %d", code)
+	}
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		ts, err := s.q.GetParticipationTaskScore(bg, sqlc.GetParticipationTaskScoreParams{ParticipationID: p.ID, TaskID: s.task.ID})
+		if err == nil && ts.Score == 100 {
+			break
+		}
+		if time.Now().After(deadline) {
+			logEvaluations(t, s)
+			t.Fatalf("not judged through the blob server: %+v %v", ts, err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
