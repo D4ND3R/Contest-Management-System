@@ -10,19 +10,19 @@ first audit (after F6), the "status" column the current state.
 
 | ID | Requirement | Initial | Status | Files | Tests |
 |----|-------------|---------|--------|-------|-------|
-| T1 | Normal I/O (stdin/stdout) with checkers: exact, whitespace, float tolerance, custom CMS and testlib | complete | complete | tasktypes/batch.go, checkers/ | worker.TestBatchVariants, worker.TestSampleSolutions |
+| T1 | Normal I/O (stdin/stdout) with checkers: exact, whitespace, float tolerance, custom CMS and testlib | complete | complete | tasktypes/batch.go, checkers/ | worker.TestBatchVariants, worker.TestSampleSolutions, e2e.TestEveryTaskTypeFromAdminUI |
 | T2a | Batch with file I/O and configurable names | complete | complete | tasktypes/batch.go | worker.TestBatchVariants/file_io* |
-| T2b | Grader + headers/stubs per language (C, C++, Java, Python) | partial (no C test) | partial | tasktypes/program.go | worker.TestBatchVariants/grader_* |
-| T2c | Grader + stdio and grader + files | partial (files untested) | partial | tasktypes/batch.go | — |
-| T3 | Interactive: interactor ↔ one process over crossed pipes, own box, interactor verdict, no-flush TLE, interactor/contestant exits first, invalid output WA, interactor time not charged | missing | missing | — | — |
-| T4 | Communication: manager + N processes, FIFOs, separate boxes, per-process or summed limits, stubs, manager score+message | partial (no summed limits) | partial | tasktypes/communication.go | worker.TestCommunication |
-| T5 | Output only: one file per testcase or a zip, name validation, partial submissions, merge with best previous per testcase (optional) | partial (no zip, no merge) | partial | tasktypes/outputonly.go, contestweb/handlers.go | worker.TestOutputOnly |
+| T2b | Grader + headers/stubs per language (C, C++, Java, Python) | partial (no C test) | complete | tasktypes/program.go, worker/testdata/tasks/grader.* | worker.TestProblemTypeSamples/batch_grader (C, C++, Java, Python × AC/WA/TLE/MLE/RE) |
+| T2c | Grader + stdio and grader + files | partial (files untested) | complete | tasktypes/batch.go | worker.TestProblemTypeSamples/batch_grader_files, e2e.TestEveryTaskTypeFromAdminUI |
+| T3 | Interactive: interactor ↔ one process over crossed pipes, own box, interactor verdict, no-flush TLE, interactor/contestant exits first, invalid output WA, interactor time not charged | missing | complete | tasktypes/interactive.go, sandbox/sandbox.go (inherited pipes) | worker.TestProblemTypeSamples/interactive (AC C/Python, WA, TLE, no-flush TLE, MLE, RE, contestant/interactor ends first, invalid output, slow interactor not charged) |
+| T4 | Communication: manager + N processes, FIFOs, separate boxes, per-process or summed limits, stubs, manager score+message | partial (no summed limits) | complete | tasktypes/communication.go | worker.TestCommunication, worker.TestProblemTypeSamples/communication (AC/WA/TLE/MLE/RE, stubs C/C++/Python, per_process vs total) |
+| T5 | Output only: one file per testcase or a zip, name validation, partial submissions, merge with best previous per testcase (optional) | partial (no zip, no merge) | complete | tasktypes/outputonly.go, contestweb/handlers.go, db/queries/cws.sql | contestweb.TestOutputOnlySubmissions, worker.TestProblemTypeSamples/output_only |
 | T6 | TwoSteps | complete | complete | tasktypes/twosteps.go | worker.TestTwoSteps |
-| T7 | Every type creatable and fully configurable from the admin panel | partial (JSON parameters) | partial | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
-| T8 | Every type importable | missing (F9) | missing | — | — |
-| T9 | Sample solutions AC/WA/TLE/MLE/RE per type in tests | partial (Batch stdio only) | partial | worker/testdata | worker.TestSampleSolutions |
+| T7 | Every type creatable and fully configurable from the admin panel | partial (JSON parameters) | complete | adminweb/datasets.go, adminweb/typeparams.go, web/templates/aws/dataset.html | e2e.TestEveryTaskTypeFromAdminUI, adminweb.TestTaskAndDatasetManagement |
+| T8 | Every type importable | missing (F9) | missing (§6/F9) | — | — |
+| T9 | Sample solutions AC/WA/TLE/MLE/RE per type in tests | partial (Batch stdio only) | complete (OutputOnly: AC/WA/partial, nothing runs) | worker/types_test.go | worker.TestProblemTypeSamples, worker.TestSampleSolutions |
 | T10 | For all types: custom checkers, subtasks, score types, feedback, public testcases, several datasets, reevaluation | complete | complete | scoring/, dispatcher/ | dispatcher.*, scoring.* |
-| T11 | Task tester in the admin (reference solution, per-testcase verdicts, not a submission) | missing | missing | — | — |
+| T11 | Task tester in the admin (reference solution, per-testcase verdicts, not a submission) | missing | complete | adminweb/tester.go, db/migrations/0003_task_types.sql, dispatcher/judging.go | e2e.TestEveryTaskTypeFromAdminUI |
 
 ## §3 User management
 
@@ -58,8 +58,8 @@ first audit (after F6), the "status" column the current state.
 
 | ID | Requirement | Initial | Status | Files | Tests |
 |----|-------------|---------|--------|-------|-------|
-| K1 | Task type with its options (structured form) | partial (JSON) | partial | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
-| K2 | I/O file names | partial (JSON) | partial | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
+| K1 | Task type with its options (structured form) | partial (JSON) | complete | adminweb/typeparams.go, web/templates/aws/dataset.html | e2e.TestEveryTaskTypeFromAdminUI |
+| K2 | I/O file names | partial (JSON) | complete | adminweb/typeparams.go | adminweb.TestTaskAndDatasetManagement |
 | K3 | Time, wall time, memory and output limits | complete | complete | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
 | K4 | Maximum score | complete (from the score type, shown) | complete | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
 | K5 | Subtasks with a visual editor (regex or selection) | missing | missing | — | — |
@@ -70,7 +70,7 @@ first audit (after F6), the "status" column the current state.
 | K10 | Allowed languages per task | missing | missing | — | — |
 | K11 | Statements per language | complete | complete | adminweb/tasks.go | adminweb.TestTaskAndDatasetManagement |
 | K12 | Attachments | complete | complete | adminweb/tasks.go | adminweb.TestEveryPageRenders |
-| K13 | Checker / interactor / manager upload | partial (no interactor) | partial | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
+| K13 | Checker / interactor / manager upload | partial (no interactor) | complete | adminweb/datasets.go, tasktypes/checker.go (.c/.cpp/binary) | e2e.TestEveryTaskTypeFromAdminUI |
 | K14 | Graders and stubs per language | complete (managers by extension) | complete | adminweb/datasets.go, tasktypes/program.go | worker.TestBatchVariants |
 | K15 | Zip testcases with input/output pair detection | complete | complete | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
 | K16 | Datasets and live switch | complete | complete | adminweb/datasets.go, dispatcher/reeval.go | adminweb.TestTaskAndDatasetManagement, dispatcher.TestLiveDatasetChange |

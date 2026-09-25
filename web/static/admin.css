@@ -25,7 +25,8 @@ button.danger{background:var(--bad);border-color:var(--bad)}
 .card.danger{border-color:#f5c2bd}
 .button.small,button.small{padding:.15rem .6rem;font-size:.85rem;vertical-align:middle}
 .tag{display:inline-block;padding:0 .4rem;margin-left:.2rem;border-radius:3px;background:#eef1f5;color:var(--muted);font-size:.8rem}
-.tag.ok{background:#e3f4e8;color:var(--ok)}
+.tag.ok{background:#e3f4e8;color:var(--ok)}.tag.bad{background:#fdecea;color:var(--bad)}
+fieldset[hidden]{display:none}
 .phase{padding:0 .4rem;border-radius:3px;font-size:.85rem}
 .phase.running{background:#e3f4e8;color:var(--ok)}.phase.upcoming{background:#e8f0fd;color:var(--accent)}.phase.finished{background:#eef1f5;color:var(--muted)}
 .stats{display:flex;flex-wrap:wrap;gap:.6rem;margin:.4rem 0 1rem}

@@ -14,11 +14,11 @@ import (
 const createSubmission = `-- name: CreateSubmission :one
 INSERT INTO submissions (participation_id, task_id, submitted_at, language, comment, official)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, participation_id, task_id, submitted_at, language, comment, official
+RETURNING id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id
 `
 
 type CreateSubmissionParams struct {
-	ParticipationID int64     `json:"participation_id"`
+	ParticipationID *int64    `json:"participation_id"`
 	TaskID          int64     `json:"task_id"`
 	SubmittedAt     time.Time `json:"submitted_at"`
 	Language        *string   `json:"language"`
@@ -44,6 +44,8 @@ func (q *Queries) CreateSubmission(ctx context.Context, arg CreateSubmissionPara
 		&i.Language,
 		&i.Comment,
 		&i.Official,
+		&i.Tester,
+		&i.TesterAdminID,
 	)
 	return i, err
 }
@@ -123,7 +125,7 @@ func (q *Queries) EnsureSubmissionResult(ctx context.Context, arg EnsureSubmissi
 }
 
 const getSubmission = `-- name: GetSubmission :one
-SELECT id, participation_id, task_id, submitted_at, language, comment, official FROM submissions WHERE id = $1
+SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id FROM submissions WHERE id = $1
 `
 
 func (q *Queries) GetSubmission(ctx context.Context, id int64) (Submission, error) {
@@ -137,6 +139,8 @@ func (q *Queries) GetSubmission(ctx context.Context, id int64) (Submission, erro
 		&i.Language,
 		&i.Comment,
 		&i.Official,
+		&i.Tester,
+		&i.TesterAdminID,
 	)
 	return i, err
 }
@@ -556,7 +560,7 @@ func (q *Queries) ListSubmissionResultsBySubmissions(ctx context.Context, arg Li
 }
 
 const listSubmissionsByParticipation = `-- name: ListSubmissionsByParticipation :many
-SELECT id, participation_id, task_id, submitted_at, language, comment, official FROM submissions WHERE participation_id = $1 ORDER BY submitted_at, id
+SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id FROM submissions WHERE participation_id = $1::bigint ORDER BY submitted_at, id
 `
 
 func (q *Queries) ListSubmissionsByParticipation(ctx context.Context, participationID int64) ([]Submission, error) {
@@ -576,6 +580,8 @@ func (q *Queries) ListSubmissionsByParticipation(ctx context.Context, participat
 			&i.Language,
 			&i.Comment,
 			&i.Official,
+			&i.Tester,
+			&i.TesterAdminID,
 		); err != nil {
 			return nil, err
 		}
@@ -588,7 +594,7 @@ func (q *Queries) ListSubmissionsByParticipation(ctx context.Context, participat
 }
 
 const listSubmissionsByParticipationTask = `-- name: ListSubmissionsByParticipationTask :many
-SELECT id, participation_id, task_id, submitted_at, language, comment, official FROM submissions WHERE participation_id = $1 AND task_id = $2 ORDER BY submitted_at, id
+SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id FROM submissions WHERE participation_id = $1::bigint AND task_id = $2::bigint ORDER BY submitted_at, id
 `
 
 type ListSubmissionsByParticipationTaskParams struct {
@@ -613,6 +619,8 @@ func (q *Queries) ListSubmissionsByParticipationTask(ctx context.Context, arg Li
 			&i.Language,
 			&i.Comment,
 			&i.Official,
+			&i.Tester,
+			&i.TesterAdminID,
 		); err != nil {
 			return nil, err
 		}
@@ -627,7 +635,7 @@ func (q *Queries) ListSubmissionsByParticipationTask(ctx context.Context, arg Li
 const listTokenTimesByParticipation = `-- name: ListTokenTimesByParticipation :many
 SELECT s.task_id, k.played_at, k.submission_id
 FROM tokens k JOIN submissions s ON s.id = k.submission_id
-WHERE s.participation_id = $1
+WHERE s.participation_id = $1::bigint
 ORDER BY k.played_at
 `
 

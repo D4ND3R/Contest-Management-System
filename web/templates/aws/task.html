@@ -28,6 +28,32 @@
 {{end}}
 </section>
 
+<section class="card" id="tester">
+<h2>Task tester <small class="muted">reference solutions, judged on every dataset; never counted</small></h2>
+{{with .Data.Tester}}
+{{if $.CanWrite}}
+<form method="post" action="/tasks/{{$task.ID}}/tester" enctype="multipart/form-data" class="inline-form">
+  {{template "csrf" $.CSRF}}
+  {{if .NeedsLanguage}}<label>Language <select name="language">{{range .Languages}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
+  {{range .Formats}}<label>{{.}} <input type="file" name="{{.}}"></label>{{end}}
+  {{if .OutputOnly}}<label>or a zip <input type="file" name="zip" accept=".zip"></label>{{end}}
+  <button>Test</button>
+</form>
+{{end}}
+<table>
+<thead><tr><th>Run</th><th>Time (UTC)</th><th>By</th><th>Language</th><th>Results per dataset</th></tr></thead>
+<tbody>
+{{range .Runs}}
+<tr><td><a href="/submissions/{{.ID}}">#{{.ID}}</a></td><td>{{dt .Time}}</td><td>{{.Admin}}</td><td>{{.Language}}</td>
+<td>{{range .Results}}<span class="tag {{.Class}}">{{.Dataset}}: {{.Status}}{{if .Score}} {{score .Score 2}}{{end}}</span> {{end}}</td></tr>
+{{else}}
+<tr><td colspan="5" class="muted">No test runs yet.</td></tr>
+{{end}}
+</tbody>
+</table>
+{{end}}
+</section>
+
 <div class="row">
 <section class="card" id="statements">
 <h2>Statements</h2>

@@ -16,7 +16,21 @@ type OutputOnlyParams struct {
 	// OutputPattern names the submitted file of a testcase; "%s" is replaced
 	// by the testcase codename (default "output_%s.txt", as in CMS).
 	OutputPattern string `json:"output_pattern,omitempty"`
+	// MergePrevious: testcases missing from a submission take the output
+	// file with the best result among the contestant's previous
+	// submissions (applied by the contest web server when submitting).
+	MergePrevious bool `json:"merge_previous,omitempty"`
 	CheckerParams
+}
+
+// OutputOnlyConfig returns the file name pattern and the merge option of
+// an OutputOnly dataset.
+func OutputOnlyConfig(raw json.RawMessage) (pattern string, merge bool, err error) {
+	p, err := parseOutputOnly(raw)
+	if err != nil {
+		return "", false, err
+	}
+	return p.OutputPattern, p.MergePrevious, nil
 }
 
 func parseOutputOnly(raw json.RawMessage) (*OutputOnlyParams, error) {

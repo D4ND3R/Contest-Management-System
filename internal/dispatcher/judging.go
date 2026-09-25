@@ -102,6 +102,10 @@ func (d *Dispatcher) loadSubmission(ctx context.Context, q *sqlc.Queries, subID,
 // priority picks the queue: live datasets use the normal priorities unless
 // the work is a rejudge of an old submission.
 func (sc *submissionCtx) priority(normal queue.Priority, rejudge bool) queue.Priority {
+	if sc.meta.Tester {
+		// Administrators' task tester runs: after contestants' submissions.
+		return queue.PriorityUserTest
+	}
 	if !sc.di.live() || rejudge {
 		return queue.PriorityBackground
 	}
@@ -109,6 +113,10 @@ func (sc *submissionCtx) priority(normal queue.Priority, rejudge bool) queue.Pri
 }
 
 func (sc *submissionCtx) event(status string) events.Event {
+	if sc.meta.Tester {
+		// Only administrators listen to events without a contest.
+		return events.Event{Type: events.TypeSubmission, TaskID: sc.meta.TaskID, SubmissionID: sc.meta.ID, Status: status}
+	}
 	return events.Event{Type: events.TypeSubmission, ContestID: sc.meta.ContestID, ParticipationID: sc.meta.ParticipationID,
 		TaskID: sc.meta.TaskID, SubmissionID: sc.meta.ID, Status: status}
 }
@@ -144,7 +152,12 @@ func (d *Dispatcher) newSubmission(ctx context.Context, subID int64) error {
 	if err != nil {
 		return err
 	}
-	dss, err := q.ListJudgedDatasetsByTask(ctx, meta.TaskID)
+	var dss []sqlc.Dataset
+	if meta.Tester {
+		dss, err = q.ListDatasetsByTask(ctx, meta.TaskID) // tester runs: every dataset
+	} else {
+		dss, err = q.ListJudgedDatasetsByTask(ctx, meta.TaskID)
+	}
 	if err != nil {
 		return err
 	}
@@ -447,7 +460,7 @@ func (d *Dispatcher) scoreResult(ctx context.Context, q *sqlc.Queries, eff *effe
 }
 
 func (d *Dispatcher) aggregateIfLive(ctx context.Context, q *sqlc.Queries, eff *effects, sc *submissionCtx) error {
-	if !sc.di.live() {
+	if !sc.di.live() || sc.meta.Tester {
 		return nil
 	}
 	up, err := d.aggregate(ctx, q, sc.meta.ParticipationID, sc.di)

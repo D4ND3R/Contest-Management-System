@@ -106,6 +106,9 @@ var es = map[string]string{
 	"A file exceeds the size limit.":                         "Un archivo excede el tamaño máximo.",
 	"The file extension does not match the chosen language.": "La extensión del archivo no corresponde al lenguaje elegido.",
 	"Please attach at least one file.":                       "Adjunta al menos un archivo.",
+	"Unexpected files in the archive:":                       "Archivos inesperados en el archivo comprimido:",
+	"The archive is not a valid zip file.":                   "El archivo comprimido no es un zip válido.",
+	"Or all the outputs in a zip archive":                    "O todas las salidas en un archivo zip",
 
 	// Limits (internal/contest)
 	"You have reached the maximum number of submissions for this contest.": "Alcanzaste el número máximo de envíos del concurso.",

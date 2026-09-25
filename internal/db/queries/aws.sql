@@ -31,14 +31,35 @@ ORDER BY s.id DESC
 LIMIT @lim::int;
 
 -- name: AdminGetSubmission :one
-SELECT s.*, u.id AS user_id, u.username, t.name AS task_name, t.title AS task_title,
-       t.active_dataset_id, p.contest_id, (tk.submission_id IS NOT NULL)::boolean AS tokened
+-- A submission (or a task tester run, which has no participation).
+SELECT s.*, COALESCE(u.id, 0)::bigint AS user_id, COALESCE(u.username, '')::text AS username,
+       t.name AS task_name, t.title AS task_title, t.active_dataset_id,
+       COALESCE(p.contest_id, t.contest_id, 0)::bigint AS contest_id, (tk.submission_id IS NOT NULL)::boolean AS tokened,
+       COALESCE(a.username, '')::text AS tester_username
 FROM submissions s
-JOIN participations p ON p.id = s.participation_id
-JOIN users u ON u.id = p.user_id
+LEFT JOIN participations p ON p.id = s.participation_id
+LEFT JOIN users u ON u.id = p.user_id
 JOIN tasks t ON t.id = s.task_id
 LEFT JOIN tokens tk ON tk.submission_id = s.id
+LEFT JOIN admins a ON a.id = s.tester_admin_id
 WHERE s.id = $1;
+
+-- name: AdminListTesterRuns :many
+-- Task tester runs of a task (newest first) with their result on every
+-- dataset (index: submissions_tester_idx).
+SELECT s.id, s.submitted_at, s.language, COALESCE(a.username, '')::text AS admin_username,
+       sr.dataset_id, d.description AS dataset_description, sr.compilation_outcome, sr.testcases_done,
+       sr.testcases_total, sr.score, sr.scored_at, sr.system_error
+FROM (SELECT * FROM submissions WHERE task_id = @task_id::bigint AND tester ORDER BY id DESC LIMIT 30) s
+LEFT JOIN admins a ON a.id = s.tester_admin_id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id
+LEFT JOIN datasets d ON d.id = sr.dataset_id
+ORDER BY s.id DESC, sr.dataset_id;
+
+-- name: CreateTesterSubmission :one
+INSERT INTO submissions (participation_id, task_id, submitted_at, language, official, tester, tester_admin_id)
+VALUES (NULL, @task_id::bigint, now(), @language, false, true, @admin_id::bigint)
+RETURNING *;
 
 -- name: AdminListSubmissionResults :many
 -- Results of a submission on every dataset it was judged on.

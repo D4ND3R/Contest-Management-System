@@ -227,3 +227,28 @@ inside §4 (contest configuration), F9 (import/export, dump/restore) inside
 work together with §7. PROGRESS.md keeps one section per primary phase;
 AUDIT.md tracks every audit requirement with its files and tests. Each audit
 section is a commit.
+
+## D35. Interactive tasks use anonymous pipes between two sandboxes
+Two isolate runs whose standard streams are opened by isolate on FIFOs
+deadlock (each side opens its read end first). The worker instead creates
+two anonymous pipes and hands them to the interactor's and the
+contestant's isolate processes as inherited stdin/stdout (isolate never
+writes to its own stdout with `--silent`), then closes its copies once both
+started, so end-of-file and SIGPIPE propagate exactly like on Codeforces.
+The interactor follows testlib's exit codes. Verdict order: contestant
+limit exceeded → that verdict; contestant crash (not SIGPIPE) → RE;
+otherwise the interactor's verdict.
+
+## D36. Task tester runs are submissions without a participation
+`submissions.participation_id` became nullable with a `tester` flag (CHECK
+keeps them consistent). Tester runs are judged by the unchanged pipeline on
+every dataset, at user-test priority, never aggregated, and their events
+carry no contest; every participation-based query (contestant pages,
+rankings, statistics, exports) ignores them by construction.
+
+## D37. Output-only merge is resolved when submitting
+With `merge_previous`, the contest web server completes a partial
+output-only submission with, per missing file, the output of the previous
+submission that scored best on that testcase (latest when unjudged). The
+judge and scoring stay unchanged and the submission shows exactly what was
+evaluated.

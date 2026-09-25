@@ -31,6 +31,10 @@ type CommunicationParams struct {
 	// 1 GiB of memory).
 	ManagerTimeLimitMs int64 `json:"manager_time_limit_ms,omitempty"`
 	ManagerMemoryBytes int64 `json:"manager_memory_bytes,omitempty"`
+	// LimitsMode: "per_process" (default; every process gets the task's
+	// time and memory limits) or "total" (additionally, the sum of the
+	// processes' CPU time and of their peak memory must fit the limits).
+	LimitsMode string `json:"limits_mode,omitempty"`
 }
 
 func parseCommunication(raw json.RawMessage) (*CommunicationParams, error) {
@@ -58,6 +62,12 @@ func parseCommunication(raw json.RawMessage) (*CommunicationParams, error) {
 	if p.UserIO != "fifos" && p.UserIO != "std_io" {
 		return nil, fmt.Errorf("invalid Communication user_io %q", p.UserIO)
 	}
+	if p.LimitsMode == "" {
+		p.LimitsMode = "per_process"
+	}
+	if p.LimitsMode != "per_process" && p.LimitsMode != "total" {
+		return nil, fmt.Errorf("invalid Communication limits_mode %q (per_process, total)", p.LimitsMode)
+	}
 	return p, nil
 }
 
@@ -70,9 +80,11 @@ func parseCommunication(raw json.RawMessage) (*CommunicationParams, error) {
 //	process  argv: m2u u2m [index]      (user_io = "fifos")
 //	         stdin = m2u, stdout = u2m   (user_io = "std_io")
 //
-// Every process gets the task's limits; the reported time is the sum of the
-// contestant processes' CPU time and the memory their maximum. Contestant
-// processes never see the testcase files.
+// Every process gets the task's limits; with limits_mode "total" the sum of
+// their CPU times and of their peak memory must also fit. The reported time
+// is the sum of the contestant processes' CPU time and the memory their
+// maximum (their sum in "total" mode). Contestant processes never see the
+// testcase files.
 type Communication struct{}
 
 func init() { register("Communication", Communication{}) }
@@ -227,13 +239,15 @@ func (c Communication) interact(ctx context.Context, env *Env, job *jobs.Job, p 
 
 // judge turns an interaction into an evaluation (or an error when the
 // manager failed without the contestant being at fault).
-func (c Communication) judge(tc jobs.Testcase, o *commOutcome) (*jobs.Evaluation, error) {
+func (c Communication) judge(tc jobs.Testcase, o *commOutcome, p *CommunicationParams, lim jobs.Limits) (*jobs.Evaluation, error) {
 	ev := &jobs.Evaluation{TestcaseID: tc.ID, Codename: tc.Codename, ExitStatus: string(sandbox.StatusOK)}
 	var failed *sandbox.Result
+	var totalMem int64
 	for _, u := range o.users {
 		ev.Time += u.CPUTime.Seconds()
 		ev.WallTime = max(ev.WallTime, u.WallTime.Seconds())
 		ev.Memory = max(ev.Memory, u.Memory)
+		totalMem += u.Memory
 		if u.Status == sandbox.StatusOK || failed != nil {
 			continue
 		}
@@ -254,6 +268,17 @@ func (c Communication) judge(tc jobs.Testcase, o *commOutcome) (*jobs.Evaluation
 		ev.Text = executionText(failed)
 		return ev, nil
 	}
+	if p.LimitsMode == "total" {
+		ev.Memory = totalMem
+		switch {
+		case lim.TimeMs > 0 && ev.Time > float64(lim.TimeMs)/1000:
+			ev.ExitStatus, ev.Text = string(sandbox.StatusTimeout), MsgTimeout
+			return ev, nil
+		case lim.MemoryBytes > 0 && totalMem > lim.MemoryBytes:
+			ev.ExitStatus, ev.Text = string(sandbox.StatusMemory), executionText(&sandbox.Result{Status: sandbox.StatusMemory})
+			return ev, nil
+		}
+	}
 	stdout, _, _ := o.mbox.ReadFile(".manager.out", 64<<10)
 	stderr, _, _ := o.mbox.ReadFile(".manager.err", 64<<10)
 	res, err := checkers.ParseCMSChecker(stdout, stderr)
@@ -273,7 +298,7 @@ func (c Communication) Evaluate(ctx context.Context, env *Env, job *jobs.Job, tc
 	if err != nil {
 		return nil, err
 	}
-	return c.judge(tc, o)
+	return c.judge(tc, o, p, job.Limits)
 }
 
 // UserTest runs the interaction on the contestant's input; the output shown
@@ -293,7 +318,7 @@ func (c Communication) UserTest(ctx context.Context, env *Env, job *jobs.Job) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	ev, jerr := c.judge(jobs.Testcase{}, o)
+	ev, jerr := c.judge(jobs.Testcase{}, o, p, job.Limits)
 	r := &jobs.UserTestRun{ExitStatus: string(sandbox.StatusOK), Text: MsgExecutionOK}
 	if jerr != nil {
 		r.ExitStatus, r.Text = string(sandbox.StatusSandboxError), jerr.Error()

@@ -12,7 +12,8 @@ var DefaultParams = map[string]string{
 	"Batch":         `{"compilation": "alone", "input_file": "", "output_file": "", "checker": "white_diff"}`,
 	"OutputOnly":    `{"output_pattern": "output_%s.txt", "checker": "white_diff"}`,
 	"TwoSteps":      `{"manager": "manager", "checker": "white_diff"}`,
-	"Communication": `{"num_processes": 1, "compilation": "stub", "user_io": "fifos"}`,
+	"Communication": `{"num_processes": 1, "compilation": "stub", "user_io": "fifos", "limits_mode": "per_process"}`,
+	"Interactive":   `{}`,
 }
 
 // SortedNames returns the task type names in a stable order.
@@ -51,6 +52,9 @@ func ValidateParams(name string, raw json.RawMessage) error {
 		cp = &p.CheckerParams
 	case "Communication":
 		_, err := parseCommunication(raw)
+		return err
+	case "Interactive":
+		_, err := parseInteractive(raw)
 		return err
 	}
 	if cp != nil {
@@ -93,6 +97,8 @@ func RequiredManagers(name string, raw json.RawMessage) []string {
 			}
 			return out
 		}
+	case "Interactive":
+		return []string{"interactor"}
 	case "Communication":
 		if p, err := parseCommunication(raw); err == nil {
 			out := []string{"manager"}

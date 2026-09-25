@@ -1,8 +1,14 @@
 {{define "content"}}
 {{$s := .Data.S}}
+{{if $s.Tester}}
+<h1>Test run {{$s.ID}} <small class="muted">{{$s.TaskName}} · {{dt $s.SubmittedAt}} UTC</small></h1>
+<p class="info">Task tester run by {{$s.TesterUsername}}: judged on every dataset, never counted as a submission.</p>
+<dl class="meta card">
+{{else}}
 <h1>Submission {{$s.ID}} <small class="muted">{{$s.Username}} · {{$s.TaskName}} · {{dt $s.SubmittedAt}} UTC</small></h1>
 <dl class="meta card">
-  <dt>User</dt><dd><a href="/participations/{{$s.ParticipationID}}">{{$s.Username}}</a> (<a href="/users/{{$s.UserID}}">user</a>)</dd>
+  <dt>User</dt><dd><a href="/participations/{{deref64 $s.ParticipationID}}">{{$s.Username}}</a> (<a href="/users/{{$s.UserID}}">user</a>)</dd>
+{{end}}
   <dt>Task</dt><dd><a href="/tasks/{{$s.TaskID}}">{{$s.TaskName}}</a> — {{$s.TaskTitle}}</dd>
   <dt>Language</dt><dd>{{.Data.Lang}}</dd>
   <dt>Official</dt><dd>{{if $s.Official}}yes{{else}}no (analysis mode){{end}}</dd>

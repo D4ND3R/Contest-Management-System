@@ -200,6 +200,7 @@ func (s *Server) Handler() http.Handler {
 	get("/tasks/{id}/attachments/{file}", s.handleAttachmentDownload)
 	post("/tasks/{id}/attachments/{file}/delete", permAll, "attachment.delete", s.handleAttachmentDelete)
 	post("/tasks/{id}/datasets", permAll, "dataset.create", s.handleDatasetCreate)
+	post("/tasks/{id}/tester", permAll, "task.test", s.handleTesterSubmit)
 
 	get("/datasets/{id}", s.handleDataset)
 	post("/datasets/{id}", permAll, "dataset.update", s.handleDatasetUpdate)

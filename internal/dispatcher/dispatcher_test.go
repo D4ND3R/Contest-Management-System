@@ -200,7 +200,7 @@ const (
 func (e *env) submit(src string, notify bool) int64 {
 	q := sqlc.New(e.pool)
 	lang := "c11"
-	s, err := q.CreateSubmission(ctx, sqlc.CreateSubmissionParams{ParticipationID: e.part.ID, TaskID: e.task.ID,
+	s, err := q.CreateSubmission(ctx, sqlc.CreateSubmissionParams{ParticipationID: &e.part.ID, TaskID: e.task.ID,
 		SubmittedAt: time.Now(), Language: &lang, Official: true})
 	if err != nil {
 		e.t.Fatal(err)

@@ -22,12 +22,62 @@
   <label>Source size limit (KiB) <input name="source_size_limit_kib" value="{{kib $d.SourceSizeLimitBytes}}" inputmode="decimal" placeholder="none"></label>
 </div>
 <p class="checks"><label><input type="checkbox" name="autojudge" {{if $d.Autojudge}}checked{{end}}> Judge new submissions on this dataset in the background (to compare with the live one)</label></p>
+{{$tf := .Data.TF}}
 <div class="row">
-<label>Task type <select name="task_type" data-defaults="{{.Data.Defaults}}" data-params="task_type_params">{{range .Data.TaskTypes}}<option {{if eq . $d.TaskType}}selected{{end}}>{{.}}</option>{{end}}</select>
-  <textarea name="task_type_params" id="task_type_params" rows="7" class="code">{{.Data.ParamsJSON}}</textarea>
-  <small class="muted">See the task type documentation for the parameters.</small></label>
+<div>
+<label>Task type <select name="task_type" data-type-switch>{{range .Data.TaskTypes}}<option {{if eq . $d.TaskType}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+<fieldset data-for="Batch"><legend>Batch</legend>
+  <label>Compilation <select name="tt_compilation"><option value="alone" {{if ne $tf.Compilation "grader"}}selected{{end}}>the submission alone</option><option value="grader" {{if eq $tf.Compilation "grader"}}selected{{end}}>with the grader (manager grader.&lt;ext&gt; + headers)</option></select></label>
+  <div class="grid"><label>Input file <input name="tt_input_file" value="{{$tf.InputFile}}" placeholder="standard input"></label>
+  <label>Output file <input name="tt_output_file" value="{{$tf.OutputFile}}" placeholder="standard output"></label></div>
+</fieldset>
+<fieldset data-for="OutputOnly"><legend>Output only</legend>
+  <label>Output file names <input name="tt_output_pattern" value="{{$tf.OutputPattern}}" placeholder="output_%s.txt (%s = testcase codename)"></label>
+  <p class="checks"><label><input type="checkbox" name="tt_merge_previous" {{if $tf.MergePrevious}}checked{{end}}> Missing outputs take the best previous result of each testcase</label></p>
+</fieldset>
+<fieldset data-for="TwoSteps"><legend>Two steps</legend>
+  <label>Manager source name <input name="tt_manager" value="{{$tf.Manager}}" placeholder="manager (manager.&lt;ext&gt;)"></label>
+</fieldset>
+<fieldset data-for="Communication"><legend>Communication</legend>
+  <div class="grid">
+  <label>Contestant processes <input name="tt_num_processes" value="{{if $tf.NumProcesses}}{{$tf.NumProcesses}}{{else}}1{{end}}" inputmode="numeric"></label>
+  <label>Compilation <select name="tt_comm_compilation"><option value="stub" {{if ne $tf.Compilation "alone"}}selected{{end}}>with the stub (stub.&lt;ext&gt;)</option><option value="alone" {{if eq $tf.Compilation "alone"}}selected{{end}}>alone</option></select></label>
+  <label>Contestant I/O <select name="tt_user_io"><option value="fifos" {{if ne $tf.UserIO "std_io"}}selected{{end}}>FIFO paths as arguments</option><option value="std_io" {{if eq $tf.UserIO "std_io"}}selected{{end}}>standard input/output</option></select></label>
+  <label>Limits <select name="tt_limits_mode"><option value="per_process" {{if ne $tf.LimitsMode "total"}}selected{{end}}>per process</option><option value="total" {{if eq $tf.LimitsMode "total"}}selected{{end}}>summed over the processes</option></select></label>
+  <label>Manager time limit (ms) <input name="tt_manager_time_limit_ms" value="{{if $tf.ManagerTimeLimitMs}}{{$tf.ManagerTimeLimitMs}}{{end}}" placeholder="default" inputmode="numeric"></label>
+  <label>Manager memory (MiB) <input name="tt_manager_memory_mib" value="{{if $tf.ManagerMemoryBytes}}{{$tf.ManagerMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
+  </div>
+  <p class="muted small">Managers: <code>manager</code> (binary, .c or .cpp); stubs per language: <code>stub.c</code>, <code>stub.cpp</code>, <code>stub.py</code>, <code>stub.java</code>…</p>
+</fieldset>
+<fieldset data-for="Interactive"><legend>Interactive</legend>
+  <div class="grid">
+  <label>Interactor time limit (ms) <input name="tt_interactor_time_limit_ms" value="{{if $tf.InteractorTimeLimitMs}}{{$tf.InteractorTimeLimitMs}}{{end}}" placeholder="10 s + time limit" inputmode="numeric"></label>
+  <label>Interactor memory (MiB) <input name="tt_interactor_memory_mib" value="{{if $tf.InteractorMemoryBytes}}{{$tf.InteractorMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
+  </div>
+  <p class="muted small">Upload the interactor as the manager <code>interactor</code> (binary, .c or .cpp, testlib allowed with <code>testlib.h</code>). It is run as <code>interactor input output answer</code>, talks to the contestant through its standard input/output and decides the verdict with testlib exit codes.</p>
+</fieldset>
+<fieldset data-for="Batch OutputOnly TwoSteps"><legend>Checker</legend>
+  <div class="grid">
+  <label>Comparison <select name="tt_checker">
+    <option value="white_diff" {{if or (eq $tf.Checker "") (eq $tf.Checker "white_diff")}}selected{{end}}>ignore whitespace</option>
+    <option value="exact" {{if eq $tf.Checker "exact"}}selected{{end}}>exact</option>
+    <option value="float" {{if eq $tf.Checker "float"}}selected{{end}}>reals with tolerance</option>
+    <option value="custom" {{if eq $tf.Checker "custom"}}selected{{end}}>custom checker (CMS protocol)</option>
+    <option value="testlib" {{if eq $tf.Checker "testlib"}}selected{{end}}>custom checker (testlib)</option></select></label>
+  <label>Absolute tolerance <input name="tt_float_abs_tol" value="{{if $tf.FloatAbsTol}}{{$tf.FloatAbsTol}}{{end}}" placeholder="0" inputmode="decimal"></label>
+  <label>Relative tolerance <input name="tt_float_rel_tol" value="{{if $tf.FloatRelTol}}{{$tf.FloatRelTol}}{{end}}" placeholder="0" inputmode="decimal"></label>
+  <label>Checker time limit (ms) <input name="tt_checker_time_limit_ms" value="{{if $tf.CheckerTimeLimitMs}}{{$tf.CheckerTimeLimitMs}}{{end}}" placeholder="10000" inputmode="numeric"></label>
+  <label>Checker memory (MiB) <input name="tt_checker_memory_mib" value="{{if $tf.CheckerMemoryBytes}}{{$tf.CheckerMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
+  </div>
+  <p class="muted small">Custom checkers are the manager <code>checker</code> (binary, .c or .cpp).</p>
+</fieldset>
+<details><summary>Advanced: raw parameters (JSON)</summary>
+  <p class="checks"><label><input type="checkbox" name="raw_params"> Use this JSON instead of the fields above</label></p>
+  <textarea name="task_type_params" rows="6" class="code">{{.Data.ParamsJSON}}</textarea>
+</details>
+</div>
 <label>Score type <select name="score_type">{{range .Data.ScoreTypes}}<option {{if eq . $d.ScoreType}}selected{{end}}>{{.}}</option>{{end}}</select>
-  <textarea name="score_type_params" rows="7" class="code">{{.Data.ScoreJSON}}</textarea>
+  <textarea name="score_type_params" id="score_type_params" rows="7" class="code">{{.Data.ScoreJSON}}</textarea>
   <small class="muted">Sum: points per testcase (e.g. <code>10</code>). Group*: <code>[[40, "1_.*"], [60, 5]]</code> (max score, regex/count/list[, threshold]).</small></label>
 </div>
 {{if .CanWrite}}<button>Save</button>{{end}}

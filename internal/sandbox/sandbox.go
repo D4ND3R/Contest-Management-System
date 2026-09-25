@@ -71,6 +71,13 @@ type Spec struct {
 	Limits         Limits
 	// ShareNet keeps the host network namespace (never for contestants).
 	ShareNet bool
+	// StdinFile / StdoutFile connect the program to already-open files
+	// (typically pipe ends shared with another sandbox) instead of box
+	// paths; they take precedence over Stdin / Stdout.
+	StdinFile, StdoutFile *os.File
+	// AfterStart, when set, is called once isolate has been started (or
+	// failed to start), e.g. to close the caller's copies of pipe ends.
+	AfterStart func()
 }
 
 // Result of a run.
@@ -374,7 +381,12 @@ func (b *Box) args(spec *Spec) []string {
 	}
 	// Unset streams go to /dev/null: an inherited descriptor would let the
 	// program write into the worker's own pipes.
-	a = append(a, "--stdin="+orDevNull(spec.Stdin), "--stdout="+orDevNull(spec.Stdout))
+	if spec.StdinFile == nil {
+		a = append(a, "--stdin="+orDevNull(spec.Stdin))
+	}
+	if spec.StdoutFile == nil {
+		a = append(a, "--stdout="+orDevNull(spec.Stdout))
+	}
 	if spec.StderrToStdout {
 		a = append(a, "--stderr-to-stdout")
 	} else {
@@ -429,11 +441,22 @@ func (b *Box) Run(ctx context.Context, spec *Spec) (*Result, error) {
 	cmd := b.iso.cmd(ctx, b.args(spec)...)
 	stderr := &limitedBuffer{max: 4096}
 	cmd.Stdout, cmd.Stderr = stderr, stderr
+	// isolate itself never writes to its standard output (--silent), so the
+	// program can inherit a pipe as stdin/stdout.
+	if spec.StdinFile != nil {
+		cmd.Stdin = spec.StdinFile
+	}
+	if spec.StdoutFile != nil {
+		cmd.Stdout = spec.StdoutFile
+	}
 	var cpus []int
 	if b.Core >= 0 {
 		cpus = []int{b.Core}
 	}
 	err := startPinnedSet(cmd, cpus)
+	if spec.AfterStart != nil {
+		spec.AfterStart()
+	}
 	if err == nil {
 		err = cmd.Wait()
 	}

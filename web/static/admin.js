@@ -45,20 +45,18 @@
     });
   }
 
-  // Task type select: offer the default parameters of the chosen type when
-  // the parameters box is empty or still holds another type's defaults.
+  // Dataset form: show only the options of the chosen task type.
   function taskTypes() {
-    document.querySelectorAll("select[data-defaults]").forEach(function (sel) {
-      var defaults = {};
-      try { defaults = JSON.parse(sel.dataset.defaults); } catch (err) { return; }
-      var box = document.getElementById(sel.dataset.params);
-      if (!box) return;
-      var norm = function (s) { try { return JSON.stringify(JSON.parse(s)); } catch (err) { return s; } };
-      sel.addEventListener("change", function () {
-        var cur = norm(box.value.trim());
-        var isDefault = cur === "" || cur === "{}" || Object.keys(defaults).some(function (k) { return norm(defaults[k]) === cur; });
-        if (isDefault && defaults[sel.value]) box.value = JSON.stringify(JSON.parse(defaults[sel.value]), null, 2);
-      });
+    document.querySelectorAll("select[data-type-switch]").forEach(function (sel) {
+      var form = sel.form;
+      function apply() {
+        form.querySelectorAll("fieldset[data-for]").forEach(function (fs) {
+          var on = fs.dataset["for"].split(" ").indexOf(sel.value) >= 0;
+          fs.hidden = !on;
+        });
+      }
+      sel.addEventListener("change", apply);
+      apply();
     });
   }
 

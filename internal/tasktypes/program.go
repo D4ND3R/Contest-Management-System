@@ -321,6 +321,9 @@ type runOptions struct {
 	dirs        []sandbox.Dir
 	// noExecCopy skips copying executables (already in the box).
 	noExecCopy bool
+	// stdinFile / stdoutFile connect the program to pipes (Interactive).
+	stdinFile, stdoutFile *os.File
+	afterStart            func()
 }
 
 // run executes the contestant program in box.
@@ -352,6 +355,7 @@ func run(ctx context.Context, env *Env, box *sandbox.Box, o runOptions) (*sandbo
 	spec := &sandbox.Spec{
 		Args: args, Stdin: o.stdin, Stdout: o.stdout, Stderr: o.stderr,
 		Env: o.lang.EnvList(), Dirs: append(env.dirs(o.lang), o.dirs...), Limits: lim,
+		StdinFile: o.stdinFile, StdoutFile: o.stdoutFile, AfterStart: o.afterStart,
 	}
 	res, err := box.Run(ctx, spec)
 	if err != nil {

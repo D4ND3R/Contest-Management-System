@@ -41,3 +41,15 @@ WHERE s.id = @id::bigint;
 SELECT id, name, description, start_time, stop_time FROM contests
 WHERE stop_time > now() - interval '30 days' OR analysis_stop > now()
 ORDER BY start_time DESC;
+
+-- name: BestPreviousOutputs :many
+-- Output-only tasks: for every output file name, the file of the
+-- participation's previous submission that scored best on the matching
+-- testcase of the dataset (the latest one on ties or when unjudged).
+SELECT DISTINCT ON (f.filename) f.filename, f.digest
+FROM submissions s
+JOIN submission_files f ON f.submission_id = s.id
+LEFT JOIN testcases tc ON tc.dataset_id = @dataset_id::bigint AND f.filename = replace(@pattern::text, '%s', tc.codename)
+LEFT JOIN evaluations e ON e.submission_id = s.id AND e.dataset_id = @dataset_id::bigint AND e.testcase_id = tc.id
+WHERE s.participation_id = @participation_id::bigint AND s.task_id = @task_id::bigint
+ORDER BY f.filename, e.outcome DESC NULLS LAST, s.submitted_at DESC, s.id DESC;

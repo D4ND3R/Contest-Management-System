@@ -97,6 +97,7 @@ type datasetPage struct {
 	Required   []string
 	Missing    []string
 	OtherSets  []sqlc.Dataset
+	TF         typeFields
 }
 
 var scoreTypes = []string{"Sum", "GroupMin", "GroupMul", "GroupThreshold"}
@@ -116,6 +117,7 @@ func (s *Server) datasetPage(ctx context.Context, d sqlc.Dataset, u sqlc.UpdateD
 	if p.ScoreJSON == "" {
 		p.ScoreJSON = prettyJSON(u.ScoreTypeParams)
 	}
+	p.TF = typeFieldsOf(u.TaskTypeParams)
 	if p.Managers, err = s.q.ListManagers(ctx, d.ID); err != nil {
 		return nil, err
 	}
@@ -213,6 +215,10 @@ func parseDataset(f *form, u sqlc.UpdateDatasetParams) (sqlc.UpdateDatasetParams
 	u.SourceSizeLimitBytes = f.kib("source_size_limit_kib", "Source size limit")
 	u.TaskType = f.oneOf("task_type", "Task type", tasktypes.SortedNames()...)
 	paramsText := f.str("task_type_params")
+	if !f.check("raw_params") {
+		// The structured fields of the chosen type (the default).
+		paramsText = string(buildTypeParams(f, u.TaskType))
+	}
 	if paramsText == "" {
 		paramsText = "{}"
 	}

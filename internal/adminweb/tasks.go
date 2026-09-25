@@ -118,6 +118,7 @@ type taskPage struct {
 	Statements  []sqlc.Statement
 	Attachments []sqlc.Attachment
 	Datasets    []sqlc.Dataset
+	Tester      *testerForm
 }
 
 func (s *Server) taskPage(ctx context.Context, t sqlc.Task, u sqlc.UpdateTaskParams) (*taskPage, error) {
@@ -138,6 +139,9 @@ func (s *Server) taskPage(ctx context.Context, t sqlc.Task, u sqlc.UpdateTaskPar
 		return nil, err
 	}
 	if d.Datasets, err = s.q.ListDatasetsByTask(ctx, t.ID); err != nil {
+		return nil, err
+	}
+	if d.Tester, err = s.testerForm(ctx, t); err != nil {
 		return nil, err
 	}
 	return d, nil

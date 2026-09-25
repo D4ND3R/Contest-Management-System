@@ -12,6 +12,56 @@ import (
 	"time"
 )
 
+const bestPreviousOutputs = `-- name: BestPreviousOutputs :many
+SELECT DISTINCT ON (f.filename) f.filename, f.digest
+FROM submissions s
+JOIN submission_files f ON f.submission_id = s.id
+LEFT JOIN testcases tc ON tc.dataset_id = $1::bigint AND f.filename = replace($2::text, '%s', tc.codename)
+LEFT JOIN evaluations e ON e.submission_id = s.id AND e.dataset_id = $1::bigint AND e.testcase_id = tc.id
+WHERE s.participation_id = $3::bigint AND s.task_id = $4::bigint
+ORDER BY f.filename, e.outcome DESC NULLS LAST, s.submitted_at DESC, s.id DESC
+`
+
+type BestPreviousOutputsParams struct {
+	DatasetID       int64  `json:"dataset_id"`
+	Pattern         string `json:"pattern"`
+	ParticipationID int64  `json:"participation_id"`
+	TaskID          int64  `json:"task_id"`
+}
+
+type BestPreviousOutputsRow struct {
+	Filename string `json:"filename"`
+	Digest   string `json:"digest"`
+}
+
+// Output-only tasks: for every output file name, the file of the
+// participation's previous submission that scored best on the matching
+// testcase of the dataset (the latest one on ties or when unjudged).
+func (q *Queries) BestPreviousOutputs(ctx context.Context, arg BestPreviousOutputsParams) ([]BestPreviousOutputsRow, error) {
+	rows, err := q.db.Query(ctx, bestPreviousOutputs,
+		arg.DatasetID,
+		arg.Pattern,
+		arg.ParticipationID,
+		arg.TaskID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BestPreviousOutputsRow{}
+	for rows.Next() {
+		var i BestPreviousOutputsRow
+		if err := rows.Scan(&i.Filename, &i.Digest); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getParticipationView = `-- name: GetParticipationView :one
 SELECT p.id, p.contest_id, p.user_id, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted,
        p.login_nonce, p.ip, u.username, u.first_name, u.last_name, u.timezone, u.preferred_languages,
@@ -88,7 +138,7 @@ type GetSubmissionWithResultParams struct {
 
 type GetSubmissionWithResultRow struct {
 	ID                 int64           `json:"id"`
-	ParticipationID    int64           `json:"participation_id"`
+	ParticipationID    *int64          `json:"participation_id"`
 	TaskID             int64           `json:"task_id"`
 	SubmittedAt        time.Time       `json:"submitted_at"`
 	Language           *string         `json:"language"`

@@ -127,7 +127,7 @@ func (f *fixture) seed() {
 		TeamID: &f.team.ID, Ip: []netip.Prefix{}})
 	lang := "c11"
 	for i, src := range []string{"int main(){\n  return 0;\n}\n", "int main(){\n  int a;\n  return 0;\n}\n"} {
-		sub, err := f.q.CreateSubmission(bg, sqlc.CreateSubmissionParams{ParticipationID: f.part.ID, TaskID: f.task.ID,
+		sub, err := f.q.CreateSubmission(bg, sqlc.CreateSubmissionParams{ParticipationID: &f.part.ID, TaskID: f.task.ID,
 			SubmittedAt: now.Add(time.Duration(i) * time.Minute), Language: &lang, Official: true})
 		if err != nil {
 			t.Fatal(err)
@@ -340,15 +340,22 @@ func TestTaskAndDatasetManagement(t *testing.T) {
 
 	// Invalid task type parameters are rejected with a message.
 	code, body = b.Post(dsPath, url.Values{"description": {"Default"}, "time_limit": {"1.5"}, "memory_limit_mib": {"256"},
-		"process_limit": {"1"}, "task_type": {"Batch"}, "task_type_params": {`{"checker": "magic"}`}, "score_type": {"Sum"}, "score_type_params": {"10"}})
+		"process_limit": {"1"}, "task_type": {"Batch"}, "tt_checker": {"magic"}, "score_type": {"Sum"}, "score_type_params": {"10"}})
 	if code != http.StatusUnprocessableEntity || !strings.Contains(body, "unknown checker") {
 		t.Fatalf("invalid params = %d", code)
 	}
 	code, body = b.Post(dsPath, url.Values{"description": {"Default"}, "time_limit": {"1.5"}, "memory_limit_mib": {"128"},
 		"process_limit": {"1"}, "source_size_limit_kib": {"64"}, "task_type": {"Batch"},
-		"task_type_params": {`{"input_file": "paths.in", "output_file": "paths.out"}`}, "score_type": {"GroupMin"},
+		"tt_input_file": {"paths.in"}, "tt_output_file": {"paths.out"}, "tt_checker": {"white_diff"}, "score_type": {"GroupMin"},
 		"score_type_params": {`[[40, "a.*"], [60, "b.*"]]`}})
 	webtest.MustOK(t, "save dataset", code, body)
+	// Raw JSON parameters (advanced) are validated as well.
+	code, body = b.Post(dsPath, url.Values{"description": {"Default"}, "time_limit": {"1"}, "memory_limit_mib": {"64"},
+		"process_limit": {"1"}, "task_type": {"Communication"}, "raw_params": {"on"}, "task_type_params": {`{"num_processes": 9}`},
+		"score_type": {"Sum"}, "score_type_params": {"10"}})
+	if code != http.StatusUnprocessableEntity || !strings.Contains(body, "num_processes") {
+		t.Fatalf("invalid raw params = %d", code)
+	}
 	ds, _ := f.q.GetDataset(bg, dsID)
 	if *ds.TimeLimitMs != 1500 || *ds.MemoryLimitBytes != 128<<20 || *ds.SourceSizeLimitBytes != 64<<10 || ds.ScoreType != "GroupMin" ||
 		!strings.Contains(string(ds.TaskTypeParams), `"input_file": "paths.in"`) {

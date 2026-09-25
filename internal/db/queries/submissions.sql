@@ -16,10 +16,10 @@ SELECT * FROM submission_files WHERE submission_id = $1 ORDER BY filename;
 SELECT * FROM submission_files WHERE submission_id = ANY(@ids::bigint[]) ORDER BY submission_id, filename;
 
 -- name: ListSubmissionsByParticipationTask :many
-SELECT * FROM submissions WHERE participation_id = $1 AND task_id = $2 ORDER BY submitted_at, id;
+SELECT * FROM submissions WHERE participation_id = @participation_id::bigint AND task_id = @task_id::bigint ORDER BY submitted_at, id;
 
 -- name: ListSubmissionsByParticipation :many
-SELECT * FROM submissions WHERE participation_id = $1 ORDER BY submitted_at, id;
+SELECT * FROM submissions WHERE participation_id = @participation_id::bigint ORDER BY submitted_at, id;
 
 -- name: SubmissionStats :one
 -- Counts and last submission time used to enforce the contest-wide and
@@ -40,7 +40,7 @@ INSERT INTO tokens (submission_id, played_at) VALUES ($1, $2) RETURNING *;
 -- Token history of a participation: (task, time) pairs for token accounting.
 SELECT s.task_id, k.played_at, k.submission_id
 FROM tokens k JOIN submissions s ON s.id = k.submission_id
-WHERE s.participation_id = $1
+WHERE s.participation_id = @participation_id::bigint
 ORDER BY k.played_at;
 
 -- name: GetToken :one

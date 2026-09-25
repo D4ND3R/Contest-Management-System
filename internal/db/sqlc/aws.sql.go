@@ -117,24 +117,29 @@ func (q *Queries) AdminGetParticipation(ctx context.Context, id int64) (AdminGet
 }
 
 const adminGetSubmission = `-- name: AdminGetSubmission :one
-SELECT s.id, s.participation_id, s.task_id, s.submitted_at, s.language, s.comment, s.official, u.id AS user_id, u.username, t.name AS task_name, t.title AS task_title,
-       t.active_dataset_id, p.contest_id, (tk.submission_id IS NOT NULL)::boolean AS tokened
+SELECT s.id, s.participation_id, s.task_id, s.submitted_at, s.language, s.comment, s.official, s.tester, s.tester_admin_id, COALESCE(u.id, 0)::bigint AS user_id, COALESCE(u.username, '')::text AS username,
+       t.name AS task_name, t.title AS task_title, t.active_dataset_id,
+       COALESCE(p.contest_id, t.contest_id, 0)::bigint AS contest_id, (tk.submission_id IS NOT NULL)::boolean AS tokened,
+       COALESCE(a.username, '')::text AS tester_username
 FROM submissions s
-JOIN participations p ON p.id = s.participation_id
-JOIN users u ON u.id = p.user_id
+LEFT JOIN participations p ON p.id = s.participation_id
+LEFT JOIN users u ON u.id = p.user_id
 JOIN tasks t ON t.id = s.task_id
 LEFT JOIN tokens tk ON tk.submission_id = s.id
+LEFT JOIN admins a ON a.id = s.tester_admin_id
 WHERE s.id = $1
 `
 
 type AdminGetSubmissionRow struct {
 	ID              int64     `json:"id"`
-	ParticipationID int64     `json:"participation_id"`
+	ParticipationID *int64    `json:"participation_id"`
 	TaskID          int64     `json:"task_id"`
 	SubmittedAt     time.Time `json:"submitted_at"`
 	Language        *string   `json:"language"`
 	Comment         string    `json:"comment"`
 	Official        bool      `json:"official"`
+	Tester          bool      `json:"tester"`
+	TesterAdminID   *int64    `json:"tester_admin_id"`
 	UserID          int64     `json:"user_id"`
 	Username        string    `json:"username"`
 	TaskName        string    `json:"task_name"`
@@ -142,8 +147,10 @@ type AdminGetSubmissionRow struct {
 	ActiveDatasetID *int64    `json:"active_dataset_id"`
 	ContestID       int64     `json:"contest_id"`
 	Tokened         bool      `json:"tokened"`
+	TesterUsername  string    `json:"tester_username"`
 }
 
+// A submission (or a task tester run, which has no participation).
 func (q *Queries) AdminGetSubmission(ctx context.Context, id int64) (AdminGetSubmissionRow, error) {
 	row := q.db.QueryRow(ctx, adminGetSubmission, id)
 	var i AdminGetSubmissionRow
@@ -155,6 +162,8 @@ func (q *Queries) AdminGetSubmission(ctx context.Context, id int64) (AdminGetSub
 		&i.Language,
 		&i.Comment,
 		&i.Official,
+		&i.Tester,
+		&i.TesterAdminID,
 		&i.UserID,
 		&i.Username,
 		&i.TaskName,
@@ -162,6 +171,7 @@ func (q *Queries) AdminGetSubmission(ctx context.Context, id int64) (AdminGetSub
 		&i.ActiveDatasetID,
 		&i.ContestID,
 		&i.Tokened,
+		&i.TesterUsername,
 	)
 	return i, err
 }
@@ -302,7 +312,7 @@ type AdminListSubmissionsRow struct {
 	SubmittedAt        time.Time  `json:"submitted_at"`
 	Language           *string    `json:"language"`
 	Official           bool       `json:"official"`
-	ParticipationID    int64      `json:"participation_id"`
+	ParticipationID    *int64     `json:"participation_id"`
 	TaskID             int64      `json:"task_id"`
 	Username           string     `json:"username"`
 	TaskName           string     `json:"task_name"`
@@ -410,6 +420,67 @@ func (q *Queries) AdminListSystemErrors(ctx context.Context) ([]AdminListSystemE
 			&i.TaskName,
 			&i.Username,
 			&i.ContestID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminListTesterRuns = `-- name: AdminListTesterRuns :many
+SELECT s.id, s.submitted_at, s.language, COALESCE(a.username, '')::text AS admin_username,
+       sr.dataset_id, d.description AS dataset_description, sr.compilation_outcome, sr.testcases_done,
+       sr.testcases_total, sr.score, sr.scored_at, sr.system_error
+FROM (SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id FROM submissions WHERE task_id = $1::bigint AND tester ORDER BY id DESC LIMIT 30) s
+LEFT JOIN admins a ON a.id = s.tester_admin_id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id
+LEFT JOIN datasets d ON d.id = sr.dataset_id
+ORDER BY s.id DESC, sr.dataset_id
+`
+
+type AdminListTesterRunsRow struct {
+	ID                 int64      `json:"id"`
+	SubmittedAt        time.Time  `json:"submitted_at"`
+	Language           *string    `json:"language"`
+	AdminUsername      string     `json:"admin_username"`
+	DatasetID          *int64     `json:"dataset_id"`
+	DatasetDescription *string    `json:"dataset_description"`
+	CompilationOutcome *string    `json:"compilation_outcome"`
+	TestcasesDone      *int32     `json:"testcases_done"`
+	TestcasesTotal     *int32     `json:"testcases_total"`
+	Score              *float64   `json:"score"`
+	ScoredAt           *time.Time `json:"scored_at"`
+	SystemError        *string    `json:"system_error"`
+}
+
+// Task tester runs of a task (newest first) with their result on every
+// dataset (index: submissions_tester_idx).
+func (q *Queries) AdminListTesterRuns(ctx context.Context, taskID int64) ([]AdminListTesterRunsRow, error) {
+	rows, err := q.db.Query(ctx, adminListTesterRuns, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminListTesterRunsRow{}
+	for rows.Next() {
+		var i AdminListTesterRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SubmittedAt,
+			&i.Language,
+			&i.AdminUsername,
+			&i.DatasetID,
+			&i.DatasetDescription,
+			&i.CompilationOutcome,
+			&i.TestcasesDone,
+			&i.TestcasesTotal,
+			&i.Score,
+			&i.ScoredAt,
+			&i.SystemError,
 		); err != nil {
 			return nil, err
 		}
@@ -708,4 +779,33 @@ func (q *Queries) AdminUnassignedTasks(ctx context.Context) ([]Task, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const createTesterSubmission = `-- name: CreateTesterSubmission :one
+INSERT INTO submissions (participation_id, task_id, submitted_at, language, official, tester, tester_admin_id)
+VALUES (NULL, $1::bigint, now(), $2, false, true, $3::bigint)
+RETURNING id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id
+`
+
+type CreateTesterSubmissionParams struct {
+	TaskID   int64   `json:"task_id"`
+	Language *string `json:"language"`
+	AdminID  int64   `json:"admin_id"`
+}
+
+func (q *Queries) CreateTesterSubmission(ctx context.Context, arg CreateTesterSubmissionParams) (Submission, error) {
+	row := q.db.QueryRow(ctx, createTesterSubmission, arg.TaskID, arg.Language, arg.AdminID)
+	var i Submission
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipationID,
+		&i.TaskID,
+		&i.SubmittedAt,
+		&i.Language,
+		&i.Comment,
+		&i.Official,
+		&i.Tester,
+		&i.TesterAdminID,
+	)
+	return i, err
 }

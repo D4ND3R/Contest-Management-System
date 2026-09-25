@@ -233,7 +233,7 @@ func TestSubmissionsResultsAndEvaluations(t *testing.T) {
 	var subs []sqlc.Submission
 	for i := 0; i < 3; i++ {
 		s := must[sqlc.Submission](t)(q.CreateSubmission(ctx, sqlc.CreateSubmissionParams{
-			ParticipationID: f.part.ID, TaskID: f.task.ID, SubmittedAt: base.Add(time.Duration(i) * time.Minute),
+			ParticipationID: &f.part.ID, TaskID: f.task.ID, SubmittedAt: base.Add(time.Duration(i) * time.Minute),
 			Language: ptr("cpp17"), Official: true,
 		}))
 		n := must[int64](t)(q.CreateSubmissionFiles(ctx, []sqlc.CreateSubmissionFilesParams{{SubmissionID: s.ID, Filename: "sum.%l", Digest: digestOf("src" + string(rune('a'+i)))}}))
@@ -484,7 +484,7 @@ func TestTrackedBlobDeduplicationAndGC(t *testing.T) {
 	}
 	// Reference one blob from a submission, leave another orphaned.
 	orphan := must[blob.Info](t)(tracked.PutBytes(ctx, []byte("orphan")))
-	sub := must[sqlc.Submission](t)(q.CreateSubmission(ctx, sqlc.CreateSubmissionParams{ParticipationID: f.part.ID, TaskID: f.task.ID, SubmittedAt: time.Now(), Official: true}))
+	sub := must[sqlc.Submission](t)(q.CreateSubmission(ctx, sqlc.CreateSubmissionParams{ParticipationID: &f.part.ID, TaskID: f.task.ID, SubmittedAt: time.Now(), Official: true}))
 	must[int64](t)(q.CreateSubmissionFiles(ctx, []sqlc.CreateSubmissionFilesParams{{SubmissionID: sub.ID, Filename: "a.cpp", Digest: i1.Digest}}))
 
 	// Within the grace period nothing is collected.

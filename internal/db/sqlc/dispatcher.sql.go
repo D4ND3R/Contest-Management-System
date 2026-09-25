@@ -41,10 +41,11 @@ func (q *Queries) GetParticipationTiming(ctx context.Context, id int64) (GetPart
 }
 
 const getSubmissionMeta = `-- name: GetSubmissionMeta :one
-SELECT s.id, s.participation_id, s.task_id, s.submitted_at, s.language, s.official,
-       p.contest_id, t.active_dataset_id, t.score_mode, t.score_precision
+SELECT s.id, COALESCE(s.participation_id, 0)::bigint AS participation_id, s.task_id, s.submitted_at,
+       s.language, s.official, s.tester,
+       COALESCE(p.contest_id, t.contest_id, 0)::bigint AS contest_id, t.active_dataset_id, t.score_mode, t.score_precision
 FROM submissions s
-JOIN participations p ON p.id = s.participation_id
+LEFT JOIN participations p ON p.id = s.participation_id
 JOIN tasks t ON t.id = s.task_id
 WHERE s.id = $1
 `
@@ -56,6 +57,7 @@ type GetSubmissionMetaRow struct {
 	SubmittedAt     time.Time `json:"submitted_at"`
 	Language        *string   `json:"language"`
 	Official        bool      `json:"official"`
+	Tester          bool      `json:"tester"`
 	ContestID       int64     `json:"contest_id"`
 	ActiveDatasetID *int64    `json:"active_dataset_id"`
 	ScoreMode       string    `json:"score_mode"`
@@ -63,6 +65,8 @@ type GetSubmissionMetaRow struct {
 }
 
 // What the dispatcher needs about a submission, in one round trip.
+// Tester submissions (no participation) report participation 0 and the
+// task's contest.
 func (q *Queries) GetSubmissionMeta(ctx context.Context, id int64) (GetSubmissionMetaRow, error) {
 	row := q.db.QueryRow(ctx, getSubmissionMeta, id)
 	var i GetSubmissionMetaRow
@@ -73,6 +77,7 @@ func (q *Queries) GetSubmissionMeta(ctx context.Context, id int64) (GetSubmissio
 		&i.SubmittedAt,
 		&i.Language,
 		&i.Official,
+		&i.Tester,
 		&i.ContestID,
 		&i.ActiveDatasetID,
 		&i.ScoreMode,
@@ -140,7 +145,8 @@ func (q *Queries) ListEvaluatedTestcaseIDs(ctx context.Context, arg ListEvaluate
 }
 
 const listParticipationsWithSubmissions = `-- name: ListParticipationsWithSubmissions :many
-SELECT DISTINCT participation_id FROM submissions WHERE task_id = $1
+SELECT DISTINCT participation_id::bigint AS participation_id FROM submissions
+WHERE task_id = $1 AND participation_id IS NOT NULL
 `
 
 // (participation, task) pairs with submissions on a task (re-aggregation
@@ -169,7 +175,7 @@ const listSubmissionsMissingResults = `-- name: ListSubmissionsMissingResults :m
 SELECT s.id AS submission_id, d.id AS dataset_id
 FROM submissions s
 JOIN tasks t ON t.id = s.task_id
-JOIN datasets d ON d.task_id = s.task_id AND (d.id = t.active_dataset_id OR d.autojudge)
+JOIN datasets d ON d.task_id = s.task_id AND (d.id = t.active_dataset_id OR d.autojudge OR s.tester)
 WHERE NOT EXISTS (SELECT 1 FROM submission_results sr WHERE sr.submission_id = s.id AND sr.dataset_id = d.id)
 ORDER BY s.id
 LIMIT $1
@@ -181,7 +187,8 @@ type ListSubmissionsMissingResultsRow struct {
 }
 
 // Submissions lacking a result on a dataset they must be judged on (live
-// or autojudge), e.g. a lost "new submission" notification.
+// or autojudge; every dataset for tester runs), e.g. a lost "new
+// submission" notification.
 func (q *Queries) ListSubmissionsMissingResults(ctx context.Context, limit int32) ([]ListSubmissionsMissingResultsRow, error) {
 	rows, err := q.db.Query(ctx, listSubmissionsMissingResults, limit)
 	if err != nil {

@@ -25,6 +25,7 @@
         hx-post="{{.Base}}tasks/{{$t.Name}}/submit" hx-encoding="multipart/form-data" hx-target="#submit-result" hx-swap="innerHTML">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" {{if $t.NeedsLanguage}}required{{end}}></label>{{end}}
+    {{if eq $t.TaskType "OutputOnly"}}<label>{{.T "Or all the outputs in a zip archive"}} <input type="file" name="zip" accept=".zip,application/zip"></label>{{end}}
     {{if $t.NeedsLanguage}}<label>{{.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
     <button>{{.T "Submit"}}</button>
     <span id="submit-result"></span>

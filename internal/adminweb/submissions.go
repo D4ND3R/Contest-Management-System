@@ -212,6 +212,11 @@ func (s *Server) handleSubmission(w http.ResponseWriter, r *http.Request, rc *re
 		}
 		d.Results = append(d.Results, rv)
 	}
+	if sub.Tester {
+		s.render(w, "submission", http.StatusOK, s.newPage(w, r, rc, "Test run "+strconv.FormatInt(sub.ID, 10), "tasks", d).
+			crumb("Tasks", "/tasks").crumb(sub.TaskName, "/tasks/"+strconv.FormatInt(sub.TaskID, 10)+"#tester"))
+		return
+	}
 	c, err := s.q.GetContest(r.Context(), sub.ContestID)
 	if err == nil {
 		d.Contest = c.Name

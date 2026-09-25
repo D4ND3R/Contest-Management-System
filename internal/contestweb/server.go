@@ -360,7 +360,7 @@ func (s *Server) renderPartial(w http.ResponseWriter, name string, data any) {
 func (s *Server) errorPage(w http.ResponseWriter, r *http.Request, cv *contestView, status int, title, msg string) {
 	lang := s.language(r, cv, nil, "")
 	p := &page{Lang: lang, Contest: cv, loc: time.UTC, UILanguages: uiLanguages(nil)}
-	p.Title, p.Error = p.T(title), p.T(msg)
+	p.Title, p.Error = p.T(title), i18n.TDetail(lang, msg)
 	if cv != nil {
 		p.Base = "/" + cv.Name + "/"
 		p.loc = cv.Loc

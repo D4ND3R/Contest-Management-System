@@ -132,30 +132,11 @@ func runChecker(ctx context.Context, env *Env, job *jobs.Job, p *CheckerParams, 
 }
 
 // checkerExecutable returns a host path to the dataset's checker: the
-// "checker" manager (a compiled binary) or, when only a C++ source is
-// provided ("checker.cpp", e.g. testlib checkers from Polygon), the result
-// of compiling it once per worker.
+// "checker" manager (a compiled binary) or, when only a source is provided
+// ("checker.cpp", "checker.c", e.g. testlib checkers from Polygon), the
+// result of compiling it once per worker.
 func (e *Env) checkerExecutable(ctx context.Context, job *jobs.Job) (string, error) {
-	var bin, src *jobs.File
-	var headers []jobs.File
-	for i := range job.Managers {
-		m := &job.Managers[i]
-		switch {
-		case m.Name == "checker":
-			bin = m
-		case m.Name == "checker.cpp":
-			src = m
-		case filepath.Ext(m.Name) == ".h" || filepath.Ext(m.Name) == ".hpp":
-			headers = append(headers, *m)
-		}
-	}
-	if bin != nil {
-		return e.fetch(ctx, bin.Digest)
-	}
-	if src == nil {
-		return "", fmt.Errorf("dataset has no checker (manager \"checker\" or \"checker.cpp\")")
-	}
-	return e.Checkers.build(ctx, e, *src, headers)
+	return e.managerExecutable(ctx, job, "checker")
 }
 
 // managerExecutable returns the dataset's executable manager `name` (a
@@ -168,19 +149,19 @@ func (e *Env) managerExecutable(ctx context.Context, job *jobs.Job, name string)
 		switch {
 		case m.Name == name:
 			return e.fetch(ctx, m.Digest)
-		case m.Name == name+".cpp":
+		case m.Name == name+".cpp" || m.Name == name+".cc" || m.Name == name+".c":
 			src = m
 		case filepath.Ext(m.Name) == ".h" || filepath.Ext(m.Name) == ".hpp":
 			headers = append(headers, *m)
 		}
 	}
 	if src == nil {
-		return "", fmt.Errorf("dataset has no %q manager (binary or .cpp source)", name)
+		return "", fmt.Errorf("dataset has no %q manager (binary, .c or .cpp source)", name)
 	}
 	return e.Checkers.build(ctx, e, *src, headers)
 }
 
-// build compiles a C++ manager/checker source with the host toolchain
+// build compiles a C or C++ manager/checker source with the host toolchain
 // inside the sandbox and caches the executable.
 func (c *CheckerCache) build(ctx context.Context, env *Env, src jobs.File, headers []jobs.File) (string, error) {
 	key := src.Digest
@@ -197,7 +178,12 @@ func (c *CheckerCache) build(ctx context.Context, env *Env, src jobs.File, heade
 	if err != nil {
 		return "", err
 	}
-	if err := env.put(ctx, box, "source.cpp", src.Digest, 0o644); err != nil {
+	// C sources are compiled as C (gcc), everything else as C++.
+	srcName, compiler, args := "source.cpp", "g++", []string{"-O2", "-std=gnu++17", "-static", "-o", "program", "source.cpp"}
+	if filepath.Ext(src.Name) == ".c" {
+		srcName, compiler, args = "source.c", "gcc", []string{"-O2", "-std=gnu11", "-static", "-o", "program", "source.c", "-lm"}
+	}
+	if err := env.put(ctx, box, srcName, src.Digest, 0o644); err != nil {
 		return "", err
 	}
 	for _, h := range headers {
@@ -205,12 +191,12 @@ func (c *CheckerCache) build(ctx context.Context, env *Env, src jobs.File, heade
 			return "", err
 		}
 	}
-	gpp, err := exec.LookPath("g++")
+	cc, err := exec.LookPath(compiler)
 	if err != nil {
-		return "", fmt.Errorf("cannot compile checker.cpp: g++ not found")
+		return "", fmt.Errorf("cannot compile %s: %s not found", src.Name, compiler)
 	}
 	res, err := box.Run(ctx, &sandbox.Spec{
-		Args:   []string{gpp, "-O2", "-std=gnu++17", "-static", "-o", "program", "source.cpp"},
+		Args:   append([]string{cc}, args...),
 		Stderr: ".err", Env: []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp"}, Dirs: env.toolchainDirs(),
 		Limits: sandbox.Limits{CPUTime: 60 * time.Second, WallTime: 120 * time.Second, Memory: 2 << 30, Processes: 32, FileSize: 256 << 20},
 	})

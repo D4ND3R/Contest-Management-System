@@ -1,6 +1,7 @@
 package contestweb
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,8 +18,10 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/events"
+	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
+	"github.com/D4ND3R/Contest-Management-System/internal/tasktypes"
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 	"github.com/jackc/pgx/v5"
 )
@@ -246,7 +249,7 @@ func (s *Server) submitError(w http.ResponseWriter, r *http.Request, rc *reqCtx,
 	if webkit.IsHTMX(r) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(status)
-		fmt.Fprintf(w, `<span class="bad">%s</span>`, templateEscape(p.T(msg)))
+		fmt.Fprintf(w, `<span class="bad">%s</span>`, templateEscape(i18n.TDetail(p.Lang, msg)))
 		return
 	}
 	s.errorPage(w, r, rc.contest, status, "Submission rejected", msg)
@@ -288,6 +291,10 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request, rc *reqCtx
 			}
 		}
 	}
+	if files, err = s.mergePreviousOutputs(r, rc, t, files); err != nil {
+		s.fail(w, err)
+		return
+	}
 	id, err := s.storeSubmission(r, rc, t, files, lang, now)
 	if err != nil {
 		s.fail(w, err)
@@ -312,8 +319,9 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request, rc *reqCtx
 }
 
 type submittedFile struct {
-	name string // submission format entry, e.g. "sum.%l"
-	data []byte
+	name   string // submission format entry, e.g. "sum.%l"
+	data   []byte
+	digest string // already stored (output-only merge), data unused
 }
 
 // readSubmission parses and validates the multipart form.
@@ -364,10 +372,102 @@ func (s *Server) readSubmission(w http.ResponseWriter, r *http.Request, rc *reqC
 		}
 		files = append(files, submittedFile{name: format, data: data})
 	}
+	if t.TaskType == "OutputOnly" {
+		var msg string
+		if files, msg = readOutputArchive(r, t, files, perFile); msg != "" {
+			return nil, nil, msg
+		}
+	}
 	if len(files) == 0 {
 		return nil, nil, "Please attach at least one file."
 	}
 	return files, lang, ""
+}
+
+// readOutputArchive adds the outputs of an output-only submission sent as
+// a zip archive (field "zip"). Every entry must be one of the task's
+// output file names (directories inside the archive are ignored); files
+// uploaded one by one take precedence over the archive.
+func readOutputArchive(r *http.Request, t *taskView, files []submittedFile, perFile int64) ([]submittedFile, string) {
+	f, hdr, err := r.FormFile("zip")
+	if err != nil {
+		return files, ""
+	}
+	defer f.Close()
+	zr, err := zip.NewReader(f, hdr.Size)
+	if err != nil {
+		return nil, "The archive is not a valid zip file."
+	}
+	allowed := map[string]bool{}
+	for _, name := range t.Formats {
+		allowed[name] = true
+	}
+	have := map[string]bool{}
+	for _, sf := range files {
+		have[sf.name] = true
+	}
+	var unexpected []string
+	for _, zf := range zr.File {
+		if zf.FileInfo().IsDir() {
+			continue
+		}
+		name := path.Base(zf.Name)
+		if !allowed[name] {
+			if len(unexpected) < 5 {
+				unexpected = append(unexpected, name)
+			}
+			continue
+		}
+		if have[name] {
+			continue
+		}
+		if zf.UncompressedSize64 > uint64(perFile) {
+			return nil, "A file exceeds the size limit."
+		}
+		rd, err := zf.Open()
+		if err != nil {
+			return nil, "The archive is not a valid zip file."
+		}
+		data, err := io.ReadAll(io.LimitReader(rd, perFile+1))
+		rd.Close()
+		if err != nil || int64(len(data)) > perFile {
+			return nil, "A file exceeds the size limit."
+		}
+		have[name] = true
+		files = append(files, submittedFile{name: name, data: data})
+	}
+	if len(unexpected) > 0 {
+		return nil, "Unexpected files in the archive: " + strings.Join(unexpected, ", ")
+	}
+	return files, ""
+}
+
+// mergePreviousOutputs completes an output-only submission with, for each
+// missing output, the file of the contestant's previous submission that
+// scored best on that testcase (when the dataset enables it).
+func (s *Server) mergePreviousOutputs(r *http.Request, rc *reqCtx, t *taskView, files []submittedFile) ([]submittedFile, error) {
+	if t.TaskType != "OutputOnly" || t.Dataset == nil {
+		return files, nil
+	}
+	pattern, merge, err := tasktypes.OutputOnlyConfig(t.Dataset.TaskTypeParams)
+	if err != nil || !merge {
+		return files, nil
+	}
+	prev, err := s.q.BestPreviousOutputs(r.Context(), sqlc.BestPreviousOutputsParams{DatasetID: t.Dataset.ID, Pattern: pattern,
+		ParticipationID: rc.part.ID, TaskID: t.ID})
+	if err != nil {
+		return nil, err
+	}
+	have := map[string]bool{}
+	for _, f := range files {
+		have[f.name] = true
+	}
+	for _, p := range prev {
+		if !have[p.Filename] {
+			files = append(files, submittedFile{name: p.Filename, digest: p.Digest})
+		}
+	}
+	return files, nil
 }
 
 // storeSubmission saves blobs, inserts the submission and notifies the
@@ -377,6 +477,10 @@ func (s *Server) storeSubmission(r *http.Request, rc *reqCtx, t *taskView, files
 	ctx := r.Context()
 	params := make([]sqlc.CreateSubmissionFilesParams, len(files))
 	for i, f := range files {
+		if f.digest != "" {
+			params[i] = sqlc.CreateSubmissionFilesParams{Filename: f.name, Digest: f.digest}
+			continue
+		}
 		info, err := s.blobs.PutBytes(ctx, f.data)
 		if err != nil {
 			return 0, err
@@ -389,7 +493,7 @@ func (s *Server) storeSubmission(r *http.Request, rc *reqCtx, t *taskView, files
 	}
 	var id int64
 	err := db.InTx(ctx, s.pool, func(tx pgx.Tx, q *sqlc.Queries) error {
-		sub, err := q.CreateSubmission(ctx, sqlc.CreateSubmissionParams{ParticipationID: rc.part.ID, TaskID: t.ID,
+		sub, err := q.CreateSubmission(ctx, sqlc.CreateSubmissionParams{ParticipationID: &rc.part.ID, TaskID: t.ID,
 			SubmittedAt: now, Language: langID, Official: rc.status.Official})
 		if err != nil {
 			return err
@@ -422,7 +526,7 @@ func (s *Server) ownSubmission(w http.ResponseWriter, r *http.Request, rc *reqCt
 	}
 	// The live dataset is needed before loading: resolve the task first.
 	sub, err := s.q.GetSubmission(r.Context(), id)
-	if err != nil || sub.ParticipationID != rc.part.ID {
+	if err != nil || sub.ParticipationID == nil || *sub.ParticipationID != rc.part.ID {
 		http.NotFound(w, r)
 		return zero, nil, false
 	}

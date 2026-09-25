@@ -1,9 +1,12 @@
 -- name: GetSubmissionMeta :one
 -- What the dispatcher needs about a submission, in one round trip.
-SELECT s.id, s.participation_id, s.task_id, s.submitted_at, s.language, s.official,
-       p.contest_id, t.active_dataset_id, t.score_mode, t.score_precision
+-- Tester submissions (no participation) report participation 0 and the
+-- task's contest.
+SELECT s.id, COALESCE(s.participation_id, 0)::bigint AS participation_id, s.task_id, s.submitted_at,
+       s.language, s.official, s.tester,
+       COALESCE(p.contest_id, t.contest_id, 0)::bigint AS contest_id, t.active_dataset_id, t.score_mode, t.score_precision
 FROM submissions s
-JOIN participations p ON p.id = s.participation_id
+LEFT JOIN participations p ON p.id = s.participation_id
 JOIN tasks t ON t.id = s.task_id
 WHERE s.id = $1;
 
@@ -31,11 +34,12 @@ LIMIT @max_rows::integer;
 
 -- name: ListSubmissionsMissingResults :many
 -- Submissions lacking a result on a dataset they must be judged on (live
--- or autojudge), e.g. a lost "new submission" notification.
+-- or autojudge; every dataset for tester runs), e.g. a lost "new
+-- submission" notification.
 SELECT s.id AS submission_id, d.id AS dataset_id
 FROM submissions s
 JOIN tasks t ON t.id = s.task_id
-JOIN datasets d ON d.task_id = s.task_id AND (d.id = t.active_dataset_id OR d.autojudge)
+JOIN datasets d ON d.task_id = s.task_id AND (d.id = t.active_dataset_id OR d.autojudge OR s.tester)
 WHERE NOT EXISTS (SELECT 1 FROM submission_results sr WHERE sr.submission_id = s.id AND sr.dataset_id = d.id)
 ORDER BY s.id
 LIMIT $1;
@@ -60,7 +64,8 @@ ORDER BY s.submitted_at, s.id;
 -- name: ListParticipationsWithSubmissions :many
 -- (participation, task) pairs with submissions on a task (re-aggregation
 -- after the live dataset changes).
-SELECT DISTINCT participation_id FROM submissions WHERE task_id = $1;
+SELECT DISTINCT participation_id::bigint AS participation_id FROM submissions
+WHERE task_id = $1 AND participation_id IS NOT NULL;
 
 -- name: GetParticipationTiming :one
 SELECT p.starting_time, p.delay_time_s, c.start_time, c.per_user_time_s, c.scoring_mode, c.icpc_penalty_minutes

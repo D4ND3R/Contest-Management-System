@@ -11,6 +11,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/scoring"
+	"github.com/D4ND3R/Contest-Management-System/internal/tasktypes"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -187,6 +188,14 @@ func (c *cache) load(ctx context.Context, name string) (*contestView, error) {
 		if ds := dsByTask[t.ID]; ds != nil {
 			tv.Dataset = ds
 			tv.TaskType = ds.TaskType
+			if ds.TaskType == "OutputOnly" && len(tv.Formats) == 0 {
+				// One output file per testcase, named after the pattern.
+				pattern, _, _ := tasktypes.OutputOnlyConfig(ds.TaskTypeParams)
+				for _, tc := range tcByDS[ds.ID] {
+					tv.Formats = append(tv.Formats, tasktypes.OutputFileName(pattern, tc.Codename))
+				}
+				sort.Strings(tv.Formats)
+			}
 			if ds.TimeLimitMs != nil {
 				tv.TimeLimit = time.Duration(*ds.TimeLimitMs) * time.Millisecond
 			}

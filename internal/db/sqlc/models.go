@@ -225,12 +225,14 @@ type Statement struct {
 
 type Submission struct {
 	ID              int64     `json:"id"`
-	ParticipationID int64     `json:"participation_id"`
+	ParticipationID *int64    `json:"participation_id"`
 	TaskID          int64     `json:"task_id"`
 	SubmittedAt     time.Time `json:"submitted_at"`
 	Language        *string   `json:"language"`
 	Comment         string    `json:"comment"`
 	Official        bool      `json:"official"`
+	Tester          bool      `json:"tester"`
+	TesterAdminID   *int64    `json:"tester_admin_id"`
 }
 
 type SubmissionFile struct {

@@ -42,6 +42,18 @@ func T(lang, msg string, args ...any) string {
 }
 
 // Has reports whether lang has a translation for msg (tests).
+// TDetail translates messages of the form "Key: detail", where only the
+// key (including the colon) is in the catalog.
+func TDetail(lang, msg string) string {
+	if Has(lang, msg) {
+		return T(lang, msg)
+	}
+	if i := strings.Index(msg, ": "); i > 0 && Has(lang, msg[:i+1]) {
+		return T(lang, msg[:i+1]) + msg[i+1:]
+	}
+	return msg
+}
+
 func Has(lang, msg string) bool {
 	if lang == Default {
 		return true
