@@ -1,0 +1,11 @@
+# A task in the CMS italy_yaml format, importable as it is.
+name: isuma
+title: Suma (formato italy_yaml)
+time_limit: 1
+memory_limit: 256
+n_input: 4
+infile: ""
+outfile: ""
+public_testcases: 0
+score_type: GroupMin
+primary_language: es

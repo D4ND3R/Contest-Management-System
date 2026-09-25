@@ -651,3 +651,43 @@ be created in that window, while writes of data files are not held back
 and the copies themselves still run in parallel. The stress test is kept
 (worker.TestExecutablesUnderConcurrentSlots) and fails without the lock.
 
+
+## D63. Other package formats are converted, not supported natively
+italy_yaml tasks and Polygon packages are translated on read into the
+entries of an own package (a generated problem.yaml plus the member files
+under their new paths) and then go through the very same reader,
+validation, preview and import as a native package. One code path checks
+limits, subtasks, checkers and solutions, so a converted task is
+indistinguishable from a native one and exports as a native package.
+Conversion never guesses silently: what cannot be carried over becomes a
+warning in the preview (HTML statements without images, unconverted score
+parameters, solutions missing from the package) and a Polygon package
+without its generated tests is refused with an explanation (the usual
+mistake is downloading the "standard" package instead of the full one).
+Polygon solution tags map to expected verdicts, so the reference
+solutions are judged on import like native ones. Detection is by the
+marker file (problem.yaml wins, then task.yaml, then problem.xml).
+
+## D64. Contest archive: generic JSON rows with id remapping
+A contest archive is a zip with the contest's rows as `row_to_json` lines,
+the referenced files and a header (format, migrations, counts). Rows keep
+every column, so columns added by later migrations travel without code
+changes; an older archive imports into a newer schema (only the columns it
+has are inserted, the rest take their defaults), a newer one is refused.
+Import allocates fresh ids from each table's identity sequence and inserts
+in batches with `json_populate_recordset` (OVERRIDING SYSTEM VALUE), in one
+transaction after the files are stored (content-addressed, so an aborted
+import leaves only collectable files). References are rewritten by column
+name (`task_id` → tasks, …); a task's live dataset is written once the
+datasets exist; references to administrators are emptied (they belong to
+an installation). A test walks the catalog so that every table is either
+archived or explicitly left out and every foreign key of an archived table
+is remapped: a new table or reference cannot be forgotten silently.
+Existing users and teams (same username or code) are reused unchanged, so
+a contest can be re-imported into the installation it came from; names
+that are unique per installation (contest, tasks) must be free, with a
+task name suffix as the escape hatch. Left out: executables (recompiled on
+demand by the dispatcher's sweep), user tests, print jobs, balloons, the
+audit log. Zip rather than the backup's tar.zst because an archive is
+meant to be opened and read by people (results.csv) and imported through
+a browser upload; the rows come from one REPEATABLE READ snapshot.

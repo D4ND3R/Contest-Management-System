@@ -126,6 +126,21 @@ func TestProblemPackagesFromAdminUI(t *testing.T) {
 		})
 	}
 
+	// Packages made for other systems are converted on import (D7): the
+	// italy_yaml correttore and the Polygon testlib-style checker run for
+	// real, with the subtasks of gen/GEN and of the Polygon groups.
+	others := filepath.Join("..", "..", "docs", "examples", "other-formats")
+	for _, name := range []string{"italy-suma", "polygon-suma"} {
+		t.Run(name, func(t *testing.T) {
+			path, _ := importPkg(t, zipFolder(t, filepath.Join(others, name), nil), url.Values{"mode": {"task"}, "contest_id": {itoa(ct.ID)}})
+			body := waitReport(t, path)
+			if !strings.Contains(body, "Every solution behaves as expected") {
+				logEvaluations(t, s)
+				t.Fatalf("report:\n%s", body)
+			}
+		})
+	}
+
 	// A package whose checker does not compile: the report says so.
 	yaml := mustRead(t, filepath.Join(examples, "batch-suma", "problem.yaml"))
 	yaml = strings.Replace(strings.Replace(yaml, "checker: white_diff", "checker: testlib", 1), "name: suma", "name: roto", 1)

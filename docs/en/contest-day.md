@@ -100,5 +100,8 @@ web site; commands run on the main server unless noted.
       landscape, header on every page, filtered by site if one is chosen).
 - [ ] Final backup (**Back up now**), download it and store it off the
       server.
+- [ ] Archive the contest (contest page → **Archive**, with the
+      submissions): one zip that any later installation imports
+      ([contest archives](backups.md#contest-archives)).
 - [ ] Optional: turn on analysis mode or let contestants download their
       submissions.

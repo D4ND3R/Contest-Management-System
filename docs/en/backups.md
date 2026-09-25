@@ -106,3 +106,48 @@ CMS_DATABASE_URL=postgres://cms@localhost/cms_drill CMS_BLOB_DIR=/tmp/drill-blob
   cmsctl restore /var/lib/cms/backups/<latest>.tar.zst
 dropdb cms_drill; rm -rf /tmp/drill-blobs
 ```
+
+## Contest archives
+
+A backup restores a whole installation. To keep **one contest** (to
+archive it, move it to another server, or reuse it next year), write its
+archive: a zip that any installation of the same CMS version or a newer one
+imports as a new contest.
+
+| Member | Content |
+|--------|---------|
+| `tables/<table>.jsonl` | the contest's rows, one JSON object per line, every column |
+| `blobs/<sha256>` | every file those rows reference |
+| `results.csv` | the final results table (for people; not imported) |
+| `cms-contest.json` | format, CMS version, migrations, rows per table, file count |
+
+The rows are the contest settings, sites, tasks with **every** dataset
+(statements, attachments, testcases, managers, the live dataset),
+participants with their users and teams (password hashes included: keep
+the file safe), announcements, questions and private messages, and,
+unless left out, the submissions with their files, results, per-testcase
+evaluations, tokens, per-task scores and manual score adjustments. Left out
+on purpose: compiled executables (a reevaluation compiles again), user
+tests, print jobs, balloons, the audit log and the administrators
+(references to them are emptied).
+
+- **Admin panel**: *Archive* on the contest page downloads it (with or
+  without submissions); *Import a contest archive* at the bottom of the
+  contests page creates the new contest.
+- **Command line**:
+
+  ```sh
+  cmsctl contest-export final-2026 final-2026.zip            # -submissions=false for settings, tasks and participants only
+  cmsctl contest-import final-2026.zip
+  cmsctl contest-import -name final-2027 -task-suffix -2027 -status draft final-2026.zip
+  ```
+
+On import every row gets a new id and every reference is rewritten. Users
+and teams that already exist (same username, same team code) are reused
+as they are, not overwritten. The contest name and the task names must be
+free (task names are unique in an installation: use a task name suffix);
+otherwise nothing is written. By default the new contest is *archived*
+(read-only, off the contest list) when the archive has submissions and a
+*draft* otherwise. Files are checked against their SHA-256; a damaged file,
+or an archive written by a newer CMS version, is refused before anything
+is written. Both the download and the import are in the audit log.

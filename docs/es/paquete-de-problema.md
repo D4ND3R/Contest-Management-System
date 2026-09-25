@@ -155,6 +155,45 @@ nuevo** vuelve a evaluar las soluciones (por ejemplo, tras cambiar límites).
 No se escribe nada hasta confirmar la vista previa; la importación es una
 sola transacción.
 
+## Paquetes de otros sistemas
+
+Otros dos formatos se convierten al importar, tanto desde el panel de
+administración como con `cmsctl task-import`; la vista previa indica
+**convertido desde el formato …** y avisa de lo que no se pudo convertir.
+Hay ejemplos en [`docs/examples/other-formats/`](../examples/other-formats/).
+
+**CMS italy_yaml** (una carpeta con `task.yaml`):
+
+| italy_yaml | se convierte en |
+|------------|-----------------|
+| `task.yaml`: `name`, `title`, `time_limit` (s), `memory_limit` (MiB), `infile`/`outfile` (por defecto `input.txt`/`output.txt`; vacío = entrada/salida estándar), `output_only`, `public_testcases` (`all` o una lista de índices), `n_input` | la misma configuración |
+| `input/inputN.txt`, `output/outputN.txt` | testcases `000`, `001`, … |
+| líneas `# ST: puntos` de `gen/GEN` (o los pares de `score_type_parameters`) | subtareas (GroupMin; GroupMul si `score_type` lo indica) |
+| sin subtareas | Sum con `total_value` / `n_input` puntos por testcase (100 en total por defecto) |
+| `check/checker` o `cor/correttore` (binario o `.c`/`.cpp`) | checker propio (protocolo de CMS: resultado en stdout, mensaje en stderr) |
+| `check/manager` | tarea Communication con ese manager |
+| `sol/grader.*`, `sol/stub.*`, headers | graders / stubs por lenguaje |
+| `sol/soluzione.*` (o `solution`, `sol`) | solución de referencia que debe ser aceptada; las demás fuentes de `sol/` se ejecutan sin veredicto esperado |
+| `statement/statement.pdf` o `testo/testo.pdf` | enunciado en `primary_language` (italiano por defecto) |
+| `att/*` | adjuntos |
+
+**Polygon** (el paquete completo con `problem.xml`, descargado con los tests
+generados, o después de correr `doall.sh`):
+
+| Polygon | se convierte en |
+|---------|-----------------|
+| testset `tests`: límite de tiempo (ms), de memoria (bytes), archivos de entrada/salida | la misma configuración, en segundos y MiB |
+| `tests/01`, `tests/01.a`, … | testcases `01`, `02`, …; los tests marcados como ejemplo son públicos |
+| grupos de tests con puntos | subtareas (GroupMin) con los tests del grupo |
+| puntos por test sin grupos | puntos por testcase (una subtarea por test si difieren) |
+| fuente del checker (testlib) | checker `testlib`; los recursos `.h` (`testlib.h`) van con él |
+| interactor | tarea Interactive |
+| soluciones con etiqueta `main`/`accepted`, `wrong-answer`, `time-limit-exceeded`, `memory-limit-exceeded`, … | soluciones de referencia con el veredicto esperado correspondiente (el resto se ejecuta sin veredicto esperado) |
+| enunciados | uno por idioma, el PDF si lo hay (los enunciados HTML llegan sin sus imágenes) |
+
+Un paquete sin sus tests generados se rechaza con un mensaje que lo
+explica: descarga el paquete **completo** desde Polygon.
+
 ## Exportación
 
 La exportación escribe `problem.yaml` a partir del problema y del dataset

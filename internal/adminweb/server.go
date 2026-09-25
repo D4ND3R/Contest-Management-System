@@ -202,6 +202,7 @@ func (s *Server) Handler() http.Handler {
 	get("/contests", s.handleContests)
 	get("/contests/new", s.handleContestNew)
 	post("/contests", permAll, "contest.create", s.handleContestCreate)
+	post("/contests/import", permAll, "contest.import", s.handleContestImport)
 	get("/contests/{id}", s.handleContest)
 	post("/contests/{id}", permAll, "contest.update", s.handleContestUpdate)
 	post("/contests/{id}/delete", permAll, "contest.delete", s.handleContestDelete)
@@ -211,6 +212,7 @@ func (s *Server) Handler() http.Handler {
 	get("/contests/{id}/printing", s.handlePrintQueue)
 	// Bulk downloads are audited.
 	route("GET /contests/{id}/submissions.zip", permRead, "submissions.download", s.handleSubmissionsZip)
+	route("GET /contests/{id}/archive.zip", permAll, "contest.export", s.handleContestArchive)
 	get("/print-jobs/{id}/pdf", s.handlePrintJobPDF)
 	post("/print-jobs/{id}/{action}", permMessaging, "print_job.action", s.handlePrintJobAction)
 	post("/contests/{id}/extend", permAll, "contest.extend", s.handleContestExtend)

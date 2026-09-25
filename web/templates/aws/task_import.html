@@ -11,10 +11,10 @@
   </label>
   {{template "package-target" $}}
   <p><button>{{.T "Check the package"}}</button></p>
-  <p class="muted small">{{.T "Nothing is created until you confirm the preview. The format (problem.yaml, statement/, tests/, checker, graders/, attachments/, solutions/) is described in docs/en/problem-package.md, with one example per problem type."}}</p>
+  <p class="muted small">{{.T "Nothing is created until you confirm the preview. The format (problem.yaml, statement/, tests/, checker, graders/, attachments/, solutions/) is described in docs/en/problem-package.md, with one example per problem type."}} {{.T "CMS italy_yaml tasks (task.yaml) and Polygon packages (problem.xml, full package with tests) are converted automatically."}}</p>
 </form>
 {{else}}
-<p class="muted">{{$d.FileName}}</p>
+<p class="muted">{{$d.FileName}}{{with $p.Format}} · <span class="tag">{{$.T "converted from the %s format" .}}</span>{{end}}</p>
 {{if $p.Errors}}
 <section class="card danger">
 <h2>{{.T "Problems to fix (%d)" (len $p.Errors)}}</h2>

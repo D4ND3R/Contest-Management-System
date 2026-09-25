@@ -201,6 +201,14 @@
   <button>{{.T "Copy contest"}}</button>
 </form>
 </section>
+<section class="card">
+<h2>{{.T "Archive"}}</h2>
+<p class="muted small">{{.T "One zip file with the whole contest: settings, sites, tasks with every dataset, participants (with their password hashes), communication and, optionally, the submissions with their results and the final results table. Import it from the contests page of this or another installation (same version or newer)."}}</p>
+<form method="get" action="/contests/{{$c.ID}}/archive.zip" class="inline-form">
+  <label><input type="checkbox" name="submissions" value="1" checked> {{.T "with the submissions"}}</label>
+  <button>{{.T "Download the archive"}}</button>
+</form>
+</section>
 <section class="card danger">
 <h2>{{.T "Reevaluate the whole contest"}}</h2>
 {{template "reevaluate" (reeval $ "contest_id" $c.ID (printf "/contests/%d" $c.ID))}}

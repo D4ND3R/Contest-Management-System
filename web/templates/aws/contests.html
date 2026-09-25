@@ -15,4 +15,25 @@
 {{end}}
 </tbody>
 </table>
+{{if .CanWrite}}
+<section class="card">
+<h2>{{.T "Import a contest archive"}}</h2>
+<form method="post" action="/contests/import" enctype="multipart/form-data" class="grid">
+  {{template "csrf" .CSRF}}
+  <label class="dropzone" data-dropzone>
+    <b>{{.T "Drop the archive (.zip) here or choose it"}}</b>
+    <input type="file" name="archive" accept=".zip,application/zip" required>
+    <span data-filename class="muted"></span>
+  </label>
+  <label>{{.T "Contest name"}} <input name="name" pattern="[A-Za-z0-9_.\-]*" placeholder="{{.T "the archived one"}}"></label>
+  <label>{{.T "Task name suffix"}} <input name="task_suffix" pattern="[A-Za-z0-9_.\-]*"></label>
+  <label>{{.T "Status"}} <select name="status">
+    <option value="">{{.T "archived if it has submissions, otherwise draft"}}</option>
+    <option value="archived">{{.T "archived"}}</option><option value="draft">{{.T "draft"}}</option><option value="published">{{.T "published"}}</option>
+  </select></label>
+  <button>{{.T "Import"}}</button>
+</form>
+<p class="muted small">{{.T "The contest is created with new ids; users and teams that already exist here (same username or team code) are reused as they are. Nothing is written if a name is taken or the archive is damaged."}}</p>
+</section>
+{{end}}
 {{end}}

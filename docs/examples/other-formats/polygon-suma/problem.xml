@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<problem revision="3" short-name="psuma" url="https://polygon.codeforces.com/p/example/psuma">
+    <names>
+        <name language="spanish" value="Suma (paquete Polygon)"/>
+    </names>
+    <statements>
+        <statement charset="UTF-8" language="spanish" path="statements/.pdf/spanish/problem.pdf" type="application/pdf"/>
+        <statement charset="UTF-8" language="english" mathjax="true" path="statements/.html/english/problem.html" type="text/html"/>
+    </statements>
+    <judging cpu-name="Intel(R) Core(TM) i3-8100 CPU @ 3.60GHz" cpu-speed="3600" input-file="" output-file="">
+        <testset name="tests">
+            <time-limit>1000</time-limit>
+            <memory-limit>268435456</memory-limit>
+            <test-count>4</test-count>
+            <input-path-pattern>tests/%02d</input-path-pattern>
+            <answer-path-pattern>tests/%02d.a</answer-path-pattern>
+            <tests>
+                <test method="manual" sample="true" group="0" points="0"/>
+                <test method="manual" group="1" points="40"/>
+                <test method="manual" group="2" points="30"/>
+                <test method="manual" group="2" points="30"/>
+            </tests>
+            <groups>
+                <group feedback-policy="complete" name="0" points="0" points-policy="complete-group"/>
+                <group feedback-policy="complete" name="1" points="40" points-policy="complete-group"/>
+                <group feedback-policy="complete" name="2" points="60" points-policy="complete-group"/>
+            </groups>
+        </testset>
+    </judging>
+    <files>
+        <resources>
+            <file path="files/olymp.sty"/>
+        </resources>
+    </files>
+    <assets>
+        <checker name="check.cpp" type="testlib">
+            <source path="files/check.cpp" type="cpp.g++17"/>
+        </checker>
+        <solutions>
+            <solution tag="main">
+                <source path="solutions/suma.cpp" type="cpp.g++17"/>
+            </solution>
+            <solution tag="wrong-answer">
+                <source path="solutions/resta.cpp" type="cpp.g++17"/>
+            </solution>
+        </solutions>
+    </assets>
+</problem>

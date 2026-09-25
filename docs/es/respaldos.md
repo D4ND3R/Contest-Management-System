@@ -108,3 +108,50 @@ CMS_DATABASE_URL=postgres://cms@localhost/cms_simulacro CMS_BLOB_DIR=/tmp/simula
   cmsctl restore /var/lib/cms/backups/<último>.tar.zst
 dropdb cms_simulacro; rm -rf /tmp/simulacro-blobs
 ```
+
+## Archivos de un concurso
+
+Un respaldo restaura una instalación completa. Para conservar **un
+concurso** (archivarlo, llevarlo a otro servidor o reutilizarlo el año
+siguiente), genera su archivo: un zip que cualquier instalación de la misma
+versión de CMS o una más nueva importa como un concurso nuevo.
+
+| Miembro | Contenido |
+|---------|-----------|
+| `tables/<tabla>.jsonl` | las filas del concurso, un objeto JSON por línea, con todas las columnas |
+| `blobs/<sha256>` | todos los archivos que esas filas referencian |
+| `results.csv` | la tabla de resultados finales (para personas; no se importa) |
+| `cms-contest.json` | formato, versión de CMS, migraciones, filas por tabla, cantidad de archivos |
+
+Las filas son la configuración del concurso, las sedes, las tareas con
+**todos** sus datasets (enunciados, adjuntos, testcases, managers, el
+dataset activo), los participantes con sus usuarios y equipos (incluidos los
+hashes de las contraseñas: guarda el archivo en un lugar seguro), los
+anuncios, las preguntas y los mensajes privados y, salvo que se excluyan,
+los envíos con sus archivos, resultados, evaluaciones por testcase, tokens,
+puntajes por tarea y ajustes manuales de puntaje. Quedan fuera a propósito:
+los ejecutables compilados (una reevaluación vuelve a compilar), los user
+tests, los trabajos de impresión, los globos, el registro de auditoría y los
+administradores (las referencias a ellos quedan vacías).
+
+- **Panel de administración**: *Archivo* en la página del concurso lo
+  descarga (con o sin envíos); *Importar el archivo de un concurso*, al
+  final de la página de concursos, crea el concurso nuevo.
+- **Línea de comandos**:
+
+  ```sh
+  cmsctl contest-export final-2026 final-2026.zip            # -submissions=false: solo configuración, tareas y participantes
+  cmsctl contest-import final-2026.zip
+  cmsctl contest-import -name final-2027 -task-suffix -2027 -status draft final-2026.zip
+  ```
+
+Al importar, cada fila recibe un id nuevo y se reescriben todas las
+referencias. Los usuarios y equipos que ya existen (mismo usuario, mismo
+código de equipo) se reutilizan tal como están, sin sobrescribirlos. El
+nombre del concurso y los de las tareas deben estar libres (los nombres de
+tarea son únicos en una instalación: usa un sufijo); si no, no se escribe
+nada. Por defecto el concurso nuevo queda *archivado* (solo lectura, fuera
+de la lista de concursos) si el archivo tiene envíos y como *borrador* si
+no. Cada archivo se verifica contra su SHA-256; un archivo dañado, o uno
+escrito por una versión más nueva de CMS, se rechaza antes de escribir
+nada. La descarga y la importación quedan en el registro de auditoría.

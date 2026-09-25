@@ -724,3 +724,28 @@ the recorded actions) and a UTC date range; "older" pages keep the
 filters. Every mutating admin request, logins and bulk downloads are
 recorded. Test: adminweb.TestAuditFilters.
 
+
+## SPEC_CLOSE D7 — Other package formats and contest archives (done)
+Skipping skills: immersive-web-design, master skill.
+
+- CMS italy_yaml tasks and full Polygon packages are converted on import
+  (admin preview says "converted from the … format", warnings for what
+  does not carry over) and then validated and imported like native
+  packages, reference solutions included (D63). Examples in
+  docs/examples/other-formats/ are judged for real in
+  e2e.TestProblemPackagesFromAdminUI; unit tests problempkg.TestConvert*.
+- Contest archive: one zip with every row of a contest (optionally with
+  submissions, results and evaluations), the referenced files and
+  results.csv; imported as a new contest with fresh ids in this or a newer
+  installation (D64). Admin: *Archive* on the contest page, *Import a
+  contest archive* on the contests page (both audited); CLI:
+  `cmsctl contest-export` / `contest-import`. Tests:
+  contestarchive.TestExportImportRoundTrip (another installation, every
+  table compared after normalising ids; re-import with reused users),
+  TestExportWithoutSubmissions, TestImportRejectsDamagedAndNewerArchives,
+  TestEveryTableIsDecided (catalog-driven), adminweb.TestContestArchiveFromAdmin,
+  cli.TestContestArchiveCommands.
+- Docs: problem-package / paquete-de-problema (other systems),
+  backups / respaldos (contest archives), contest-day runbook.
+
+Block D is complete.

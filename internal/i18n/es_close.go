@@ -296,6 +296,27 @@ var esClose = map[string]string{
 	// D6: audit log.
 	"e.g. contest. or score.adjust": "p. ej. contest. o score.adjust",
 	"From (UTC)":                    "Desde (UTC)",
+	// D7: other package formats.
+	"converted from the %s format": "convertido desde el formato %s",
+	"CMS italy_yaml tasks (task.yaml) and Polygon packages (problem.xml, full package with tests) are converted automatically.": "Las tareas en formato italy_yaml de CMS (task.yaml) y los paquetes de Polygon (problem.xml, paquete completo con los tests) se convierten automáticamente.",
+	// D7: contest archive.
+	"Archive": "Archivo",
+	"One zip file with the whole contest: settings, sites, tasks with every dataset, participants (with their password hashes), communication and, optionally, the submissions with their results and the final results table. Import it from the contests page of this or another installation (same version or newer).": "Un solo zip con el concurso completo: configuración, sedes, tareas con todos sus datasets, participantes (con los hashes de sus contraseñas), comunicación y, opcionalmente, los envíos con sus resultados y la tabla de resultados finales. Se importa desde la página de concursos de esta u otra instalación (misma versión o más nueva).",
+	"with the submissions":                            "con los envíos",
+	"Download the archive":                            "Descargar el archivo",
+	"Import a contest archive":                        "Importar el archivo de un concurso",
+	"Drop the archive (.zip) here or choose it":       "Suelta el archivo (.zip) aquí o elígelo",
+	"Contest name":                                    "Nombre del concurso",
+	"the archived one":                                "el del archivo",
+	"archived if it has submissions, otherwise draft": "archivado si tiene envíos, si no borrador",
+	"The contest is created with new ids; users and teams that already exist here (same username or team code) are reused as they are. Nothing is written if a name is taken or the archive is damaged.": "El concurso se crea con ids nuevos; los usuarios y equipos que ya existen aquí (mismo usuario o código de equipo) se reutilizan tal como están. No se escribe nada si un nombre está ocupado o el archivo está dañado.",
+	"A contest named %s already exists.":                                                  "Ya existe un concurso llamado %s.",
+	"These task names are taken: %s.":                                                     "Estos nombres de tarea están ocupados: %s.",
+	"Choose another contest name or a task name suffix; nothing was imported.":            "Elige otro nombre de concurso o un sufijo para los nombres de las tareas; no se importó nada.",
+	"The archive was written by a newer version of CMS: upgrade this installation first.": "El archivo fue escrito por una versión más nueva de CMS: actualiza primero esta instalación.",
+	"Not a contest archive: %v":                                                           "No es el archivo de un concurso: %v",
+	"The archive could not be imported (nothing was written): %v":                         "No se pudo importar el archivo (no se escribió nada): %v",
+	"Contest imported: %d rows, %d files; %d existing users and %d teams reused.":         "Concurso importado: %d filas, %d archivos; se reutilizaron %d usuarios y %d equipos existentes.",
 }
 
 func init() {

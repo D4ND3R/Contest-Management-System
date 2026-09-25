@@ -1,0 +1,8 @@
+# Subtasks: "# ST: points", then one line per testcase.
+# ST: 0
+1 2
+# ST: 40
+3 4
+# ST: 60
+100 200
+-5 5

@@ -105,5 +105,8 @@ principal salvo que se indique otra cosa.
       eligió una).
 - [ ] Respaldo final (**Respaldar ahora**), descárgalo y guárdalo fuera del
       servidor.
+- [ ] Archiva el concurso (página del concurso → **Archivo**, con los
+      envíos): un zip que cualquier instalación posterior importa
+      ([archivos de un concurso](respaldos.md#archivos-de-un-concurso)).
 - [ ] Opcional: activa el modo análisis o permite que los concursantes
       descarguen sus envíos.

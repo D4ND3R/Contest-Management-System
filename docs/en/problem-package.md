@@ -151,6 +151,45 @@ limits).
 Nothing is written until the preview is confirmed; the import is one
 transaction.
 
+## Packages from other systems
+
+Two other formats are converted on import, from the admin panel and from
+`cmsctl task-import` alike; the preview says **converted from the … format**
+and lists what could not be converted as warnings. Examples are in
+[`docs/examples/other-formats/`](../examples/other-formats/).
+
+**CMS italy_yaml** (a folder with `task.yaml`):
+
+| italy_yaml | becomes |
+|------------|---------|
+| `task.yaml`: `name`, `title`, `time_limit` (s), `memory_limit` (MiB), `infile`/`outfile` (default `input.txt`/`output.txt`; empty = standard input/output), `output_only`, `public_testcases` (`all` or a list of indexes), `n_input` | the same settings |
+| `input/inputN.txt`, `output/outputN.txt` | testcases `000`, `001`, … |
+| `gen/GEN` lines `# ST: points` (or `score_type_parameters` pairs) | subtasks (GroupMin; GroupMul when `score_type` says so) |
+| no subtasks | Sum with `total_value` / `n_input` points per testcase (100 in total by default) |
+| `check/checker` or `cor/correttore` (binary or `.c`/`.cpp`) | custom checker (the CMS protocol: outcome on stdout, message on stderr) |
+| `check/manager` | Communication task with that manager |
+| `sol/grader.*`, `sol/stub.*`, headers | graders / stubs per language |
+| `sol/soluzione.*` (or `solution`, `sol`) | reference solution expected to be accepted; other sources in `sol/` run without an expected verdict |
+| `statement/statement.pdf` or `testo/testo.pdf` | statement in `primary_language` (Italian by default) |
+| `att/*` | attachments |
+
+**Polygon** (a full package with `problem.xml`, downloaded with the
+generated tests, or after running `doall.sh`):
+
+| Polygon | becomes |
+|---------|---------|
+| testset `tests`: time limit (ms), memory limit (bytes), input/output file | the same settings, in seconds and MiB |
+| `tests/01`, `tests/01.a`, … | testcases `01`, `02`, …; tests marked as samples are public |
+| test groups with points | subtasks (GroupMin) with the group's tests |
+| points per test without groups | points per testcase (one subtask per test when they differ) |
+| checker source (testlib) | `testlib` checker; the `.h` resources (`testlib.h`) go with it |
+| interactor | Interactive task |
+| solutions tagged `main`/`accepted`, `wrong-answer`, `time-limit-exceeded`, `memory-limit-exceeded`, … | reference solutions with the matching expected verdict (the rest run without one) |
+| statements | one per language, the PDF when there is one (HTML statements come without their images) |
+
+A package without its generated tests is rejected with a message saying
+so: download the **full** package from Polygon.
+
 ## Export
 
 The export writes `problem.yaml` from the task and the chosen dataset (the
