@@ -108,8 +108,8 @@ first audit (after F6), the "status" column the current state.
 |----|-------------|--------|----------|
 | Z1 | Full test suite green | — | `make test` |
 | Z2 | F10 load tests repeated at the end | — | `make loadtest` |
-| Z3 | Security battery | — | worker.TestMaliciousBattery, F10 web hardening tests |
-| Z4 | Admin documentation: how to create each problem type, step by step (es/en) | — | docs/{es,en}/admin-*.md |
+| Z3 | Security battery | complete (sandbox: the malicious battery — fork bombs, memory and disk exhaustion, network, forbidden syscalls, escapes — judged in `make test`, `make test-sandbox` and on every host by `cms-verify-host`; web: CSRF on every POST route, CSP and headers, hardened cookies, failures-only login limits, bounded password hashing, bodies bounded before parsing) | worker.TestMaliciousBattery, selftest (`cms ctl judge-selftest`), contestweb.TestEveryPostNeedsCSRF, adminweb.TestEveryAdminPostNeedsCSRF, contestweb.TestSessionCookiesAreHardened, adminweb.TestAdminCookiesAreHardened, contestweb.TestLoginLimitsCountFailures, adminweb.TestAdminLoginLimits, contestweb.TestRequestBodiesAreBounded, adminweb.TestAdminBodiesAreBounded, auth.TestVerificationsAreBounded, webkit.TestSecurityHeaders, contestweb.TestNoInlineCodeAndSecurityHeaders |
+| Z4 | Admin documentation: how to create each problem type, step by step (es/en) | complete (administrator's guide: contest from scratch, contestants, every problem type step by step, before/during/after; drill with checklist; plus contest settings, task types, packages, contest day, deployment with security settings, backups) | docs/{en/admin-guide.md,es/guia-del-admin.md}, docs/{en/drill.md,es/simulacro.md}, e2e.TestDrill, cli.TestDocsLinks |
 
 ## §8 Operations (SPEC_CLOSE A5, A6)
 

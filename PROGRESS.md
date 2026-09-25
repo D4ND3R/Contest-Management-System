@@ -777,3 +777,47 @@ adminweb.TestCertificatesFromAdmin, adminweb.TestContestClone,
 contestweb.TestContestantCertificate, contestarchive round trip.
 
 Block E is complete.
+
+## SPEC_CLOSE F2 — Web hardening (done)
+Skipping skills: immersive-web-design, master skill.
+
+- Login limits count failures only, per address and per username (and
+  second-factor codes per administrator): a lab behind one NAT address
+  logs in at once, guessing stays limited (D68).
+- At most max(2, cores) argon2id computations at once (19 MiB each): a
+  login storm queues instead of exhausting memory; absurd stored
+  parameters are refused.
+- Request bodies are bounded before the CSRF check parses them (uploads by
+  route, 64 KiB/1 MiB forms, 16 KiB login forms): larger ones get 413 and
+  never reach the disk. The language cookie only takes known languages.
+- SIGUSR1 dumps every goroutine of any service without stopping it.
+- Tests: contestweb.TestEveryPostNeedsCSRF and
+  adminweb.TestEveryAdminPostNeedsCSRF (every POST route, enumerated from
+  the source: missing token, another session's token, another origin),
+  TestSessionCookiesAreHardened / TestAdminCookiesAreHardened,
+  TestLoginLimitsCountFailures / TestAdminLoginLimits (NAT lab, per
+  username, 2FA lock), TestRequestBodiesAreBounded /
+  TestAdminBodiesAreBounded, auth.TestVerificationsAreBounded,
+  webkit.TestLimiterOverAndHit; CSP and headers were already covered
+  (webkit.TestSecurityHeaders, contestweb.TestNoInlineCodeAndSecurityHeaders).
+- Docs: "Security and limits" in the deployment guides.
+
+## SPEC_CLOSE F4 — Administrator documentation (done)
+Skipping skills: immersive-web-design, master skill.
+
+docs/en/admin-guide.md and docs/es/guia-del-admin.md: administrators and
+roles, a contest from scratch, contestants (CSV, credentials, teams),
+tasks from packages or by hand, every problem type step by step (task type,
+options and managers to upload), before/during/after the contest, linking
+the reference guides (contest settings, task types, packages, contest day,
+backups, security settings).
+
+## SPEC_CLOSE F5 — Drill (done)
+Skipping skills: immersive-web-design, master skill.
+
+docs/en/drill.md and docs/es/simulacro.md: a 45-minute rehearsal with a
+checklist — three problems (normal I/O, interactive, output only) from the
+documented packages, two contestants, a question answered publicly, an
+announcement, an invalidated submission, the frozen ranking, unfreezing,
+CSV/PDF results, backup and archive. internal/e2e/drill_test.go
+(TestDrill) plays the same steps with real judging in `make test`.

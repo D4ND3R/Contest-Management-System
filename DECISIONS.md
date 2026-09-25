@@ -738,3 +738,61 @@ ceremony); the overview checks the template only after the contest, so
 the page costs nothing while the contest runs, and the ranking behind
 contestants' downloads is cached 30 seconds (everybody downloads at once
 after the ceremony).
+
+## D67. Workers serve evaluations before compilations
+(Amends the order of D19; strict priorities remain.) The first
+500-contestant load test (one judging core) stopped scoring
+for 30 minutes: workers polled the queues in strict priority order with
+compilations first, and with new submissions arriving faster than one
+core compiles them (`<bits/stdc++.h>` takes ~1.5 s), every evaluation of
+an already compiled submission waited behind all the newer compilations;
+the dispatcher's sweeper then re-enqueued the waiting evaluations as
+stale. Diagnosed with goroutine dumps (SIGUSR1 now writes one for every
+service without stopping it) and the database timestamps, not guessed.
+Evaluations now come first: a compiled submission is finished before new
+ones start, so every score arrives right after its own compilation and
+the evaluation backlog is bounded by the submissions in flight;
+evaluations are short (tens of milliseconds per testcase here), so
+compilations barely wait. Stream names are unchanged, so queued jobs
+survive an upgrade. User tests and background work (non-live datasets,
+old rejudges) still come after both.
+
+## D68. Web hardening: failures-only login limits, bounded hashing, bodies bounded first
+- Login limits count **failures only**, per address and per username
+  (10 a minute, from any address), and second-factor codes per
+  administrator (5 a minute): a school lab behind one NAT address logs in
+  at the start signal without hitting the per-address limit, while
+  guessing stays limited even from many addresses.
+- At most max(2, GOMAXPROCS) argon2id computations run at once: each needs
+  19 MiB and ~20 ms of a core, so a thousand simultaneous logins queue
+  (seconds) instead of needing 19 GiB; stored hashes asking for more than
+  256 MiB are refused.
+- Request bodies are bounded **before** the CSRF check reads the form
+  (Go parses multipart bodies, files included, on first access): the
+  contest web server allows each route its upload limit (submission, user
+  test, print job) or 64 KiB for plain forms, the admin 1 MiB or its upload
+  limit, the login pages 16 KiB; larger bodies get 413 and are never
+  spooled to disk. The interface-language cookie only takes known
+  languages.
+- Every POST route of both servers is enumerated from the source by a test
+  and must refuse a missing token, another session's token and another
+  origin, so a new route cannot ship without CSRF protection.
+
+## D69. How the load tests measure a 2 vCPU machine
+The load test runs a complete installation on one machine with at least 4
+CPUs, pinned like the reference 2 vCPU server (`docs/en/deployment.md`):
+one CPU for the web servers, dispatcher, monitor, PostgreSQL and Valkey,
+one CPU for the sandbox, and the load generator on the other two so it
+never steals from CMS. PostgreSQL and Valkey run with the production
+settings (durable commits, append-only file), not the throwaway test
+settings. Latency is reported twice: as k6 sees it (the contestant's
+view, network and generator included) and from the servers' own request
+histograms scraped right after the run (the figure SPEC.md's targets are
+stated in). The capacity question ("how many contestants does the machine
+support") is answered by raising the load until the web CPU saturates,
+with judging throughput measured separately on its own core: judging
+backlog never slows the web side, so the two limits are independent. k6
+spends a whole virtual user (several MiB) per open stream, so the 10,000
+ranking spectators of SPEC.md F7 are played by a small Go client
+(`loadtest/spectators`) that measures how long one update takes to reach
+every stream.
