@@ -35,6 +35,9 @@ Step by step: [docs/en/deployment.md](docs/en/deployment.md) ·
 
 - English: [docs/en](docs/en/README.md)
 - Español: [docs/es](docs/es/README.md)
+- Project status / Estado del proyecto: [SUMMARY.md](SUMMARY.md) (what is
+  complete and what to verify on the real server),
+  [loadtest/README.md](loadtest/README.md) (measured capacity)
 
 ## Development / Desarrollo
 

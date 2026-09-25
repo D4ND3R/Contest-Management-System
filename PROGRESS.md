@@ -835,6 +835,18 @@ Skipping skills: immersive-web-design, master skill.
   (webkit.TestSecurityHeaders, contestweb.TestNoInlineCodeAndSecurityHeaders).
 - Docs: "Security and limits" in the deployment guides.
 
+## SPEC_CLOSE F3 — Suite, security battery and sample solutions (done)
+Skipping skills: immersive-web-design, master skill.
+
+On the final code: `make lint` clean; `make test` green (34 packages,
+~20 minutes: real PostgreSQL, Valkey and isolate, the e2e stacks, the
+drill, the live ranking page in headless Chromium); `make test-sandbox`
+green (worker.TestMaliciousBattery 31 s, worker.TestSampleSolutions
+71 s); cli.TestVerifyHost judges the embedded self-test twice with
+identical verdicts. Pending on real hardware: isolate 2 with cgroup v2
+(this VM has cgroup v1 and isolate 1.10), via `cms-verify-host` on the
+target VPS.
+
 ## SPEC_CLOSE F4 — Administrator documentation (done)
 Skipping skills: immersive-web-design, master skill.
 
@@ -854,3 +866,12 @@ documented packages, two contestants, a question answered publicly, an
 announcement, an invalidated submission, the frozen ranking, unfreezing,
 CSV/PDF results, backup and archive. internal/e2e/drill_test.go
 (TestDrill) plays the same steps with real judging in `make test`.
+
+## SPEC_CLOSE F6 — Final summary (done)
+Skipping skills: immersive-web-design, master skill.
+
+[SUMMARY.md](SUMMARY.md): what is complete, what remains to verify on the
+real VPS, and the important decisions. AUDIT.md has no row left missing
+or partial; the rows marked **hw** need the target machine (isolate 2
+with cgroup v2, the load tests on its CPUs). SPEC_CLOSE.md blocks A–F are
+complete.
