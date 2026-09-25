@@ -1,0 +1,80 @@
+# GoReleaser: pushing a tag vX.Y.Z publishes a GitHub release through
+# .github/workflows/release.yml (binaries for linux/amd64 and linux/arm64,
+# SHA-256 checksums, a changelog from the commits since the previous tag and
+# one tarball per architecture with everything an installation needs).
+# Locally: goreleaser release --snapshot --clean  (files in dist/).
+version: 2
+project_name: cms
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - &build
+    id: cms
+    main: ./cmd/cms
+    binary: cms
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+      - -X github.com/D4ND3R/Contest-Management-System/internal/version.Version={{ .Version }}
+      - -X github.com/D4ND3R/Contest-Management-System/internal/version.Commit={{ .ShortCommit }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+  - <<: *build
+    id: cmsctl
+    main: ./cmd/cmsctl
+    binary: cmsctl
+
+archives:
+  # cms_<version>_linux_<arch>.tar.gz, unpacked into one directory: what
+  # scripts/install.sh and `cmsctl upgrade` download. Migrations, templates
+  # and static files are also embedded in the binary; they ship here to be
+  # read and reviewed.
+  - id: cms
+    ids: [cms, cmsctl]
+    formats: [tar.gz]
+    name_template: "cms_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: true
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+      - config/cms.example.yaml
+      - config/languages/*.yaml
+      - src: internal/db/migrations/*.sql
+        dst: migrations
+        strip_parent: true
+      - web/templates/**/*
+      - web/static/*
+      - deploy/systemd/*
+      - scripts/install.sh
+      - scripts/install-isolate.sh
+      - scripts/verify-host.sh
+      - docs/**/*
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^Merge "
+
+release:
+  prerelease: auto
+  # The installer is also reachable from the release page.
+  extra_files:
+    - glob: scripts/install.sh
+  footer: |
+    Install or update a server: see docs/en/deployment.md (docs/es/despliegue.md).
+    Container images: `ghcr.io/{{ tolower (envOrDefault "GITHUB_REPOSITORY" "D4ND3R/Contest-Management-System") }}/cms:{{ .Version }}` and `/worker:{{ .Version }}`.

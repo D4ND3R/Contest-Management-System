@@ -1,0 +1,93 @@
+# Publishes a release when a tag vX.Y.Z is pushed:
+#   - binaries, tarballs and checksums (GoReleaser, .goreleaser.yaml);
+#   - container images for linux/amd64 and linux/arm64 on GHCR:
+#       ghcr.io/<owner>/<repo>/cms     web servers, dispatcher, monitor, printing
+#       ghcr.io/<owner>/<repo>/worker  isolate and compilers
+#     tagged X.Y.Z, X.Y and latest (not latest for pre-releases like v1.2.0-rc.1).
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    # The tag must point at code that builds and passes the fast checks.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with: {go-version-file: go.mod}
+      - run: make lint
+      - run: go test -count=1 -short ./internal/auth/ ./internal/config/ ./internal/scoring/ ./internal/langs/ ./internal/i18n/ ./internal/ranking/
+
+  binaries:
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write        # create the release and upload its files
+    steps:
+      - uses: actions/checkout@v5
+        with: {fetch-depth: 0}   # the changelog needs the previous tag
+      - uses: actions/setup-go@v6
+        with: {go-version-file: go.mod}
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  images:
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write        # push to ghcr.io
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [cms, worker]
+    steps:
+      - uses: actions/checkout@v5
+      - name: image name (GHCR wants it in lower case)
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.name.outputs.image }}
+          flavor: latest=auto
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          labels: |
+            org.opencontainers.image.licenses=Apache-2.0
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.image }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            COMMIT=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}

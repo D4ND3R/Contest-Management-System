@@ -6,3 +6,5 @@
 *.out
 *.prof
 coverage.*
+/dist/
+/deploy/docker/.env
