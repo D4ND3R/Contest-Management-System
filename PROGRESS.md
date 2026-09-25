@@ -16,6 +16,7 @@ Status of each phase of SPEC.md §9. Updated at the end of every phase.
 | F9 Import/export | pending |
 | F10 Performance and security | pending |
 | F11 Deployment | pending |
+| Audit (SPEC_AUDIT.md) | in progress — see AUDIT.md |
 
 ## F0 — Foundations (done)
 - Monorepo: single `cms` binary with one subcommand per service + `cmsctl`

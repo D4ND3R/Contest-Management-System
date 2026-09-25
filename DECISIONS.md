@@ -217,3 +217,13 @@ within seconds without a session table.
 The system page polls a small HTML fragment every 2 s (cheap Redis reads,
 always consistent after reconnects); discrete events (system error alerts,
 new questions) are pushed to administrators over SSE.
+
+## D34. How the audit (SPEC_AUDIT.md) is folded into the phase plan
+The audit arrived after F6. Its sections are implemented in order (§2 → §6)
+and absorb the remaining primary phases where they overlap: F7 (ranking web)
+and F8 (tokens, limits, user tests, Q&A, printing, analysis, ICPC) are built
+inside §4 (contest configuration), F9 (import/export, dump/restore) inside
+§6 (backups) together with the importers needed by §2, and F10/F11 close the
+work together with §7. PROGRESS.md keeps one section per primary phase;
+AUDIT.md tracks every audit requirement with its files and tests. Each audit
+section is a commit.
