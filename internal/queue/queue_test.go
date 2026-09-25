@@ -27,7 +27,7 @@ func TestPriorityOrder(t *testing.T) {
 	q := newQueue(t)
 	ctx := context.Background()
 	// Enqueue lowest priority first.
-	for _, p := range []Priority{PriorityBackground, PriorityUserTest, PriorityEvaluate, PriorityCompile} {
+	for _, p := range []Priority{PriorityBackground, PriorityUserTest, PriorityCompile, PriorityEvaluate} {
 		if _, err := q.Enqueue(ctx, p, &jobs.Job{ID: p.String()}); err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +43,7 @@ func TestPriorityOrder(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	want := []string{"compile", "evaluate", "usertest", "background"}
+	want := []string{"evaluate", "compile", "usertest", "background"}
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("order = %v, want %v", got, want)

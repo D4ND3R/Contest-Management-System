@@ -32,17 +32,24 @@ import (
 )
 
 // Priority of a job; lower values are served first.
+//
+// Evaluations come before compilations: a submission that compiled is
+// finished before new ones are started, so under a sustained stream of
+// submissions every score still arrives right after its compilation.
+// With compilations first, a busy contest compiles for as long as
+// submissions keep coming and scores nothing (the load test showed a
+// 30-minute stall); evaluations are short, so compilations wait little.
 type Priority int
 
 const (
-	PriorityCompile    Priority = iota // submission compilation
-	PriorityEvaluate                   // submission evaluation (live dataset)
+	PriorityEvaluate   Priority = iota // submission evaluation (live dataset)
+	PriorityCompile                    // submission compilation
 	PriorityUserTest                   // user tests
 	PriorityBackground                 // non-live datasets (autojudge), rejudges of old data
 	numPriorities
 )
 
-var priorityNames = [...]string{"compile", "evaluate", "usertest", "background"}
+var priorityNames = [...]string{"evaluate", "compile", "usertest", "background"}
 
 func (p Priority) String() string {
 	if p >= 0 && p < numPriorities {

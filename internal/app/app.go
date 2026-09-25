@@ -7,12 +7,22 @@ import (
 	"errors"
 	"os"
 	"os/signal"
+	"runtime/pprof"
 	"sync"
 	"syscall"
 )
 
-// SignalContext returns a context cancelled on SIGINT or SIGTERM.
+// SignalContext returns a context cancelled on SIGINT or SIGTERM. SIGUSR1
+// writes the stack of every goroutine to standard error without stopping
+// the service (diagnosing a stuck process in production).
 func SignalContext() (context.Context, context.CancelFunc) {
+	dump := make(chan os.Signal, 1)
+	signal.Notify(dump, syscall.SIGUSR1)
+	go func() {
+		for range dump {
+			_ = pprof.Lookup("goroutine").WriteTo(os.Stderr, 2)
+		}
+	}()
 	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 }
 
