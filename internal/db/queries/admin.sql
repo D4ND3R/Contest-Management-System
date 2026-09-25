@@ -14,7 +14,10 @@ SELECT * FROM admins ORDER BY username;
 UPDATE admins SET name = $2, username = $3, enabled = $4, role = $5 WHERE id = $1 RETURNING *;
 
 -- name: SetAdminPassword :exec
-UPDATE admins SET password_hash = $2 WHERE id = $1;
+UPDATE admins SET password_hash = $2, password_change_required = false WHERE id = $1;
+
+-- name: RequireAdminPasswordChange :exec
+UPDATE admins SET password_change_required = true WHERE id = $1;
 
 -- name: DeleteAdmin :exec
 DELETE FROM admins WHERE id = $1;

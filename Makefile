@@ -55,7 +55,7 @@ migrate: build ## apply migrations using $$CMS_CONFIG
 
 dev: ## full stack in docker compose (postgres, redis, minio + all services)
 	docker compose up --build -d --wait
-	@echo "contest http://localhost:8888  admin http://localhost:8889 (admin/admin)  ranking http://localhost:8890"
+	@echo "contest http://localhost:8888  admin http://localhost:8889 (admin/admin, development only: the first login asks for a new password)  ranking http://localhost:8890"
 
 dev-native: ## full stack as native processes (no docker)
 	scripts/dev.sh

@@ -43,6 +43,6 @@ for s in "${services[@]}"; do
   done
   if [ -n "$ok" ]; then echo "  $s: healthy"; else echo "  $s: NOT healthy (see .cache/dev/logs/$s.log)"; exit 1; fi
 done
-echo "CMS is up: contest http://localhost:8888  admin http://localhost:8889 (admin/admin)  ranking http://localhost:8890"
+echo "CMS is up: contest http://localhost:8888  admin http://localhost:8889 (admin/admin, development only: the first login asks for a new password)  ranking http://localhost:8890"
 if [ "${1:-}" = "--check" ]; then exit 0; fi
 wait

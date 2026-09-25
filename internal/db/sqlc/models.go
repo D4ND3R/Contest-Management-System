@@ -11,14 +11,15 @@ import (
 )
 
 type Admin struct {
-	ID           int64     `json:"id"`
-	Name         string    `json:"name"`
-	Username     string    `json:"username"`
-	PasswordHash string    `json:"password_hash"`
-	Enabled      bool      `json:"enabled"`
-	Role         string    `json:"role"`
-	CreatedAt    time.Time `json:"created_at"`
-	TotpSecret   *string   `json:"totp_secret"`
+	ID                     int64     `json:"id"`
+	Name                   string    `json:"name"`
+	Username               string    `json:"username"`
+	PasswordHash           string    `json:"password_hash"`
+	Enabled                bool      `json:"enabled"`
+	Role                   string    `json:"role"`
+	CreatedAt              time.Time `json:"created_at"`
+	TotpSecret             *string   `json:"totp_secret"`
+	PasswordChangeRequired bool      `json:"password_change_required"`
 }
 
 type Announcement struct {

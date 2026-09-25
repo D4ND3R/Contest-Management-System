@@ -1,5 +1,11 @@
 {{define "content"}}
 <h1>{{.T "My account"}} <small class="muted">{{.Admin.Username}} ({{.Admin.Role}})</small></h1>
+{{if .Data.MustChangePassword}}
+<section class="card danger">
+<h2>{{.T "Change your password"}}</h2>
+<p>{{.T "You logged in with a well-known default password. Choose a new one below: the rest of the administration opens after that."}}</p>
+</section>
+{{end}}
 <section class="card">
 <h2>{{.T "Two-factor authentication"}}</h2>
 {{if .Data.Pending}}

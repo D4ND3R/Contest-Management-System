@@ -41,7 +41,7 @@ func TestAdminTOTP(t *testing.T) {
 	// Login now needs the code.
 	c := webtest.New(t, f.url)
 	c.Get("/login")
-	code, body = c.Post("/login", url.Values{"username": {"admin_all"}, "password": {"password1"}})
+	code, body = c.Post("/login", url.Values{"username": {"admin_all"}, "password": {"fixture-pass-1"}})
 	tok := tokenRe.FindStringSubmatch(body)
 	if code != 200 || tok == nil || strings.Contains(body, "Log out") {
 		t.Fatalf("password alone logged in: %d", code)
@@ -62,7 +62,7 @@ func TestAdminTOTP(t *testing.T) {
 	f.q.CreateAdmin(bg, sqlc.CreateAdminParams{Name: "B", Username: "second", PasswordHash: a.PasswordHash, Enabled: true, Role: "all"})
 	sb := webtest.New(t, f.url)
 	sb.Get("/login")
-	sb.Post("/login", url.Values{"username": {"second"}, "password": {"password1"}})
+	sb.Post("/login", url.Values{"username": {"second"}, "password": {"fixture-pass-1"}})
 	code, _ = sb.Post(fmt.Sprintf("/admins/%d", a.ID), url.Values{"username": {"admin_all"}, "role": {"all"}, "enabled": {"on"}, "reset_2fa": {"on"}})
 	if a, _ = f.q.GetAdmin(bg, a.ID); code != 200 || a.TotpSecret != nil {
 		t.Fatalf("2fa reset: %d", code)

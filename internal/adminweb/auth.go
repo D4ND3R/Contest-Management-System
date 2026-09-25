@@ -91,6 +91,15 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.loginPage(w, r, http.StatusUnauthorized, "Wrong username or password.")
 		return
 	}
+	// A well-known default password (admin/admin, the username, ...)
+	// must be replaced before anything else (withAdmin enforces it).
+	if !a.PasswordChangeRequired && auth.IsDefaultPassword(a.Username, r.FormValue("password")) {
+		if err := s.q.RequireAdminPasswordChange(r.Context(), a.ID); err != nil {
+			s.log.Error("require password change", "admin", a.ID, "error", err)
+		}
+		s.admins.drop(a.ID)
+		a.PasswordChangeRequired = true
+	}
 	if a.TotpSecret != nil {
 		s.startSecondFactor(w, r, a)
 		return

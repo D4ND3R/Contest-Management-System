@@ -309,6 +309,8 @@ func (s *Server) handleAdminCreate(w http.ResponseWriter, r *http.Request, rc *r
 	password := r.FormValue("password")
 	if len(password) < 8 {
 		f.fail("the password must have at least 8 characters")
+	} else if auth.IsDefaultPassword(username, password) {
+		f.fail("the password must not be a well-known default nor the username")
 	}
 	if f.err == nil {
 		if _, err := s.q.GetAdminByUsername(r.Context(), username); err == nil {
@@ -388,6 +390,8 @@ func (s *Server) handleAdminUpdate(w http.ResponseWriter, r *http.Request, rc *r
 	password := r.FormValue("password")
 	if password != "" && len(password) < 8 {
 		f.fail("the password must have at least 8 characters")
+	} else if password != "" && auth.IsDefaultPassword(u.Username, password) {
+		f.fail("the password must not be a well-known default nor the username")
 	}
 	if f.err == nil && (!u.Enabled || u.Role != "all") && a.Enabled && a.Role == "all" {
 		if n, err := s.otherFullAdmins(r.Context(), a.ID); err != nil || n == 0 {

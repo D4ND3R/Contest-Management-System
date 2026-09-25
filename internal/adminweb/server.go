@@ -428,6 +428,11 @@ func (s *Server) withAdmin(p perm, action string, h handler) http.HandlerFunc {
 			return
 		}
 		rc := &reqCtx{admin: a, sess: sess}
+		if a.PasswordChangeRequired && !passwordChangeRoutes[r.Pattern] {
+			// Only the account page (to change it) and logging out.
+			webkit.Redirect(w, r, "/account")
+			return
+		}
 		if r.Method == http.MethodPost {
 			if !s.limitBody(w, r, rc) {
 				return
@@ -455,6 +460,10 @@ func (s *Server) withAdmin(p perm, action string, h handler) http.HandlerFunc {
 		}
 	}
 }
+
+// passwordChangeRoutes are what an administrator who must replace a
+// default password can reach.
+var passwordChangeRoutes = map[string]bool{"GET /account": true, "POST /account/password": true, "POST /logout": true}
 
 // adminNonce binds sessions to the password hash: changing the password
 // (or the role) logs every session of the admin out.

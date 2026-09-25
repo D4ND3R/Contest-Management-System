@@ -80,3 +80,29 @@ func TestVerificationsAreBounded(t *testing.T) {
 		t.Fatal("4 GiB hash accepted")
 	}
 }
+
+func TestIsDefaultPassword(t *testing.T) {
+	for _, c := range []struct {
+		user, pw string
+		want     bool
+	}{
+		{"admin", "admin", true}, {"root", "Admin", true}, {"ana", "ANA", true}, {"ana", "password", true},
+		{"ana", "123456", true}, {"ana", " changeme ", true}, {"ana", "", true},
+		{"admin", "k3x9-Tq7vB", false}, {"ana", "adminpass", false},
+	} {
+		if got := IsDefaultPassword(c.user, c.pw); got != c.want {
+			t.Errorf("IsDefaultPassword(%q, %q) = %v", c.user, c.pw, got)
+		}
+	}
+}
+
+func TestRandomPassword(t *testing.T) {
+	seen := map[string]bool{}
+	for range 200 {
+		p := RandomPassword(16)
+		if len(p) != 16 || strings.ContainsAny(p, "0O1lI") || IsDefaultPassword("admin", p) || seen[p] {
+			t.Fatalf("password %q", p)
+		}
+		seen[p] = true
+	}
+}

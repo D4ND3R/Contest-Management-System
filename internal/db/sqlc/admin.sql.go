@@ -23,7 +23,7 @@ func (q *Queries) CountAdmins(ctx context.Context) (int64, error) {
 }
 
 const createAdmin = `-- name: CreateAdmin :one
-INSERT INTO admins (name, username, password_hash, enabled, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, username, password_hash, enabled, role, created_at, totp_secret
+INSERT INTO admins (name, username, password_hash, enabled, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required
 `
 
 type CreateAdminParams struct {
@@ -52,6 +52,7 @@ func (q *Queries) CreateAdmin(ctx context.Context, arg CreateAdminParams) (Admin
 		&i.Role,
 		&i.CreatedAt,
 		&i.TotpSecret,
+		&i.PasswordChangeRequired,
 	)
 	return i, err
 }
@@ -66,7 +67,7 @@ func (q *Queries) DeleteAdmin(ctx context.Context, id int64) error {
 }
 
 const getAdmin = `-- name: GetAdmin :one
-SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret FROM admins WHERE id = $1
+SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required FROM admins WHERE id = $1
 `
 
 func (q *Queries) GetAdmin(ctx context.Context, id int64) (Admin, error) {
@@ -81,12 +82,13 @@ func (q *Queries) GetAdmin(ctx context.Context, id int64) (Admin, error) {
 		&i.Role,
 		&i.CreatedAt,
 		&i.TotpSecret,
+		&i.PasswordChangeRequired,
 	)
 	return i, err
 }
 
 const getAdminByUsername = `-- name: GetAdminByUsername :one
-SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret FROM admins WHERE username = $1
+SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required FROM admins WHERE username = $1
 `
 
 func (q *Queries) GetAdminByUsername(ctx context.Context, username string) (Admin, error) {
@@ -101,6 +103,7 @@ func (q *Queries) GetAdminByUsername(ctx context.Context, username string) (Admi
 		&i.Role,
 		&i.CreatedAt,
 		&i.TotpSecret,
+		&i.PasswordChangeRequired,
 	)
 	return i, err
 }
@@ -131,7 +134,7 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 }
 
 const listAdmins = `-- name: ListAdmins :many
-SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret FROM admins ORDER BY username
+SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required FROM admins ORDER BY username
 `
 
 func (q *Queries) ListAdmins(ctx context.Context) ([]Admin, error) {
@@ -152,6 +155,7 @@ func (q *Queries) ListAdmins(ctx context.Context) ([]Admin, error) {
 			&i.Role,
 			&i.CreatedAt,
 			&i.TotpSecret,
+			&i.PasswordChangeRequired,
 		); err != nil {
 			return nil, err
 		}
@@ -258,8 +262,17 @@ func (q *Queries) ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]L
 	return items, nil
 }
 
+const requireAdminPasswordChange = `-- name: RequireAdminPasswordChange :exec
+UPDATE admins SET password_change_required = true WHERE id = $1
+`
+
+func (q *Queries) RequireAdminPasswordChange(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, requireAdminPasswordChange, id)
+	return err
+}
+
 const setAdminPassword = `-- name: SetAdminPassword :exec
-UPDATE admins SET password_hash = $2 WHERE id = $1
+UPDATE admins SET password_hash = $2, password_change_required = false WHERE id = $1
 `
 
 type SetAdminPasswordParams struct {
@@ -287,7 +300,7 @@ func (q *Queries) SetAdminTOTP(ctx context.Context, arg SetAdminTOTPParams) erro
 }
 
 const updateAdmin = `-- name: UpdateAdmin :one
-UPDATE admins SET name = $2, username = $3, enabled = $4, role = $5 WHERE id = $1 RETURNING id, name, username, password_hash, enabled, role, created_at, totp_secret
+UPDATE admins SET name = $2, username = $3, enabled = $4, role = $5 WHERE id = $1 RETURNING id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required
 `
 
 type UpdateAdminParams struct {
@@ -316,6 +329,7 @@ func (q *Queries) UpdateAdmin(ctx context.Context, arg UpdateAdminParams) (Admin
 		&i.Role,
 		&i.CreatedAt,
 		&i.TotpSecret,
+		&i.PasswordChangeRequired,
 	)
 	return i, err
 }

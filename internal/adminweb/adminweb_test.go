@@ -68,7 +68,7 @@ func newFixture(t *testing.T, opts ...func(*config.AdminWeb)) *fixture {
 		t.Fatal(err)
 	}
 	f := &fixture{t: t, pool: pool, q: sqlc.New(pool), store: store, admins: map[string]sqlc.Admin{}, rdb: rdb, ns: ns}
-	hash, _ := auth.HashPassword("password1")
+	hash, _ := auth.HashPassword("fixture-pass-1")
 	for _, role := range []string{"all", "messaging", "read_only"} {
 		a, err := f.q.CreateAdmin(bg, sqlc.CreateAdminParams{Name: role, Username: "admin_" + role, PasswordHash: hash, Enabled: true, Role: role})
 		if err != nil {
@@ -180,7 +180,7 @@ func (f *fixture) login(role string) *webtest.Browser {
 	b := webtest.New(f.t, f.url)
 	code, body := b.Get("/login")
 	webtest.MustOK(f.t, "login form", code, body)
-	code, body = b.Post("/login", url.Values{"username": {"admin_" + role}, "password": {"password1"}})
+	code, body = b.Post("/login", url.Values{"username": {"admin_" + role}, "password": {"fixture-pass-1"}})
 	webtest.MustOK(f.t, "login "+role, code, body)
 	if !strings.Contains(body, "admin_"+role) {
 		f.t.Fatalf("not logged in as %s:\n%s", role, body)

@@ -108,16 +108,16 @@ func TestAdminLoginLimits(t *testing.T) {
 			t.Fatalf("failure %d = %d", i, code)
 		}
 	}
-	if code := try("admin_all", "password1"); code != http.StatusTooManyRequests {
+	if code := try("admin_all", "fixture-pass-1"); code != http.StatusTooManyRequests {
 		t.Fatalf("username after 10 failures = %d, want 429", code)
 	}
-	if code := try("admin_messaging", "password1"); code != 200 {
+	if code := try("admin_messaging", "fixture-pass-1"); code != 200 {
 		t.Fatalf("another administrator = %d", code)
 	}
 	for i := 0; i < 5; i++ {
 		try("nobody", "x")
 	}
-	if code := try("admin_messaging", "password1"); code != http.StatusTooManyRequests {
+	if code := try("admin_messaging", "fixture-pass-1"); code != http.StatusTooManyRequests {
 		t.Fatalf("address after 15 failures = %d, want 429", code)
 	}
 
@@ -127,7 +127,7 @@ func TestAdminLoginLimits(t *testing.T) {
 	g.pool.Exec(bg, "UPDATE admins SET totp_secret = $1 WHERE id = $2", secret, g.admins["messaging"].ID)
 	c := webtest.New(t, g.url)
 	c.Get("/login")
-	_, body := c.Post("/login", url.Values{"username": {"admin_messaging"}, "password": {"password1"}})
+	_, body := c.Post("/login", url.Values{"username": {"admin_messaging"}, "password": {"fixture-pass-1"}})
 	tok := tokenRe.FindStringSubmatch(body)
 	if tok == nil {
 		t.Fatalf("no second step:\n%s", body)

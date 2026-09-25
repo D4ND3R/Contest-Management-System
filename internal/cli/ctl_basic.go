@@ -90,12 +90,13 @@ func cmdHealthcheck(args []string, stdout, stderr io.Writer) error {
 func cmdBootstrap(args []string, stdout, stderr io.Writer) error {
 	fs, cfgPath := newFlags("bootstrap", stderr)
 	adminUser := fs.String("admin-username", "admin", "username of the first administrator")
-	adminPass := fs.String("admin-password", "", "password of the first administrator (skipped when empty)")
+	adminPass := fs.String("admin-password", "", "password of the first administrator (or $CMS_ADMIN_PASSWORD; none: no administrator is created)")
+	generate := fs.Bool("generate-password", false, "without a password, create the first administrator with a random one and print it once")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	ctx := context.Background()
-	env, err := openCtl(ctx, *cfgPath, true, stderr)
+	env, err := openCtl(ctx, *cfgPath, false, stderr) // the database only
 	if err != nil {
 		return err
 	}
@@ -105,5 +106,6 @@ func cmdBootstrap(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	fmt.Fprintf(stdout, "migrations applied: %d\n", len(applied))
-	return bootstrapAdmin(ctx, env, *adminUser, *adminPass, stdout)
+	pw, generated := adminPassword(*adminPass, *generate)
+	return bootstrapAdmin(ctx, env, *adminUser, pw, generated, stdout)
 }

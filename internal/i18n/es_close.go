@@ -41,6 +41,7 @@ var esClose = map[string]string{
 	"scheduled":        "programado",
 	"manual":           "manual",
 	"cli":              "línea de comandos",
+	"upgrade":          "actualización",
 	"external":         "externo",
 	"done":             "listo",
 	"failed":           "falló",
@@ -375,6 +376,12 @@ var esClose = map[string]string{
 	"Too large":                           "Demasiado grande",
 	"The request is larger than allowed.": "La solicitud es más grande de lo permitido.",
 	"The upload is larger than allowed (admin_web.max_upload_bytes).": "El archivo subido es más grande de lo permitido (admin_web.max_upload_bytes).",
+
+	// Distribution: first-boot security.
+	"Change your password": "Cambia tu contraseña",
+	"You logged in with a well-known default password. Choose a new one below: the rest of the administration opens after that.": "Entraste con una contraseña por defecto conocida. Elige una nueva abajo: el resto de la administración se abre después.",
+	"Choose a new password that is not a well-known default nor your username.":                                                  "Elige una contraseña nueva que no sea una contraseña por defecto conocida ni tu nombre de usuario.",
+	"the password must not be a well-known default nor the username":                                                             "la contraseña no puede ser una contraseña por defecto conocida ni el nombre de usuario",
 }
 
 func init() {

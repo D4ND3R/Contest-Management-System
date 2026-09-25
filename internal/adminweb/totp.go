@@ -103,14 +103,16 @@ func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 
 // accountPage is the current administrator's own settings.
 type accountPage struct {
-	TwoFA   bool
-	Pending string        // signed pending secret while enrolling
-	Secret  string        // shown for manual entry
-	QR      template.HTML // otpauth URI as an inline SVG
+	MustChangePassword bool // logged in with a default password
+	TwoFA              bool
+	Pending            string        // signed pending secret while enrolling
+	Secret             string        // shown for manual entry
+	QR                 template.HTML // otpauth URI as an inline SVG
 }
 
 func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	s.render(w, "account", http.StatusOK, s.newPage(w, r, rc, "My account", "", &accountPage{TwoFA: rc.admin.TotpSecret != nil}))
+	s.render(w, "account", http.StatusOK, s.newPage(w, r, rc, "My account", "", &accountPage{
+		MustChangePassword: rc.admin.PasswordChangeRequired, TwoFA: rc.admin.TotpSecret != nil}))
 }
 
 func (s *Server) handle2FAStart(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -178,6 +180,10 @@ func (s *Server) handleAccountPassword(w http.ResponseWriter, r *http.Request, r
 	pw := r.FormValue("password")
 	if len(pw) < 8 {
 		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "The password must have at least 8 characters.")
+		return
+	}
+	if auth.IsDefaultPassword(rc.admin.Username, pw) || pw == r.FormValue("current_password") {
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "Choose a new password that is not a well-known default nor your username.")
 		return
 	}
 	hash, err := auth.HashPassword(pw)
