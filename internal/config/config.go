@@ -132,7 +132,10 @@ type AdminWeb struct {
 	// MaxUploadBytes bounds uploads (testcase archives, statements).
 	MaxUploadBytes ByteSize `yaml:"max_upload_bytes"`
 	LoginRateLimit int      `yaml:"login_rate_limit_per_minute"`
-	Pprof          bool     `yaml:"pprof"`
+	// ContestURL is the public URL of the contest web server (links, "view
+	// as contestant"); empty = same host as the admin, contest_web port.
+	ContestURL string `yaml:"contest_url"`
+	Pprof      bool   `yaml:"pprof"`
 }
 
 type RankingWeb struct {

@@ -68,3 +68,25 @@
 <p class="muted small">Updated {{dt .Time}} UTC.</p>
 </div>
 {{end}}
+
+{{define "sessions"}}
+<table>
+<thead><tr><th>Contest</th><th>IP</th><th>Browser</th><th>Logged in (UTC)</th><th>Last seen (UTC)</th><th>State</th></tr></thead>
+<tbody>
+{{range .}}<tr><td>{{.Contest}}</td><td>{{.IP}}</td><td class="small">{{.UserAgent}}</td><td>{{dt .Issued}}</td><td>{{dt .LastSeen}}</td>
+<td>{{if .Valid}}<span class="ok">active</span>{{else}}<span class="muted">closed</span>{{end}}</td></tr>
+{{else}}<tr><td colspan="6" class="muted">No session in the last 24 hours.</td></tr>{{end}}
+</tbody>
+</table>
+{{end}}
+
+{{define "credentials-form"}}
+<form method="post" action="/credentials.pdf" class="inline-form">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="credentials" value="{{.Data.CSV}}">
+  <label>Title <input name="title" value="{{.Data.Title}}" placeholder="contest name"></label>
+  <label>Address <input name="url" value="{{.Data.URL}}" placeholder="https://…"></label>
+  <label>Cards per page <select name="per_page"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+  <button>Printable credentials (PDF)</button>
+</form>
+{{end}}

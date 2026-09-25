@@ -1,23 +1,42 @@
 {{define "content"}}
 {{$u := .Data.U}}
-<h1>{{if .Data.New}}New user{{else}}User {{$u.Username}}{{end}}</h1>
-<form method="post" action="{{if .Data.New}}/users{{else}}/users/{{$u.ID}}{{end}}" class="card">
+<h1>{{if .Data.New}}New user{{else}}User {{$u.Username}}{{if $u.Disabled}} <span class="tag bad">disabled</span>{{end}}{{end}}</h1>
+<form method="post" action="{{if .Data.New}}/users{{else}}/users/{{$u.ID}}{{end}}" enctype="multipart/form-data" class="card">
 {{template "csrf" .CSRF}}
 <fieldset {{if not .CanWrite}}disabled{{end}}>
 <div class="grid">
   <label>Username <input name="username" value="{{$u.Username}}" required autocomplete="off"></label>
-  <label>Password <input type="password" name="password" autocomplete="new-password" {{if .Data.New}}required{{else}}placeholder="leave empty to keep"{{end}}></label>
+  <label>Password <input type="password" name="password" autocomplete="new-password" {{if not .Data.New}}placeholder="leave empty to keep"{{end}}></label>
   <label>First name <input name="first_name" value="{{$u.FirstName}}"></label>
   <label>Last name <input name="last_name" value="{{$u.LastName}}"></label>
   <label>Email <input type="email" name="email" value="{{$u.Email}}"></label>
+  <label>Institution / school <input name="institution" value="{{$u.Institution}}"></label>
+  <label>Country <input name="country" value="{{$u.Country}}" placeholder="e.g. MX"></label>
+  <label>State / region <input name="region" value="{{$u.Region}}"></label>
   <label>Timezone <input name="timezone" value="{{deref $u.Timezone}}" placeholder="contest timezone"></label>
+  <label>Photo {{if $u.PhotoDigest}}<img src="/users/{{$u.ID}}/photo" alt="" class="photo"> <label class="inline"><input type="checkbox" name="remove_photo"> remove</label>{{end}}
+    <input type="file" name="photo" accept="image/*"></label>
 </div>
 <p class="checks">Interface language: {{range .Data.Localizations}}<label><input type="checkbox" name="preferred_languages" value="{{.Code}}" {{if has $u.PreferredLanguages .Code}}checked{{end}}> {{.Name}}</label>{{end}}</p>
-{{if .Data.New}}<label>Add to contest <select name="contest_id"><option value="">none</option>{{range .Data.Contests}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
+{{if .Data.New}}
+<p class="checks"><label><input type="checkbox" name="generate_password"> Generate a secure password (shown once, printable)</label></p>
+<label>Add to contest <select name="contest_id"><option value="">none</option>{{range .Data.Contests}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
+{{end}}
 {{if .CanWrite}}<button>{{if .Data.New}}Create user{{else}}Save{{end}}</button>{{end}}
 </fieldset>
 </form>
 {{if not .Data.New}}
+{{if .CanWrite}}
+<section class="card actions">
+  <form method="post" action="/users/{{$u.ID}}/reset-password" class="inline" data-confirm="Generate a new password for {{$u.Username}}? The current one stops working.">{{template "csrf" .CSRF}}<button class="secondary">Generate a new password</button></form>
+  <form method="post" action="/users/{{$u.ID}}/logout" class="inline">{{template "csrf" .CSRF}}<button class="secondary">Close every session</button></form>
+  {{if $u.Disabled}}
+  <form method="post" action="/users/{{$u.ID}}/enable" class="inline">{{template "csrf" .CSRF}}<button>Enable</button></form>
+  {{else}}
+  <form method="post" action="/users/{{$u.ID}}/disable" class="inline" data-confirm="Disable {{$u.Username}}? They cannot log in until enabled again.">{{template "csrf" .CSRF}}<button class="danger">Disable</button></form>
+  {{end}}
+</section>
+{{end}}
 <section class="card">
 <h2>Participations</h2>
 <table><thead><tr><th>Contest</th><th>Team</th><th>Flags</th><th></th></tr></thead><tbody>
@@ -26,6 +45,10 @@
 {{else}}<tr><td colspan="4" class="muted">None.</td></tr>{{end}}
 </tbody></table>
 {{if .CanWrite}}<p>Reevaluate all of this user's submissions: {{template "reevaluate" (reeval .CSRF "user_id" $u.ID (printf "/users/%d" $u.ID))}}</p>{{end}}
+</section>
+<section class="card">
+<h2>Sessions <small class="muted">last 24 hours</small></h2>
+{{template "sessions" .Data.Sessions}}
 </section>
 {{if .CanWrite}}
 <section class="card danger">

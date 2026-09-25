@@ -37,26 +37,30 @@ import (
 
 // Server is the admin web server.
 type Server struct {
-	cfg     config.AdminWeb
-	log     *slog.Logger
-	pool    *pgxpool.Pool
-	q       *sqlc.Queries
-	rdb     *redis.Client
-	queue   *queue.Queue
-	ns      string
-	blobs   blob.Store
-	langs   *langs.Registry
-	pages   map[string]*template.Template
-	static  *webkit.Static
-	csrf    *webkit.CSRF
-	signer  *webkit.Signer
-	flash   *webkit.Signer
-	ips     *webkit.IPResolver
-	limiter *webkit.Limiter
-	admins  *adminCache
-	hub     *adminHub
-	checks  []httpx.Check
-	now     func() time.Time
+	cfg      config.AdminWeb
+	log      *slog.Logger
+	pool     *pgxpool.Pool
+	q        *sqlc.Queries
+	rdb      *redis.Client
+	queue    *queue.Queue
+	ns       string
+	blobs    blob.Store
+	langs    *langs.Registry
+	pages    map[string]*template.Template
+	static   *webkit.Static
+	csrf     *webkit.CSRF
+	signer   *webkit.Signer
+	flash    *webkit.Signer
+	ips      *webkit.IPResolver
+	limiter  *webkit.Limiter
+	admins   *adminCache
+	hub      *adminHub
+	sessions *webkit.SessionTracker
+	secret   []byte
+	// contestListen is the contest web server's listen address (links).
+	contestListen string
+	checks        []httpx.Check
+	now           func() time.Time
 	// MaxUploadBytes bounds multipart requests (testcase archives).
 	maxUpload int64
 }
@@ -70,6 +74,9 @@ type Deps struct {
 	Secret []byte
 	NS     string
 	Checks []httpx.Check
+	// ContestListen is the contest web server's listen address, used to
+	// build links when admin_web.contest_url is not set.
+	ContestListen string
 }
 
 // New builds a server.
@@ -89,6 +96,7 @@ func New(cfg config.AdminWeb, d Deps, log *slog.Logger) (*Server, error) {
 		signer: webkit.NewSigner(d.Secret, "aws-session"), flash: webkit.NewSigner(d.Secret, "aws-flash"),
 		ips: ips, limiter: webkit.NewLimiter(d.Redis, d.NS), admins: &adminCache{q: q, m: map[int64]adminEntry{}},
 		hub: &adminHub{clients: map[chan []byte]struct{}{}}, checks: d.Checks, now: time.Now,
+		sessions: webkit.NewSessionTracker(d.Redis, d.NS), secret: d.Secret, contestListen: d.ContestListen,
 		maxUpload: 1 << 30,
 	}
 	if err := s.loadTemplates(); err != nil {
@@ -154,6 +162,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /metrics", metrics.Handler())
 	mux.HandleFunc("GET /login", s.handleLoginForm)
 	mux.HandleFunc("POST /login", s.handleLogin)
+	mux.HandleFunc("POST /login/2fa", s.handleLogin2FA)
 
 	// route registers pattern with the permission it needs; mutating
 	// requests are audited under action.
@@ -164,6 +173,11 @@ func (s *Server) Handler() http.Handler {
 	post := func(pattern string, p perm, action string, h handler) { route("POST "+pattern, p, action, h) }
 
 	post("/logout", permRead, "", s.handleLogout)
+	get("/account", s.handleAccount)
+	post("/account/2fa/start", permRead, "", s.handle2FAStart)
+	post("/account/2fa/enable", permRead, "account.2fa_enable", s.handle2FAEnable)
+	post("/account/2fa/disable", permRead, "account.2fa_disable", s.handle2FADisable)
+	post("/account/password", permRead, "account.password", s.handleAccountPassword)
 	get("/{$}", s.handleDashboard)
 	get("/events", s.handleEvents)
 
@@ -177,6 +191,11 @@ func (s *Server) Handler() http.Handler {
 	post("/contests/{id}/tasks/{task}/move", permAll, "contest.move_task", s.handleContestMoveTask)
 	post("/contests/{id}/tasks/{task}/remove", permAll, "contest.remove_task", s.handleContestRemoveTask)
 	get("/contests/{id}/participations", s.handleParticipations)
+	post("/contests/{id}/reset-passwords", permAll, "contest.reset_passwords", s.handleContestResetPasswords)
+	get("/contests/{id}/sites", s.handleSites)
+	post("/contests/{id}/sites", permAll, "site.create", s.handleSiteCreate)
+	post("/sites/{id}", permAll, "site.update", s.handleSiteUpdate)
+	post("/sites/{id}/delete", permAll, "site.delete", s.handleSiteDelete)
 	post("/contests/{id}/participations", permAll, "participation.create", s.handleParticipationCreate)
 	get("/contests/{id}/submissions", s.handleSubmissions)
 	get("/contests/{id}/ranking", s.handleRanking)
@@ -187,6 +206,7 @@ func (s *Server) Handler() http.Handler {
 	get("/participations/{id}", s.handleParticipation)
 	post("/participations/{id}", permAll, "participation.update", s.handleParticipationUpdate)
 	post("/participations/{id}/delete", permAll, "participation.delete", s.handleParticipationDelete)
+	post("/participations/{id}/view-as", permRead, "participation.view_as", s.handleViewAs)
 
 	get("/tasks", s.handleTasks)
 	post("/tasks", permAll, "task.create", s.handleTaskCreate)
@@ -224,15 +244,23 @@ func (s *Server) Handler() http.Handler {
 	get("/users/new", s.handleUserNew)
 	post("/users", permAll, "user.create", s.handleUserCreate)
 	post("/users/import", permAll, "user.import", s.handleUserImport)
+	get("/users/export.csv", s.handleUsersExport)
+	post("/credentials.pdf", permAll, "credentials.print", s.handleCredentialsPDF)
 	get("/users/{id}", s.handleUser)
+	get("/users/{id}/photo", s.handleUserPhoto)
 	post("/users/{id}", permAll, "user.update", s.handleUserUpdate)
 	post("/users/{id}/delete", permAll, "user.delete", s.handleUserDelete)
+	post("/users/{id}/disable", permAll, "user.disable", s.handleUserDisable)
+	post("/users/{id}/enable", permAll, "user.enable", s.handleUserEnable)
+	post("/users/{id}/logout", permAll, "user.logout", s.handleUserLogout)
+	post("/users/{id}/reset-password", permAll, "user.reset_password", s.handleUserResetPassword)
 
 	get("/teams", s.handleTeams)
 	post("/teams", permAll, "team.create", s.handleTeamCreate)
 	get("/teams/{id}", s.handleTeam)
 	post("/teams/{id}", permAll, "team.update", s.handleTeamUpdate)
 	post("/teams/{id}/delete", permAll, "team.delete", s.handleTeamDelete)
+	post("/teams/{id}/members", permAll, "team.add_members", s.handleTeamMembers)
 	get("/teams/{id}/{kind}", s.handleTeamImage)
 
 	get("/admins", s.handleAdmins)
@@ -436,7 +464,8 @@ func (rc *reqCtx) note(key string, v any) {
 }
 
 // sensitive form fields never stored in the audit log.
-var sensitive = map[string]bool{"csrf": true, "password": true, "password2": true, "participation_password": true}
+var sensitive = map[string]bool{"csrf": true, "password": true, "password2": true, "participation_password": true,
+	"credentials": true, "totp_code": true}
 
 func (s *Server) writeAudit(r *http.Request, rc *reqCtx) {
 	e := rc.audit

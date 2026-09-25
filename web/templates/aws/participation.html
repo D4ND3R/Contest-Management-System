@@ -1,7 +1,8 @@
 {{define "content"}}
 {{$p := .Data.P}}
 <h1>{{$p.Username}} <small class="muted">{{$p.FirstName}} {{$p.LastName}} · {{$p.ContestName}}</small></h1>
-<p class="actions"><a href="/users/{{$p.UserID}}">User</a> · <a href="/contests/{{$p.ContestID}}/submissions?participation={{$p.ID}}">Submissions</a>{{template "extra-participation-links" .}}</p>
+<p class="actions"><a href="/users/{{$p.UserID}}">User</a> · <a href="/contests/{{$p.ContestID}}/submissions?participation={{$p.ID}}">Submissions</a>{{template "extra-participation-links" .}}
+  <form method="post" action="/participations/{{$p.ID}}/view-as" class="inline">{{template "csrf" .CSRF}}<button class="secondary small">View as contestant (read-only)</button></form></p>
 <div class="row">
 <section class="card">
 <h2>Scores</h2>
@@ -15,6 +16,7 @@
 {{template "csrf" .CSRF}}
 <fieldset {{if not .CanWrite}}disabled{{end}}>
   <label>Team <select name="team_id"><option value="">—</option>{{range .Data.Teams}}<option value="{{.ID}}" {{if and $p.TeamID (eq .ID (deref64 $p.TeamID))}}selected{{end}}>{{.Code}} — {{.Name}}</option>{{end}}</select></label>
+  <label>Site <select name="site_id"><option value="">—</option>{{range .Data.Sites}}<option value="{{.ID}}" {{if and $p.SiteID (eq .ID (deref64 $p.SiteID))}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
   <label>Allowed addresses (IPs or subnets) <input name="ip" value="{{cidrs $p.Ip}}" placeholder="any"></label>
   <div class="grid">
     <label>Delay (s) <input name="delay_time_s" value="{{$p.DelayTimeS}}" inputmode="numeric"></label>
@@ -32,6 +34,10 @@
 </fieldset>
 </form>
 </div>
+<section class="card">
+<h2>Sessions <small class="muted">last 24 hours</small></h2>
+{{template "sessions" .Data.Sessions}}
+</section>
 {{if .CanWrite}}
 <section class="card danger">
 <form method="post" action="/participations/{{$p.ID}}/delete" data-confirm="Delete the participation and its submissions?">

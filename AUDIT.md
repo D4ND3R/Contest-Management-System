@@ -1,4 +1,4 @@
-# Compatibility and completeness audit (SPEC_AUDIT.md)
+# Compatibility and completeness audit (SPEC_AUDIT.md + SPEC_CLOSE.md)
 
 Status: **complete** / **partial** / **missing** / **hw** (pending
 verification on real hardware). Every requirement lists the files that
@@ -28,17 +28,17 @@ first audit (after F6), the "status" column the current state.
 
 | ID | Requirement | Initial | Status | Files | Tests |
 |----|-------------|---------|--------|-------|-------|
-| U1 | User fields: username, names, email, institution, country, region, photo, preferred language, timezone | partial (no institution/country/region/photo) | partial | adminweb/users.go | adminweb.TestUserImportAndParticipations |
-| U2 | CSV import with preview and per-row error report | partial (no preview) | partial | adminweb/users.go | adminweb.TestUserImportAndParticipations |
-| U3 | CSV export | missing | missing | — | — |
-| U4 | Secure password generation, password reset | partial (import only) | partial | adminweb/users.go | adminweb.TestUserImportAndParticipations |
-| U5 | Printable credentials sheet (PDF, one or several per page) | missing | missing | — | — |
-| U6 | Edit, disable/enable, delete with confirmation, force logout, active sessions and IPs | partial (no disable/sessions) | partial | adminweb/users.go, adminweb/participations.go | adminweb.TestUserImportAndParticipations |
-| U7 | View as contestant (read-only, audited) | missing | missing | — | — |
+| U1 | User fields: username, names, email, institution, country, region, photo, preferred language, timezone | partial (no institution/country/region/photo) | complete | adminweb/users.go, db/migrations/0004_users.sql | adminweb.TestUserAccountActions, adminweb.TestUserImportAndParticipations |
+| U2 | CSV import with preview and per-row error report | partial (no preview) | complete | adminweb/users.go (preview → confirm), web/templates/aws/user_import.html | adminweb.TestUserImportAndParticipations |
+| U3 | CSV export | missing | complete | adminweb/accounts.go (/users/export.csv) | adminweb.TestUserImportAndParticipations |
+| U4 | Secure password generation, password reset (single and bulk) | partial (import only) | complete | adminweb/accounts.go | adminweb.TestUserAccountActions |
+| U5 | Printable credentials sheet (PDF, 1/2/4/6/8 per page: user, password, name, site, URL) | missing | complete | internal/pdf, adminweb/accounts.go | pdf.TestDocumentStructure, adminweb.TestUserImportAndParticipations |
+| U6 | Edit, disable/enable, delete with confirmation, force logout, active sessions and IPs | partial (no disable/sessions) | complete | adminweb/accounts.go, webkit/sessions.go, contestweb/server.go | e2e.TestAdminControlsContestantSessions, adminweb.TestUserAccountActions |
+| U7 | View as contestant (read-only, audited) | missing | complete | adminweb/accounts.go, contestweb/auth.go (impersonate), webkit/session.go | e2e.TestAdminControlsContestantSessions |
 | U8 | Participations one by one or in bulk with overrides (password, IPs, extra/delay time, hidden, unrestricted) | complete | complete | adminweb/participations.go, adminweb/users.go | adminweb.TestUserImportAndParticipations |
-| U9 | Teams: CRUD, members, name, flag/logo, institution | partial (no institution, members via participations) | partial | adminweb/users.go | adminweb.TestEveryPageRenders |
-| U10 | Sites/groups with their own start time; ranking filter by site | missing | missing | — | — |
-| U11 | Administrators with roles and optional TOTP 2FA | partial (no TOTP) | partial | adminweb/system.go, adminweb/auth.go | adminweb.TestLoginRolesAndAudit, adminweb.TestAdministratorSafety |
+| U9 | Teams: CRUD, members, name, flag/logo, institution | partial (no institution, members via participations) | complete | adminweb/users.go, adminweb/sites.go | adminweb.TestTeamsSitesAndMembers |
+| U10 | Sites/groups with their own start time; ranking filter by site | missing | complete | adminweb/sites.go, contest/timing.go, ranking/ranking.go | contest.TestSiteStartAndPractice, adminweb.TestTeamsSitesAndMembers |
+| U11 | Administrators with roles and optional TOTP 2FA | partial (no TOTP) | complete | adminweb/totp.go, auth/totp.go | auth.TestTOTPRFC6238Vectors, adminweb.TestAdminTOTP, adminweb.TestLoginRolesAndAudit |
 
 ## §4 Contest configuration
 
@@ -75,6 +75,10 @@ first audit (after F6), the "status" column the current state.
 | K15 | Zip testcases with input/output pair detection | complete | complete | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
 | K16 | Datasets and live switch | complete | complete | adminweb/datasets.go, dispatcher/reeval.go | adminweb.TestTaskAndDatasetManagement, dispatcher.TestLiveDatasetChange |
 | K17 | Task order in the contest | complete | complete | adminweb/contests.go | adminweb.TestTaskAndDatasetManagement |
+| K18 | Own problem package: zip with `problem.yaml`, `statement/`, `tests/`, checker/interactor/manager, `graders/`, `attachments/`; documented with one example per type | missing | missing | — | — |
+| K19 | Admin upload: drag and drop, preview, per-file errors before creating anything, create a task or add a dataset to an existing one | missing | missing | — | — |
+| K20 | Automatic validation on import: compile checker/interactor/manager, run `solutions/` (expected verdict in the name) with the task tester, report before publishing | missing | missing | — | — |
+| K21 | Export any task in the same format | missing | missing | — | — |
 
 ## §6 Other CMS features
 

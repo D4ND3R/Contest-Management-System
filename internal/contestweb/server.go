@@ -39,25 +39,27 @@ import (
 
 // Server is the contest web server.
 type Server struct {
-	cfg     config.ContestWeb
-	log     *slog.Logger
-	pool    *pgxpool.Pool
-	q       *sqlc.Queries
-	rdb     *redis.Client
-	queue   *queue.Queue
-	ns      string
-	blobs   blob.Store
-	langs   *langs.Registry
-	pages   map[string]*template.Template
-	static  *webkit.Static
-	csrf    *webkit.CSRF
-	signer  *webkit.Signer
-	ips     *webkit.IPResolver
-	limiter *webkit.Limiter
-	cache   *cache
-	hub     *hub
-	checks  []httpx.Check
-	now     func() time.Time
+	cfg      config.ContestWeb
+	log      *slog.Logger
+	pool     *pgxpool.Pool
+	q        *sqlc.Queries
+	rdb      *redis.Client
+	queue    *queue.Queue
+	ns       string
+	blobs    blob.Store
+	langs    *langs.Registry
+	pages    map[string]*template.Template
+	static   *webkit.Static
+	csrf     *webkit.CSRF
+	signer   *webkit.Signer
+	ips      *webkit.IPResolver
+	limiter  *webkit.Limiter
+	cache    *cache
+	secret   []byte
+	hub      *hub
+	sessions *webkit.SessionTracker
+	checks   []httpx.Check
+	now      func() time.Time
 }
 
 // Deps are the dependencies of the server.
@@ -86,7 +88,8 @@ func New(cfg config.ContestWeb, d Deps, log *slog.Logger) (*Server, error) {
 		cfg: cfg, log: log, pool: d.Pool, q: q, rdb: d.Redis, queue: queue.New(d.Redis, d.NS), ns: d.NS,
 		blobs: d.Blobs, langs: d.Langs, static: static, csrf: webkit.NewCSRF(d.Secret),
 		signer: webkit.NewSigner(d.Secret, "cws-session"), ips: ips, limiter: webkit.NewLimiter(d.Redis, d.NS),
-		cache: newCache(q, d.Langs, 3*time.Second), hub: newHub(), checks: d.Checks, now: time.Now,
+		secret: d.Secret, cache: newCache(q, d.Langs, 3*time.Second), hub: newHub(), sessions: webkit.NewSessionTracker(d.Redis, d.NS),
+		checks: d.Checks, now: time.Now,
 	}
 	if err := s.loadTemplates(); err != nil {
 		return nil, err
@@ -140,6 +143,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /{contest}/login", s.withContest(s.handleLogin))
 	mux.HandleFunc("POST /{contest}/lang", s.withContest(s.handleLang))
 	mux.HandleFunc("POST /{contest}/logout", s.withContest(s.handleLogout))
+	mux.HandleFunc("GET /{contest}/impersonate", s.withContest(s.handleImpersonate))
 
 	auth := func(h func(http.ResponseWriter, *http.Request, *reqCtx)) http.HandlerFunc {
 		return s.withContest(s.withAuth(h))
@@ -263,9 +267,20 @@ func (s *Server) withAuth(h func(http.ResponseWriter, *http.Request, *reqCtx)) h
 			s.redirectLogin(w, r, cv)
 			return
 		}
-		if cv.SingleLogin && sess.Nonce != part.LoginNonce {
+		if sess.Nonce != part.LoginNonce {
+			// The nonce is bumped by a new login (single-login contests) and
+			// when the organizers close the participation's sessions.
 			s.cookie(cv.ID).Clear(w)
-			s.errorPage(w, r, cv, http.StatusUnauthorized, "Logged out", "You logged in from another place.")
+			msg := "Your session was closed by the organizers."
+			if cv.SingleLogin {
+				msg = "You logged in from another place."
+			}
+			s.errorPage(w, r, cv, http.StatusUnauthorized, "Logged out", msg)
+			return
+		}
+		if part.Disabled {
+			s.cookie(cv.ID).Clear(w)
+			s.errorPage(w, r, cv, http.StatusForbidden, "Forbidden", "Your account is disabled.")
 			return
 		}
 		if cv.IpRestriction && len(part.Ip) > 0 && !ipAllowed(part.Ip, ip) {
@@ -276,18 +291,25 @@ func (s *Server) withAuth(h func(http.ResponseWriter, *http.Request, *reqCtx)) h
 		rc := &reqCtx{contest: cv, part: part, sess: sess, ip: ip, now: now,
 			lang: s.language(r, cv, part.PreferredLanguages, sess.Lang)}
 		rc.status = contest.Compute(cv.Rules, participantOf(part), now)
+		if r.Method == http.MethodPost && sess.ReadOnly {
+			s.errorPage(w, r, cv, http.StatusForbidden, "Forbidden", "This is a read-only view for administrators.")
+			return
+		}
 		if r.Method == http.MethodPost {
 			if err := s.csrf.Check(r, sess.ID); err != nil {
 				s.errorPage(w, r, cv, http.StatusForbidden, "Forbidden", "Your session expired; reload the page and try again.")
 				return
 			}
 		}
+		if !sess.ReadOnly {
+			s.sessions.Touch(part.ID, sess, ip, r.UserAgent())
+		}
 		h(w, r, rc)
 	}
 }
 
 func participantOf(p sqlc.GetParticipationViewRow) contest.Participant {
-	return contest.Participant{StartingTime: p.StartingTime, Delay: time.Duration(p.DelayTimeS) * time.Second,
+	return contest.Participant{StartingTime: p.StartingTime, SiteStart: p.SiteStartTime, Delay: time.Duration(p.DelayTimeS) * time.Second,
 		Extra: time.Duration(p.ExtraTimeS) * time.Second, Unrestricted: p.Unrestricted}
 }
 
@@ -335,6 +357,9 @@ func (s *Server) newPage(rc *reqCtx, title, active string) *page {
 		Contest: rc.contest, Part: &rc.part, Status: statusView{rc.status}, Active: active,
 		EventsURL: "/" + rc.contest.Name + "/events", ServerTime: rc.now.UnixMilli(),
 		UILanguages: uiLanguages(rc.contest.AllowedLocalizations), loc: loc,
+	}
+	if rc.sess.ReadOnly {
+		p.ViewAs = rc.part.Username
 	}
 	if rc.status.Phase != contest.NotStarted && rc.status.Phase != contest.WaitingStart || rc.part.Unrestricted {
 		p.Tasks = rc.contest.Tasks

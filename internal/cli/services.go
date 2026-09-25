@@ -96,6 +96,7 @@ func runAdminWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) erro
 	}
 	srv, err := adminweb.New(cfg.AdminWeb, adminweb.Deps{
 		Pool: d.DB, Redis: d.Redis, Blobs: d.Blobs, Langs: reg, Secret: cfg.Secret(), NS: cfg.Redis.Namespace, Checks: d.Checks(),
+		ContestListen: cfg.ContestWeb.Listen,
 	}, log)
 	if err != nil {
 		return err

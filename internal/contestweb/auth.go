@@ -123,6 +123,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.loginPage(w, r, cv, http.StatusUnauthorized, msgBadCredentials)
 		return
 	}
+	if cand.Disabled {
+		s.loginPage(w, r, cv, http.StatusForbidden, "Your account is disabled.")
+		return
+	}
 	if cv.BlockHiddenParticipations && cand.Hidden {
 		s.loginPage(w, r, cv, http.StatusForbidden, msgBadCredentials)
 		return
@@ -186,4 +190,24 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 	s.cookie(cv.ID).Clear(w)
 	webkit.Redirect(w, r, "/"+cv.Name+"/login")
+}
+
+// handleImpersonate opens a read-only session for an administrator who
+// clicked "view as contestant" in the admin web server (a signed link valid
+// for a minute; the admin server records it in the audit log).
+func (s *Server) handleImpersonate(w http.ResponseWriter, r *http.Request) {
+	cv := contestOf(r)
+	imp, ok := webkit.VerifyImpersonation(s.secret, r.URL.Query().Get("t"))
+	if !ok {
+		s.errorPage(w, r, cv, http.StatusForbidden, "Forbidden", "The link expired; open it again from the admin panel.")
+		return
+	}
+	part, err := s.cache.participation(r.Context(), imp.ParticipationID)
+	if err != nil || part.ContestID != cv.ID {
+		s.errorPage(w, r, cv, http.StatusNotFound, "Not found", "This contest does not exist.")
+		return
+	}
+	s.cookie(cv.ID).Write(w, &webkit.Session{ParticipationID: part.ID, UserID: part.UserID, ContestID: cv.ID,
+		Nonce: part.LoginNonce, ReadOnly: true, AdminID: imp.AdminID})
+	http.Redirect(w, r, "/"+cv.Name+"/", http.StatusSeeOther)
 }

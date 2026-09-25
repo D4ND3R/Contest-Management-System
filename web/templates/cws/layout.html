@@ -38,6 +38,7 @@
   </form>
 </header>
 <main>
+{{with .ViewAs}}<p class="alert" role="status">{{$.T "Administrator view as %s (read-only)." .}}</p>{{end}}
 {{with .Flash}}<p class="info">{{.}}</p>{{end}}
 {{template "content" .}}
 </main>

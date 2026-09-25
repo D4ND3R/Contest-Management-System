@@ -22,10 +22,26 @@ func (q *Queries) BumpLoginNonce(ctx context.Context, id int64) (int64, error) {
 	return login_nonce, err
 }
 
+const countTeamMembers = `-- name: CountTeamMembers :one
+SELECT count(*) FROM participations WHERE contest_id = $1 AND team_id = $2
+`
+
+type CountTeamMembersParams struct {
+	ContestID int64  `json:"contest_id"`
+	TeamID    *int64 `json:"team_id"`
+}
+
+func (q *Queries) CountTeamMembers(ctx context.Context, arg CountTeamMembersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTeamMembers, arg.ContestID, arg.TeamID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createParticipation = `-- name: CreateParticipation :one
 INSERT INTO participations (contest_id, user_id, team_id, password_hash, ip, delay_time_s, extra_time_s, hidden, unrestricted)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce
+RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id
 `
 
 type CreateParticipationParams struct {
@@ -66,12 +82,35 @@ func (q *Queries) CreateParticipation(ctx context.Context, arg CreateParticipati
 		&i.Hidden,
 		&i.Unrestricted,
 		&i.LoginNonce,
+		&i.SiteID,
+	)
+	return i, err
+}
+
+const createSite = `-- name: CreateSite :one
+INSERT INTO sites (contest_id, name, start_time) VALUES ($1, $2, $3) RETURNING id, contest_id, name, start_time
+`
+
+type CreateSiteParams struct {
+	ContestID int64      `json:"contest_id"`
+	Name      string     `json:"name"`
+	StartTime *time.Time `json:"start_time"`
+}
+
+func (q *Queries) CreateSite(ctx context.Context, arg CreateSiteParams) (Site, error) {
+	row := q.db.QueryRow(ctx, createSite, arg.ContestID, arg.Name, arg.StartTime)
+	var i Site
+	err := row.Scan(
+		&i.ID,
+		&i.ContestID,
+		&i.Name,
+		&i.StartTime,
 	)
 	return i, err
 }
 
 const createTeam = `-- name: CreateTeam :one
-INSERT INTO teams (code, name, flag_digest, photo_digest) VALUES ($1, $2, $3, $4) RETURNING id, code, name, flag_digest, photo_digest
+INSERT INTO teams (code, name, flag_digest, photo_digest, institution) VALUES ($1, $2, $3, $4, $5) RETURNING id, code, name, flag_digest, photo_digest, institution
 `
 
 type CreateTeamParams struct {
@@ -79,6 +118,7 @@ type CreateTeamParams struct {
 	Name        string  `json:"name"`
 	FlagDigest  *string `json:"flag_digest"`
 	PhotoDigest *string `json:"photo_digest"`
+	Institution string  `json:"institution"`
 }
 
 func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, error) {
@@ -87,6 +127,7 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 		arg.Name,
 		arg.FlagDigest,
 		arg.PhotoDigest,
+		arg.Institution,
 	)
 	var i Team
 	err := row.Scan(
@@ -95,14 +136,17 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 		&i.Name,
 		&i.FlagDigest,
 		&i.PhotoDigest,
+		&i.Institution,
 	)
 	return i, err
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (username, first_name, last_name, email, password_hash, timezone, preferred_languages)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, username, first_name, last_name, email, password_hash, timezone, preferred_languages, created_at
+INSERT INTO users (username, first_name, last_name, email, password_hash, timezone, preferred_languages,
+                   institution, country, region)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8, $9, $10)
+RETURNING id, username, first_name, last_name, email, password_hash, timezone, preferred_languages, created_at, institution, country, region, photo_digest, disabled
 `
 
 type CreateUserParams struct {
@@ -113,6 +157,9 @@ type CreateUserParams struct {
 	PasswordHash       string   `json:"password_hash"`
 	Timezone           *string  `json:"timezone"`
 	PreferredLanguages []string `json:"preferred_languages"`
+	Institution        string   `json:"institution"`
+	Country            string   `json:"country"`
+	Region             string   `json:"region"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -124,6 +171,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.PasswordHash,
 		arg.Timezone,
 		arg.PreferredLanguages,
+		arg.Institution,
+		arg.Country,
+		arg.Region,
 	)
 	var i User
 	err := row.Scan(
@@ -136,6 +186,11 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Timezone,
 		&i.PreferredLanguages,
 		&i.CreatedAt,
+		&i.Institution,
+		&i.Country,
+		&i.Region,
+		&i.PhotoDigest,
+		&i.Disabled,
 	)
 	return i, err
 }
@@ -146,6 +201,15 @@ DELETE FROM participations WHERE id = $1
 
 func (q *Queries) DeleteParticipation(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteParticipation, id)
+	return err
+}
+
+const deleteSite = `-- name: DeleteSite :exec
+DELETE FROM sites WHERE id = $1
+`
+
+func (q *Queries) DeleteSite(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteSite, id)
 	return err
 }
 
@@ -169,7 +233,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 
 const getLoginCandidate = `-- name: GetLoginCandidate :one
 SELECT p.id AS participation_id, p.password_hash AS participation_password_hash, p.ip, p.hidden,
-       p.login_nonce, u.id AS user_id, u.username, u.password_hash AS user_password_hash
+       p.login_nonce, u.id AS user_id, u.username, u.password_hash AS user_password_hash, u.disabled
 FROM participations p JOIN users u ON u.id = p.user_id
 WHERE p.contest_id = $1 AND u.username = $2
 `
@@ -188,6 +252,7 @@ type GetLoginCandidateRow struct {
 	UserID                    int64          `json:"user_id"`
 	Username                  string         `json:"username"`
 	UserPasswordHash          string         `json:"user_password_hash"`
+	Disabled                  bool           `json:"disabled"`
 }
 
 // Everything CWS needs to authenticate a contestant, in one round trip.
@@ -203,12 +268,13 @@ func (q *Queries) GetLoginCandidate(ctx context.Context, arg GetLoginCandidatePa
 		&i.UserID,
 		&i.Username,
 		&i.UserPasswordHash,
+		&i.Disabled,
 	)
 	return i, err
 }
 
 const getParticipation = `-- name: GetParticipation :one
-SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce FROM participations WHERE id = $1
+SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id FROM participations WHERE id = $1
 `
 
 func (q *Queries) GetParticipation(ctx context.Context, id int64) (Participation, error) {
@@ -227,12 +293,13 @@ func (q *Queries) GetParticipation(ctx context.Context, id int64) (Participation
 		&i.Hidden,
 		&i.Unrestricted,
 		&i.LoginNonce,
+		&i.SiteID,
 	)
 	return i, err
 }
 
 const getParticipationByContestUser = `-- name: GetParticipationByContestUser :one
-SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce FROM participations WHERE contest_id = $1 AND user_id = $2
+SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id FROM participations WHERE contest_id = $1 AND user_id = $2
 `
 
 type GetParticipationByContestUserParams struct {
@@ -256,12 +323,29 @@ func (q *Queries) GetParticipationByContestUser(ctx context.Context, arg GetPart
 		&i.Hidden,
 		&i.Unrestricted,
 		&i.LoginNonce,
+		&i.SiteID,
+	)
+	return i, err
+}
+
+const getSite = `-- name: GetSite :one
+SELECT id, contest_id, name, start_time FROM sites WHERE id = $1
+`
+
+func (q *Queries) GetSite(ctx context.Context, id int64) (Site, error) {
+	row := q.db.QueryRow(ctx, getSite, id)
+	var i Site
+	err := row.Scan(
+		&i.ID,
+		&i.ContestID,
+		&i.Name,
+		&i.StartTime,
 	)
 	return i, err
 }
 
 const getTeam = `-- name: GetTeam :one
-SELECT id, code, name, flag_digest, photo_digest FROM teams WHERE id = $1
+SELECT id, code, name, flag_digest, photo_digest, institution FROM teams WHERE id = $1
 `
 
 func (q *Queries) GetTeam(ctx context.Context, id int64) (Team, error) {
@@ -273,12 +357,13 @@ func (q *Queries) GetTeam(ctx context.Context, id int64) (Team, error) {
 		&i.Name,
 		&i.FlagDigest,
 		&i.PhotoDigest,
+		&i.Institution,
 	)
 	return i, err
 }
 
 const getTeamByCode = `-- name: GetTeamByCode :one
-SELECT id, code, name, flag_digest, photo_digest FROM teams WHERE code = $1
+SELECT id, code, name, flag_digest, photo_digest, institution FROM teams WHERE code = $1
 `
 
 func (q *Queries) GetTeamByCode(ctx context.Context, code string) (Team, error) {
@@ -290,12 +375,13 @@ func (q *Queries) GetTeamByCode(ctx context.Context, code string) (Team, error) 
 		&i.Name,
 		&i.FlagDigest,
 		&i.PhotoDigest,
+		&i.Institution,
 	)
 	return i, err
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, username, first_name, last_name, email, password_hash, timezone, preferred_languages, created_at FROM users WHERE id = $1
+SELECT id, username, first_name, last_name, email, password_hash, timezone, preferred_languages, created_at, institution, country, region, photo_digest, disabled FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id int64) (User, error) {
@@ -311,12 +397,17 @@ func (q *Queries) GetUser(ctx context.Context, id int64) (User, error) {
 		&i.Timezone,
 		&i.PreferredLanguages,
 		&i.CreatedAt,
+		&i.Institution,
+		&i.Country,
+		&i.Region,
+		&i.PhotoDigest,
+		&i.Disabled,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, first_name, last_name, email, password_hash, timezone, preferred_languages, created_at FROM users WHERE username = $1
+SELECT id, username, first_name, last_name, email, password_hash, timezone, preferred_languages, created_at, institution, country, region, photo_digest, disabled FROM users WHERE username = $1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
@@ -332,16 +423,23 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.Timezone,
 		&i.PreferredLanguages,
 		&i.CreatedAt,
+		&i.Institution,
+		&i.Country,
+		&i.Region,
+		&i.PhotoDigest,
+		&i.Disabled,
 	)
 	return i, err
 }
 
 const listParticipationsByContest = `-- name: ListParticipationsByContest :many
-SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, u.username, u.first_name, u.last_name, u.timezone AS user_timezone,
-       t.code AS team_code, t.name AS team_name
+SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, u.username, u.first_name, u.last_name, u.timezone AS user_timezone,
+       u.institution, u.country, u.disabled, t.code AS team_code, t.name AS team_name,
+       st.name AS site_name, st.start_time AS site_start_time
 FROM participations p
 JOIN users u ON u.id = p.user_id
 LEFT JOIN teams t ON t.id = p.team_id
+LEFT JOIN sites st ON st.id = p.site_id
 WHERE p.contest_id = $1
 ORDER BY u.username
 `
@@ -352,8 +450,13 @@ type ListParticipationsByContestRow struct {
 	FirstName     string        `json:"first_name"`
 	LastName      string        `json:"last_name"`
 	UserTimezone  *string       `json:"user_timezone"`
+	Institution   string        `json:"institution"`
+	Country       string        `json:"country"`
+	Disabled      bool          `json:"disabled"`
 	TeamCode      *string       `json:"team_code"`
 	TeamName      *string       `json:"team_name"`
+	SiteName      *string       `json:"site_name"`
+	SiteStartTime *time.Time    `json:"site_start_time"`
 }
 
 func (q *Queries) ListParticipationsByContest(ctx context.Context, contestID int64) ([]ListParticipationsByContestRow, error) {
@@ -378,12 +481,18 @@ func (q *Queries) ListParticipationsByContest(ctx context.Context, contestID int
 			&i.Participation.Hidden,
 			&i.Participation.Unrestricted,
 			&i.Participation.LoginNonce,
+			&i.Participation.SiteID,
 			&i.Username,
 			&i.FirstName,
 			&i.LastName,
 			&i.UserTimezone,
+			&i.Institution,
+			&i.Country,
+			&i.Disabled,
 			&i.TeamCode,
 			&i.TeamName,
+			&i.SiteName,
+			&i.SiteStartTime,
 		); err != nil {
 			return nil, err
 		}
@@ -396,7 +505,7 @@ func (q *Queries) ListParticipationsByContest(ctx context.Context, contestID int
 }
 
 const listParticipationsByUser = `-- name: ListParticipationsByUser :many
-SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce FROM participations WHERE user_id = $1 ORDER BY contest_id
+SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id FROM participations WHERE user_id = $1 ORDER BY contest_id
 `
 
 func (q *Queries) ListParticipationsByUser(ctx context.Context, userID int64) ([]Participation, error) {
@@ -421,6 +530,7 @@ func (q *Queries) ListParticipationsByUser(ctx context.Context, userID int64) ([
 			&i.Hidden,
 			&i.Unrestricted,
 			&i.LoginNonce,
+			&i.SiteID,
 		); err != nil {
 			return nil, err
 		}
@@ -463,8 +573,85 @@ func (q *Queries) ListParticipationsWithIP(ctx context.Context, contestID int64)
 	return items, nil
 }
 
+const listSites = `-- name: ListSites :many
+SELECT id, contest_id, name, start_time FROM sites WHERE contest_id = $1 ORDER BY name
+`
+
+func (q *Queries) ListSites(ctx context.Context, contestID int64) ([]Site, error) {
+	rows, err := q.db.Query(ctx, listSites, contestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Site{}
+	for rows.Next() {
+		var i Site
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContestID,
+			&i.Name,
+			&i.StartTime,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTeamMembers = `-- name: ListTeamMembers :many
+SELECT p.id, p.contest_id, c.name AS contest_name, u.id AS user_id, u.username, u.first_name, u.last_name
+FROM participations p
+JOIN users u ON u.id = p.user_id
+JOIN contests c ON c.id = p.contest_id
+WHERE p.team_id = $1
+ORDER BY c.start_time DESC, u.username
+`
+
+type ListTeamMembersRow struct {
+	ID          int64  `json:"id"`
+	ContestID   int64  `json:"contest_id"`
+	ContestName string `json:"contest_name"`
+	UserID      int64  `json:"user_id"`
+	Username    string `json:"username"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+}
+
+// Participations of a team in every contest.
+func (q *Queries) ListTeamMembers(ctx context.Context, teamID *int64) ([]ListTeamMembersRow, error) {
+	rows, err := q.db.Query(ctx, listTeamMembers, teamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTeamMembersRow{}
+	for rows.Next() {
+		var i ListTeamMembersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContestID,
+			&i.ContestName,
+			&i.UserID,
+			&i.Username,
+			&i.FirstName,
+			&i.LastName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTeams = `-- name: ListTeams :many
-SELECT id, code, name, flag_digest, photo_digest FROM teams ORDER BY code
+SELECT id, code, name, flag_digest, photo_digest, institution FROM teams ORDER BY code
 `
 
 func (q *Queries) ListTeams(ctx context.Context) ([]Team, error) {
@@ -482,6 +669,7 @@ func (q *Queries) ListTeams(ctx context.Context) ([]Team, error) {
 			&i.Name,
 			&i.FlagDigest,
 			&i.PhotoDigest,
+			&i.Institution,
 		); err != nil {
 			return nil, err
 		}
@@ -494,7 +682,7 @@ func (q *Queries) ListTeams(ctx context.Context) ([]Team, error) {
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, username, first_name, last_name, email, password_hash, timezone, preferred_languages, created_at FROM users ORDER BY username
+SELECT id, username, first_name, last_name, email, password_hash, timezone, preferred_languages, created_at, institution, country, region, photo_digest, disabled FROM users ORDER BY username
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
@@ -516,6 +704,11 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.Timezone,
 			&i.PreferredLanguages,
 			&i.CreatedAt,
+			&i.Institution,
+			&i.Country,
+			&i.Region,
+			&i.PhotoDigest,
+			&i.Disabled,
 		); err != nil {
 			return nil, err
 		}
@@ -541,6 +734,20 @@ func (q *Queries) SetParticipationPassword(ctx context.Context, arg SetParticipa
 	return err
 }
 
+const setUserDisabled = `-- name: SetUserDisabled :exec
+UPDATE users SET disabled = $2 WHERE id = $1
+`
+
+type SetUserDisabledParams struct {
+	ID       int64 `json:"id"`
+	Disabled bool  `json:"disabled"`
+}
+
+func (q *Queries) SetUserDisabled(ctx context.Context, arg SetUserDisabledParams) error {
+	_, err := q.db.Exec(ctx, setUserDisabled, arg.ID, arg.Disabled)
+	return err
+}
+
 const setUserPassword = `-- name: SetUserPassword :exec
 UPDATE users SET password_hash = $2 WHERE id = $1
 `
@@ -555,8 +762,22 @@ func (q *Queries) SetUserPassword(ctx context.Context, arg SetUserPasswordParams
 	return err
 }
 
+const setUserPhoto = `-- name: SetUserPhoto :exec
+UPDATE users SET photo_digest = $2 WHERE id = $1
+`
+
+type SetUserPhotoParams struct {
+	ID          int64   `json:"id"`
+	PhotoDigest *string `json:"photo_digest"`
+}
+
+func (q *Queries) SetUserPhoto(ctx context.Context, arg SetUserPhotoParams) error {
+	_, err := q.db.Exec(ctx, setUserPhoto, arg.ID, arg.PhotoDigest)
+	return err
+}
+
 const startParticipation = `-- name: StartParticipation :one
-UPDATE participations SET starting_time = COALESCE(starting_time, $2) WHERE id = $1 RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce
+UPDATE participations SET starting_time = COALESCE(starting_time, $2) WHERE id = $1 RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id
 `
 
 type StartParticipationParams struct {
@@ -581,14 +802,16 @@ func (q *Queries) StartParticipation(ctx context.Context, arg StartParticipation
 		&i.Hidden,
 		&i.Unrestricted,
 		&i.LoginNonce,
+		&i.SiteID,
 	)
 	return i, err
 }
 
 const updateParticipation = `-- name: UpdateParticipation :one
-UPDATE participations SET team_id = $2, ip = $3, delay_time_s = $4, extra_time_s = $5, hidden = $6, unrestricted = $7, starting_time = $8
+UPDATE participations SET team_id = $2, ip = $3, delay_time_s = $4, extra_time_s = $5, hidden = $6, unrestricted = $7,
+    starting_time = $8, site_id = $9
 WHERE id = $1
-RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce
+RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id
 `
 
 type UpdateParticipationParams struct {
@@ -600,6 +823,7 @@ type UpdateParticipationParams struct {
 	Hidden       bool           `json:"hidden"`
 	Unrestricted bool           `json:"unrestricted"`
 	StartingTime *time.Time     `json:"starting_time"`
+	SiteID       *int64         `json:"site_id"`
 }
 
 func (q *Queries) UpdateParticipation(ctx context.Context, arg UpdateParticipationParams) (Participation, error) {
@@ -612,6 +836,7 @@ func (q *Queries) UpdateParticipation(ctx context.Context, arg UpdateParticipati
 		arg.Hidden,
 		arg.Unrestricted,
 		arg.StartingTime,
+		arg.SiteID,
 	)
 	var i Participation
 	err := row.Scan(
@@ -627,12 +852,35 @@ func (q *Queries) UpdateParticipation(ctx context.Context, arg UpdateParticipati
 		&i.Hidden,
 		&i.Unrestricted,
 		&i.LoginNonce,
+		&i.SiteID,
+	)
+	return i, err
+}
+
+const updateSite = `-- name: UpdateSite :one
+UPDATE sites SET name = $2, start_time = $3 WHERE id = $1 RETURNING id, contest_id, name, start_time
+`
+
+type UpdateSiteParams struct {
+	ID        int64      `json:"id"`
+	Name      string     `json:"name"`
+	StartTime *time.Time `json:"start_time"`
+}
+
+func (q *Queries) UpdateSite(ctx context.Context, arg UpdateSiteParams) (Site, error) {
+	row := q.db.QueryRow(ctx, updateSite, arg.ID, arg.Name, arg.StartTime)
+	var i Site
+	err := row.Scan(
+		&i.ID,
+		&i.ContestID,
+		&i.Name,
+		&i.StartTime,
 	)
 	return i, err
 }
 
 const updateTeam = `-- name: UpdateTeam :one
-UPDATE teams SET code = $2, name = $3, flag_digest = $4, photo_digest = $5 WHERE id = $1 RETURNING id, code, name, flag_digest, photo_digest
+UPDATE teams SET code = $2, name = $3, flag_digest = $4, photo_digest = $5, institution = $6 WHERE id = $1 RETURNING id, code, name, flag_digest, photo_digest, institution
 `
 
 type UpdateTeamParams struct {
@@ -641,6 +889,7 @@ type UpdateTeamParams struct {
 	Name        string  `json:"name"`
 	FlagDigest  *string `json:"flag_digest"`
 	PhotoDigest *string `json:"photo_digest"`
+	Institution string  `json:"institution"`
 }
 
 func (q *Queries) UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error) {
@@ -650,6 +899,7 @@ func (q *Queries) UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, e
 		arg.Name,
 		arg.FlagDigest,
 		arg.PhotoDigest,
+		arg.Institution,
 	)
 	var i Team
 	err := row.Scan(
@@ -658,35 +908,44 @@ func (q *Queries) UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, e
 		&i.Name,
 		&i.FlagDigest,
 		&i.PhotoDigest,
+		&i.Institution,
 	)
 	return i, err
 }
 
 const updateUser = `-- name: UpdateUser :one
-UPDATE users SET username = $2, first_name = $3, last_name = $4, email = $5, timezone = $6, preferred_languages = $7
-WHERE id = $1
-RETURNING id, username, first_name, last_name, email, password_hash, timezone, preferred_languages, created_at
+UPDATE users SET username = $1, first_name = $2, last_name = $3, email = $4,
+    timezone = $5, preferred_languages = $6, institution = $7,
+    country = $8, region = $9
+WHERE id = $10
+RETURNING id, username, first_name, last_name, email, password_hash, timezone, preferred_languages, created_at, institution, country, region, photo_digest, disabled
 `
 
 type UpdateUserParams struct {
-	ID                 int64    `json:"id"`
 	Username           string   `json:"username"`
 	FirstName          string   `json:"first_name"`
 	LastName           string   `json:"last_name"`
 	Email              string   `json:"email"`
 	Timezone           *string  `json:"timezone"`
 	PreferredLanguages []string `json:"preferred_languages"`
+	Institution        string   `json:"institution"`
+	Country            string   `json:"country"`
+	Region             string   `json:"region"`
+	ID                 int64    `json:"id"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, updateUser,
-		arg.ID,
 		arg.Username,
 		arg.FirstName,
 		arg.LastName,
 		arg.Email,
 		arg.Timezone,
 		arg.PreferredLanguages,
+		arg.Institution,
+		arg.Country,
+		arg.Region,
+		arg.ID,
 	)
 	var i User
 	err := row.Scan(
@@ -699,6 +958,11 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Timezone,
 		&i.PreferredLanguages,
 		&i.CreatedAt,
+		&i.Institution,
+		&i.Country,
+		&i.Region,
+		&i.PhotoDigest,
+		&i.Disabled,
 	)
 	return i, err
 }

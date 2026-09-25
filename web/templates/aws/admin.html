@@ -10,7 +10,8 @@
   <label>Role <select name="role">{{range .Data.Roles}}<option {{if eq . $a.Role}}selected{{end}}>{{.}}</option>{{end}}</select></label>
   <label>New password <input type="password" name="password" minlength="8" autocomplete="new-password" placeholder="leave empty to keep"></label>
 </div>
-<p class="checks"><label><input type="checkbox" name="enabled" {{if $a.Enabled}}checked{{end}}> Enabled</label></p>
+<p class="checks"><label><input type="checkbox" name="enabled" {{if $a.Enabled}}checked{{end}}> Enabled</label>
+  {{if $a.TotpSecret}}<label><input type="checkbox" name="reset_2fa"> Reset two-factor authentication (lost device)</label>{{end}}</p>
 {{if .CanWrite}}<button>Save</button>{{end}}
 </fieldset>
 </form>

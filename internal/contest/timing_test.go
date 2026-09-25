@@ -99,3 +99,38 @@ func TestAnalysisAndUnrestricted(t *testing.T) {
 		t.Errorf("unrestricted during analysis must be unofficial: %+v", s)
 	}
 }
+
+func TestSiteStartAndPractice(t *testing.T) {
+	start := time.Date(2030, 6, 1, 9, 0, 0, 0, time.UTC)
+	r := Rules{Start: start, Stop: start.Add(5 * time.Hour)}
+	site := start.Add(2 * time.Hour) // this site starts two hours later
+	p := Participant{SiteStart: &site}
+	if st := Compute(r, p, start.Add(time.Hour)); st.Phase != NotStarted {
+		t.Fatalf("site not started yet: %v", st.Phase)
+	}
+	st := Compute(r, p, start.Add(6*time.Hour))
+	if st.Phase != Running || !st.End.Equal(site.Add(5*time.Hour)) || !st.Official {
+		t.Fatalf("site window: %+v", st)
+	}
+	if st := Compute(r, p, site.Add(5*time.Hour+time.Second)); st.Phase != Finished || st.CanSubmit {
+		t.Fatalf("after the site window: %+v", st)
+	}
+	// Practice: unofficial submissions after the contest, also after an
+	// analysis window.
+	r.Practice = true
+	st = Compute(r, Participant{}, start.Add(6*time.Hour))
+	if st.Phase != Practice || !st.CanSubmit || st.Official {
+		t.Fatalf("practice: %+v", st)
+	}
+	as, ae := start.Add(6*time.Hour), start.Add(8*time.Hour)
+	r.AnalysisEnabled, r.AnalysisStart, r.AnalysisStop = true, &as, &ae
+	if st := Compute(r, Participant{}, start.Add(7*time.Hour)); st.Phase != Analysis {
+		t.Fatalf("analysis first: %v", st.Phase)
+	}
+	if st := Compute(r, Participant{}, start.Add(9*time.Hour)); st.Phase != Practice || st.Official {
+		t.Fatalf("practice after analysis: %+v", st)
+	}
+	if st := Compute(r, Participant{Unrestricted: true}, start.Add(9*time.Hour)); st.Official {
+		t.Fatal("unrestricted practice submissions must stay unofficial")
+	}
+}

@@ -2,10 +2,11 @@
 -- A contestant's participation with the fields every page needs.
 SELECT p.id, p.contest_id, p.user_id, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted,
        p.login_nonce, p.ip, u.username, u.first_name, u.last_name, u.timezone, u.preferred_languages,
-       t.code AS team_code, t.name AS team_name
+       u.disabled, t.code AS team_code, t.name AS team_name, s.start_time AS site_start_time
 FROM participations p
 JOIN users u ON u.id = p.user_id
 LEFT JOIN teams t ON t.id = p.team_id
+LEFT JOIN sites s ON s.id = p.site_id
 WHERE p.id = $1;
 
 -- name: ListScoresByParticipation :many

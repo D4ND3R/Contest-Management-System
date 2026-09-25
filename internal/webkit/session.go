@@ -74,8 +74,11 @@ type Session struct {
 	AdminID         int64  `json:"a,omitempty"` // administrators
 	Nonce           int64  `json:"n,omitempty"` // single-login counter
 	Lang            string `json:"l,omitempty"`
-	Issued          int64  `json:"i"`
-	Expires         int64  `json:"e"`
+	// ReadOnly sessions (administrators viewing as a contestant) cannot
+	// change anything.
+	ReadOnly bool  `json:"ro,omitempty"`
+	Issued   int64 `json:"i"`
+	Expires  int64 `json:"e"`
 }
 
 // Valid reports whether the session has not expired.
@@ -170,4 +173,36 @@ func (c *CSRF) Check(r *http.Request, sessionID string) error {
 		return ErrCSRF
 	}
 	return nil
+}
+
+// Impersonation is the payload of a "view as contestant" link signed by the
+// admin web server for the contest web server (same secret, own purpose).
+type Impersonation struct {
+	ParticipationID int64  `json:"p"`
+	AdminID         int64  `json:"a"`
+	Admin           string `json:"n"`
+	Expires         int64  `json:"e"`
+}
+
+// ImpersonationSigner returns the signer shared by both servers.
+func ImpersonationSigner(secret []byte) *Signer { return NewSigner(secret, "impersonate") }
+
+// SignImpersonation creates a token valid for ttl.
+func SignImpersonation(secret []byte, imp Impersonation, ttl time.Duration) string {
+	imp.Expires = time.Now().Add(ttl).Unix()
+	payload, _ := json.Marshal(imp)
+	return ImpersonationSigner(secret).Sign(payload)
+}
+
+// VerifyImpersonation checks a token.
+func VerifyImpersonation(secret []byte, token string) (*Impersonation, bool) {
+	payload, ok := ImpersonationSigner(secret).Verify(token)
+	if !ok {
+		return nil, false
+	}
+	var imp Impersonation
+	if json.Unmarshal(payload, &imp) != nil || time.Now().Unix() > imp.Expires {
+		return nil, false
+	}
+	return &imp, true
 }

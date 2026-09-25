@@ -31,9 +31,15 @@ var es = map[string]string{
 	"You have not started the contest yet.": "Todavía no has comenzado el concurso.",
 	"The contest is running.":               "El concurso está en curso.",
 	"The contest is over.":                  "El concurso ha terminado.",
+	"Practice mode: the contest is over; submissions are judged but do not count.": "Modo práctica: el concurso terminó; los envíos se evalúan pero no cuentan.",
+	"Your account is disabled.":                               "Tu cuenta está deshabilitada.",
+	"Administrator view as %s (read-only).":                   "Vista de administrador como %s (solo lectura).",
+	"This is a read-only view for administrators.":            "Esta es una vista de solo lectura para administradores.",
+	"The link expired; open it again from the admin panel.":   "El enlace expiró; ábrelo de nuevo desde el panel de administración.",
+	"Your session was closed by the organizers.":              "Los organizadores cerraron tu sesión.",
 	"Analysis mode: submissions are judged but do not count.": "Modo análisis: los envíos se evalúan pero no cuentan.",
 	"Your time starts when you press the button.":             "Tu tiempo empieza cuando pulses el botón.",
-	"Start the contest": "Comenzar el concurso",
+	"Start the contest":                                       "Comenzar el concurso",
 
 	// Tasks
 	"Tasks":                            "Problemas",

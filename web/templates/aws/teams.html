@@ -5,20 +5,21 @@
   {{template "csrf" .CSRF}}
   <label>Code <input name="code" required size="8" pattern="[A-Za-z0-9_.\-]+"></label>
   <label>Name <input name="name" required></label>
+  <label>Institution <input name="institution"></label>
   <label>Flag <input type="file" name="flag" accept="image/*"></label>
   <label>Photo <input type="file" name="photo" accept="image/*"></label>
   <button>Create team</button>
 </form>
 {{end}}
 <table>
-<thead><tr><th>Code</th><th>Name</th><th>Flag</th><th>Photo</th></tr></thead>
+<thead><tr><th>Code</th><th>Name</th><th>Institution</th><th>Flag</th><th>Photo</th></tr></thead>
 <tbody>
 {{range .Data}}
-<tr><td><a href="/teams/{{.ID}}">{{.Code}}</a></td><td>{{.Name}}</td>
+<tr><td><a href="/teams/{{.ID}}">{{.Code}}</a></td><td>{{.Name}}</td><td>{{.Institution}}</td>
 <td>{{if .FlagDigest}}<img src="/teams/{{.ID}}/flag" alt="" class="flag">{{end}}</td>
 <td>{{if .PhotoDigest}}<a href="/teams/{{.ID}}/photo">photo</a>{{end}}</td></tr>
 {{else}}
-<tr><td colspan="4" class="muted">No teams.</td></tr>
+<tr><td colspan="5" class="muted">No teams.</td></tr>
 {{end}}
 </tbody>
 </table>

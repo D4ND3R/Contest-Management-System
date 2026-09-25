@@ -65,8 +65,73 @@ func (q *Queries) AdminCountUsers(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const adminExportParticipants = `-- name: AdminExportParticipants :many
+SELECT u.username, u.first_name, u.last_name, u.email, u.institution, u.country, u.region, u.timezone,
+       t.code AS team_code, st.name AS site_name, p.hidden, p.unrestricted, p.ip, p.delay_time_s, p.extra_time_s
+FROM participations p
+JOIN users u ON u.id = p.user_id
+LEFT JOIN teams t ON t.id = p.team_id
+LEFT JOIN sites st ON st.id = p.site_id
+WHERE p.contest_id = $1
+ORDER BY u.username
+`
+
+type AdminExportParticipantsRow struct {
+	Username     string         `json:"username"`
+	FirstName    string         `json:"first_name"`
+	LastName     string         `json:"last_name"`
+	Email        string         `json:"email"`
+	Institution  string         `json:"institution"`
+	Country      string         `json:"country"`
+	Region       string         `json:"region"`
+	Timezone     *string        `json:"timezone"`
+	TeamCode     *string        `json:"team_code"`
+	SiteName     *string        `json:"site_name"`
+	Hidden       bool           `json:"hidden"`
+	Unrestricted bool           `json:"unrestricted"`
+	Ip           []netip.Prefix `json:"ip"`
+	DelayTimeS   int64          `json:"delay_time_s"`
+	ExtraTimeS   int64          `json:"extra_time_s"`
+}
+
+func (q *Queries) AdminExportParticipants(ctx context.Context, contestID int64) ([]AdminExportParticipantsRow, error) {
+	rows, err := q.db.Query(ctx, adminExportParticipants, contestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminExportParticipantsRow{}
+	for rows.Next() {
+		var i AdminExportParticipantsRow
+		if err := rows.Scan(
+			&i.Username,
+			&i.FirstName,
+			&i.LastName,
+			&i.Email,
+			&i.Institution,
+			&i.Country,
+			&i.Region,
+			&i.Timezone,
+			&i.TeamCode,
+			&i.SiteName,
+			&i.Hidden,
+			&i.Unrestricted,
+			&i.Ip,
+			&i.DelayTimeS,
+			&i.ExtraTimeS,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminGetParticipation = `-- name: AdminGetParticipation :one
-SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, u.username, u.first_name, u.last_name, c.name AS contest_name
+SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, u.username, u.first_name, u.last_name, c.name AS contest_name
 FROM participations p
 JOIN users u ON u.id = p.user_id
 JOIN contests c ON c.id = p.contest_id
@@ -86,6 +151,7 @@ type AdminGetParticipationRow struct {
 	Hidden       bool           `json:"hidden"`
 	Unrestricted bool           `json:"unrestricted"`
 	LoginNonce   int64          `json:"login_nonce"`
+	SiteID       *int64         `json:"site_id"`
 	Username     string         `json:"username"`
 	FirstName    string         `json:"first_name"`
 	LastName     string         `json:"last_name"`
@@ -108,6 +174,7 @@ func (q *Queries) AdminGetParticipation(ctx context.Context, id int64) (AdminGet
 		&i.Hidden,
 		&i.Unrestricted,
 		&i.LoginNonce,
+		&i.SiteID,
 		&i.Username,
 		&i.FirstName,
 		&i.LastName,
@@ -493,7 +560,7 @@ func (q *Queries) AdminListTesterRuns(ctx context.Context, taskID int64) ([]Admi
 }
 
 const adminListUserParticipations = `-- name: AdminListUserParticipations :many
-SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, c.name AS contest_name, t.code AS team_code
+SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, c.name AS contest_name, t.code AS team_code
 FROM participations p
 JOIN contests c ON c.id = p.contest_id
 LEFT JOIN teams t ON t.id = p.team_id
@@ -514,6 +581,7 @@ type AdminListUserParticipationsRow struct {
 	Hidden       bool           `json:"hidden"`
 	Unrestricted bool           `json:"unrestricted"`
 	LoginNonce   int64          `json:"login_nonce"`
+	SiteID       *int64         `json:"site_id"`
 	ContestName  string         `json:"contest_name"`
 	TeamCode     *string        `json:"team_code"`
 }
@@ -540,6 +608,7 @@ func (q *Queries) AdminListUserParticipations(ctx context.Context, userID int64)
 			&i.Hidden,
 			&i.Unrestricted,
 			&i.LoginNonce,
+			&i.SiteID,
 			&i.ContestName,
 			&i.TeamCode,
 		); err != nil {
@@ -554,7 +623,7 @@ func (q *Queries) AdminListUserParticipations(ctx context.Context, userID int64)
 }
 
 const adminListUsers = `-- name: AdminListUsers :many
-SELECT u.id, u.username, u.first_name, u.last_name, u.email, u.password_hash, u.timezone, u.preferred_languages, u.created_at, (SELECT count(*) FROM participations p WHERE p.user_id = u.id) AS participations
+SELECT u.id, u.username, u.first_name, u.last_name, u.email, u.password_hash, u.timezone, u.preferred_languages, u.created_at, u.institution, u.country, u.region, u.photo_digest, u.disabled, (SELECT count(*) FROM participations p WHERE p.user_id = u.id) AS participations
 FROM users u
 WHERE ($1::text IS NULL
        OR u.username ILIKE '%' || $1::text || '%'
@@ -580,6 +649,11 @@ type AdminListUsersRow struct {
 	Timezone           *string   `json:"timezone"`
 	PreferredLanguages []string  `json:"preferred_languages"`
 	CreatedAt          time.Time `json:"created_at"`
+	Institution        string    `json:"institution"`
+	Country            string    `json:"country"`
+	Region             string    `json:"region"`
+	PhotoDigest        *string   `json:"photo_digest"`
+	Disabled           bool      `json:"disabled"`
 	Participations     int64     `json:"participations"`
 }
 
@@ -603,6 +677,11 @@ func (q *Queries) AdminListUsers(ctx context.Context, arg AdminListUsersParams) 
 			&i.Timezone,
 			&i.PreferredLanguages,
 			&i.CreatedAt,
+			&i.Institution,
+			&i.Country,
+			&i.Region,
+			&i.PhotoDigest,
+			&i.Disabled,
 			&i.Participations,
 		); err != nil {
 			return nil, err

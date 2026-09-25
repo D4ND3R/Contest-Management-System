@@ -158,3 +158,13 @@ SELECT * FROM tasks WHERE contest_id IS NULL ORDER BY name;
 
 -- name: AdminNextTaskNum :one
 SELECT COALESCE(max(num) + 1, 0)::int FROM tasks WHERE contest_id = $1;
+
+-- name: AdminExportParticipants :many
+SELECT u.username, u.first_name, u.last_name, u.email, u.institution, u.country, u.region, u.timezone,
+       t.code AS team_code, st.name AS site_name, p.hidden, p.unrestricted, p.ip, p.delay_time_s, p.extra_time_s
+FROM participations p
+JOIN users u ON u.id = p.user_id
+LEFT JOIN teams t ON t.id = p.team_id
+LEFT JOIN sites st ON st.id = p.site_id
+WHERE p.contest_id = $1
+ORDER BY u.username;

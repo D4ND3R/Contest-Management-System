@@ -1,0 +1,11 @@
+{{define "content"}}
+<div class="card narrow">
+<h1>Two-factor authentication</h1>
+<form method="post" action="/login/2fa">
+  {{template "csrf" .CSRF}}
+  <input type="hidden" name="token" value="{{.Data.Token}}">
+  <label>Code from your authenticator app <input name="totp_code" inputmode="numeric" autocomplete="one-time-code" required autofocus></label>
+  <button>Verify</button>
+</form>
+</div>
+{{end}}

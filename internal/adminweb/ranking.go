@@ -1,6 +1,7 @@
 package adminweb
 
 import (
+	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"net/http"
 	"strconv"
 
@@ -12,12 +13,22 @@ func (s *Server) handleRanking(w http.ResponseWriter, r *http.Request, rc *reqCt
 	if !ok {
 		return
 	}
-	rk, err := ranking.Compute(r.Context(), s.q, c.ID, ranking.Options{IncludeHidden: r.URL.Query().Get("hidden") == "1"})
+	site, _ := strconv.ParseInt(r.URL.Query().Get("site"), 10, 64)
+	rk, err := ranking.Compute(r.Context(), s.q, c.ID, ranking.Options{IncludeHidden: r.URL.Query().Get("hidden") == "1", SiteID: site})
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
 	}
-	s.render(w, "ranking", http.StatusOK, s.newPage(w, r, rc, "Ranking", "contests", rk).
+	sites, err := s.q.ListSites(r.Context(), c.ID)
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	s.render(w, "ranking", http.StatusOK, s.newPage(w, r, rc, "Ranking", "contests", struct {
+		*ranking.Ranking
+		Sites []sqlc.Site
+		Site  int64
+	}{rk, sites, site}).
 		crumb("Contests", "/contests").crumb(c.Name, "/contests/"+strconv.FormatInt(c.ID, 10)))
 }
 
@@ -26,7 +37,8 @@ func (s *Server) exportRanking(w http.ResponseWriter, r *http.Request, rc *reqCt
 	if !ok {
 		return
 	}
-	rk, err := ranking.Compute(r.Context(), s.q, c.ID, ranking.Options{IncludeHidden: r.URL.Query().Get("hidden") == "1"})
+	site, _ := strconv.ParseInt(r.URL.Query().Get("site"), 10, 64)
+	rk, err := ranking.Compute(r.Context(), s.q, c.ID, ranking.Options{IncludeHidden: r.URL.Query().Get("hidden") == "1", SiteID: site})
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return

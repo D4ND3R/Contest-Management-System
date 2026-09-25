@@ -133,6 +133,22 @@ adjuntos; checker/interactor/manager; graders y stubs por lenguaje; carga de
 testcases en zip con detección de pares input/output; datasets y cambio de
 dataset live; orden de las tareas en el concurso.
 
+- K18 Paquete propio de problema: un zip con `problem.yaml` (nombre, tipo, límites,
+  nombres de I/O, score type, subtareas, feedback, lenguajes permitidos), `statement/`
+  (PDF o HTML por idioma), `tests/` (pares .in/.out), `checker`/`interactor`/`manager`
+  opcional, `graders/` y `attachments/`. Documenta el formato en docs/ con un ejemplo
+  por cada tipo de problema.
+- K19 Subida desde el admin: arrastrar y soltar el zip, vista previa de lo detectado,
+  errores claros por archivo antes de crear nada, y opción de crear la tarea o
+  actualizar una existente como nuevo dataset.
+- K20 Validación automática al importar: compila checker/interactor/manager, corre
+  las soluciones de `solutions/` (si vienen, con su veredicto esperado en el nombre,
+  p. ej. `ac_main.cpp`, `tle_brute.py`) con el probador de tarea, y muestra un
+  reporte antes de publicar.
+- K21 Exportar cualquier tarea en este mismo formato.
+- Completa también K5 (editor visual de subtareas) y K10 (lenguajes por tarea).
+Tests para cada punto y actualiza AUDIT.md.
+
 ## 6. Resto de funcionalidades de un CMS completo (verificar y completar)
 - Envíos: búsqueda y filtros (usuario, tarea, veredicto, lenguaje, fecha), ver
   fuente con resaltado, diff entre envíos, descargar todos los envíos en zip.

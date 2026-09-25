@@ -1,5 +1,5 @@
 {{define "content"}}
-<h1>Users <small class="muted">{{.Data.Total}}</small> {{if .CanWrite}}<a class="button small" href="/users/new">New user</a>{{end}}</h1>
+<h1>Users <small class="muted">{{.Data.Total}}</small> {{if .CanWrite}}<a class="button small" href="/users/new">New user</a>{{end}} <a class="button small secondary" href="/users/export.csv">Export CSV</a></h1>
 {{if .CanWrite}}
 <form method="post" action="/users/import" enctype="multipart/form-data" class="card inline-form">
   {{template "csrf" .CSRF}}
@@ -9,17 +9,17 @@
   <label><input type="checkbox" name="update"> update existing</label>
   <label><input type="checkbox" name="generate" checked> generate missing passwords</label>
   <button>Import</button>
-  <p class="muted small">Header row required. Columns: username, password, first_name, last_name, email, timezone, team (code), ip, hidden, unrestricted, delay_time, extra_time. Nothing is imported if a row is invalid.</p>
+  <p class="muted small">Header row required. Columns: username, password, first_name, last_name, email, institution, country, region, timezone, team (code), site, ip, hidden, unrestricted, delay_time, extra_time. A preview with every row is shown first; nothing is imported if a row is invalid.</p>
 </form>
 {{end}}
 <form method="get" class="filters"><label>Search <input name="q" value="{{.Data.Search}}" placeholder="username or name"></label> <button>Search</button></form>
 <table>
-<thead><tr><th>Username</th><th>Name</th><th>Email</th><th class="num">Contests</th></tr></thead>
+<thead><tr><th>Username</th><th>Name</th><th>Institution</th><th>Email</th><th class="num">Contests</th></tr></thead>
 <tbody>
 {{range .Data.Users}}
-<tr><td><a href="/users/{{.ID}}">{{.Username}}</a></td><td>{{.FirstName}} {{.LastName}}</td><td>{{.Email}}</td><td class="num">{{.Participations}}</td></tr>
+<tr><td><a href="/users/{{.ID}}">{{.Username}}</a>{{if .Disabled}} <span class="tag bad">disabled</span>{{end}}</td><td>{{.FirstName}} {{.LastName}}</td><td>{{.Institution}}</td><td>{{.Email}}</td><td class="num">{{.Participations}}</td></tr>
 {{else}}
-<tr><td colspan="4" class="muted">No users.</td></tr>
+<tr><td colspan="5" class="muted">No users.</td></tr>
 {{end}}
 </tbody>
 </table>

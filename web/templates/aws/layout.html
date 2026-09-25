@@ -27,7 +27,7 @@
     <a href="/audit">Audit log</a>
   </nav>
   <div class="user">
-    <span>{{.Admin.Username}} <small class="muted">({{.Admin.Role}})</small></span>
+    <a href="/account">{{.Admin.Username}}</a> <small class="muted">({{.Admin.Role}})</small>
     <form method="post" action="/logout" class="inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link">Log out</button></form>
   </div>
   {{end}}

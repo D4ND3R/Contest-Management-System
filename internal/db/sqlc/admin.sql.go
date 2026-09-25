@@ -23,7 +23,7 @@ func (q *Queries) CountAdmins(ctx context.Context) (int64, error) {
 }
 
 const createAdmin = `-- name: CreateAdmin :one
-INSERT INTO admins (name, username, password_hash, enabled, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, username, password_hash, enabled, role, created_at
+INSERT INTO admins (name, username, password_hash, enabled, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, username, password_hash, enabled, role, created_at, totp_secret
 `
 
 type CreateAdminParams struct {
@@ -51,6 +51,7 @@ func (q *Queries) CreateAdmin(ctx context.Context, arg CreateAdminParams) (Admin
 		&i.Enabled,
 		&i.Role,
 		&i.CreatedAt,
+		&i.TotpSecret,
 	)
 	return i, err
 }
@@ -65,7 +66,7 @@ func (q *Queries) DeleteAdmin(ctx context.Context, id int64) error {
 }
 
 const getAdmin = `-- name: GetAdmin :one
-SELECT id, name, username, password_hash, enabled, role, created_at FROM admins WHERE id = $1
+SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret FROM admins WHERE id = $1
 `
 
 func (q *Queries) GetAdmin(ctx context.Context, id int64) (Admin, error) {
@@ -79,12 +80,13 @@ func (q *Queries) GetAdmin(ctx context.Context, id int64) (Admin, error) {
 		&i.Enabled,
 		&i.Role,
 		&i.CreatedAt,
+		&i.TotpSecret,
 	)
 	return i, err
 }
 
 const getAdminByUsername = `-- name: GetAdminByUsername :one
-SELECT id, name, username, password_hash, enabled, role, created_at FROM admins WHERE username = $1
+SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret FROM admins WHERE username = $1
 `
 
 func (q *Queries) GetAdminByUsername(ctx context.Context, username string) (Admin, error) {
@@ -98,6 +100,7 @@ func (q *Queries) GetAdminByUsername(ctx context.Context, username string) (Admi
 		&i.Enabled,
 		&i.Role,
 		&i.CreatedAt,
+		&i.TotpSecret,
 	)
 	return i, err
 }
@@ -128,7 +131,7 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 }
 
 const listAdmins = `-- name: ListAdmins :many
-SELECT id, name, username, password_hash, enabled, role, created_at FROM admins ORDER BY username
+SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret FROM admins ORDER BY username
 `
 
 func (q *Queries) ListAdmins(ctx context.Context) ([]Admin, error) {
@@ -148,6 +151,7 @@ func (q *Queries) ListAdmins(ctx context.Context) ([]Admin, error) {
 			&i.Enabled,
 			&i.Role,
 			&i.CreatedAt,
+			&i.TotpSecret,
 		); err != nil {
 			return nil, err
 		}
@@ -230,8 +234,22 @@ func (q *Queries) SetAdminPassword(ctx context.Context, arg SetAdminPasswordPara
 	return err
 }
 
+const setAdminTOTP = `-- name: SetAdminTOTP :exec
+UPDATE admins SET totp_secret = $2 WHERE id = $1
+`
+
+type SetAdminTOTPParams struct {
+	ID         int64   `json:"id"`
+	TotpSecret *string `json:"totp_secret"`
+}
+
+func (q *Queries) SetAdminTOTP(ctx context.Context, arg SetAdminTOTPParams) error {
+	_, err := q.db.Exec(ctx, setAdminTOTP, arg.ID, arg.TotpSecret)
+	return err
+}
+
 const updateAdmin = `-- name: UpdateAdmin :one
-UPDATE admins SET name = $2, username = $3, enabled = $4, role = $5 WHERE id = $1 RETURNING id, name, username, password_hash, enabled, role, created_at
+UPDATE admins SET name = $2, username = $3, enabled = $4, role = $5 WHERE id = $1 RETURNING id, name, username, password_hash, enabled, role, created_at, totp_secret
 `
 
 type UpdateAdminParams struct {
@@ -259,6 +277,7 @@ func (q *Queries) UpdateAdmin(ctx context.Context, arg UpdateAdminParams) (Admin
 		&i.Enabled,
 		&i.Role,
 		&i.CreatedAt,
+		&i.TotpSecret,
 	)
 	return i, err
 }

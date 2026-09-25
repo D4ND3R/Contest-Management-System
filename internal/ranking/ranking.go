@@ -54,6 +54,9 @@ type Row struct {
 	LastName        string  `json:"last_name"`
 	TeamCode        string  `json:"team,omitempty"`
 	TeamName        string  `json:"team_name,omitempty"`
+	Institution     string  `json:"institution,omitempty"`
+	Country         string  `json:"country,omitempty"`
+	Site            string  `json:"site,omitempty"`
 	Hidden          bool    `json:"hidden,omitempty"`
 	Unrestricted    bool    `json:"unrestricted,omitempty"`
 	Cells           []Cell  `json:"tasks"`
@@ -76,6 +79,8 @@ type Ranking struct {
 // Options select what Compute includes.
 type Options struct {
 	IncludeHidden bool
+	// SiteID restricts the ranking to one site (0 = every participant).
+	SiteID int64
 }
 
 // LoadTasks returns the tasks of a contest in order with their maximum
@@ -161,8 +166,12 @@ func Compute(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options)
 		if p.Participation.Hidden && !opt.IncludeHidden {
 			continue
 		}
+		if opt.SiteID != 0 && (p.Participation.SiteID == nil || *p.Participation.SiteID != opt.SiteID) {
+			continue
+		}
 		row := Row{ParticipationID: p.Participation.ID, UserID: p.Participation.UserID, Username: p.Username,
 			FirstName: p.FirstName, LastName: p.LastName, Hidden: p.Participation.Hidden,
+			Institution: p.Institution, Country: p.Country, Site: derefStr(p.SiteName),
 			Unrestricted: p.Participation.Unrestricted, Cells: make([]Cell, len(tasks))}
 		if p.TeamCode != nil {
 			row.TeamCode = *p.TeamCode
@@ -175,7 +184,11 @@ func Compute(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options)
 	}
 	starts := map[int64]time.Time{}
 	for _, p := range parts {
-		start := c.StartTime.Add(time.Duration(p.Participation.DelayTimeS) * time.Second)
+		start := c.StartTime
+		if p.SiteStartTime != nil {
+			start = *p.SiteStartTime
+		}
+		start = start.Add(time.Duration(p.Participation.DelayTimeS) * time.Second)
 		if c.PerUserTimeS != nil && p.Participation.StartingTime != nil {
 			start = *p.Participation.StartingTime
 		}
@@ -290,4 +303,11 @@ func (r *Ranking) WriteCSV(w io.Writer) error {
 
 func formatScore(v float64, precision int) string {
 	return strconv.FormatFloat(round(v, precision), 'f', -1, 64)
+}
+
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

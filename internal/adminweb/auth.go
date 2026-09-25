@@ -75,6 +75,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.loginPage(w, r, http.StatusUnauthorized, "Wrong username or password.")
 		return
 	}
+	if a.TotpSecret != nil {
+		s.startSecondFactor(w, r, a)
+		return
+	}
 	// A fresh session id on login (no fixation).
 	s.cookie().Write(w, &webkit.Session{AdminID: a.ID, Nonce: adminNonce(a)})
 	s.audit(r, &a.ID, "login", nil)

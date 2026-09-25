@@ -87,6 +87,6 @@ func DatasetToUpdate(d sqlc.Dataset) sqlc.UpdateDatasetParams {
 func ParticipationToUpdate(p sqlc.Participation) sqlc.UpdateParticipationParams {
 	return sqlc.UpdateParticipationParams{
 		ID: p.ID, TeamID: p.TeamID, Ip: p.Ip, DelayTimeS: p.DelayTimeS, ExtraTimeS: p.ExtraTimeS,
-		Hidden: p.Hidden, Unrestricted: p.Unrestricted, StartingTime: p.StartingTime,
+		Hidden: p.Hidden, Unrestricted: p.Unrestricted, StartingTime: p.StartingTime, SiteID: p.SiteID,
 	}
 }

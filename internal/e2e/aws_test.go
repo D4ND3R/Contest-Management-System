@@ -84,6 +84,12 @@ func TestSetUpContestFromAdminUI(t *testing.T) {
 	csv := "username,first_name,last_name,team\nlucia,Lucía,Gómez,JAL\nmario,Mario,Pérez,JAL\n"
 	code, body = a.PostMultipart("/users/import", map[string]string{"contest_id": contestID, "generate": "on"},
 		webtest.File{Field: "file", Name: "users.csv", Data: []byte(csv)})
+	webtest.MustOK(t, "import preview", code, body)
+	dg := regexp.MustCompile(`name="digest" value="([0-9a-f]{64})"`).FindStringSubmatch(body)
+	if dg == nil {
+		t.Fatalf("no import confirmation:\n%s", body)
+	}
+	code, body = a.Post("/users/import", url.Values{"step": {"confirm"}, "digest": {dg[1]}, "contest_id": {contestID}, "generate": {"on"}})
 	webtest.MustOK(t, "import users", code, body)
 	pw := regexp.MustCompile(`<td>lucia</td><td><code>([a-z0-9]+)</code>`).FindStringSubmatch(body)
 	if pw == nil {

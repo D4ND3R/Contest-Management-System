@@ -1,0 +1,33 @@
+{{define "content"}}
+{{$c := .Data.Contest}}
+<h1>Sites of {{$c.Name}}</h1>
+<p class="muted">Each site may start at its own time; the contest keeps its duration ({{dt $c.StartTime}} – {{dt $c.StopTime}} UTC). Assign participants in their participation page or with the <code>site</code> CSV column; the ranking can be filtered by site.</p>
+<table>
+<thead><tr><th>Name</th><th>Start ({{$c.Timezone}})</th><th class="num">Participants</th><th></th></tr></thead>
+<tbody>
+{{range .Data.Sites}}
+<tr><td colspan="4">
+<form method="post" action="/sites/{{.ID}}" class="inline-form">
+  {{template "csrf" $.CSRF}}
+  <label>Name <input name="name" value="{{.Name}}" required></label>
+  <label>Start <input type="datetime-local" step="1" name="start_time" value="{{local .StartTime $c.Timezone}}" placeholder="contest start"></label>
+  <span class="muted">{{.Participants}} participants</span>
+  {{if $.CanWrite}}<button class="secondary">Save</button>{{end}}
+</form>
+{{if $.CanWrite}}<form method="post" action="/sites/{{.ID}}/delete" class="inline" data-confirm="Delete site {{.Name}}? Its participants keep the contest times.">{{template "csrf" $.CSRF}}<button class="link">delete</button></form>{{end}}
+</td></tr>
+{{else}}
+<tr><td colspan="4" class="muted">No sites: everybody follows the contest times.</td></tr>
+{{end}}
+</tbody>
+</table>
+{{if .CanWrite}}
+<form method="post" action="/contests/{{$c.ID}}/sites" class="card inline-form">
+  {{template "csrf" .CSRF}}
+  <b>New site</b>
+  <label>Name <input name="name" required></label>
+  <label>Start ({{$c.Timezone}}) <input type="datetime-local" step="1" name="start_time"></label>
+  <button>Create</button>
+</form>
+{{end}}
+{{end}}

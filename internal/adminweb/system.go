@@ -287,6 +287,13 @@ func (s *Server) handleAdminUpdate(w http.ResponseWriter, r *http.Request, rc *r
 		}
 		rc.note("password_changed", true)
 	}
+	if r.FormValue("reset_2fa") != "" && a.TotpSecret != nil {
+		if err := s.q.SetAdminTOTP(r.Context(), sqlc.SetAdminTOTPParams{ID: a.ID}); err != nil {
+			s.internalError(w, r, rc, err)
+			return
+		}
+		rc.note("2fa_reset", true)
+	}
 	s.admins.drop(a.ID)
 	rc.target("admin", a.ID)
 	to := "/admins/" + strconv.FormatInt(a.ID, 10)

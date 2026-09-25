@@ -402,3 +402,33 @@ generated passwords) are created only through the admin web; the contestant
 logs into the CWS with the generated password, submits, and is judged by
 the real dispatcher + isolate worker (100/100); the admin submission list,
 ranking CSV, statistics and audit log reflect it.
+
+## Audit §2 — Problem types (done)
+Skipping skills: immersive-web-design, master skill.
+
+Interactive task type (interactor and contestant in separate sandboxes
+over anonymous pipes, testlib verdicts, interactor time not charged),
+Communication with per-process or summed limits and stubs in several
+languages, output-only zip / partial / best-previous merge, C and C++
+checkers and managers compiled from source, structured task-type form in
+the admin, task tester (reference solutions judged on every dataset, never
+counted). `worker.TestProblemTypeSamples` judges AC/WA/TLE/MLE/RE for every
+type (57 verdicts); `e2e.TestEveryTaskTypeFromAdminUI` creates every type
+through the admin UI and judges it on the real worker.
+
+## SPEC_CLOSE block C / audit §3 — User management (done)
+Skipping skills: immersive-web-design, master skill.
+
+User profile fields and photo, disable/enable, forced logout (a session
+epoch checked on every request), active sessions with IP and browser
+(tracked in Redis, written at most once a minute per session, off the
+request path), password generation and single/bulk reset with printable
+PDF credential cards (1–8 per page with name, site and contest URL), CSV
+import with a preview of every row before anything is written and CSV
+export, read-only "view as contestant" through a signed one-minute link
+(audited), teams with institution and members (maximum team size), sites
+with their own start time (contest duration kept) and a ranking filter,
+administrator TOTP 2FA (enrolment with an inline SVG QR code, second login
+step, reset by another administrator). Tests: adminweb (import/export,
+account actions, teams/sites, TOTP), auth (RFC 6238 vectors), pdf,
+contest (site start, practice), e2e.TestAdminControlsContestantSessions.

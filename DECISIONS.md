@@ -252,3 +252,19 @@ output-only submission with, per missing file, the output of the previous
 submission that scored best on that testcase (latest when unjudged). The
 judge and scoring stay unchanged and the submission shows exactly what was
 evaluated.
+
+## D38. Problem packages (K18–K21) come right after §3
+The request to add an own problem-package format (import with preview and
+automatic validation, export) together with the subtask editor (K5) and
+per-task languages (K10) is implemented as soon as the in-flight §3 work is
+committed, before §4: it changes how tasks are created, which §4–§6 and the
+F9 importers build on.
+
+## D39. Order of work after SPEC_CLOSE.md
+The closing prompt supersedes the remaining audit order: the in-flight user
+management work (SPEC_CLOSE block C, audit §3) is finished and committed
+first because the tree is half-way through it; then the problem package and
+task configuration items (K5, K10, K18–K21); then blocks A → F in order.
+Target hardware is a 2 vCPU VPS: one core for web + PostgreSQL + Redis, the
+other reserved for one sandbox slot, so evaluation never competes with the
+web servers for CPU.

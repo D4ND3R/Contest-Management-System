@@ -18,6 +18,7 @@ type Admin struct {
 	Enabled      bool      `json:"enabled"`
 	Role         string    `json:"role"`
 	CreatedAt    time.Time `json:"created_at"`
+	TotpSecret   *string   `json:"totp_secret"`
 }
 
 type Announcement struct {
@@ -96,6 +97,8 @@ type Contest struct {
 	MaxPrintPages               int32      `json:"max_print_pages"`
 	CreatedAt                   time.Time  `json:"created_at"`
 	UpdatedAt                   time.Time  `json:"updated_at"`
+	TeamMode                    bool       `json:"team_mode"`
+	MaxTeamSize                 *int32     `json:"max_team_size"`
 }
 
 type Dataset struct {
@@ -176,6 +179,7 @@ type Participation struct {
 	Hidden       bool           `json:"hidden"`
 	Unrestricted bool           `json:"unrestricted"`
 	LoginNonce   int64          `json:"login_nonce"`
+	SiteID       *int64         `json:"site_id"`
 }
 
 type ParticipationTaskScore struct {
@@ -213,6 +217,13 @@ type Question struct {
 	ReplyText       *string    `json:"reply_text"`
 	ReplyAdminID    *int64     `json:"reply_admin_id"`
 	Ignored         bool       `json:"ignored"`
+}
+
+type Site struct {
+	ID        int64      `json:"id"`
+	ContestID int64      `json:"contest_id"`
+	Name      string     `json:"name"`
+	StartTime *time.Time `json:"start_time"`
 }
 
 type Statement struct {
@@ -303,6 +314,7 @@ type Team struct {
 	Name        string  `json:"name"`
 	FlagDigest  *string `json:"flag_digest"`
 	PhotoDigest *string `json:"photo_digest"`
+	Institution string  `json:"institution"`
 }
 
 type Testcase struct {
@@ -330,6 +342,11 @@ type User struct {
 	Timezone           *string   `json:"timezone"`
 	PreferredLanguages []string  `json:"preferred_languages"`
 	CreatedAt          time.Time `json:"created_at"`
+	Institution        string    `json:"institution"`
+	Country            string    `json:"country"`
+	Region             string    `json:"region"`
+	PhotoDigest        *string   `json:"photo_digest"`
+	Disabled           bool      `json:"disabled"`
 }
 
 type UserTest struct {

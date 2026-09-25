@@ -33,7 +33,10 @@ type page struct {
 	Error       string
 	UILanguages []langOption
 	Data        any
-	loc         *time.Location
+	// ViewAs is set when an administrator views the contest as this
+	// contestant (read-only).
+	ViewAs string
+	loc    *time.Location
 }
 
 // statusView adds template-friendly accessors to contest.Status.
@@ -139,6 +142,8 @@ func (p *page) PhaseText() string {
 		return p.T("The contest is running.")
 	case contest.Analysis:
 		return p.T("Analysis mode: submissions are judged but do not count.")
+	case contest.Practice:
+		return p.T("Practice mode: the contest is over; submissions are judged but do not count.")
 	default:
 		return p.T("The contest is over.")
 	}

@@ -124,6 +124,7 @@ func newStack(t testing.TB, o stackOpts) *stack {
 	if o.admin {
 		acfg := config.Default().AdminWeb
 		acfg.LoginRateLimit = 1000
+		acfg.ContestURL = s.cwsURL
 		aws, err := adminweb.New(acfg, adminweb.Deps{Pool: pool, Redis: rdb, Blobs: s.store, Langs: reg, Secret: s.secret, NS: ns}, logging.Discard())
 		if err != nil {
 			t.Fatal(err)

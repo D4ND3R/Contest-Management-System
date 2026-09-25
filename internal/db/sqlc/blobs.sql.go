@@ -80,6 +80,7 @@ WHERE b.created_at < $2::timestamptz
   AND NOT EXISTS (SELECT 1 FROM user_test_results x WHERE x.output_digest = b.digest)
   AND NOT EXISTS (SELECT 1 FROM print_jobs x WHERE x.digest = b.digest)
   AND NOT EXISTS (SELECT 1 FROM teams x WHERE x.flag_digest = b.digest OR x.photo_digest = b.digest)
+  AND NOT EXISTS (SELECT 1 FROM users x WHERE x.photo_digest = b.digest)
 LIMIT $1
 `
 

@@ -32,3 +32,6 @@ WHERE (sqlc.narg(admin_id)::bigint IS NULL OR a.admin_id = sqlc.narg(admin_id))
   AND (sqlc.narg(before_id)::bigint IS NULL OR a.id < sqlc.narg(before_id))
 ORDER BY a.id DESC
 LIMIT $1;
+
+-- name: SetAdminTOTP :exec
+UPDATE admins SET totp_secret = $2 WHERE id = $1;

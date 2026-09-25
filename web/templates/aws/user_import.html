@@ -1,19 +1,42 @@
 {{define "content"}}
-<h1>User import</h1>
-{{with .Data.Errors}}
-<div class="alert"><p>Nothing was imported. Fix these problems and upload the file again:</p><ul>{{range .}}<li>{{.}}</li>{{end}}</ul></div>
-{{else}}
-<p class="info">{{.Data.Created}} users created, {{.Data.Updated}} updated, {{.Data.Participations}} participations added.</p>
+{{$d := .Data}}
+<h1>{{if $d.Preview}}Import preview{{else}}User import{{end}}{{with $d.Contest}} <small class="muted">into {{.Name}}</small>{{end}}</h1>
+{{with $d.Errors}}<div class="alert"><p>The file has problems; nothing was imported:</p><ul>{{range .}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
+{{if $d.Preview}}
+<p>{{$d.Valid}} valid rows, <span class="{{if $d.Invalid}}bad{{end}}">{{$d.Invalid}} with errors</span>. Nothing has been written yet.</p>
+{{if and (not $d.Invalid) (not $d.Errors) $d.Valid}}
+<form method="post" action="/users/import" class="card inline-form">
+  {{template "csrf" .CSRF}}
+  <input type="hidden" name="step" value="confirm">
+  <input type="hidden" name="digest" value="{{$d.Digest}}">
+  {{with $d.Contest}}<input type="hidden" name="contest_id" value="{{.ID}}">{{end}}
+  {{if $d.Update}}<input type="hidden" name="update" value="on">{{end}}
+  {{if $d.Generate}}<input type="hidden" name="generate" value="on">{{end}}
+  <button>Import {{$d.Valid}} users</button> <a href="/users">cancel</a>
+</form>
+{{else}}<p>Fix the rows marked in red and upload the file again. <a href="/users">Back</a></p>{{end}}
+{{else if not $d.Errors}}
+<p class="info">{{$d.Created}} users created, {{$d.Updated}} updated, {{$d.Participations}} participations added.</p>
 {{end}}
-{{with .Data.Credentials}}
+{{with $d.Credentials}}
 <section class="card">
 <h2>Generated passwords</h2>
 <p class="alert">Save or print them now: they are stored hashed and cannot be shown again.</p>
-<textarea rows="8" class="code" readonly>{{$.Data.CSV}}</textarea>
+{{template "credentials-form" $}}
 <table><thead><tr><th>Username</th><th>Password</th></tr></thead><tbody>
 {{range .}}<tr><td>{{.Username}}</td><td><code>{{.Password}}</code></td></tr>{{end}}
 </tbody></table>
+<textarea rows="6" class="code" readonly>{{$d.CSV}}</textarea>
 </section>
+{{end}}
+{{if $d.Rows}}
+<table>
+<thead><tr><th class="num">Line</th><th>Username</th><th>Name</th><th>Team</th><th>Site</th><th>Action</th></tr></thead>
+<tbody>
+{{range $d.Rows}}<tr><td class="num">{{.Line}}</td><td>{{.Username}}</td><td>{{.Name}}</td><td>{{.Team}}</td><td>{{.Site}}</td>
+<td>{{if eq .Action "error"}}<span class="bad">{{.Error}}</span>{{else}}{{.Action}}{{end}}</td></tr>{{end}}
+</tbody>
+</table>
 {{end}}
 <p><a href="/users">Back to users</a></p>
 {{end}}

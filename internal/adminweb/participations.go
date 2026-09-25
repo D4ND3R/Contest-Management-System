@@ -106,10 +106,12 @@ func (s *Server) handleParticipationCreate(w http.ResponseWriter, r *http.Reques
 }
 
 type participationPage struct {
-	P       sqlc.AdminGetParticipationRow
-	Contest sqlc.Contest
-	Teams   []sqlc.Team
-	Scores  []scoreRow
+	P        sqlc.AdminGetParticipationRow
+	Contest  sqlc.Contest
+	Teams    []sqlc.Team
+	Sites    []sqlc.Site
+	Scores   []scoreRow
+	Sessions []sessionView
 }
 
 type scoreRow struct {
@@ -148,6 +150,11 @@ func (s *Server) handleParticipation(w http.ResponseWriter, r *http.Request, rc 
 		s.internalError(w, r, rc, err)
 		return
 	}
+	if d.Sites, err = s.q.ListSites(r.Context(), p.ContestID); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	d.Sessions = s.sessionsOf(r.Context(), []sqlc.Participation{{ID: p.ID, ContestID: p.ContestID, LoginNonce: p.LoginNonce}})
 	tasks, err := s.q.ListTasksByContest(r.Context(), &p.ContestID)
 	if err != nil {
 		s.internalError(w, r, rc, err)
@@ -186,6 +193,13 @@ func (s *Server) handleParticipationUpdate(w http.ResponseWriter, r *http.Reques
 		}
 		up.TeamID = &id
 	}
+	if v := f.str("site_id"); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			f.fail("invalid site")
+		}
+		up.SiteID = &id
+	}
 	up.Ip = f.prefixes("ip", "Allowed addresses")
 	up.DelayTimeS = f.nonNeg("delay_time_s", "Delay", 0)
 	up.ExtraTimeS = f.nonNeg("extra_time_s", "Extra time", 0)
@@ -198,8 +212,21 @@ func (s *Server) handleParticipationUpdate(w http.ResponseWriter, r *http.Reques
 		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, f.err.Error())
 		return
 	}
-	if _, err := s.q.UpdateParticipation(r.Context(), up); err != nil {
-		s.internalError(w, r, rc, err)
+	err := db.InTx(r.Context(), s.pool, func(tx pgx.Tx, q *sqlc.Queries) error {
+		if _, err := q.UpdateParticipation(r.Context(), up); err != nil {
+			return err
+		}
+		if up.TeamID != nil && (p.TeamID == nil || *p.TeamID != *up.TeamID) {
+			c, err := q.GetContest(r.Context(), p.ContestID)
+			if err != nil {
+				return err
+			}
+			return checkTeamSize(r, q, c, *up.TeamID)
+		}
+		return nil
+	})
+	if err != nil {
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	switch pw := r.FormValue("participation_password"); {
@@ -222,12 +249,13 @@ func (s *Server) handleParticipationUpdate(w http.ResponseWriter, r *http.Reques
 		rc.note("password_changed", true)
 	}
 	if f.check("logout") {
-		if _, err := s.q.BumpLoginNonce(r.Context(), p.ID); err != nil {
+		if err := s.logoutParticipation(r.Context(), sqlc.Participation{ID: p.ID, ContestID: p.ContestID}); err != nil {
 			s.internalError(w, r, rc, err)
 			return
 		}
 		rc.note("logged_out", true)
 	}
+
 	rc.target("participation", p.ID)
 	s.contestChanged(r.Context(), p.ContestID, p.ID)
 	s.done(w, r, "/participations/"+strconv.FormatInt(p.ID, 10), "Participation saved.")

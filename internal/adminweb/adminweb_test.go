@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -431,22 +432,45 @@ func TestTaskAndDatasetManagement(t *testing.T) {
 	webtest.MustOK(t, "delete task", code, body)
 }
 
+var digestRe = regexp.MustCompile(`name="digest" value="([0-9a-f]{64})"`)
+
+// importCSV runs the preview and, when it has no errors, the confirmation.
+func importCSV(t *testing.T, b *webtest.Browser, fields map[string]string, data string) (int, string, string) {
+	t.Helper()
+	code, preview := b.PostMultipart("/users/import", fields, webtest.File{Field: "file", Name: "users.csv", Data: []byte(data)})
+	if code != 200 {
+		return code, preview, preview
+	}
+	m := digestRe.FindStringSubmatch(preview)
+	if m == nil {
+		return code, preview, preview
+	}
+	form := url.Values{"step": {"confirm"}, "digest": {m[1]}}
+	for k, v := range fields {
+		form.Set(k, v)
+	}
+	code, body := b.Post("/users/import", form)
+	return code, preview, body
+}
+
 func TestUserImportAndParticipations(t *testing.T) {
 	f := newFixture(t)
 	b := f.login("all")
+	f.q.CreateSite(bg, sqlc.CreateSiteParams{ContestID: f.contest.ID, Name: "Norte"})
 	bad := "username,password,team\nbeto,,XXX\ncarla,pw\ncarla,pw2\n"
-	code, body := b.PostMultipart("/users/import", map[string]string{"contest_id": fmt.Sprint(f.contest.ID)},
-		webtest.File{Field: "file", Name: "users.csv", Data: []byte(bad)})
-	if code != http.StatusUnprocessableEntity || !strings.Contains(body, "unknown team") || !strings.Contains(body, "repeated") {
-		t.Fatalf("bad import = %d\n%s", code, body)
+	code, preview, _ := importCSV(t, b, map[string]string{"contest_id": fmt.Sprint(f.contest.ID)}, bad)
+	if code != 200 || !strings.Contains(preview, "unknown team") || !strings.Contains(preview, "repeated") || strings.Contains(preview, `name="step"`) {
+		t.Fatalf("bad import preview = %d\n%s", code, preview)
 	}
 	if _, err := f.q.GetUserByUsername(bg, "carla"); err == nil {
 		t.Fatal("a failed import created users")
 	}
-	good := "\ufeffusername,first_name,last_name,password,team,hidden,ip,extra_time\nbeto,Beto,Ruiz,,MEX,,10.0.0.5,600\ncarla,Carla,Paz,secret123,,yes,,\n"
-	code, body = b.PostMultipart("/users/import", map[string]string{"contest_id": fmt.Sprint(f.contest.ID), "generate": "on"},
-		webtest.File{Field: "file", Name: "users.csv", Data: []byte(good)})
+	good := "\ufeffusername,first_name,last_name,password,team,hidden,ip,extra_time,institution,country,site\nbeto,Beto,Ruiz,,MEX,,10.0.0.5,600,Prepa 1,MX,Norte\ncarla,Carla,Paz,secret123,,yes,,,,,\n"
+	code, preview, body := importCSV(t, b, map[string]string{"contest_id": fmt.Sprint(f.contest.ID), "generate": "on"}, good)
 	webtest.MustOK(t, "import", code, body)
+	if !strings.Contains(preview, "2 valid rows") || !strings.Contains(preview, "Import 2 users") {
+		t.Fatalf("preview:\n%s", preview)
+	}
 	if !strings.Contains(body, "2 users created") || !strings.Contains(body, "2 participations added") {
 		t.Fatalf("import result:\n%s", body)
 	}
@@ -455,8 +479,8 @@ func TestUserImportAndParticipations(t *testing.T) {
 		t.Fatalf("no generated password shown:\n%s", body)
 	}
 	beto, _ := f.q.GetUserByUsername(bg, "beto")
-	if auth.VerifyPassword(beto.PasswordHash, m[1]) != nil || beto.LastName != "Ruiz" {
-		t.Fatal("generated password does not match")
+	if auth.VerifyPassword(beto.PasswordHash, m[1]) != nil || beto.LastName != "Ruiz" || beto.Institution != "Prepa 1" || beto.Country != "MX" {
+		t.Fatalf("imported user %+v", beto)
 	}
 	carla, _ := f.q.GetUserByUsername(bg, "carla")
 	if auth.VerifyPassword(carla.PasswordHash, "secret123") != nil {
@@ -464,15 +488,25 @@ func TestUserImportAndParticipations(t *testing.T) {
 	}
 	pb, _ := f.q.GetParticipationByContestUser(bg, sqlc.GetParticipationByContestUserParams{ContestID: f.contest.ID, UserID: beto.ID})
 	pc, _ := f.q.GetParticipationByContestUser(bg, sqlc.GetParticipationByContestUserParams{ContestID: f.contest.ID, UserID: carla.ID})
-	if pb.TeamID == nil || *pb.TeamID != f.team.ID || pb.ExtraTimeS != 600 || len(pb.Ip) != 1 || pb.Ip[0].String() != "10.0.0.5/32" || !pc.Hidden {
+	if pb.TeamID == nil || *pb.TeamID != f.team.ID || pb.ExtraTimeS != 600 || len(pb.Ip) != 1 || pb.Ip[0].String() != "10.0.0.5/32" || !pc.Hidden || pb.SiteID == nil {
 		t.Fatalf("participations %+v %+v", pb, pc)
 	}
+	// The credentials sheet is a PDF built from the posted credentials.
+	resp := postRaw(t, b, "/credentials.pdf", url.Values{"credentials": {"username,password,name\nbeto,abc,Beto Ruiz\n"}, "per_page": {"4"}, "title": {"OMI"}})
+	if !strings.HasPrefix(resp, "%PDF-") {
+		t.Fatalf("credentials PDF: %.40q", resp)
+	}
+	// Export in the import format.
+	code, body = b.Get(fmt.Sprintf("/users/export.csv?contest=%d", f.contest.ID))
+	if code != 200 || !strings.Contains(body, "beto,Beto,Ruiz,,Prepa 1,MX,,,MEX,Norte,,,10.0.0.5,0,600") {
+		t.Fatalf("export:\n%s", body)
+	}
 	// Existing users need "update".
-	code, _ = b.PostMultipart("/users/import", nil, webtest.File{Field: "file", Name: "u.csv", Data: []byte("username,password\nbeto,x\n")})
-	if code != http.StatusUnprocessableEntity {
+	code, preview, _ = importCSV(t, b, nil, "username,password\nbeto,x\n")
+	if code != 200 || !strings.Contains(preview, "the user exists") {
 		t.Fatalf("re-import without update = %d", code)
 	}
-	code, body = b.PostMultipart("/users/import", map[string]string{"update": "on"}, webtest.File{Field: "file", Name: "u.csv", Data: []byte("username,password,first_name\nbeto,newpass1,Roberto\n")})
+	code, _, body = importCSV(t, b, map[string]string{"update": "on"}, "username,password,first_name\nbeto,newpass1,Roberto\n")
 	webtest.MustOK(t, "update import", code, body)
 	beto, _ = f.q.GetUserByUsername(bg, "beto")
 	if auth.VerifyPassword(beto.PasswordHash, "newpass1") != nil || beto.FirstName != "Roberto" {
@@ -580,4 +614,17 @@ func TestTemplateRe(t *testing.T) {
 	if _, err := templateRe("noglob"); err == nil {
 		t.Fatal("template without * accepted")
 	}
+}
+
+// postRaw posts a form and returns the raw body (downloads).
+func postRaw(t *testing.T, b *webtest.Browser, path string, form url.Values) string {
+	t.Helper()
+	form.Set("csrf", b.CSRF)
+	resp, err := b.C.PostForm(b.Base+path, form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	return string(data)
 }
