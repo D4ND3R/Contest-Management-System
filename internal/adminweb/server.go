@@ -229,6 +229,7 @@ func (s *Server) Handler() http.Handler {
 	post("/contests/{id}/ranking/freeze", permAll, "contest.ranking_freeze", s.handleRankingFreeze)
 	get("/contests/{id}/ranking.csv", s.handleRankingCSV)
 	get("/contests/{id}/ranking.json", s.handleRankingJSON)
+	get("/contests/{id}/ranking.pdf", s.handleRankingPDF)
 	get("/contests/{id}/stats", s.handleStats)
 
 	get("/questions", s.handleQuestions)

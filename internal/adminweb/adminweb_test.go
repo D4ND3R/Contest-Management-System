@@ -293,6 +293,7 @@ func TestEveryPageRenders(t *testing.T) {
 		"/testcases/" + id(tcs[0].ID) + "/output":        "3\n",
 		"/submissions/" + id(f.subs[0]) + "/files/sum.c": "return 0;",
 		"/contests/" + c + "/ranking.csv":                "1,ana,Ana,,MEX,100,100",
+		"/contests/" + c + "/ranking.pdf":                "%PDF-1.4",
 	}
 	for p, want := range downloads {
 		code, body := b.Get(p)

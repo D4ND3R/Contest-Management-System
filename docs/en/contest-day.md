@@ -96,8 +96,8 @@ web site; commands run on the main server unless noted.
 - [ ] Wait until **Workers & queues** shows no waiting jobs and no pending
       submissions.
 - [ ] Answer or close the remaining questions.
-- [ ] Export the results: **Ranking → CSV / JSON** (and keep a copy of the
-      ranking page).
+- [ ] Export the results: **Ranking → CSV / JSON / Printable PDF** (A4
+      landscape, header on every page, filtered by site if one is chosen).
 - [ ] Final backup (**Back up now**), download it and store it off the
       server.
 - [ ] Optional: turn on analysis mode or let contestants download their

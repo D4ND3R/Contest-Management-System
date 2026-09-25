@@ -707,3 +707,12 @@ stored binary verdicts) and the first accepted submission (who, when,
 contest minute; hidden contestants excluded), next to the existing score
 distribution and testcase verdicts. Test: adminweb.TestTaskStatistics.
 
+## SPEC_CLOSE D5 — Results export (done)
+Skipping skills: immersive-web-design, master skill.
+
+The admin ranking exports a printable PDF besides CSV and JSON: A4
+landscape, one row per contestant (or team), one column per task, total
+or solved/penalty, header repeated on every page, labels in the admin's
+language, same site/hidden filters. Test: ranking.TestWritePDF (+ the
+download in adminweb.TestEveryPageRenders).
+

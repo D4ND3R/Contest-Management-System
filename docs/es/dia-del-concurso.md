@@ -100,8 +100,9 @@ principal salvo que se indique otra cosa.
 - [ ] Espera a que **Workers y colas** no tenga trabajos en espera ni envíos
       pendientes.
 - [ ] Responde o cierra las preguntas que queden.
-- [ ] Exporta los resultados: **Ranking → CSV / JSON** (y guarda una copia de
-      la página del ranking).
+- [ ] Exporta los resultados: **Ranking → CSV / JSON / PDF para imprimir**
+      (A4 horizontal, encabezado en cada página, filtrado por sede si se
+      eligió una).
 - [ ] Respaldo final (**Respaldar ahora**), descárgalo y guárdalo fuera del
       servidor.
 - [ ] Opcional: activa el modo análisis o permite que los concursantes

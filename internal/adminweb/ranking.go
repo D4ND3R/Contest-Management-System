@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
+	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/ranking"
 	"github.com/D4ND3R/Contest-Management-System/internal/rankingpush"
 )
@@ -96,6 +97,33 @@ func (s *Server) exportRanking(w http.ResponseWriter, r *http.Request, rc *reqCt
 	}
 	if err != nil {
 		s.log.Warn("ranking export", "error", err)
+	}
+}
+
+// handleRankingPDF is the printable final results (landscape table).
+func (s *Server) handleRankingPDF(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	c, ok := s.loadContest(w, r, rc)
+	if !ok {
+		return
+	}
+	site, _ := strconv.ParseInt(r.URL.Query().Get("site"), 10, 64)
+	rk, err := ranking.Compute(r.Context(), s.q, c.ID, ranking.Options{IncludeHidden: r.URL.Query().Get("hidden") == "1", SiteID: site})
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	lang := adminLang(r)
+	t := func(msg string, args ...any) string { return i18n.T(lang, msg, args...) }
+	title := c.Description
+	if title == "" {
+		title = c.Name
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", `attachment; filename="ranking-`+c.Name+`.pdf"`)
+	w.Header().Set("Cache-Control", "no-store")
+	if err := rk.WritePDF(w, ranking.PDFLabels{Title: t("Results: %s", title), Rank: "#", Contestant: t("Contestant"),
+		Team: t("Team / institution"), Total: t("Total"), Solved: t("Solved"), Penalty: t("Penalty"), Page: t("page")}); err != nil {
+		s.log.Warn("ranking pdf", "error", err)
 	}
 }
 

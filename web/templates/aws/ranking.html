@@ -13,6 +13,7 @@
 <p class="muted small">{{.T "This page always shows the complete, unfrozen ranking."}}</p>
 </section>
 <p class="actions"><a href="/contests/{{$r.ContestID}}/ranking.csv{{if $r.Site}}?site={{$r.Site}}{{end}}">{{.T "Export CSV"}}</a> · <a href="/contests/{{$r.ContestID}}/ranking.json{{if $r.Site}}?site={{$r.Site}}{{end}}">{{.T "Export JSON"}}</a> ·
+  <a href="/contests/{{$r.ContestID}}/ranking.pdf{{if $r.Site}}?site={{$r.Site}}{{end}}">{{.T "Printable PDF"}}</a> ·
   <a href="?hidden=1">{{.T "include hidden users"}}</a> · <a href="/contests/{{$r.ContestID}}/stats">{{.T "statistics"}}</a></p>
 {{if $r.Sites}}<form method="get" class="filters"><label>{{.T "Site"}} <select name="site"><option value="">{{.T "all"}}</option>{{range $r.Sites}}<option value="{{.ID}}" {{if eq .ID $r.Site}}selected{{end}}>{{.Name}}</option>{{end}}</select></label> <button>{{.T "Filter"}}</button></form>{{end}}
 <table class="ranking">

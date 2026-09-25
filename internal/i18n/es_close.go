@@ -287,6 +287,12 @@ var esClose = map[string]string{
 	"Submissions by verdict":         "Envíos por veredicto",
 	"scored before verdicts":         "puntuados antes de los veredictos",
 	"No scored submissions yet.":     "Aún no hay envíos puntuados.",
+	// D5: printable results.
+	"Results: %s":        "Resultados: %s",
+	"Contestant":         "Concursante",
+	"Team / institution": "Equipo / institución",
+	"page":               "página",
+	"Printable PDF":      "PDF para imprimir",
 }
 
 func init() {

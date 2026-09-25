@@ -41,6 +41,16 @@ func (d *Doc) AddPage() *Page {
 	return p
 }
 
+// AddLandscapePage appends an A4 landscape page (wide tables).
+func (d *Doc) AddLandscapePage() *Page {
+	p := &Page{w: A4Height, h: A4Width}
+	d.pages = append(d.pages, p)
+	return p
+}
+
+// Size returns the page's width and height in points.
+func (p *Page) Size() (w, h float64) { return p.w, p.h }
+
 // Pages is the number of pages.
 func (d *Doc) Pages() int { return len(d.pages) }
 

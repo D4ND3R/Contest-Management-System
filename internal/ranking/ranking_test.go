@@ -13,6 +13,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
+	"github.com/D4ND3R/Contest-Management-System/internal/pdf"
 	"github.com/D4ND3R/Contest-Management-System/internal/testutil"
 )
 
@@ -209,5 +210,47 @@ func TestScoreAdjustments(t *testing.T) {
 	mergeTeam(&a, BoardRow{Cells: []BoardCell{{Score: 62, Subtasks: []float64{0, 60}, Adjustment: 2}}}, false, tm)
 	if a.Cells[0].Score != 107 {
 		t.Fatalf("team cell %+v", a.Cells[0])
+	}
+}
+
+// TestWritePDF (SPEC_CLOSE D5): the printable ranking paginates with the
+// header on every page and writes ICPC cells as +attempts minute.
+func TestWritePDF(t *testing.T) {
+	r := &Ranking{Contest: "final", Precision: 0, Generated: time.Date(2030, 1, 1, 15, 0, 0, 0, time.UTC),
+		Tasks: []Task{{Name: "suma", MaxScore: 100}, {Name: "resta", MaxScore: 100}}}
+	for i := 0; i < 80; i++ {
+		r.Rows = append(r.Rows, Row{Rank: i + 1, Username: fmt.Sprintf("u%02d", i), FirstName: "Lucía", LastName: "Núñez",
+			Institution: "UNAM", Total: float64(200 - i), Cells: []Cell{{Score: 100, Submitted: true}, {Score: float64(100 - i), Submitted: true}}})
+	}
+	l := PDFLabels{Title: "Resultados — final", Rank: "#", Contestant: "Concursante", Team: "Equipo", Total: "Total", Solved: "Resueltos",
+		Penalty: "Penalización", Page: "página"}
+	var buf bytes.Buffer
+	if err := r.WritePDF(&buf, l); err != nil {
+		t.Fatal(err)
+	}
+	n, err := pdf.CountPages(buf.Bytes())
+	if err != nil || n != 3 {
+		t.Fatalf("pages %d %v", n, err)
+	}
+	b := buf.String()
+	for _, want := range []string{"(Concursante)", "(p\xe1gina 3 / 3)", "Luc\xeda N\xfa\xf1ez \\(u79\\)", "(UNAM)", "(121)"} {
+		if !strings.Contains(b, want) {
+			t.Errorf("pdf lacks %q", want)
+		}
+	}
+	if strings.Count(b, "(Concursante)") != 3 {
+		t.Error("the header is not repeated on every page")
+	}
+	// ICPC cells.
+	c := func(solved bool, attempts, minute int) string {
+		return pdfCell(Cell{Submitted: true, Solved: solved, Attempts: attempts, SolvedMinute: minute}, Task{}, true)
+	}
+	if c(true, 0, 12) != "+ 12'" || c(true, 2, 45) != "+2 45'" || c(false, 3, 0) != "-3" || pdfCell(Cell{}, Task{}, true) != "" {
+		t.Errorf("icpc cells %q %q %q", c(true, 0, 12), c(true, 2, 45), c(false, 3, 0))
+	}
+	r.ICPC = true
+	buf.Reset()
+	if err := r.WritePDF(&buf, l); err != nil || !strings.Contains(buf.String(), "(Resueltos)") {
+		t.Fatalf("icpc pdf: %v", err)
 	}
 }

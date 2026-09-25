@@ -110,6 +110,7 @@ func TestDynamicKeysTranslated(t *testing.T) {
 		backup.KindScheduled, backup.KindManual, backup.KindCLI, "external", "Kind", "done", "failed", // backups
 		"draft", "published", "archived", // contest status
 		"blobs", "backups", "temporary files", "work", "cache", // disks of the system panel
+		"Results: %s", "Contestant", "Team / institution", "Total", "Solved", "Penalty", "page", // printable ranking
 		"Bad Request", "Unauthorized", "Forbidden", "Not Found", "Method Not Allowed", "Conflict",
 		"Request Entity Too Large", "Unprocessable Entity", "Too Many Requests", "Internal Server Error"}
 	for _, v := range problempkg.Verdicts {
