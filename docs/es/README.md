@@ -4,6 +4,7 @@
 - [Paquetes de problema: formato, importación, validación y exportación](paquete-de-problema.md)
 - [Rankings: configuración, congelamiento y servidor de ranking](ranking.md)
 - [Respaldos y restauración](respaldos.md)
+- [Verificar una máquina de evaluación](verificar-host.md)
 - [Lenguajes de programación](languages.md)
 - [Paquetes de ejemplo](../examples/packages/README.md)
 

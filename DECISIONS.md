@@ -401,3 +401,21 @@ tier, reads are throttled (`backup.max_rate`, 32 MiB/s by default: 1 GiB in
 throttle also back-pressures PostgreSQL's COPY. Restoring is deliberately
 CLI-only: it needs every service stopped. Rotation applies to scheduled
 backups only; manual ones are kept until someone deletes them.
+
+## D49. The judge self-test ships inside the binary
+`scripts/verify-host.sh` must run on production hosts, which have no Go
+toolchain and no source tree, yet it has to judge the security battery and
+the sample solutions through the real worker code. The programs moved from
+`internal/worker/testdata` to `internal/selftest/testdata` (still a
+`testdata` directory, so the go tool ignores the sample `.go` files) and are
+embedded; `selftest.Judge` runs them on any executor and applies the host
+checks (surviving sandbox processes by uid range, files created outside the
+box, connections to a host listener). `cms ctl judge-selftest` wraps it for
+the script, and the worker tests run the very same cases, so the battery
+cannot drift between CI and the contest machine. The shell script keeps the
+OS checks (kernel, cgroups, isolate permissions and a real `--cg` run, SMT,
+turbo, governor, swap, NTP, isolate-check-environment) because they need no
+code and are easier to read and adapt as shell. It fails hard only on what
+makes judging unsafe or impossible; what only makes timings noisier is a
+warning with its fix. The self-test uses boxes 500+ by default so it can run
+next to a stopped (or even a running) worker with the default offset 0.

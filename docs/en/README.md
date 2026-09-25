@@ -4,6 +4,7 @@
 - [Problem packages: format, import, validation and export](problem-package.md)
 - [Rankings: settings, freeze and the ranking web server](ranking.md)
 - [Backups and restore](backups.md)
+- [Verifying a judging host](verify-host.md)
 - [Programming languages](languages.md)
 - [Example problem packages](../examples/packages/README.md)
 

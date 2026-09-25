@@ -109,3 +109,9 @@ first audit (after F6), the "status" column the current state.
 | Z2 | F10 load tests repeated at the end | — | `make loadtest` |
 | Z3 | Security battery | — | worker.TestMaliciousBattery, F10 web hardening tests |
 | Z4 | Admin documentation: how to create each problem type, step by step (es/en) | — | docs/{es,en}/admin-*.md |
+
+## §8 Operations (SPEC_CLOSE A5, A6)
+
+| ID | Requirement | Initial | Status | Files | Tests |
+|----|-------------|---------|--------|-------|-------|
+| O1 | Host verification: kernel, cgroups v2, isolate install/permissions, `isolate --cg` run, cores, SMT/turbo/governor, swap, clock; security battery and sample solutions judged twice with identical verdicts; OK/FAIL report with fixes; "do not start the contest if it fails" documented | missing | complete (run on every judging machine; the VM used for development has no SMT/turbo to report) | scripts/verify-host.sh, selftest/selftest.go (embedded battery and samples, shared with the worker tests), cli/ctl_selftest.go (`cms ctl judge-selftest`), docs/{en/verify-host.md,es/verificar-host.md} | cli.TestVerifyHost (script end to end: OK run with two judged runs, FAIL without isolate), worker.TestMaliciousBattery, worker.TestSampleSolutions |

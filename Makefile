@@ -7,7 +7,7 @@ LDFLAGS := -s -w -X github.com/D4ND3R/Contest-Management-System/internal/version
            -X github.com/D4ND3R/Contest-Management-System/internal/version.Commit=$(COMMIT)
 PKGS ?= ./...
 
-.PHONY: all build test test-race test-short test-sandbox test-e2e bench lint fmt generate \
+.PHONY: all build test test-race test-short test-sandbox test-e2e verify-host bench lint fmt generate \
         dev dev-native dev-down dev-logs migrate infra-stop clean loadtest help
 
 all: lint build test
@@ -29,6 +29,9 @@ test-short: ## unit tests only (no PostgreSQL/Redis)
 
 test-sandbox: ## malicious-program battery + sample solutions (root + isolate)
 	CMS_SANDBOX_TESTS=1 scripts/test.sh -count=1 -v -run 'TestMalicious|TestSampleSolutions' ./internal/worker/... ./internal/tasktypes/...
+
+verify-host: build ## check this machine judges correctly (root; see docs/en/verify-host.md)
+	scripts/verify-host.sh --cms bin/cms
 
 test-e2e: ## whole-system tests alone, enforcing latency targets (judging needs root + isolate)
 	CMS_SANDBOX_TESTS=1 CMS_PERF_ASSERT=1 scripts/test.sh -count=1 -p 1 -v ./internal/e2e/...

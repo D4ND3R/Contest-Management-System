@@ -516,3 +516,21 @@ empty database → restore → every table, sequence, migration and blob
 identical; damaged/truncated archives rejected without committing; forced
 replacement; older schema; throttle; schedule, rotation and S3 copy; CLI;
 admin page.
+
+## SPEC_CLOSE A5 — Judge verification on real hardware (done)
+Skipping skills: immersive-web-design, master skill.
+
+`scripts/verify-host.sh` checks root, kernel, isolate (installed, setuid,
+configuration, safe box root, disk), cgroups (v2 controllers,
+isolate.service), a real `isolate --cg` run, CPUs, SMT, turbo, governor,
+swap, NTP and isolate-check-environment, then runs `cms ctl
+judge-selftest`: the security battery and the AC/WA/TLE/MLE/RE/CE samples
+of every installed language judged twice through the worker code with the
+host checks, verdicts required identical. Each problem is printed as
+OK/WARN/FAIL with its fix; `RESULT: FAIL … do NOT start the contest` exits
+1. The battery and samples are now embedded in the binary
+(`internal/selftest`) and shared with the worker tests. Docs:
+docs/en/verify-host.md, docs/es/verificar-host.md. Test: cli.TestVerifyHost
+runs the script end to end (OK with two judged runs; FAIL without isolate).
+On this development VM: RESULT OK with 2 warnings (legacy cgroup v1 +
+isolate 1.10; ASLR/THP), 25 programs per run in ~18 s.

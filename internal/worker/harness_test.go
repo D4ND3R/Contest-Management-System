@@ -154,3 +154,7 @@ func (h *harness) testcase(id int64, in, out string) jobs.Testcase {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+func defaultLimits() jobs.Limits {
+	return jobs.Limits{TimeMs: 1000, MemoryBytes: 256 << 20, OutputBytes: 16 << 20, Processes: 1}
+}
