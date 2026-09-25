@@ -934,6 +934,53 @@ func (q *Queries) AdminStorageStats(ctx context.Context) (AdminStorageStatsRow, 
 	return i, err
 }
 
+const adminTaskFirstAccepted = `-- name: AdminTaskFirstAccepted :many
+SELECT DISTINCT ON (s.task_id) s.task_id, s.id AS submission_id, s.submitted_at, u.username, p.id AS participation_id
+FROM submissions s
+JOIN tasks t ON t.id = s.task_id
+JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+JOIN participations p ON p.id = s.participation_id
+JOIN users u ON u.id = p.user_id
+WHERE t.contest_id = $1 AND s.official AND s.invalidated_at IS NULL AND NOT p.hidden AND sr.verdict = 'AC'
+ORDER BY s.task_id, s.submitted_at, s.id
+`
+
+type AdminTaskFirstAcceptedRow struct {
+	TaskID          int64     `json:"task_id"`
+	SubmissionID    int64     `json:"submission_id"`
+	SubmittedAt     time.Time `json:"submitted_at"`
+	Username        string    `json:"username"`
+	ParticipationID int64     `json:"participation_id"`
+}
+
+// The first accepted submission of each task (official, not invalidated,
+// by a visible participation) on the live dataset.
+func (q *Queries) AdminTaskFirstAccepted(ctx context.Context, contestID *int64) ([]AdminTaskFirstAcceptedRow, error) {
+	rows, err := q.db.Query(ctx, adminTaskFirstAccepted, contestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminTaskFirstAcceptedRow{}
+	for rows.Next() {
+		var i AdminTaskFirstAcceptedRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.SubmissionID,
+			&i.SubmittedAt,
+			&i.Username,
+			&i.ParticipationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminTaskSubmissionStats = `-- name: AdminTaskSubmissionStats :many
 SELECT t.id AS task_id,
        count(s.id) AS submissions,
@@ -975,6 +1022,44 @@ func (q *Queries) AdminTaskSubmissionStats(ctx context.Context, contestID *int64
 			&i.Pending,
 			&i.Errors,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminTaskSubmissionVerdicts = `-- name: AdminTaskSubmissionVerdicts :many
+SELECT s.task_id, COALESCE(sr.verdict, '')::text AS verdict, count(*) AS n
+FROM submissions s
+JOIN tasks t ON t.id = s.task_id
+JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE t.contest_id = $1 AND s.official AND s.invalidated_at IS NULL AND sr.scored_at IS NOT NULL
+GROUP BY s.task_id, verdict
+ORDER BY s.task_id, n DESC
+`
+
+type AdminTaskSubmissionVerdictsRow struct {
+	TaskID  int64  `json:"task_id"`
+	Verdict string `json:"verdict"`
+	N       int64  `json:"n"`
+}
+
+// Submission verdicts on the live dataset of each task (official, not
+// invalidated); results scored before verdicts existed count as "".
+func (q *Queries) AdminTaskSubmissionVerdicts(ctx context.Context, contestID *int64) ([]AdminTaskSubmissionVerdictsRow, error) {
+	rows, err := q.db.Query(ctx, adminTaskSubmissionVerdicts, contestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminTaskSubmissionVerdictsRow{}
+	for rows.Next() {
+		var i AdminTaskSubmissionVerdictsRow
+		if err := rows.Scan(&i.TaskID, &i.Verdict, &i.N); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

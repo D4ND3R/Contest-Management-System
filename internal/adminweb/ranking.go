@@ -117,6 +117,23 @@ type taskStats struct {
 	Histogram                                    []histBucket
 	Verdicts                                     []verdictRow
 	VerdictTotal                                 int64
+	// Submission verdicts and the first accepted submission.
+	SubVerdicts []subVerdict
+	SubTotal    int64
+	FirstAC     *firstAC
+}
+
+type subVerdict struct {
+	Verdict string
+	N       int64
+}
+
+type firstAC struct {
+	SubmissionID    int64
+	Username        string
+	Time            time.Time
+	ContestMinute   int
+	ParticipationID int64
 }
 
 type histBucket struct {
@@ -209,6 +226,28 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 		if ts := byID[v.TaskID]; ts != nil {
 			ts.Verdicts = append(ts.Verdicts, verdictRow{v.Verdict, v.N, v.AvgTime, v.MaxTime, v.MaxMemory})
 			ts.VerdictTotal += v.N
+		}
+	}
+	subVerdicts, err := s.q.AdminTaskSubmissionVerdicts(r.Context(), &c.ID)
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	for _, v := range subVerdicts {
+		if ts := byID[v.TaskID]; ts != nil {
+			ts.SubVerdicts = append(ts.SubVerdicts, subVerdict{v.Verdict, v.N})
+			ts.SubTotal += v.N
+		}
+	}
+	firsts, err := s.q.AdminTaskFirstAccepted(r.Context(), &c.ID)
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	for _, f := range firsts {
+		if ts := byID[f.TaskID]; ts != nil {
+			ts.FirstAC = &firstAC{SubmissionID: f.SubmissionID, Username: f.Username, Time: f.SubmittedAt,
+				ContestMinute: int(f.SubmittedAt.Sub(c.StartTime) / time.Minute), ParticipationID: f.ParticipationID}
 		}
 	}
 	s.render(w, "stats", http.StatusOK, s.newPage(w, r, rc, "Statistics", "contests", d).

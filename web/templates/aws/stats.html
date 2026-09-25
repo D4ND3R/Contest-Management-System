@@ -14,12 +14,21 @@
   <div class="stat"><b>{{.CompileFailed}}</b><span>{{$.T "compilation errors"}}</span></div>
   <div class="stat"><b>{{.Pending}}</b><span>{{$.T "pending"}}</span></div>
   <div class="stat"><b class="{{if .Errors}}bad{{end}}">{{.Errors}}</b><span>{{$.T "system errors"}}</span></div>
+  <div class="stat">{{with .FirstAC}}<b><a href="/submissions/{{.SubmissionID}}">{{.Username}}</a></b><span>{{$.T "first accepted: %s (minute %d)" (dt .Time) .ContestMinute}}</span>{{else}}<b>—</b><span>{{$.T "no accepted submission yet"}}</span>{{end}}</div>
 </div>
 <div class="row">
 <div>
 <h3>{{$.T "Score distribution"}}</h3>
 <table class="hist"><tbody>
 {{range .Histogram}}<tr><td>{{.Label}}</td><td class="num">{{.Count}}</td><td class="barcell"><progress max="100" value="{{.Pct}}">{{.Pct}}%</progress></td></tr>{{end}}
+</tbody></table>
+</div>
+<div>
+<h3>{{$.T "Submissions by verdict"}}</h3>
+<table><thead><tr><th>{{$.T "Verdict"}}</th><th class="num">{{$.T "Submissions"}}</th><th class="num">%</th></tr></thead><tbody>
+{{$st := .SubTotal}}
+{{range .SubVerdicts}}<tr><td>{{if .Verdict}}{{.Verdict}}{{else}}<span class="muted">{{$.T "scored before verdicts"}}</span>{{end}}</td><td class="num">{{.N}}</td><td class="num">{{pct .N $st}}</td></tr>
+{{else}}<tr><td colspan="3" class="muted">{{$.T "No scored submissions yet."}}</td></tr>{{end}}
 </tbody></table>
 </div>
 <div>

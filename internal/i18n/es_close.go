@@ -281,6 +281,12 @@ var esClose = map[string]string{
 	"temporary files":   "archivos temporales",
 	"work":              "trabajo",
 	"cache":             "caché",
+	// D4: task statistics.
+	"first accepted: %s (minute %d)": "primer aceptado: %s (minuto %d)",
+	"no accepted submission yet":     "aún ningún envío aceptado",
+	"Submissions by verdict":         "Envíos por veredicto",
+	"scored before verdicts":         "puntuados antes de los veredictos",
+	"No scored submissions yet.":     "Aún no hay envíos puntuados.",
 }
 
 func init() {

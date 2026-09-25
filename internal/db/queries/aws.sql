@@ -137,6 +137,29 @@ WHERE t.contest_id = $1 AND s.official
 GROUP BY s.task_id, verdict
 ORDER BY s.task_id, verdict;
 
+-- name: AdminTaskSubmissionVerdicts :many
+-- Submission verdicts on the live dataset of each task (official, not
+-- invalidated); results scored before verdicts existed count as "".
+SELECT s.task_id, COALESCE(sr.verdict, '')::text AS verdict, count(*) AS n
+FROM submissions s
+JOIN tasks t ON t.id = s.task_id
+JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE t.contest_id = $1 AND s.official AND s.invalidated_at IS NULL AND sr.scored_at IS NOT NULL
+GROUP BY s.task_id, verdict
+ORDER BY s.task_id, n DESC;
+
+-- name: AdminTaskFirstAccepted :many
+-- The first accepted submission of each task (official, not invalidated,
+-- by a visible participation) on the live dataset.
+SELECT DISTINCT ON (s.task_id) s.task_id, s.id AS submission_id, s.submitted_at, u.username, p.id AS participation_id
+FROM submissions s
+JOIN tasks t ON t.id = s.task_id
+JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+JOIN participations p ON p.id = s.participation_id
+JOIN users u ON u.id = p.user_id
+WHERE t.contest_id = $1 AND s.official AND s.invalidated_at IS NULL AND NOT p.hidden AND sr.verdict = 'AC'
+ORDER BY s.task_id, s.submitted_at, s.id;
+
 -- name: AdminListUsers :many
 -- Users with the number of participations, filtered by a search string.
 SELECT u.*, (SELECT count(*) FROM participations p WHERE p.user_id = u.id) AS participations

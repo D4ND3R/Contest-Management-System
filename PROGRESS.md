@@ -699,3 +699,11 @@ for writing while another slot ran it (ETXTBSY). Executables are now
 written with forks held off; regression test
 worker.TestExecutablesUnderConcurrentSlots.
 
+## SPEC_CLOSE D4 — Task statistics (done)
+Skipping skills: immersive-web-design, master skill.
+
+The statistics page adds, per task, the submissions by verdict (from the
+stored binary verdicts) and the first accepted submission (who, when,
+contest minute; hidden contestants excluded), next to the existing score
+distribution and testcase verdicts. Test: adminweb.TestTaskStatistics.
+
