@@ -1,0 +1,12 @@
+# Problem package (format 1): see docs/en/problem-package.md
+format: 1
+name: binario
+title: Codifica y decodifica
+type: two_steps          # manager.cpp runs encode() and then decode()
+time_limit: 1
+memory_limit: 256
+manager: manager
+checker: white_diff
+scoring: sum
+points_per_test: 20
+languages: [cpp17]

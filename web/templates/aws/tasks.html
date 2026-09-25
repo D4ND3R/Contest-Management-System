@@ -1,5 +1,5 @@
 {{define "content"}}
-<h1>{{.T "Tasks"}}</h1>
+<h1>{{.T "Tasks"}} {{if .CanWrite}}<a class="button small" href="/tasks/import">{{.T "Import a package"}}</a>{{end}}</h1>
 {{if .CanWrite}}
 <form method="post" action="/tasks" class="card inline-form">
   {{template "csrf" .CSRF}}

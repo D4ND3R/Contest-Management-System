@@ -103,6 +103,20 @@ func (q *Queries) CreateDataset(ctx context.Context, arg CreateDatasetParams) (D
 	return i, err
 }
 
+type CreateManagersParams struct {
+	DatasetID int64  `json:"dataset_id"`
+	Filename  string `json:"filename"`
+	Digest    string `json:"digest"`
+}
+
+type CreateTestcasesParams struct {
+	DatasetID    int64  `json:"dataset_id"`
+	Codename     string `json:"codename"`
+	Public       bool   `json:"public"`
+	InputDigest  string `json:"input_digest"`
+	OutputDigest string `json:"output_digest"`
+}
+
 const deleteDataset = `-- name: DeleteDataset :exec
 DELETE FROM datasets WHERE id = $1
 `

@@ -2,6 +2,7 @@
 {{$d := .Data.D}}{{$ds := .Data.Dataset}}
 <h1>{{.T "Dataset %s" $ds.Description}} <small class="muted">{{.T "task"}} <a href="/tasks/{{.Data.Task.ID}}">{{.Data.Task.Name}}</a></small>
   {{if .Data.Live}}<span class="tag ok">{{.T "live"}}</span>{{end}}{{if $ds.Autojudge}}<span class="tag">{{.T "autojudge"}}</span>{{end}}</h1>
+<p class="actions"><a href="/tasks/{{.Data.Task.ID}}/export.zip?dataset={{$ds.ID}}">{{.T "Export as a package"}}</a></p>
 {{if .CanWrite}}<p class="actions">
   {{if not .Data.Live}}<form method="post" action="/datasets/{{$ds.ID}}/activate" class="inline" data-confirm="{{.T "Make this the live dataset? Scores will change."}}">{{template "csrf" .CSRF}}<button>{{.T "Make live"}}</button></form>{{end}}
   {{.T "Reevaluate on this dataset:"}} {{template "reevaluate" (reeval $ "dataset_id" $ds.ID (printf "/datasets/%d" $ds.ID))}}

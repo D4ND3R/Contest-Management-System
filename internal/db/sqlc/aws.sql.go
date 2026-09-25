@@ -705,6 +705,78 @@ func (q *Queries) AdminNextTaskNum(ctx context.Context, contestID *int64) (int32
 	return column_1, err
 }
 
+const adminPackageSolutionRuns = `-- name: AdminPackageSolutionRuns :many
+SELECT s.id, s.comment, s.language, d.id AS dataset_id, d.description AS dataset_description,
+       (sr.submission_id IS NOT NULL)::boolean AS judged, sr.compilation_outcome, sr.score, sr.scored_at, sr.system_error,
+       COALESCE(bool_or(e.exit_status IN ('timeout', 'timeout_wall')), false)::boolean AS any_tle,
+       COALESCE(bool_or(e.exit_status = 'memory'), false)::boolean AS any_mle,
+       COALESCE(bool_or(e.exit_status IN ('signal', 'nonzero', 'output_limit')), false)::boolean AS any_re,
+       COALESCE(bool_or(e.exit_status = 'ok' AND e.outcome < 1), false)::boolean AS any_wa
+FROM (SELECT DISTINCT ON (comment) id, comment, language FROM submissions
+      WHERE task_id = $1::bigint AND tester AND comment LIKE 'solutions/%'
+      ORDER BY comment, id DESC) s
+JOIN datasets d ON d.task_id = $1::bigint
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = d.id
+LEFT JOIN evaluations e ON e.submission_id = s.id AND e.dataset_id = d.id
+GROUP BY s.id, s.comment, s.language, d.id, d.description, sr.submission_id, sr.dataset_id
+ORDER BY s.comment, d.id
+`
+
+type AdminPackageSolutionRunsRow struct {
+	ID                 int64      `json:"id"`
+	Comment            string     `json:"comment"`
+	Language           *string    `json:"language"`
+	DatasetID          int64      `json:"dataset_id"`
+	DatasetDescription string     `json:"dataset_description"`
+	Judged             bool       `json:"judged"`
+	CompilationOutcome *string    `json:"compilation_outcome"`
+	Score              *float64   `json:"score"`
+	ScoredAt           *time.Time `json:"scored_at"`
+	SystemError        *string    `json:"system_error"`
+	AnyTle             bool       `json:"any_tle"`
+	AnyMle             bool       `json:"any_mle"`
+	AnyRe              bool       `json:"any_re"`
+	AnyWa              bool       `json:"any_wa"`
+}
+
+// Newest tester run of every problem-package solution of a task with its
+// result and the failure kinds of its evaluations on every dataset of the
+// task (index: submissions_tester_idx; evaluations by primary key).
+func (q *Queries) AdminPackageSolutionRuns(ctx context.Context, taskID int64) ([]AdminPackageSolutionRunsRow, error) {
+	rows, err := q.db.Query(ctx, adminPackageSolutionRuns, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminPackageSolutionRunsRow{}
+	for rows.Next() {
+		var i AdminPackageSolutionRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Comment,
+			&i.Language,
+			&i.DatasetID,
+			&i.DatasetDescription,
+			&i.Judged,
+			&i.CompilationOutcome,
+			&i.Score,
+			&i.ScoredAt,
+			&i.SystemError,
+			&i.AnyTle,
+			&i.AnyMle,
+			&i.AnyRe,
+			&i.AnyWa,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminTaskSubmissionStats = `-- name: AdminTaskSubmissionStats :many
 SELECT t.id AS task_id,
        count(s.id) AS submissions,
@@ -862,8 +934,8 @@ func (q *Queries) AdminUnassignedTasks(ctx context.Context) ([]Task, error) {
 }
 
 const createTesterSubmission = `-- name: CreateTesterSubmission :one
-INSERT INTO submissions (participation_id, task_id, submitted_at, language, official, tester, tester_admin_id)
-VALUES (NULL, $1::bigint, now(), $2, false, true, $3::bigint)
+INSERT INTO submissions (participation_id, task_id, submitted_at, language, official, tester, tester_admin_id, comment)
+VALUES (NULL, $1::bigint, now(), $2, false, true, $3::bigint, $4::text)
 RETURNING id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id
 `
 
@@ -871,10 +943,16 @@ type CreateTesterSubmissionParams struct {
 	TaskID   int64   `json:"task_id"`
 	Language *string `json:"language"`
 	AdminID  int64   `json:"admin_id"`
+	Comment  string  `json:"comment"`
 }
 
 func (q *Queries) CreateTesterSubmission(ctx context.Context, arg CreateTesterSubmissionParams) (Submission, error) {
-	row := q.db.QueryRow(ctx, createTesterSubmission, arg.TaskID, arg.Language, arg.AdminID)
+	row := q.db.QueryRow(ctx, createTesterSubmission,
+		arg.TaskID,
+		arg.Language,
+		arg.AdminID,
+		arg.Comment,
+	)
 	var i Submission
 	err := row.Scan(
 		&i.ID,
@@ -888,4 +966,50 @@ func (q *Queries) CreateTesterSubmission(ctx context.Context, arg CreateTesterSu
 		&i.TesterAdminID,
 	)
 	return i, err
+}
+
+const listPackageSolutionFiles = `-- name: ListPackageSolutionFiles :many
+SELECT s.id AS submission_id, s.comment, (s.language IS NULL)::boolean AS output_only, f.filename, f.digest
+FROM (SELECT DISTINCT ON (comment) id, comment, language FROM submissions
+      WHERE task_id = $1::bigint AND tester AND comment LIKE 'solutions/%'
+      ORDER BY comment, id DESC) s
+JOIN submission_files f ON f.submission_id = s.id
+ORDER BY s.comment, f.filename
+`
+
+type ListPackageSolutionFilesRow struct {
+	SubmissionID int64  `json:"submission_id"`
+	Comment      string `json:"comment"`
+	OutputOnly   bool   `json:"output_only"`
+	Filename     string `json:"filename"`
+	Digest       string `json:"digest"`
+}
+
+// Files of the newest tester run of every problem-package solution of a
+// task (comment "solutions/<name>"; index: submissions_tester_idx). Runs
+// without a language are output-only solutions (one file per output).
+func (q *Queries) ListPackageSolutionFiles(ctx context.Context, taskID int64) ([]ListPackageSolutionFilesRow, error) {
+	rows, err := q.db.Query(ctx, listPackageSolutionFiles, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPackageSolutionFilesRow{}
+	for rows.Next() {
+		var i ListPackageSolutionFilesRow
+		if err := rows.Scan(
+			&i.SubmissionID,
+			&i.Comment,
+			&i.OutputOnly,
+			&i.Filename,
+			&i.Digest,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

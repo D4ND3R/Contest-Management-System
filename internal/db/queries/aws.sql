@@ -57,8 +57,8 @@ LEFT JOIN datasets d ON d.id = sr.dataset_id
 ORDER BY s.id DESC, sr.dataset_id;
 
 -- name: CreateTesterSubmission :one
-INSERT INTO submissions (participation_id, task_id, submitted_at, language, official, tester, tester_admin_id)
-VALUES (NULL, @task_id::bigint, now(), @language, false, true, @admin_id::bigint)
+INSERT INTO submissions (participation_id, task_id, submitted_at, language, official, tester, tester_admin_id, comment)
+VALUES (NULL, @task_id::bigint, now(), @language, false, true, @admin_id::bigint, @comment::text)
 RETURNING *;
 
 -- name: AdminListSubmissionResults :many
@@ -168,3 +168,33 @@ LEFT JOIN teams t ON t.id = p.team_id
 LEFT JOIN sites st ON st.id = p.site_id
 WHERE p.contest_id = $1
 ORDER BY u.username;
+
+-- name: ListPackageSolutionFiles :many
+-- Files of the newest tester run of every problem-package solution of a
+-- task (comment "solutions/<name>"; index: submissions_tester_idx). Runs
+-- without a language are output-only solutions (one file per output).
+SELECT s.id AS submission_id, s.comment, (s.language IS NULL)::boolean AS output_only, f.filename, f.digest
+FROM (SELECT DISTINCT ON (comment) id, comment, language FROM submissions
+      WHERE task_id = @task_id::bigint AND tester AND comment LIKE 'solutions/%'
+      ORDER BY comment, id DESC) s
+JOIN submission_files f ON f.submission_id = s.id
+ORDER BY s.comment, f.filename;
+
+-- name: AdminPackageSolutionRuns :many
+-- Newest tester run of every problem-package solution of a task with its
+-- result and the failure kinds of its evaluations on every dataset of the
+-- task (index: submissions_tester_idx; evaluations by primary key).
+SELECT s.id, s.comment, s.language, d.id AS dataset_id, d.description AS dataset_description,
+       (sr.submission_id IS NOT NULL)::boolean AS judged, sr.compilation_outcome, sr.score, sr.scored_at, sr.system_error,
+       COALESCE(bool_or(e.exit_status IN ('timeout', 'timeout_wall')), false)::boolean AS any_tle,
+       COALESCE(bool_or(e.exit_status = 'memory'), false)::boolean AS any_mle,
+       COALESCE(bool_or(e.exit_status IN ('signal', 'nonzero', 'output_limit')), false)::boolean AS any_re,
+       COALESCE(bool_or(e.exit_status = 'ok' AND e.outcome < 1), false)::boolean AS any_wa
+FROM (SELECT DISTINCT ON (comment) id, comment, language FROM submissions
+      WHERE task_id = @task_id::bigint AND tester AND comment LIKE 'solutions/%'
+      ORDER BY comment, id DESC) s
+JOIN datasets d ON d.task_id = @task_id::bigint
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = d.id
+LEFT JOIN evaluations e ON e.submission_id = s.id AND e.dataset_id = d.id
+GROUP BY s.id, s.comment, s.language, d.id, d.description, sr.submission_id, sr.dataset_id
+ORDER BY s.comment, d.id;

@@ -1,9 +1,11 @@
 package adminweb
 
 import (
+	"archive/zip"
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -148,5 +150,101 @@ func TestSubtaskEditor(t *testing.T) {
 	ro := f.login("read_only")
 	if code, _ := ro.Post(path+"/score-editor", datasetForm("Sum", nil)); code != http.StatusForbidden {
 		t.Fatalf("read-only preview = %d", code)
+	}
+}
+
+// TestPackageImportPreview covers the admin side of problem packages
+// without judging (K19, K21): per-file errors before creating anything,
+// name conflicts, the dataset mode, permissions and the export.
+func TestPackageImportPreview(t *testing.T) {
+	f := newFixture(t)
+	b := f.login("all")
+	code, body := b.Get("/tasks/import")
+	if code != 200 || !strings.Contains(body, "data-dropzone") || !strings.Contains(body, `name="package"`) {
+		t.Fatalf("form = %d", code)
+	}
+	tasksBefore, _ := f.q.ListTasks(bg)
+	auditBefore, _ := f.q.ListAuditLog(bg, sqlc.ListAuditLogParams{Limit: 100})
+
+	// A broken package: every problem is listed with its file, nothing is
+	// created and there is nothing to confirm.
+	bad := zipOf(t, map[string]string{"problem.yaml": "name: nuevo\ntype: batch\ntime_limit: 1\nmemory_limit: 64\nchecker: custom\n",
+		"tests/1.in": "1", "statement/xx-long-name.pdf": "%PDF", "solutions/main.c": "int main(){}"})
+	code, body = b.PostMultipart("/tasks/import", map[string]string{"step": "preview", "mode": "task"},
+		webtest.File{Field: "package", Name: "nuevo.zip", Data: bad})
+	for _, want := range []string{"Problems to fix", "tests/1.in", "no expected output", "statement/xx-long-name.pdf",
+		"solutions/main.c", "start the name with the expected verdict", "needs checker"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("preview lacks %q", want)
+		}
+	}
+	if code != 200 || strings.Contains(body, "Create the task") {
+		t.Fatalf("broken preview = %d", code)
+	}
+	// Not a zip at all.
+	code, body = b.PostMultipart("/tasks/import", map[string]string{"step": "preview"}, webtest.File{Field: "package", Name: "x.zip", Data: []byte("hello")})
+	if code != http.StatusUnprocessableEntity || !strings.Contains(body, "not a zip archive") {
+		t.Fatalf("not a zip = %d", code)
+	}
+
+	// A valid package named like the fixture's task: conflict in task mode.
+	good := zipOf(t, map[string]string{"sum/problem.yaml": "name: sum\ntitle: Otra suma\ntime_limit: 2\nmemory_limit: 128\n",
+		"sum/tests/a.in": "1 2\n", "sum/tests/a.out": "3\n", "sum/statement/es.pdf": "%PDF-1.4"})
+	code, body = b.PostMultipart("/tasks/import", map[string]string{"step": "preview", "mode": "task"},
+		webtest.File{Field: "package", Name: "sum.zip", Data: good})
+	dg := regexp.MustCompile(`name="digest" value="([0-9a-f]{64})"`).FindStringSubmatch(body)
+	if code != 200 || dg == nil || !strings.Contains(body, "already exists") || strings.Contains(body, "Create the task") {
+		t.Fatalf("conflict preview = %d\n%s", code, body)
+	}
+	if code, _ := b.Post("/tasks/import", url.Values{"step": {"confirm"}, "digest": {dg[1]}, "mode": {"task"}}); code != http.StatusUnprocessableEntity {
+		t.Fatalf("confirming a conflict = %d", code)
+	}
+	if tasks, _ := f.q.ListTasks(bg); len(tasks) != len(tasksBefore) {
+		t.Fatal("a task was created")
+	}
+	if audit, _ := f.q.ListAuditLog(bg, sqlc.ListAuditLogParams{Limit: 100}); len(audit) != len(auditBefore) {
+		t.Fatal("previews were audited")
+	}
+	// Read-only administrators cannot import.
+	if code, _ := f.login("read_only").Post("/tasks/import", url.Values{"step": {"confirm"}, "digest": {dg[1]}}); code != http.StatusForbidden {
+		t.Fatalf("read-only import = %d", code)
+	}
+	// As a new dataset of the existing task: created, not live, audited.
+	code, body = b.Post("/tasks/import", url.Values{"step": {"confirm"}, "digest": {dg[1]}, "mode": {"dataset"}, "task_id": {fmt.Sprint(f.task.ID)}})
+	webtest.MustOK(t, "import dataset", code, body)
+	dss, _ := f.q.ListDatasetsByTask(bg, f.task.ID)
+	nd := dss[len(dss)-1]
+	if len(dss) != 2 || nd.Description != "Default" || *nd.TimeLimitMs != 2000 || *nd.MemoryLimitBytes != 128<<20 || string(nd.ScoreTypeParams) != "100" {
+		t.Fatalf("datasets %+v", dss)
+	}
+	if tk, _ := f.q.GetTask(bg, f.task.ID); *tk.ActiveDatasetID == nd.ID || tk.Title != "Sum" {
+		t.Fatal("the task changed")
+	}
+	if audit, _ := f.q.ListAuditLog(bg, sqlc.ListAuditLogParams{Limit: 1}); audit[0].Action != "task.import" {
+		t.Fatalf("audit %+v", audit[0])
+	}
+
+	// Export of the new dataset.
+	code, body = b.Get(fmt.Sprintf("/tasks/%d/export.zip?dataset=%d", f.task.ID, nd.ID))
+	if code != 200 || !strings.HasPrefix(body, "PK") {
+		t.Fatalf("export = %d", code)
+	}
+	zr, _ := zip.NewReader(strings.NewReader(body), int64(len(body)))
+	names := map[string]bool{}
+	for _, zf := range zr.File {
+		names[zf.Name] = true
+	}
+	for _, n := range []string{"problem.yaml", "tests/a.in", "tests/a.out", "statement/en.pdf", "attachments/sample.zip"} {
+		if !names[n] {
+			t.Errorf("export lacks %s (has %v)", n, names)
+		}
+	}
+	if code, _ := b.Get(fmt.Sprintf("/tasks/%d/export.zip?dataset=999999", f.task.ID)); code != 404 {
+		t.Fatalf("foreign dataset = %d", code)
+	}
+	// The validation page renders without solutions.
+	code, body = b.Get(fmt.Sprintf("/tasks/%d/validation", f.task.ID))
+	if code != 200 || !strings.Contains(body, "No reference solutions") {
+		t.Fatalf("validation = %d", code)
 	}
 }

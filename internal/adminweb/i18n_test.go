@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
+	"github.com/D4ND3R/Contest-Management-System/internal/problempkg"
 	"github.com/D4ND3R/Contest-Management-System/internal/webtest"
 	"github.com/D4ND3R/Contest-Management-System/web"
 )
@@ -60,7 +61,7 @@ func TestMessagesTranslated(t *testing.T) {
 			if !ok || i >= len(call.Args) {
 				return true
 			}
-			if key := messageKey(call.Args[i]); key != "" && key != "%v" && !i18n.Has("es", key) {
+			if key := messageKey(call.Args[i]); key != "" && key != "%v" && key != "%s" && !i18n.Has("es", key) {
 				missing[key] = fset.Position(call.Pos()).String()
 			}
 			return true
@@ -106,6 +107,9 @@ func TestDynamicKeysTranslated(t *testing.T) {
 		"choose at least one testcase", "write a regular expression", "the threshold must be a number", "GroupThreshold needs a threshold",
 		"Bad Request", "Unauthorized", "Forbidden", "Not Found", "Method Not Allowed", "Conflict",
 		"Request Entity Too Large", "Unprocessable Entity", "Too Many Requests", "Internal Server Error"}
+	for _, v := range problempkg.Verdicts {
+		keys = append(keys, v)
+	}
 	for _, st := range statusFilters {
 		keys = append(keys, st)
 	}

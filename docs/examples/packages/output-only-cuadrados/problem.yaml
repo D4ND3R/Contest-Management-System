@@ -1,0 +1,10 @@
+# Problem package (format 1): see docs/en/problem-package.md
+format: 1
+name: cuadrados
+title: Cuadrados
+type: output_only              # contestants submit one output file per testcase
+output_pattern: output_%s.txt  # %s = testcase name: output_01.txt, ...
+merge_previous: true           # missing outputs keep the best previous result
+checker: exact
+scoring: sum
+points_per_test: 25

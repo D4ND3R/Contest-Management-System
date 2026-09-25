@@ -214,25 +214,10 @@ func (s *Server) handleTesterSubmit(w http.ResponseWriter, r *http.Request, rc *
 	if lang != nil {
 		langID = &lang.ID
 	}
-	var id int64
-	err = db.InTx(r.Context(), s.pool, func(tx pgx.Tx, q *sqlc.Queries) error {
-		sub, err := q.CreateTesterSubmission(r.Context(), sqlc.CreateTesterSubmissionParams{TaskID: t.ID, Language: langID, AdminID: rc.admin.ID})
-		if err != nil {
-			return err
-		}
-		id = sub.ID
-		for i := range params {
-			params[i].SubmissionID = id
-		}
-		_, err = q.CreateSubmissionFiles(r.Context(), params)
-		return err
-	})
+	id, err := s.createTesterRun(r.Context(), t.ID, rc.admin.ID, langID, params, "")
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
-	}
-	if err := s.queue.Notify(r.Context(), queue.Event{Kind: queue.EventSubmission, SubmissionID: id}); err != nil {
-		s.log.Warn("notify dispatcher", "error", err)
 	}
 	rc.target("submission", id)
 	rc.note("task", t.Name)
@@ -252,4 +237,30 @@ func taskLanguages(reg *langs.Registry, t sqlc.Task) []*langs.Language {
 		}
 	}
 	return out
+}
+
+// createTesterRun stores a tester run of task with its files (digests
+// already in the blob store) and asks the dispatcher to judge it on every
+// dataset. comment names package solutions ("solutions/<name>").
+func (s *Server) createTesterRun(ctx context.Context, taskID, adminID int64, lang *string, files []sqlc.CreateSubmissionFilesParams, comment string) (int64, error) {
+	var id int64
+	err := db.InTx(ctx, s.pool, func(tx pgx.Tx, q *sqlc.Queries) error {
+		sub, err := q.CreateTesterSubmission(ctx, sqlc.CreateTesterSubmissionParams{TaskID: taskID, Language: lang, AdminID: adminID, Comment: comment})
+		if err != nil {
+			return err
+		}
+		id = sub.ID
+		for i := range files {
+			files[i].SubmissionID = id
+		}
+		_, err = q.CreateSubmissionFiles(ctx, files)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	if err := s.queue.Notify(ctx, queue.Event{Kind: queue.EventSubmission, SubmissionID: id}); err != nil {
+		s.log.Warn("notify dispatcher", "error", err)
+	}
+	return id, nil
 }

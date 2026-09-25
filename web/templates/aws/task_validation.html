@@ -1,0 +1,9 @@
+{{define "content"}}{{$v := .Data}}
+<h1>{{.T "Validation of %s" $v.Task.Name}}</h1>
+<p class="muted">{{.T "The reference solutions of the package (solutions/) run through the task tester on every dataset; each must get the verdict its name announces. They never count as submissions."}}</p>
+{{template "validation-report" (part $ $v)}}
+{{if .CanWrite}}
+<form method="post" action="/tasks/{{$v.Task.ID}}/validation/rerun" class="inline">{{template "csrf" .CSRF}}<button class="secondary">{{.T "Run them again"}}</button></form>
+{{end}}
+<p><a href="/tasks/{{$v.Task.ID}}">{{.T "Back to the task"}}</a></p>
+{{end}}

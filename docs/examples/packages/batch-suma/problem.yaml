@@ -1,0 +1,17 @@
+# Problem package (format 1): see docs/en/problem-package.md
+format: 1
+name: suma
+title: Suma de dos números
+type: batch
+time_limit: 1          # seconds
+memory_limit: 256      # MiB
+checker: white_diff    # compare tokens, ignoring whitespace
+scoring: group_min     # a subtask scores only if all its testcases pass
+subtasks:
+  - points: 30
+    tests: "1_.*"      # regex over the testcase names
+  - points: 70
+    tests: "2_.*"
+public_tests: ["1_01"] # contestants see the result of this testcase
+languages: [c11, cpp17, python3]
+primary_statements: [es]

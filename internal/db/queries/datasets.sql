@@ -60,6 +60,13 @@ SELECT * FROM managers WHERE dataset_id = ANY(@ids::bigint[]) ORDER BY dataset_i
 -- name: DeleteManager :exec
 DELETE FROM managers WHERE dataset_id = $1 AND filename = $2;
 
+-- name: CreateTestcases :copyfrom
+-- Bulk load of a new dataset's testcases (problem package import).
+INSERT INTO testcases (dataset_id, codename, public, input_digest, output_digest) VALUES ($1, $2, $3, $4, $5);
+
+-- name: CreateManagers :copyfrom
+INSERT INTO managers (dataset_id, filename, digest) VALUES ($1, $2, $3);
+
 -- name: UpsertTestcase :one
 INSERT INTO testcases (dataset_id, codename, public, input_digest, output_digest) VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (dataset_id, codename) DO UPDATE

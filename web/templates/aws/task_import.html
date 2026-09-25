@@ -1,0 +1,67 @@
+{{define "content"}}{{$d := .Data}}{{$p := $d.Package}}
+<h1>{{.T "Import a problem package"}}</h1>
+{{if not $p}}
+<form method="post" action="/tasks/import" enctype="multipart/form-data" class="card">
+  {{template "csrf" .CSRF}}
+  <input type="hidden" name="step" value="preview">
+  <label class="dropzone" data-dropzone>
+    <b>{{.T "Drop the package (.zip) here or choose it"}}</b>
+    <input type="file" name="package" accept=".zip,application/zip" required>
+    <span data-filename class="muted"></span>
+  </label>
+  {{template "package-target" $}}
+  <p><button>{{.T "Check the package"}}</button></p>
+  <p class="muted small">{{.T "Nothing is created until you confirm the preview. The format (problem.yaml, statement/, tests/, checker, graders/, attachments/, solutions/) is described in docs/en/problem-package.md, with one example per problem type."}}</p>
+</form>
+{{else}}
+<p class="muted">{{$d.FileName}}</p>
+{{if $p.Errors}}
+<section class="card danger">
+<h2>{{.T "Problems to fix (%d)" (len $p.Errors)}}</h2>
+<p>{{.T "Nothing was created. Fix the package and upload it again."}}</p>
+<table><thead><tr><th>{{.T "File"}}</th><th>{{.T "Problem"}}</th></tr></thead><tbody>
+{{range $p.Errors}}<tr><td><code>{{if .Path}}{{.Path}}{{else}}—{{end}}</code></td><td class="bad">{{.Message}}</td></tr>{{end}}
+</tbody></table>
+</section>
+{{end}}
+{{with $p.Warnings}}
+<section class="card">
+<h2>{{$.T "Warnings"}}</h2>
+<ul>{{range .}}<li><code>{{.Path}}</code> <span class="warn">{{.Message}}</span></li>{{end}}</ul>
+</section>
+{{end}}
+{{with $p.Config}}{{$c := .}}
+<section class="card">
+<h2>{{$.T "Detected"}}</h2>
+<dl class="meta">
+  <dt>{{$.T "Name"}}</dt><dd><b>{{$c.Name}}</b> — {{$c.Title}}</dd>
+  <dt>{{$.T "Type"}}</dt><dd>{{$c.TaskType}}</dd>
+  <dt>{{$.T "Limits"}}</dt><dd>{{if $c.TimeLimit}}{{num $c.TimeLimit}} s · {{end}}{{if $c.MemoryLimit}}{{num $c.MemoryLimit}} MiB{{end}}</dd>
+  <dt>{{$.T "Score type"}}</dt><dd>{{$c.ScoreType}} · {{$.T "maximum score %s" (num $p.MaxScore)}}</dd>
+  {{if $c.Subtasks}}<dt>{{$.T "Subtasks"}}</dt><dd><ol>{{range $i, $st := $c.Subtasks}}<li>{{num $st.Points}} {{$.T "points"}}{{with index $p.Coverage.Subtasks $i}} · {{if .Error}}<span class="bad">{{.Error}}</span>{{else}}{{joinHead .Testcases 12}}{{end}}{{end}}</li>{{end}}</ol></dd>{{end}}
+  <dt>{{$.T "Testcases"}}</dt><dd>{{len $p.Tests}} ({{$.T "%d public" $d.Public}})</dd>
+  <dt>{{$.T "Statements"}}</dt><dd>{{range $p.Statements}}<span class="tag">{{.Language}}</span> {{end}}</dd>
+  <dt>{{$.T "Managers"}}</dt><dd>{{range $p.Managers}}<code>{{.Name}}</code> {{else}}—{{end}}</dd>
+  <dt>{{$.T "Attachments"}}</dt><dd>{{range $p.Attachments}}<code>{{.Name}}</code> {{else}}—{{end}}</dd>
+  <dt>{{$.T "Languages"}}</dt><dd>{{if $c.Languages}}{{join $c.Languages " "}}{{else}}{{$.T "those of the contest"}}{{end}}</dd>
+</dl>
+{{with $p.Solutions}}
+<h3>{{$.T "Reference solutions"}}</h3>
+<table><thead><tr><th>{{$.T "Solution"}}</th><th>{{$.T "Expected"}}</th><th>{{$.T "Language"}}</th></tr></thead><tbody>
+{{range .}}<tr><td><code>{{.Name}}</code></td><td>{{with .Expected}}<b>{{.}}</b> <span class="muted small">{{$.T (index $d.Verdicts .)}}</span>{{end}}</td><td>{{.Language}}</td></tr>{{end}}
+</tbody></table>
+{{end}}
+</section>
+{{end}}
+{{with $d.Conflict}}<p class="alert">{{$.T "A task named %s already exists: import the package as a new dataset of it, or rename the package." .Name}}</p>{{end}}
+<form method="post" action="/tasks/import" class="card">
+  {{template "csrf" .CSRF}}
+  <input type="hidden" name="step" value="confirm">
+  <input type="hidden" name="digest" value="{{$d.Digest}}">
+  <input type="hidden" name="file_name" value="{{$d.FileName}}">
+  {{template "package-target" $}}
+  <p>{{if $d.CanImport}}<button>{{if eq $d.Mode "dataset"}}{{.T "Add the dataset"}}{{else}}{{.T "Create the task"}}{{end}}</button>{{else if $p.OK}}<button class="secondary">{{.T "Check again with these options"}}</button>{{end}}
+  <a href="/tasks/import">{{.T "Upload another package"}}</a></p>
+</form>
+{{end}}
+{{end}}

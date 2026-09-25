@@ -75,10 +75,10 @@ first audit (after F6), the "status" column the current state.
 | K15 | Zip testcases with input/output pair detection | complete | complete | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
 | K16 | Datasets and live switch | complete | complete | adminweb/datasets.go, dispatcher/reeval.go | adminweb.TestTaskAndDatasetManagement, dispatcher.TestLiveDatasetChange |
 | K17 | Task order in the contest | complete | complete | adminweb/contests.go | adminweb.TestTaskAndDatasetManagement |
-| K18 | Own problem package: zip with `problem.yaml`, `statement/`, `tests/`, checker/interactor/manager, `graders/`, `attachments/`; documented with one example per type | missing | missing | — | — |
-| K19 | Admin upload: drag and drop, preview, per-file errors before creating anything, create a task or add a dataset to an existing one | missing | missing | — | — |
-| K20 | Automatic validation on import: compile checker/interactor/manager, run `solutions/` (expected verdict in the name) with the task tester, report before publishing | missing | missing | — | — |
-| K21 | Export any task in the same format | missing | missing | — | — |
+| K18 | Own problem package: zip with `problem.yaml`, `statement/`, `tests/`, checker/interactor/manager, `graders/`, `attachments/`; documented with one example per type | missing | complete | problempkg/config.go, problempkg/read.go, docs/en/problem-package.md, docs/es/paquete-de-problema.md, docs/examples/packages/* | problempkg.TestExamplePackages, problempkg.TestReadReportsEveryProblem, problempkg.TestConfigParams |
+| K19 | Admin upload: drag and drop, preview, per-file errors before creating anything, create a task or add a dataset to an existing one | missing | complete (also `cmsctl task-import`) | adminweb/packages.go, web/templates/aws/task_import.html, web/static/admin.js (drop zones), problempkg/store.go, cli/ctl_packages.go | adminweb.TestPackageImportPreview, problempkg.TestImportExportRoundTrip, cli.TestTaskImportExport, e2e.TestProblemPackagesFromAdminUI |
+| K20 | Automatic validation on import: compile checker/interactor/manager, run `solutions/` (expected verdict in the name) with the task tester, report before publishing | missing | complete (managers compile on the worker during the runs; failures appear as system errors) | adminweb/packages.go (runPackageSolutions, validation report), problempkg/verdict.go, db/queries/aws.sql (AdminPackageSolutionRuns) | problempkg.TestCheck, e2e.TestProblemPackagesFromAdminUI |
+| K21 | Export any task in the same format | missing | complete (admin and `cmsctl task-export`; solutions included) | problempkg/write.go, problempkg/export.go, adminweb/packages.go | problempkg.TestImportExportRoundTrip, adminweb.TestPackageImportPreview, e2e.TestProblemPackagesFromAdminUI |
 
 ## §6 Other CMS features
 

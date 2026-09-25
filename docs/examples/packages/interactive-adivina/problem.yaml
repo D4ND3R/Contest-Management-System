@@ -1,0 +1,12 @@
+# Problem package (format 1): see docs/en/problem-package.md
+format: 1
+name: adivina
+title: Adivina el número
+type: interactive       # the interactor (interactor.cpp) talks to the solution
+time_limit: 1
+memory_limit: 256
+interactor_time_limit: 5
+scoring: sum
+points_per_test: 25
+public_tests: ["01"]
+languages: [c11, cpp17, python3]  # also picks python3 (not pypy3) for .py solutions

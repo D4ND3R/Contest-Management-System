@@ -136,3 +136,36 @@
 </fieldset>
 </div>
 {{end}}
+
+{{define "validation-report"}}{{$v := .V}}
+<div id="validation" {{if $v.Pending}}hx-get="/tasks/{{$v.Task.ID}}/validation?fragment=1" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+<p class="summary">
+  {{if not $v.Rows}}{{.T "No reference solutions: import a package with a solutions/ folder, or use the task tester."}}
+  {{else if $v.Pending}}<span class="muted">{{.T "%d of %d solutions still being judged…" $v.Pending (len $v.Rows)}}</span>
+  {{else if $v.Fail}}<span class="bad"><b>{{.T "%d of %d solutions do not behave as expected." $v.Fail (len $v.Rows)}}</b></span>
+  {{else}}<span class="ok"><b>{{.T "Every solution behaves as expected (%d)." $v.Pass}}</b></span>{{end}}
+</p>
+{{with $v.Errors}}<div class="alert"><p>{{$.T "System errors (a checker, interactor or manager that does not compile or crashes):"}}</p><ul>{{range .}}<li><code>{{.}}</code></li>{{end}}</ul></div>{{end}}
+{{if $v.Rows}}
+<table class="report">
+<thead><tr><th>{{.T "Solution"}}</th><th>{{.T "Expected"}}</th><th>{{.T "Language"}}</th>{{range $v.Datasets}}<th>{{.Description}}{{if .Live}} <span class="tag ok">{{$.T "live"}}</span>{{end}}</th>{{end}}</tr></thead>
+<tbody>
+{{range $v.Rows}}
+<tr><td><a href="/submissions/{{.SubmissionID}}">{{.Name}}</a></td><td class="expected"><b>{{.Expected}}</b></td><td>{{.Language}}</td>
+{{range .Cells}}<td class="{{if eq .Status "pass"}}ok{{else if eq .Status "fail"}}bad{{else}}muted{{end}}">{{if eq .Status "pass"}}✓{{else if eq .Status "fail"}}✗{{else}}…{{end}} {{.Got}}</td>{{end}}</tr>
+{{end}}
+</tbody>
+</table>
+{{end}}
+</div>
+{{end}}
+
+{{define "package-target"}}{{$d := .Data}}
+<fieldset><legend>{{.T "Where"}}</legend>
+  <p class="checks"><label><input type="radio" name="mode" value="task" {{if ne $d.Mode "dataset"}}checked{{end}}> {{.T "A new task"}}</label>
+  <label>{{.T "in the contest"}} <select name="contest_id"><option value="">{{.T "none (publish it later)"}}</option>{{range $d.Contests}}<option value="{{.ID}}" {{if eq .ID $d.ContestID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label></p>
+  <p class="checks"><label><input type="radio" name="mode" value="dataset" {{if eq $d.Mode "dataset"}}checked{{end}}> {{.T "A new dataset (not live) of the task"}}</label>
+  <select name="task_id" aria-label="{{.T "Task"}}"><option value="">—</option>{{range $d.Tasks}}<option value="{{.ID}}" {{if eq .ID $d.TaskID}}selected{{end}}>{{.Name}}</option>{{end}}</select></p>
+  <p class="checks"><label><input type="checkbox" name="run_solutions" {{if $d.Run}}checked{{end}}> {{.T "Run the reference solutions (solutions/) and show the validation report"}}</label></p>
+</fieldset>
+{{end}}

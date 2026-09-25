@@ -9,6 +9,40 @@ import (
 	"context"
 )
 
+// iteratorForCreateManagers implements pgx.CopyFromSource.
+type iteratorForCreateManagers struct {
+	rows                 []CreateManagersParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForCreateManagers) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForCreateManagers) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].DatasetID,
+		r.rows[0].Filename,
+		r.rows[0].Digest,
+	}, nil
+}
+
+func (r iteratorForCreateManagers) Err() error {
+	return nil
+}
+
+func (q *Queries) CreateManagers(ctx context.Context, arg []CreateManagersParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"managers"}, []string{"dataset_id", "filename", "digest"}, &iteratorForCreateManagers{rows: arg})
+}
+
 // iteratorForCreateSubmissionFiles implements pgx.CopyFromSource.
 type iteratorForCreateSubmissionFiles struct {
 	rows                 []CreateSubmissionFilesParams
@@ -41,6 +75,43 @@ func (r iteratorForCreateSubmissionFiles) Err() error {
 
 func (q *Queries) CreateSubmissionFiles(ctx context.Context, arg []CreateSubmissionFilesParams) (int64, error) {
 	return q.db.CopyFrom(ctx, []string{"submission_files"}, []string{"submission_id", "filename", "digest"}, &iteratorForCreateSubmissionFiles{rows: arg})
+}
+
+// iteratorForCreateTestcases implements pgx.CopyFromSource.
+type iteratorForCreateTestcases struct {
+	rows                 []CreateTestcasesParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForCreateTestcases) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForCreateTestcases) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].DatasetID,
+		r.rows[0].Codename,
+		r.rows[0].Public,
+		r.rows[0].InputDigest,
+		r.rows[0].OutputDigest,
+	}, nil
+}
+
+func (r iteratorForCreateTestcases) Err() error {
+	return nil
+}
+
+// Bulk load of a new dataset's testcases (problem package import).
+func (q *Queries) CreateTestcases(ctx context.Context, arg []CreateTestcasesParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"testcases"}, []string{"dataset_id", "codename", "public", "input_digest", "output_digest"}, &iteratorForCreateTestcases{rows: arg})
 }
 
 // iteratorForCreateUserTestFiles implements pgx.CopyFromSource.

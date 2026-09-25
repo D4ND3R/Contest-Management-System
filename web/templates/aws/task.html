@@ -1,6 +1,7 @@
 {{define "content"}}
 {{$t := .Data.T}}{{$task := .Data.Task}}
 <h1>{{.T "Task %s" $task.Name}} <small class="muted">{{$task.Title}}{{with .Data.Contest}} · {{$.T "in"}} <a href="/contests/{{.ID}}">{{.Name}}</a>{{end}}</small></h1>
+<p class="actions"><a href="/tasks/{{$task.ID}}/export.zip">{{.T "Export as a package"}}</a> · <a href="/tasks/{{$task.ID}}/validation">{{.T "Validation report"}}</a>{{if .CanWrite}} · <a href="/tasks/import?task={{$task.ID}}">{{.T "Import a dataset from a package"}}</a>{{end}}</p>
 
 <section class="card" id="datasets">
 <h2>{{.T "Datasets"}}</h2>

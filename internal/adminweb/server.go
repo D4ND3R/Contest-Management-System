@@ -211,6 +211,11 @@ func (s *Server) Handler() http.Handler {
 
 	get("/tasks", s.handleTasks)
 	post("/tasks", permAll, "task.create", s.handleTaskCreate)
+	get("/tasks/import", s.handlePackageForm)
+	post("/tasks/import", permAll, "task.import", s.handlePackageImport)
+	get("/tasks/{id}/export.zip", s.handlePackageExport)
+	get("/tasks/{id}/validation", s.handleValidation)
+	post("/tasks/{id}/validation/rerun", permAll, "task.validation_rerun", s.handleValidationRerun)
 	get("/tasks/{id}", s.handleTask)
 	post("/tasks/{id}", permAll, "task.update", s.handleTaskUpdate)
 	post("/tasks/{id}/delete", permAll, "task.delete", s.handleTaskDelete)

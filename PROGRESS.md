@@ -432,3 +432,27 @@ administrator TOTP 2FA (enrolment with an inline SVG QR code, second login
 step, reset by another administrator). Tests: adminweb (import/export,
 account actions, teams/sites, TOTP), auth (RFC 6238 vectors), pdf,
 contest (site start, practice), e2e.TestAdminControlsContestantSessions.
+
+## Admin i18n, K5, K10, K18–K21 — Task configuration and problem packages (done)
+Skipping skills: immersive-web-design, master skill.
+
+The admin web is translated (es/en) like the contest web: every template,
+flash notice, error page, form error and field label, with source-parsing
+tests that fail on any untranslated message. The dataset page edits
+subtasks visually (regex, hand-picked testcases or next N; live preview of
+matches, uncovered and shared testcases; thresholds) and tasks can narrow
+the contest's languages. Problem packages (`problem.yaml`, `statement/`,
+`tests/`, checker/interactor/manager, `graders/`, `attachments/`,
+`solutions/`) are documented in docs/en/problem-package.md and
+docs/es/paquete-de-problema.md with one example per problem type; the admin
+imports them by drag and drop with a preview and per-file errors before
+anything is created (new task, optionally in a contest, or a new dataset of
+an existing task), judges the reference solutions through the task tester
+and shows a validation report (expected verdict from the file name, broken
+checkers as system errors); any task exports in the same format, also from
+`cmsctl task-import` / `task-export`. Tests: problempkg (examples, per-file
+errors, round trip through the database), adminweb (editor, languages,
+preview/conflicts/export), contestweb (task languages), cli, and
+e2e.TestProblemPackagesFromAdminUI (every example type imported through the
+UI and validated by the real judge; a checker that does not compile is
+reported; the export imports back as a second dataset).

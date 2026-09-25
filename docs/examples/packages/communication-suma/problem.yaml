@@ -1,0 +1,15 @@
+# Problem package (format 1): see docs/en/problem-package.md
+format: 1
+name: comunica
+title: Suma por tuberías
+type: communication      # manager.c talks to the contestant's process through FIFOs
+time_limit: 1
+memory_limit: 256
+processes: 1
+compilation: stub        # graders/stub.<ext> is compiled with the solution
+user_io: fifos
+manager_time_limit: 5
+scoring: sum
+points_per_test: 50
+submission_format: [comunica.%l]
+languages: [c11, cpp17]
