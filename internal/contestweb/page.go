@@ -40,7 +40,9 @@ type page struct {
 	Unread int64
 	// Ranking is set when the contestant may see the ranking.
 	Ranking bool
-	loc     *time.Location
+	// RegisterOpen: the login page offers self-registration.
+	RegisterOpen bool
+	loc          *time.Location
 }
 
 // statusView adds template-friendly accessors to contest.Status.

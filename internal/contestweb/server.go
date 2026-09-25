@@ -146,6 +146,8 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /{contest}/login", s.withContest(s.handleLoginForm))
 	mux.HandleFunc("POST /{contest}/login", s.withContest(s.handleLogin))
+	mux.HandleFunc("GET /{contest}/register", s.withContest(s.handleRegisterForm))
+	mux.HandleFunc("POST /{contest}/register", s.withContest(s.handleRegister))
 	mux.HandleFunc("POST /{contest}/lang", s.withContest(s.handleLang))
 	mux.HandleFunc("POST /{contest}/logout", s.withContest(s.handleLogout))
 	mux.HandleFunc("GET /{contest}/impersonate", s.withContest(s.handleImpersonate))
@@ -240,6 +242,22 @@ type reqCtx struct {
 	now    time.Time
 }
 
+// sessionTTL is how long a contestant session lasts: the contest's
+// setting, 24 hours by default.
+func sessionTTL(cv *contestView) time.Duration {
+	if cv.SessionMinutes != nil {
+		return time.Duration(*cv.SessionMinutes) * time.Minute
+	}
+	return 24 * time.Hour
+}
+
+// sessionCookie is the codec that writes new sessions of a contest.
+func (s *Server) sessionCookie(cv *contestView) *webkit.CookieCodec {
+	c := s.cookie(cv.ID)
+	c.TTL = sessionTTL(cv)
+	return c
+}
+
 func (s *Server) cookie(contestID int64) *webkit.CookieCodec {
 	return &webkit.CookieCodec{Name: "cms_c" + itoa(contestID), Signer: s.signer, Secure: s.cfg.CookieSecure, TTL: 24 * time.Hour}
 }
@@ -319,6 +337,18 @@ func (s *Server) withAuth(h func(http.ResponseWriter, *http.Request, *reqCtx)) h
 		if part.Disabled {
 			s.cookie(cv.ID).Clear(w)
 			s.errorPage(w, r, cv, http.StatusForbidden, "Forbidden", "Your account is disabled.")
+			return
+		}
+		if !part.Approved && !sess.ReadOnly {
+			s.cookie(cv.ID).Clear(w)
+			s.errorPage(w, r, cv, http.StatusForbidden, "Forbidden", msgPendingApproval)
+			return
+		}
+		// A shorter session duration applies to sessions opened before
+		// the setting changed too.
+		if !sess.ReadOnly && time.Since(time.Unix(sess.Issued, 0)) > sessionTTL(cv) {
+			s.cookie(cv.ID).Clear(w)
+			s.redirectLogin(w, r, cv)
 			return
 		}
 		if cv.IpRestriction && len(part.Ip) > 0 && !ipAllowed(part.Ip, ip) {

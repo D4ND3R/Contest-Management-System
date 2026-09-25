@@ -24,6 +24,8 @@ type contestForm struct {
 	Tasks         []sqlc.Task
 	Unassigned    []sqlc.Task
 	Counts        *sqlc.AdminContestCountsRow
+	// Pending self-registrations waiting for approval.
+	Pending int64
 }
 
 type localization struct{ Code, Name string }
@@ -51,6 +53,11 @@ func (s *Server) contestForm(ctx context.Context, c sqlc.UpdateContestParams, is
 	for i := range counts {
 		if counts[i].ID == c.ID {
 			d.Counts = &counts[i]
+		}
+	}
+	if c.Registration == "approval" {
+		if d.Pending, err = s.q.CountPendingRegistrations(ctx, c.ID); err != nil {
+			return nil, err
 		}
 	}
 	return d, nil
@@ -195,6 +202,29 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 	c.IpRestriction = f.check("ip_restriction")
 	c.IpAutologin = f.check("ip_autologin")
 	c.SingleLogin = f.check("single_login")
+	if f.str("registration") != "" {
+		c.Registration = f.oneOf("registration", "Accounts", "admin", "approval", "code")
+		c.InvitationCode = f.str("invitation_code")
+		if c.Registration == "code" && len(c.InvitationCode) < 6 {
+			f.fail("the invitation code must have at least 6 characters")
+		}
+		if len(c.InvitationCode) > 100 {
+			f.fail("the invitation code must have at most 100 characters")
+		}
+		c.PasswordMinLength = f.int32("password_min_length", "Minimum password length", 8)
+		if c.PasswordMinLength < 4 || c.PasswordMinLength > 128 {
+			f.fail("the minimum password length must be between 4 and 128")
+		}
+		if m := f.optPositive64("session_minutes", "Session duration (minutes)"); m != nil {
+			if *m > 60*24*365 {
+				f.fail("sessions cannot last more than a year")
+			}
+			v := int32(min(*m, 60*24*365))
+			c.SessionMinutes = &v
+		} else {
+			c.SessionMinutes = nil
+		}
+	}
 	t := parseTokens(f)
 	c.TokenMode, c.TokenMaxNumber, c.TokenMinIntervalS = t.Mode, t.MaxNumber, t.MinIntervalS
 	c.TokenGenInitial, c.TokenGenNumber, c.TokenGenIntervalS, c.TokenGenMax = t.GenInitial, t.GenNumber, t.GenIntervalS, t.GenMax

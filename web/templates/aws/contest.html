@@ -3,7 +3,7 @@
 <h1>{{if .Data.New}}{{.T "New contest"}}{{else}}{{.T "Contest %s" $c.Name}}{{end}}</h1>
 {{if not .Data.New}}
 <p class="actions">
-  <a href="/contests/{{$c.ID}}/participations">{{.T "Participations"}}{{with .Data.Counts}} ({{.Participations}}){{end}}</a> ·
+  <a href="/contests/{{$c.ID}}/participations">{{.T "Participations"}}{{with .Data.Counts}} ({{.Participations}}){{end}}</a>{{with .Data.Pending}} <span class="tag bad">{{$.T "%d waiting for approval" .}}</span>{{end}} ·
   <a href="/contests/{{$c.ID}}/submissions">{{.T "Submissions"}}{{with .Data.Counts}} ({{.Submissions}}){{end}}</a> ·
   <a href="/contests/{{$c.ID}}/ranking">{{.T "Ranking"}}</a> ·
   <a href="/contests/{{$c.ID}}/stats">{{.T "Statistics"}}</a> ·
@@ -97,6 +97,15 @@
   <label><input type="checkbox" name="allow_printing" {{if $c.AllowPrinting}}checked{{end}}> {{.T "Printing"}}</label>
   <label><input type="checkbox" name="submissions_download_allowed" {{if $c.SubmissionsDownloadAllowed}}checked{{end}}> {{.T "Contestants can download their submissions"}}</label>
 </p>
+<div class="grid">
+  <label>{{.T "Accounts"}} <select name="registration">
+    <option value="admin" {{if eq $c.Registration "admin"}}selected{{end}}>{{.T "created by the organizers"}}</option>
+    <option value="approval" {{if eq $c.Registration "approval"}}selected{{end}}>{{.T "self-registration, approved by an admin"}}</option>
+    <option value="code" {{if eq $c.Registration "code"}}selected{{end}}>{{.T "self-registration with an invitation code"}}</option></select></label>
+  <label>{{.T "Invitation code"}} <input name="invitation_code" value="{{$c.InvitationCode}}" autocomplete="off" maxlength="100"></label>
+  <label>{{.T "Minimum password length"}} <input name="password_min_length" value="{{$c.PasswordMinLength}}" inputmode="numeric" size="4"></label>
+  <label>{{.T "Session duration (minutes)"}} <input name="session_minutes" value="{{opt $c.SessionMinutes}}" inputmode="numeric" placeholder="{{.T "24 hours"}}"></label>
+</div>
 </fieldset>
 <fieldset><legend>{{.T "Results and feedback"}}</legend>
 <div class="grid">

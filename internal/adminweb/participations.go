@@ -34,6 +34,8 @@ type participationsPage struct {
 	Rows    []sqlc.ListParticipationsByContestRow
 	Teams   []sqlc.Team
 	Hidden  int
+	// Pending counts self-registrations waiting for approval.
+	Pending int
 }
 
 func (s *Server) handleParticipations(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -54,6 +56,9 @@ func (s *Server) handleParticipations(w http.ResponseWriter, r *http.Request, rc
 	for _, p := range d.Rows {
 		if p.Participation.Hidden {
 			d.Hidden++
+		}
+		if !p.Participation.Approved {
+			d.Pending++
 		}
 	}
 	s.render(w, "participations", http.StatusOK, s.newPage(w, r, rc, "Participations", "contests", d).
@@ -278,4 +283,41 @@ func (s *Server) handleParticipationDelete(w http.ResponseWriter, r *http.Reques
 	rc.note("username", p.Username)
 	s.contestChanged(r.Context(), p.ContestID, p.ID)
 	s.done(w, r, "/contests/"+strconv.FormatInt(p.ContestID, 10)+"/participations", "Participation deleted.")
+}
+
+// handleParticipationApprove admits a self-registered contestant.
+func (s *Server) handleParticipationApprove(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	p, ok := s.loadParticipation(w, r, rc)
+	if !ok {
+		return
+	}
+	if _, err := s.q.SetParticipationApproved(r.Context(), sqlc.SetParticipationApprovedParams{ID: p.ID, Approved: true}); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	rc.target("participation", p.ID)
+	rc.note("username", p.Username)
+	s.contestChanged(r.Context(), p.ContestID, p.ID)
+	s.done(w, r, "/contests/"+strconv.FormatInt(p.ContestID, 10)+"/participations", "Registration approved.")
+}
+
+// handleParticipationReject removes a registration that was not approved
+// (the account stays, without this contest).
+func (s *Server) handleParticipationReject(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	p, ok := s.loadParticipation(w, r, rc)
+	if !ok {
+		return
+	}
+	if p.Approved {
+		s.errorPage(w, r, rc, http.StatusConflict, "Only registrations waiting for approval can be rejected.")
+		return
+	}
+	if err := s.q.DeleteParticipation(r.Context(), p.ID); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	rc.target("participation", p.ID)
+	rc.note("username", p.Username)
+	s.contestChanged(r.Context(), p.ContestID, p.ID)
+	s.done(w, r, "/contests/"+strconv.FormatInt(p.ContestID, 10)+"/participations", "Registration rejected.")
 }

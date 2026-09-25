@@ -170,7 +170,8 @@ func newBuild(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options
 		b.taskIdx[t.ID] = i
 	}
 	for _, p := range parts {
-		if p.Participation.Hidden && !opt.IncludeHidden {
+		if p.Participation.Hidden && !opt.IncludeHidden || !p.Participation.Approved {
+			// Registrations waiting for approval are not contestants yet.
 			continue
 		}
 		if opt.SiteID != 0 && (p.Participation.SiteID == nil || *p.Participation.SiteID != opt.SiteID) {

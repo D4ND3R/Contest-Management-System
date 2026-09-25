@@ -66,6 +66,7 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request, cv *contestVi
 	p := &page{Lang: lang, CSRF: s.csrf.Token(sess.ID), Base: "/" + cv.Name + "/", Contest: cv, loc: cv.Loc,
 		UILanguages: uiLanguages(cv.AllowedLocalizations)}
 	p.Title = p.T("Log in")
+	p.RegisterOpen = registrationOpen(cv, s.now())
 	if msg != "" {
 		p.Error = p.T(msg)
 	}
@@ -83,10 +84,11 @@ func (s *Server) handleLoginForm(w http.ResponseWriter, r *http.Request) {
 
 // Login messages (translated in the page).
 const (
-	msgBadCredentials = "Invalid username or password."
-	msgTooManyLogins  = "Too many login attempts, please wait a minute."
-	msgPasswordLogin  = "Password login is disabled for this contest."
-	msgBadIP          = "You cannot log in from this address."
+	msgBadCredentials  = "Invalid username or password."
+	msgTooManyLogins   = "Too many login attempts, please wait a minute."
+	msgPasswordLogin   = "Password login is disabled for this contest."
+	msgBadIP           = "You cannot log in from this address."
+	msgPendingApproval = "Your registration is waiting for the organizers' approval."
 )
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -127,6 +129,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.loginPage(w, r, cv, http.StatusForbidden, "Your account is disabled.")
 		return
 	}
+	if !cand.Approved {
+		s.loginPage(w, r, cv, http.StatusForbidden, msgPendingApproval)
+		return
+	}
 	if cv.BlockHiddenParticipations && cand.Hidden {
 		s.loginPage(w, r, cv, http.StatusForbidden, msgBadCredentials)
 		return
@@ -152,7 +158,7 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, cv *contes
 		_ = events.Publish(r.Context(), s.rdb, s.ns, events.Event{Type: events.TypeContest, ParticipationID: pid})
 	}
 	sess := &webkit.Session{ParticipationID: pid, UserID: uid, ContestID: cv.ID, Nonce: nonce}
-	s.cookie(cv.ID).Write(w, sess)
+	s.sessionCookie(cv).Write(w, sess)
 	return sess
 }
 
@@ -207,7 +213,7 @@ func (s *Server) handleImpersonate(w http.ResponseWriter, r *http.Request) {
 		s.errorPage(w, r, cv, http.StatusNotFound, "Not found", "This contest does not exist.")
 		return
 	}
-	s.cookie(cv.ID).Write(w, &webkit.Session{ParticipationID: part.ID, UserID: part.UserID, ContestID: cv.ID,
+	s.sessionCookie(cv).Write(w, &webkit.Session{ParticipationID: part.ID, UserID: part.UserID, ContestID: cv.ID,
 		Nonce: part.LoginNonce, ReadOnly: true, AdminID: imp.AdminID})
 	http.Redirect(w, r, "/"+cv.Name+"/", http.StatusSeeOther)
 }

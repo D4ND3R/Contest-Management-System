@@ -64,7 +64,7 @@ func (q *Queries) BestPreviousOutputs(ctx context.Context, arg BestPreviousOutpu
 }
 
 const getParticipationView = `-- name: GetParticipationView :one
-SELECT p.id, p.contest_id, p.user_id, p.team_id, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted,
+SELECT p.id, p.contest_id, p.user_id, p.team_id, p.approved, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted,
        p.login_nonce, p.ip, u.username, u.first_name, u.last_name, u.timezone, u.preferred_languages,
        u.disabled, t.code AS team_code, t.name AS team_name, s.start_time AS site_start_time
 FROM participations p
@@ -79,6 +79,7 @@ type GetParticipationViewRow struct {
 	ContestID          int64          `json:"contest_id"`
 	UserID             int64          `json:"user_id"`
 	TeamID             *int64         `json:"team_id"`
+	Approved           bool           `json:"approved"`
 	StartingTime       *time.Time     `json:"starting_time"`
 	DelayTimeS         int64          `json:"delay_time_s"`
 	ExtraTimeS         int64          `json:"extra_time_s"`
@@ -106,6 +107,7 @@ func (q *Queries) GetParticipationView(ctx context.Context, id int64) (GetPartic
 		&i.ContestID,
 		&i.UserID,
 		&i.TeamID,
+		&i.Approved,
 		&i.StartingTime,
 		&i.DelayTimeS,
 		&i.ExtraTimeS,

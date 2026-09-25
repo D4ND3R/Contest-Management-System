@@ -69,7 +69,7 @@ SELECT * FROM participations WHERE contest_id = $1 AND user_id = $2;
 -- name: GetLoginCandidate :one
 -- Everything CWS needs to authenticate a contestant, in one round trip.
 SELECT p.id AS participation_id, p.password_hash AS participation_password_hash, p.ip, p.hidden,
-       p.login_nonce, u.id AS user_id, u.username, u.password_hash AS user_password_hash, u.disabled
+       p.login_nonce, p.approved, u.id AS user_id, u.username, u.password_hash AS user_password_hash, u.disabled
 FROM participations p JOIN users u ON u.id = p.user_id
 WHERE p.contest_id = $1 AND u.username = $2;
 
@@ -137,3 +137,9 @@ ORDER BY c.start_time DESC, u.username;
 
 -- name: CountTeamMembers :one
 SELECT count(*) FROM participations WHERE contest_id = $1 AND team_id = $2;
+
+-- name: SetParticipationApproved :one
+UPDATE participations SET approved = $2 WHERE id = $1 RETURNING *;
+
+-- name: CountPendingRegistrations :one
+SELECT count(*)::bigint FROM participations WHERE contest_id = $1 AND NOT approved;

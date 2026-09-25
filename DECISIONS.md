@@ -519,3 +519,22 @@ submission constraint rejects a second token on the same submission. After
 a play the dispatcher re-aggregates (it matters for "max of tokened and
 last") and the row refreshes with the full result. Tokens are only offered
 while the contestant's window runs and scores are visible.
+
+## D56. Self-registration creates ordinary accounts
+Registration writes a normal `users` row plus a participation, so everything
+else (credentials, impersonation, exports, rankings) needs no special case.
+Approval is a flag on the participation (`approved`, true by default so
+existing and admin-created participations are unaffected); the login refuses
+unapproved participations with an explicit message, the session middleware
+re-checks it (a session cannot outlive a revoked approval) and the ranking
+skips them. Rejecting deletes the participation but keeps the account: the
+username may be in use elsewhere. An existing username cannot be claimed by
+registering, since that would let anyone take over another contest's
+account; organizers add such users by hand. The invitation code is compared
+in constant time and registration is rate-limited per IP like the login.
+The password policy (minimum length, letters and digits, not the username)
+applies where contestants choose passwords; admin-generated passwords are
+already long random strings. The session duration is the age of the
+session (issue time), checked on every request, so shortening it closes
+existing sessions too; without a setting sessions last 24 hours as before.
+

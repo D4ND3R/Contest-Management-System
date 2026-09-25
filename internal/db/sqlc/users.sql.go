@@ -22,6 +22,17 @@ func (q *Queries) BumpLoginNonce(ctx context.Context, id int64) (int64, error) {
 	return login_nonce, err
 }
 
+const countPendingRegistrations = `-- name: CountPendingRegistrations :one
+SELECT count(*)::bigint FROM participations WHERE contest_id = $1 AND NOT approved
+`
+
+func (q *Queries) CountPendingRegistrations(ctx context.Context, contestID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, countPendingRegistrations, contestID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countTeamMembers = `-- name: CountTeamMembers :one
 SELECT count(*) FROM participations WHERE contest_id = $1 AND team_id = $2
 `
@@ -235,7 +246,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 
 const getLoginCandidate = `-- name: GetLoginCandidate :one
 SELECT p.id AS participation_id, p.password_hash AS participation_password_hash, p.ip, p.hidden,
-       p.login_nonce, u.id AS user_id, u.username, u.password_hash AS user_password_hash, u.disabled
+       p.login_nonce, p.approved, u.id AS user_id, u.username, u.password_hash AS user_password_hash, u.disabled
 FROM participations p JOIN users u ON u.id = p.user_id
 WHERE p.contest_id = $1 AND u.username = $2
 `
@@ -251,6 +262,7 @@ type GetLoginCandidateRow struct {
 	Ip                        []netip.Prefix `json:"ip"`
 	Hidden                    bool           `json:"hidden"`
 	LoginNonce                int64          `json:"login_nonce"`
+	Approved                  bool           `json:"approved"`
 	UserID                    int64          `json:"user_id"`
 	Username                  string         `json:"username"`
 	UserPasswordHash          string         `json:"user_password_hash"`
@@ -267,6 +279,7 @@ func (q *Queries) GetLoginCandidate(ctx context.Context, arg GetLoginCandidatePa
 		&i.Ip,
 		&i.Hidden,
 		&i.LoginNonce,
+		&i.Approved,
 		&i.UserID,
 		&i.Username,
 		&i.UserPasswordHash,
@@ -758,6 +771,38 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const setParticipationApproved = `-- name: SetParticipationApproved :one
+UPDATE participations SET approved = $2 WHERE id = $1 RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved
+`
+
+type SetParticipationApprovedParams struct {
+	ID       int64 `json:"id"`
+	Approved bool  `json:"approved"`
+}
+
+func (q *Queries) SetParticipationApproved(ctx context.Context, arg SetParticipationApprovedParams) (Participation, error) {
+	row := q.db.QueryRow(ctx, setParticipationApproved, arg.ID, arg.Approved)
+	var i Participation
+	err := row.Scan(
+		&i.ID,
+		&i.ContestID,
+		&i.UserID,
+		&i.TeamID,
+		&i.PasswordHash,
+		&i.Ip,
+		&i.StartingTime,
+		&i.DelayTimeS,
+		&i.ExtraTimeS,
+		&i.Hidden,
+		&i.Unrestricted,
+		&i.LoginNonce,
+		&i.SiteID,
+		&i.CommunicationSeenAt,
+		&i.Approved,
+	)
+	return i, err
 }
 
 const setParticipationPassword = `-- name: SetParticipationPassword :exec

@@ -1,6 +1,6 @@
 -- name: GetParticipationView :one
 -- A contestant's participation with the fields every page needs.
-SELECT p.id, p.contest_id, p.user_id, p.team_id, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted,
+SELECT p.id, p.contest_id, p.user_id, p.team_id, p.approved, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted,
        p.login_nonce, p.ip, u.username, u.first_name, u.last_name, u.timezone, u.preferred_languages,
        u.disabled, t.code AS team_code, t.name AS team_name, s.start_time AS site_start_time
 FROM participations p

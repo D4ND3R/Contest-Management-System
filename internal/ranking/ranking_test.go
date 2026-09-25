@@ -135,3 +135,22 @@ func TestICPCRanking(t *testing.T) {
 		t.Fatalf("cells %+v", r.Rows)
 	}
 }
+
+// TestPendingRegistrationsNotRanked (SPEC_CLOSE B6): self-registrations
+// waiting for approval are not in the ranking, even with hidden users.
+func TestPendingRegistrationsNotRanked(t *testing.T) {
+	q, id := setup(t, "ioi", map[string][2]*cell{"ana": {{score: 10}, nil}, "fer": {nil, nil}}, "")
+	parts, _ := q.ListParticipationsByContest(bg, id)
+	for _, p := range parts {
+		if p.Username == "fer" {
+			q.SetParticipationApproved(bg, sqlc.SetParticipationApprovedParams{ID: p.Participation.ID, Approved: false})
+		}
+	}
+	r, err := Compute(bg, q, id, Options{IncludeHidden: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Rows) != 1 || r.Rows[0].Username != "ana" {
+		t.Fatalf("rows %+v", r.Rows)
+	}
+}

@@ -610,3 +610,22 @@ first 4 KiB of the output inline and download input and output; the number
 and frequency of tests follow the contest and task limits, and the contest
 toggle hides it all. Tests: contestweb.TestUserTests,
 e2e.TestUserTestJudged (real judge).
+
+## SPEC_CLOSE B6 — Access (done)
+Skipping skills: immersive-web-design, master skill.
+
+Contests choose who creates accounts: the organizers (as before),
+self-registration approved by an admin, or self-registration with an
+invitation code. The login page links to a registration form (username,
+name, optional email and institution, password twice, code) with the
+contest's password policy; approval-mode registrations wait (login refused
+with a clear message) until an admin approves or rejects them from
+Participations, where they are marked and counted (also on the contest
+page); they are not ranked meanwhile. Sessions last the contest's session
+duration (24 hours by default). IP restriction, autologin and single login
+were already in place. New docs: docs/en/contest-settings.md,
+docs/es/configuracion-del-concurso.md. Tests:
+contestweb.TestRegistrationWithApproval, contestweb.TestRegistrationWithCode,
+contestweb.TestSessionDuration, adminweb.TestRegistrationSettings,
+ranking.TestPendingRegistrationsNotRanked.
+

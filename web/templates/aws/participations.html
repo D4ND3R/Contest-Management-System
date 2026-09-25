@@ -1,6 +1,7 @@
 {{define "content"}}
 {{$c := .Data.Contest}}
 <h1>{{.T "Participations in %s" $c.Name}} <small class="muted">{{.T "%d (%d hidden)" (len .Data.Rows) .Data.Hidden}}</small></h1>
+{{with .Data.Pending}}<p class="info">{{$.T "%d registrations wait for your approval (marked below)." .}}</p>{{end}}
 <p class="actions"><a href="/contests/{{$c.ID}}/sites">{{.T "Sites"}}</a> · <a href="/users/export.csv?contest={{$c.ID}}">{{.T "Export CSV"}}</a></p>
 {{if .CanWrite}}
 <div class="row">
@@ -39,11 +40,13 @@
   <td>{{.FirstName}} {{.LastName}}</td>
   <td>{{deref .TeamCode}}</td>
   <td>{{deref .SiteName}}</td>
-  <td>{{if .Disabled}}<span class="tag bad">{{$.T "disabled"}}</span>{{end}}{{if $p.Hidden}}<span class="tag">{{$.T "hidden"}}</span>{{end}}{{if $p.Unrestricted}}<span class="tag">{{$.T "unrestricted"}}</span>{{end}}{{if $p.PasswordHash}}<span class="tag">{{$.T "own password"}}</span>{{end}}</td>
+  <td>{{if .Disabled}}<span class="tag bad">{{$.T "disabled"}}</span>{{end}}{{if $p.Hidden}}<span class="tag">{{$.T "hidden"}}</span>{{end}}{{if $p.Unrestricted}}<span class="tag">{{$.T "unrestricted"}}</span>{{end}}{{if $p.PasswordHash}}<span class="tag">{{$.T "own password"}}</span>{{end}}{{if not $p.Approved}}<span class="tag bad">{{$.T "waiting for approval"}}</span>{{end}}</td>
   <td>{{cidrs $p.Ip}}</td>
   <td class="num">{{$p.DelayTimeS}}</td><td class="num">{{$p.ExtraTimeS}}</td>
   <td>{{dt $p.StartingTime}}</td>
-  <td><a href="/contests/{{$c.ID}}/submissions?participation={{$p.ID}}">{{$.T "submissions"}}</a></td>
+  <td>{{if not $p.Approved}}{{if $.CanWrite}}<form method="post" action="/participations/{{$p.ID}}/approve" class="inline">{{template "csrf" $.CSRF}}<button class="link">{{$.T "approve"}}</button></form>
+    <form method="post" action="/participations/{{$p.ID}}/reject" class="inline" data-confirm="{{$.T "Reject this registration?"}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "reject"}}</button></form>{{end}}
+    {{else}}<a href="/contests/{{$c.ID}}/submissions?participation={{$p.ID}}">{{$.T "submissions"}}</a>{{end}}</td>
 </tr>
 {{else}}
 <tr><td colspan="10" class="muted">{{.T "Nobody takes part yet."}}</td></tr>

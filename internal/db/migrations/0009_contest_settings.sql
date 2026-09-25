@@ -21,7 +21,7 @@ ALTER TABLE contests ADD COLUMN registration text NOT NULL DEFAULT 'admin'
     CHECK (registration IN ('admin', 'approval', 'code'));
 ALTER TABLE contests ADD COLUMN invitation_code text NOT NULL DEFAULT '';
 ALTER TABLE contests ADD COLUMN password_min_length integer NOT NULL DEFAULT 8 CHECK (password_min_length BETWEEN 4 AND 128);
--- Contestant sessions last this long (null: until logout, 30 days at most).
+-- Contestant sessions last this long (null: 24 hours).
 ALTER TABLE contests ADD COLUMN session_minutes integer CHECK (session_minutes > 0);
 
 -- Self-registered participations wait for an administrator.

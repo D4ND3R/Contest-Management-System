@@ -230,6 +230,8 @@ func (s *Server) Handler() http.Handler {
 	post("/submissions/{id}/restore", permAll, "submission.restore", s.handleSubmissionRestore)
 	post("/participations/{id}", permAll, "participation.update", s.handleParticipationUpdate)
 	post("/participations/{id}/delete", permAll, "participation.delete", s.handleParticipationDelete)
+	post("/participations/{id}/approve", permAll, "participation.approve", s.handleParticipationApprove)
+	post("/participations/{id}/reject", permAll, "participation.reject", s.handleParticipationReject)
 	post("/participations/{id}/view-as", permRead, "participation.view_as", s.handleViewAs)
 
 	get("/tasks", s.handleTasks)

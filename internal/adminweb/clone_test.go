@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"testing"
@@ -170,5 +171,81 @@ func TestContestModality(t *testing.T) {
 	task, _ := f.q.GetTaskByName(bg, "nueva")
 	if task.ScoreMode != "max" || task.ScorePrecision != 2 {
 		t.Fatalf("new task %s %d", task.ScoreMode, task.ScorePrecision)
+	}
+}
+
+// TestRegistrationSettings (SPEC_CLOSE B6): the contest form saves the
+// registration mode, the invitation code, the password length and the
+// session duration; pending registrations are approved or rejected.
+func TestRegistrationSettings(t *testing.T) {
+	f := newFixture(t)
+	a := f.login("all")
+	now := time.Now().UTC()
+	form := url.Values{"name": {"seeded"}, "timezone": {"UTC"},
+		"start_time": {now.Add(-time.Hour).Format("2006-01-02T15:04:05")}, "stop_time": {now.Add(time.Hour).Format("2006-01-02T15:04:05")},
+		"token_mode": {"disabled"}, "token_gen_interval_s": {"1800"}, "scoring_mode": {"ioi"}, "icpc_penalty_minutes": {"20"},
+		"registration": {"code"}, "invitation_code": {"abc"}, "password_min_length": {"12"}, "session_minutes": {"90"}}
+	path := fmt.Sprintf("/contests/%d", f.contest.ID)
+	if code, body := a.Post(path, form); code != 422 || !strings.Contains(body, "at least 6") {
+		t.Fatalf("short invitation code = %d\n%s", code, body)
+	}
+	form.Set("invitation_code", "OMI-2026")
+	form.Set("password_min_length", "200")
+	if code, _ := a.Post(path, form); code != 422 {
+		t.Fatalf("password length 200 = %d", code)
+	}
+	form.Set("password_min_length", "12")
+	if code, body := a.Post(path, form); code != 200 {
+		t.Fatalf("save = %d\n%s", code, body)
+	}
+	c, _ := f.q.GetContest(bg, f.contest.ID)
+	if c.Registration != "code" || c.InvitationCode != "OMI-2026" || c.PasswordMinLength != 12 || c.SessionMinutes == nil || *c.SessionMinutes != 90 {
+		t.Fatalf("contest %s %q %d %v", c.Registration, c.InvitationCode, c.PasswordMinLength, c.SessionMinutes)
+	}
+	form.Set("registration", "approval")
+	form.Set("session_minutes", "")
+	if code, _ := a.Post(path, form); code != 200 {
+		t.Fatalf("save approval = %d", code)
+	}
+	if c, _ = f.q.GetContest(bg, f.contest.ID); c.Registration != "approval" || c.SessionMinutes != nil {
+		t.Fatalf("contest %s %v", c.Registration, c.SessionMinutes)
+	}
+
+	// Two pending registrations: one approved, one rejected.
+	var pending []sqlc.Participation
+	for _, name := range []string{"nuevo1", "nuevo2"} {
+		u, err := f.q.CreateUser(bg, sqlc.CreateUserParams{Username: name, PreferredLanguages: []string{}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, _ := f.q.CreateParticipation(bg, sqlc.CreateParticipationParams{ContestID: f.contest.ID, UserID: u.ID, Ip: []netip.Prefix{}})
+		p, _ = f.q.SetParticipationApproved(bg, sqlc.SetParticipationApprovedParams{ID: p.ID, Approved: false})
+		pending = append(pending, p)
+	}
+	if _, body := a.Get(path); !strings.Contains(body, "2 waiting for approval") {
+		t.Errorf("pending count missing on the contest page")
+	}
+	if _, body := a.Get(path + "/participations"); !strings.Contains(body, "2 registrations wait") ||
+		!strings.Contains(body, fmt.Sprintf("/participations/%d/approve", pending[0].ID)) {
+		t.Fatalf("participations page:\n%s", body)
+	}
+	if code, _ := f.login("read_only").Post(fmt.Sprintf("/participations/%d/approve", pending[0].ID), nil); code != http.StatusForbidden {
+		t.Fatalf("read-only approve = %d", code)
+	}
+	if code, body := a.Post(fmt.Sprintf("/participations/%d/approve", pending[0].ID), nil); code != 200 || !strings.Contains(body, "approved") {
+		t.Fatalf("approve = %d\n%s", code, body)
+	}
+	if code, _ := a.Post(fmt.Sprintf("/participations/%d/reject", pending[0].ID), nil); code != http.StatusConflict {
+		t.Fatalf("reject an approved participation = %d", code)
+	}
+	if code, _ := a.Post(fmt.Sprintf("/participations/%d/reject", pending[1].ID), nil); code != 200 {
+		t.Fatalf("reject = %d", code)
+	}
+	var approved bool
+	f.pool.QueryRow(bg, "SELECT approved FROM participations WHERE id = $1", pending[0].ID).Scan(&approved)
+	var left int
+	f.pool.QueryRow(bg, "SELECT count(*) FROM participations WHERE id = $1", pending[1].ID).Scan(&left)
+	if !approved || left != 0 {
+		t.Fatalf("approved %v, rejected still there %d", approved, left)
 	}
 }

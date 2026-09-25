@@ -1,0 +1,26 @@
+{{define "content"}}{{$d := .Data}}
+<section class="card narrow">
+<h1>{{.T "Register"}}</h1>
+{{if $d.Done}}
+<p class="info">{{.T "Registration received. You can log in once the organizers approve it."}}</p>
+<p><a href="{{.Base}}login">{{.T "Log in"}}</a></p>
+{{else}}
+{{with .Contest.Description}}<p class="muted">{{.}}</p>{{end}}
+{{with .Error}}<p class="alert">{{.}}</p>{{end}}
+<form method="post" action="{{.Base}}register">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <label>{{.T "Username"}} <input name="username" value="{{$d.Username}}" autocomplete="username" required pattern="[A-Za-z0-9_.\-]{3,32}"></label>
+  <label>{{.T "First name"}} <input name="first_name" value="{{$d.FirstName}}" autocomplete="given-name" required maxlength="100"></label>
+  <label>{{.T "Last name"}} <input name="last_name" value="{{$d.LastName}}" autocomplete="family-name" maxlength="100"></label>
+  <label>{{.T "Email (optional)"}} <input type="email" name="email" value="{{$d.Email}}" autocomplete="email" maxlength="200"></label>
+  <label>{{.T "Institution (optional)"}} <input name="institution" value="{{$d.Institution}}" maxlength="200"></label>
+  <label>{{.T "Password"}} <input type="password" name="password" autocomplete="new-password" required minlength="{{$d.MinLength}}"></label>
+  <label>{{.T "Password again"}} <input type="password" name="password2" autocomplete="new-password" required></label>
+  <p class="muted small">{{.T "At least %d characters, with letters and digits." $d.MinLength}}</p>
+  {{if $d.NeedsCode}}<label>{{.T "Invitation code"}} <input name="code" required autocomplete="off"></label>{{end}}
+  <button>{{.T "Register"}}</button>
+</form>
+<p><a href="{{.Base}}login">{{.T "I already have an account"}}</a></p>
+{{end}}
+</section>
+{{end}}
