@@ -643,3 +643,20 @@ Tests: scoring.TestICPCVerdict, dispatcher.TestEndToEndScoring (real
 judging: verdicts and the balloon event), contestweb.TestICPCVerdicts,
 adminweb.TestBalloons, rankingweb.TestPushProtocolAndLiveRows.
 
+## SPEC_CLOSE B8 — Printing (done)
+Skipping skills: immersive-web-design, master skill.
+
+Contestants print PDFs or source code from a new Printing page during the
+contest; text is typeset with line numbers, pages are counted at upload and
+the contest limits (jobs, pages per job, new total pages per contestant)
+apply at once. `cms printing` (previously a stub) sends each job to CUPS
+with a cover page, retries, and recovers interrupted jobs. The staff queue
+shows jobs to deliver, waiting, failed and delivered, with deliver/undo,
+reprint, cancel and a PDF view; both pages update live. Docs: contest
+settings and deployment (CUPS). Tests: pdf.TestCountPages,
+printing.TestPrepareText, printing.TestService (fake lp: printing, retries,
+failure, restart recovery, events), contestweb.TestPrinting,
+adminweb.TestPrintQueue.
+
+Block B is complete: B1–B8 (C1–C9 and X11 of the audit).
+

@@ -161,6 +161,30 @@ nuevas del mismo modo (`cmsctl migrate`).
    minutos alrededor de un concurso ([respaldos](respaldos.md)).
 5. Lee el [manual del día del concurso](dia-del-concurso.md).
 
+### Impresión
+
+Los trabajos de impresión de los concursantes (se activan por concurso, ver
+[configuración del concurso](configuracion-del-concurso.md#impresión)) los
+envía a CUPS `cms-printing`, que corre en el servidor principal. Para usar
+una impresora:
+
+```sh
+sudo apt install cups-client          # o cups, si la impresora está conectada aquí
+lpstat -p -d                           # destinos que conoce CUPS
+```
+
+luego pon `printing.printer: <destino>` en `/etc/cms/cms.yaml` (y
+`paper_size: Letter` si hace falta) y ejecuta
+`sudo systemctl restart cms-printing`. Cada trabajo se imprime como un solo
+trabajo de CUPS: una portada (usuario, nombre, equipo, sede, archivo,
+páginas) seguida del documento. Sin impresora los trabajos se marcan como
+impresos con "not printed: no printer configured", útil para un ensayo. Los
+fallos de `lp` se reintentan tres veces; después el trabajo aparece como *no
+impreso* en la cola del staff, donde se puede imprimir de nuevo. Corre un
+solo servicio de impresión: al arrancar retoma los trabajos que estaba
+imprimiendo, así que una caída puede imprimir un trabajo dos veces pero
+nunca pierde uno.
+
 ## Monitoreo
 
 - `https://admin.../system`: workers, colas, trabajos en curso.

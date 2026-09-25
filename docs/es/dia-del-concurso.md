@@ -49,6 +49,8 @@ principal salvo que se indique otra cosa.
 - `journalctl -u 'cms-*' -p warning -f` en el servidor principal.
 - Concursos ICPC: la página de **Globos** (en la página del concurso)
   abierta para quienes los reparten; se actualiza sola.
+- Con impresión: la cola de **Impresión** (en la página del concurso)
+  abierta para el staff que entrega las hojas.
 
 **Extender el tiempo**
 

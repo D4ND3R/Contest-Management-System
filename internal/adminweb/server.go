@@ -200,6 +200,9 @@ func (s *Server) Handler() http.Handler {
 	post("/contests/{id}/clone", permAll, "contest.clone", s.handleContestClone)
 	get("/contests/{id}/balloons", s.handleBalloons)
 	post("/contests/{id}/balloons/deliver", permMessaging, "balloon.deliver", s.handleBalloonDeliver)
+	get("/contests/{id}/printing", s.handlePrintQueue)
+	get("/print-jobs/{id}/pdf", s.handlePrintJobPDF)
+	post("/print-jobs/{id}/{action}", permMessaging, "print_job.action", s.handlePrintJobAction)
 	post("/contests/{id}/extend", permAll, "contest.extend", s.handleContestExtend)
 	post("/contests/{id}/tasks", permAll, "contest.add_task", s.handleContestAddTask)
 	post("/contests/{id}/tasks/{task}/move", permAll, "contest.move_task", s.handleContestMoveTask)
@@ -618,7 +621,7 @@ type adminHub struct {
 // publish forwards the events administrators see live (system alerts, new
 // questions, balloons); submission events are far too many to fan out here.
 func (h *adminHub) publish(e events.Event) {
-	if e.Type != events.TypeAlert && e.Type != events.TypeQuestionNew && e.Type != events.TypeBalloon {
+	if e.Type != events.TypeAlert && e.Type != events.TypeQuestionNew && e.Type != events.TypeBalloon && e.Type != events.TypePrint {
 		return
 	}
 	data, _ := json.Marshal(e)

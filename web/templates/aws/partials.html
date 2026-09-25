@@ -270,3 +270,72 @@
 {{end}}
 </div>
 {{end}}
+
+{{define "print-job-form"}}<form method="post" action="/print-jobs/{{.ID}}/{{.Action}}" class="inline" hx-post="/print-jobs/{{.ID}}/{{.Action}}" hx-target="#print-queue" hx-swap="outerHTML">{{template "csrf" .P.CSRF}}<input type="hidden" name="site" value="{{.Site}}"><button{{with .Class}} class="{{.}}"{{end}}>{{.P.T .Label}}</button></form>{{end}}
+
+{{define "print-queue"}}{{$v := .V}}{{$src := printf "/contests/%d/printing?fragment=1&%s" $v.C.ID $v.Query}}
+<div id="print-queue" data-src="{{$src}}" data-refresh="print" hx-get="{{$src}}" hx-trigger="every 30s" hx-swap="outerHTML">
+<h2>{{.T "Printed, to deliver"}} <small class="muted">({{len $v.Printed}})</small></h2>
+<table>
+<thead><tr><th>#</th><th>{{.T "Sent"}}</th><th>{{.T "User"}}</th><th>{{.T "Team"}}</th><th>{{.T "Site"}}</th><th>{{.T "File"}}</th><th class="num">{{.T "Pages"}}</th><th></th></tr></thead>
+<tbody>
+{{range $v.Printed}}
+<tr>
+  <td>{{.ID}}</td><td>{{dt .CreatedAt}}</td><td><b>{{.Username}}</b> <small class="muted">{{.FirstName}} {{.LastName}}</small></td>
+  <td>{{deref .TeamCode}}</td><td>{{deref .SiteName}}</td>
+  <td><a href="/print-jobs/{{.ID}}/pdf">{{.Filename}}</a></td><td class="num">{{deref32 .Pages}}</td>
+  <td>{{if $.P.CanMessage}}{{template "print-job-form" (printForm $.P .ID "deliver" "delivered" "" $v.Site)}}
+    {{template "print-job-form" (printForm $.P .ID "reprint" "reprint" "link" $v.Site)}}{{end}}</td>
+</tr>
+{{else}}
+<tr><td colspan="8" class="muted">{{.T "Nothing to deliver."}}</td></tr>
+{{end}}
+</tbody>
+</table>
+<h2>{{.T "Waiting for the printer"}} <small class="muted">({{len $v.Waiting}})</small></h2>
+{{if $v.Waiting}}
+<table>
+<thead><tr><th>#</th><th>{{.T "Sent"}}</th><th>{{.T "User"}}</th><th>{{.T "Site"}}</th><th>{{.T "File"}}</th><th class="num">{{.T "Pages"}}</th><th>{{.T "Status"}}</th><th></th></tr></thead>
+<tbody>
+{{range $v.Waiting}}
+<tr>
+  <td>{{.ID}}</td><td>{{dt .CreatedAt}}</td><td>{{.Username}}</td><td>{{deref .SiteName}}</td>
+  <td><a href="/print-jobs/{{.ID}}/pdf">{{.Filename}}</a></td><td class="num">{{deref32 .Pages}}</td><td>{{$.T .Status}}</td>
+  <td>{{if and $.P.CanMessage (eq .Status "queued")}}{{template "print-job-form" (printForm $.P .ID "cancel" "cancel" "link" $v.Site)}}{{end}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+{{else}}<p class="muted">{{.T "The printer is idle."}}</p>{{end}}
+{{with $v.Failed}}
+<h2>{{$.T "Not printed"}} <small class="muted">({{len .}})</small></h2>
+<table>
+<thead><tr><th>#</th><th>{{$.T "Sent"}}</th><th>{{$.T "User"}}</th><th>{{$.T "File"}}</th><th>{{$.T "Reason"}}</th><th></th></tr></thead>
+<tbody>
+{{range .}}
+<tr>
+  <td>{{.ID}}</td><td>{{dt .CreatedAt}}</td><td>{{.Username}}</td><td><a href="/print-jobs/{{.ID}}/pdf">{{.Filename}}</a></td>
+  <td class="bad">{{$.T .StatusText}}</td>
+  <td>{{if $.P.CanMessage}}{{template "print-job-form" (printForm $.P .ID "reprint" "print again" "link" $v.Site)}}{{end}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+{{end}}
+{{with $v.Delivered}}
+<h2>{{$.T "Delivered"}} <small class="muted">({{len .}})</small></h2>
+<table>
+<thead><tr><th>#</th><th>{{$.T "Delivered"}}</th><th>{{$.T "User"}}</th><th>{{$.T "Site"}}</th><th>{{$.T "File"}}</th><th class="num">{{$.T "Pages"}}</th><th></th></tr></thead>
+<tbody>
+{{range .}}
+<tr class="muted">
+  <td>{{.ID}}</td><td>{{dt .DeliveredAt}}{{with .DeliveredByName}} <small>({{.}})</small>{{end}}</td><td>{{.Username}}</td><td>{{deref .SiteName}}</td>
+  <td><a href="/print-jobs/{{.ID}}/pdf">{{.Filename}}</a></td><td class="num">{{deref32 .Pages}}</td>
+  <td>{{if $.P.CanMessage}}{{template "print-job-form" (printForm $.P .ID "undeliver" "undo" "link" $v.Site)}}{{end}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+{{end}}
+</div>
+{{end}}

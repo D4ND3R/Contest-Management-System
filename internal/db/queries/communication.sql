@@ -102,13 +102,15 @@ SELECT p.id FROM participations p WHERE p.contest_id = $1 AND p.team_id = $2;
 SELECT * FROM messages WHERE participation_id = $1 ORDER BY created_at DESC, id DESC;
 
 -- name: CreatePrintJob :one
-INSERT INTO print_jobs (participation_id, created_at, filename, digest) VALUES ($1, $2, $3, $4) RETURNING *;
+INSERT INTO print_jobs (participation_id, created_at, filename, digest, pages) VALUES ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: ListPrintJobsByParticipation :many
 SELECT * FROM print_jobs WHERE participation_id = $1 ORDER BY created_at DESC, id DESC;
 
--- name: CountPrintJobsByParticipation :one
-SELECT count(*) FROM print_jobs WHERE participation_id = $1;
+-- name: PrintUsage :one
+-- Jobs and pages a contestant has used (failed jobs do not count).
+SELECT count(*)::bigint AS jobs, COALESCE(sum(pages), 0)::bigint AS pages
+FROM print_jobs WHERE participation_id = $1 AND status <> 'failed';
 
 -- name: ClaimPrintJob :one
 -- Printing service: atomically take the oldest queued job.
@@ -117,10 +119,48 @@ WHERE id = (SELECT id FROM print_jobs WHERE status = 'queued' ORDER BY id LIMIT 
 RETURNING *;
 
 -- name: FinishPrintJob :exec
-UPDATE print_jobs SET status = $2, status_text = $3, pages = $4 WHERE id = $1;
+-- Only a job still being printed (the staff may have cancelled it).
+UPDATE print_jobs SET status = $2, status_text = $3,
+    printed_at = CASE WHEN $2 = 'done' THEN now() ELSE printed_at END
+WHERE id = $1 AND status = 'printing';
 
--- name: ListPrintJobsByContest :many
-SELECT j.*, u.username FROM print_jobs j
+-- name: RequeueInterruptedPrintJobs :many
+-- At start the printing service takes back the jobs it was printing.
+UPDATE print_jobs SET status = 'queued' WHERE status = 'printing' RETURNING id;
+
+-- name: GetPrintJobInfo :one
+-- A job with what the banner page and the staff need.
+SELECT j.*, u.username, u.first_name, u.last_name, p.contest_id, c.name AS contest_name,
+       tm.code AS team_code, st.name AS site_name
+FROM print_jobs j
 JOIN participations p ON p.id = j.participation_id
 JOIN users u ON u.id = p.user_id
-WHERE p.contest_id = $1 ORDER BY j.created_at DESC;
+JOIN contests c ON c.id = p.contest_id
+LEFT JOIN teams tm ON tm.id = p.team_id
+LEFT JOIN sites st ON st.id = p.site_id
+WHERE j.id = $1;
+
+-- name: ListPrintJobsByContest :many
+-- The staff queue (index: participations (contest_id, user_id), then
+-- print_jobs_participation_idx).
+SELECT j.*, u.username, u.first_name, u.last_name, tm.code AS team_code, st.name AS site_name,
+       COALESCE(a.username, '')::text AS delivered_by_name
+FROM print_jobs j
+JOIN participations p ON p.id = j.participation_id
+JOIN users u ON u.id = p.user_id
+LEFT JOIN teams tm ON tm.id = p.team_id
+LEFT JOIN sites st ON st.id = p.site_id
+LEFT JOIN admins a ON a.id = j.delivered_by
+WHERE p.contest_id = $1 ORDER BY j.created_at, j.id;
+
+-- name: SetPrintJobDelivered :exec
+UPDATE print_jobs SET delivered_at = CASE WHEN sqlc.arg(delivered)::boolean THEN now() END,
+    delivered_by = CASE WHEN sqlc.arg(delivered)::boolean THEN sqlc.narg(admin_id)::bigint END
+WHERE id = sqlc.arg(id)::bigint;
+
+-- name: RequeuePrintJob :exec
+UPDATE print_jobs SET status = 'queued', status_text = '', printed_at = NULL, delivered_at = NULL, delivered_by = NULL
+WHERE id = $1 AND status IN ('done', 'failed');
+
+-- name: CancelPrintJob :execrows
+UPDATE print_jobs SET status = 'failed', status_text = $2 WHERE id = $1 AND status = 'queued';

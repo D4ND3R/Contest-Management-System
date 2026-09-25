@@ -211,9 +211,11 @@ type Printing struct {
 	MetricsListen string `yaml:"metrics_listen"`
 	// Printer is the CUPS destination; empty disables printing (jobs are
 	// marked done after the PDF is rendered, useful for testing).
-	Printer  string `yaml:"printer"`
-	LPPath   string `yaml:"lp_path"`
-	MaxPages int    `yaml:"max_pages"`
+	Printer string `yaml:"printer"`
+	LPPath  string `yaml:"lp_path"`
+	// MaxPages is a safety cap per job for this printer (0: none; the
+	// contest limits apply anyway).
+	MaxPages int `yaml:"max_pages"`
 	// PaperSize for text rendering (A4 or Letter).
 	PaperSize string `yaml:"paper_size"`
 }
@@ -298,7 +300,7 @@ func Default() *Config {
 			MetricsListen: ":9103", HeartbeatTimeout: Duration(10 * time.Second),
 			JobTimeout: Duration(10 * time.Minute), CheckInterval: Duration(2 * time.Second),
 		},
-		Printing:   Printing{MetricsListen: ":9104", LPPath: "lp", MaxPages: 10, PaperSize: "A4"},
+		Printing:   Printing{MetricsListen: ":9104", LPPath: "lp", PaperSize: "A4"},
 		BlobServer: BlobServer{Listen: ":8891", MaxUploadBytes: 1 << 30},
 		Backup: Backup{Dir: "./data/backups", Interval: Duration(24 * time.Hour), ContestInterval: Duration(15 * time.Minute),
 			Keep: 48, MaxRate: 32 << 20, S3: BackupS3{S3: S3{UseSSL: true}, Prefix: "backups/"}},

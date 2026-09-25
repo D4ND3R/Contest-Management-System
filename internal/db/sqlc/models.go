@@ -126,6 +126,7 @@ type Contest struct {
 	InvitationCode              string     `json:"invitation_code"`
 	PasswordMinLength           int32      `json:"password_min_length"`
 	SessionMinutes              *int32     `json:"session_minutes"`
+	MaxPrintTotalPages          *int32     `json:"max_print_total_pages"`
 }
 
 type Dataset struct {
@@ -225,14 +226,17 @@ type ParticipationTaskScore struct {
 }
 
 type PrintJob struct {
-	ID              int64     `json:"id"`
-	ParticipationID int64     `json:"participation_id"`
-	CreatedAt       time.Time `json:"created_at"`
-	Filename        string    `json:"filename"`
-	Digest          string    `json:"digest"`
-	Status          string    `json:"status"`
-	StatusText      string    `json:"status_text"`
-	Pages           *int32    `json:"pages"`
+	ID              int64      `json:"id"`
+	ParticipationID int64      `json:"participation_id"`
+	CreatedAt       time.Time  `json:"created_at"`
+	Filename        string     `json:"filename"`
+	Digest          string     `json:"digest"`
+	Status          string     `json:"status"`
+	StatusText      string     `json:"status_text"`
+	Pages           *int32     `json:"pages"`
+	PrintedAt       *time.Time `json:"printed_at"`
+	DeliveredAt     *time.Time `json:"delivered_at"`
+	DeliveredBy     *int64     `json:"delivered_by"`
 }
 
 type Question struct {

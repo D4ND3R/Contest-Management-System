@@ -275,6 +275,10 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 	if c.MaxPrintJobs < 0 || c.MaxPrintPages < 0 {
 		f.fail("printing limits must not be negative")
 	}
+	c.MaxPrintTotalPages = f.optInt32("max_print_total_pages", "Max. pages per contestant")
+	if c.MaxPrintTotalPages != nil && *c.MaxPrintTotalPages < 1 {
+		f.fail("%s must be positive", "Max. pages per contestant")
+	}
 	return c
 }
 

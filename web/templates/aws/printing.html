@@ -1,0 +1,11 @@
+{{define "content"}}{{$d := .Data}}
+<h1>{{.T "Printing in %s" $d.C.Name}}</h1>
+<p class="muted">{{.T "Every job prints with a cover page naming the contestant. The list updates by itself: mark each job when you hand it over."}}{{if not $d.C.AllowPrinting}} <b>{{.T "Printing is disabled in this contest."}}</b>{{end}}</p>
+{{if $d.Sites}}
+<form method="get" class="filters">
+  <label>{{.T "Site"}} <select name="site"><option value="">{{.T "all"}}</option>{{range $d.Sites}}<option value="{{.Name}}" {{if eq .Name $d.Site}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  <button class="secondary">{{.T "Filter"}}</button>
+</form>
+{{end}}
+{{template "print-queue" (part . $d)}}
+{{end}}

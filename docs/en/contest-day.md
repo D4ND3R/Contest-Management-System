@@ -46,6 +46,8 @@ web site; commands run on the main server unless noted.
 - `journalctl -u 'cms-*' -p warning -f` on the main server.
 - ICPC contests: the **Balloons** page (contest page) open for the runners;
   it updates by itself.
+- With printing: the **Printing** queue (contest page) open for the staff
+  who hand out the pages.
 
 **Extending time**
 

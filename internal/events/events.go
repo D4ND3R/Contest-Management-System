@@ -25,6 +25,7 @@ const (
 	TypeAlert        = "alert"        // system errors, for admins
 	TypeContest      = "contest"      // contest settings changed (caches)
 	TypeBalloon      = "balloon"      // a first accepted submission, for admins
+	TypePrint        = "print"        // a print job was queued or printed
 )
 
 // Event is a notification. ParticipationID 0 with a ContestID means every

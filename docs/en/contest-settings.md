@@ -87,6 +87,29 @@ With the scoring mode **ICPC (solved + penalty)**:
   *messaging* role can mark deliveries; hidden participations get no
   balloons.
 
+## Printing
+
+With **Printing** checked (Access and features), contestants get a
+*Printing* page during the contest (not in practice or analysis): they send a
+PDF or a plain text file (UTF-8, typically their source code, printed in a
+monospaced font with line numbers and a header with their username, the file
+name and page numbers). The pages are counted when the file is sent, and the
+limits apply at once:
+
+| Setting | Effect |
+|---------|--------|
+| Max. print jobs per user | Jobs a contestant may send (failed or cancelled ones do not count). |
+| Max. pages per job | Longer documents are refused. |
+| Max. pages per contestant | Pages in all (empty: no limit). |
+
+Unrestricted participations have no limits. The contest page links to the
+staff **Printing** queue: *printed, to deliver* (with **delivered**, and
+**reprint** for a lost copy), *waiting for the printer* (with **cancel**),
+*not printed* (with the reason and **print again**) and *delivered* (with who
+and when, **undo**); every document can be opened as PDF. It updates by
+itself and filters by site. The contestant's page follows the state of each
+job live. Setting up the printer: [deployment](deployment.md#printing).
+
 ## Submissions and tests
 
 - **Maximum size of a submitted file** (empty: the server's

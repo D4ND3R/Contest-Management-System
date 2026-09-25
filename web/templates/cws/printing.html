@@ -1,0 +1,15 @@
+{{define "content"}}{{$d := .Data}}
+<h1>{{.T "Printing"}}</h1>
+<section class="card">
+{{if $d.Open}}
+<form method="post" action="{{.Base}}printing" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <label>{{.T "File (PDF or plain text, e.g. your source code)"}} <input type="file" name="file" required></label>
+  <button>{{.T "Print"}}</button>
+</form>
+{{else}}<p class="muted">{{.T $d.Closed}}</p>{{end}}
+<p class="muted small">{{if $d.MaxJobs}}{{.T "Print jobs: %d of %d used." $d.UsedJobs $d.MaxJobs}} {{end}}{{if $d.MaxPages}}{{.T "At most %d pages per job." $d.MaxPages}} {{end}}{{if $d.MaxTotal}}{{.T "Pages: %d of %d used." $d.UsedPages $d.MaxTotal}}{{end}}
+{{.T "Text is printed with line numbers; the staff bring the pages to your seat."}}</p>
+</section>
+{{template "print-jobs" .}}
+{{end}}

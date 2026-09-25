@@ -92,6 +92,31 @@ Con el modo de puntuación **ICPC (resueltos + penalización)**:
   sede para repartir sala por sala. El staff con rol de *mensajería* puede
   marcar entregas; las participaciones ocultas no reciben globos.
 
+## Impresión
+
+Con **Impresión** marcada (Acceso y funciones), los concursantes tienen una
+página de *Impresión* durante el concurso (no en práctica ni en análisis):
+envían un PDF o un archivo de texto plano (UTF-8, normalmente su código
+fuente, que se imprime en letra monoespaciada con números de línea y un
+encabezado con su usuario, el nombre del archivo y los números de página).
+Las páginas se cuentan al enviar el archivo y los límites se aplican al
+instante:
+
+| Opción | Efecto |
+|--------|--------|
+| Máx. trabajos de impresión por usuario | Trabajos que puede enviar un concursante (los fallidos o cancelados no cuentan). |
+| Máx. páginas por trabajo | Los documentos más largos se rechazan. |
+| Máx. páginas por concursante | Páginas en total (vacío: sin límite). |
+
+Las participaciones sin restricciones no tienen límites. La página del
+concurso enlaza a la cola de **Impresión** del staff: *impresos, por
+entregar* (con **entregado** y **reimprimir** para una copia perdida),
+*esperando a la impresora* (con **cancelar**), *no impresos* (con el motivo e
+**imprimir de nuevo**) y *entregados* (con quién y cuándo, **deshacer**);
+cada documento se puede abrir como PDF. Se actualiza sola y se filtra por
+sede. La página del concursante sigue el estado de cada trabajo en vivo.
+Configurar la impresora: [despliegue](despliegue.md#impresión).
+
 ## Envíos y pruebas
 
 - **Tamaño máximo de un archivo enviado** (vacío: el valor del servidor,

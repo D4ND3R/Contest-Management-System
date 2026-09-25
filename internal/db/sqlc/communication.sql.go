@@ -100,10 +100,27 @@ func (q *Queries) AdminListQuestions(ctx context.Context, arg AdminListQuestions
 	return items, nil
 }
 
+const cancelPrintJob = `-- name: CancelPrintJob :execrows
+UPDATE print_jobs SET status = 'failed', status_text = $2 WHERE id = $1 AND status = 'queued'
+`
+
+type CancelPrintJobParams struct {
+	ID         int64  `json:"id"`
+	StatusText string `json:"status_text"`
+}
+
+func (q *Queries) CancelPrintJob(ctx context.Context, arg CancelPrintJobParams) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelPrintJob, arg.ID, arg.StatusText)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const claimPrintJob = `-- name: ClaimPrintJob :one
 UPDATE print_jobs SET status = 'printing'
 WHERE id = (SELECT id FROM print_jobs WHERE status = 'queued' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED)
-RETURNING id, participation_id, created_at, filename, digest, status, status_text, pages
+RETURNING id, participation_id, created_at, filename, digest, status, status_text, pages, printed_at, delivered_at, delivered_by
 `
 
 // Printing service: atomically take the oldest queued job.
@@ -119,6 +136,9 @@ func (q *Queries) ClaimPrintJob(ctx context.Context) (PrintJob, error) {
 		&i.Status,
 		&i.StatusText,
 		&i.Pages,
+		&i.PrintedAt,
+		&i.DeliveredAt,
+		&i.DeliveredBy,
 	)
 	return i, err
 }
@@ -130,17 +150,6 @@ SELECT count(*) FROM questions WHERE reply_at IS NULL AND NOT ignored
 // Admin menu counter (questions_pending_idx).
 func (q *Queries) CountPendingQuestions(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, countPendingQuestions)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countPrintJobsByParticipation = `-- name: CountPrintJobsByParticipation :one
-SELECT count(*) FROM print_jobs WHERE participation_id = $1
-`
-
-func (q *Queries) CountPrintJobsByParticipation(ctx context.Context, participationID int64) (int64, error) {
-	row := q.db.QueryRow(ctx, countPrintJobsByParticipation, participationID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -231,7 +240,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 }
 
 const createPrintJob = `-- name: CreatePrintJob :one
-INSERT INTO print_jobs (participation_id, created_at, filename, digest) VALUES ($1, $2, $3, $4) RETURNING id, participation_id, created_at, filename, digest, status, status_text, pages
+INSERT INTO print_jobs (participation_id, created_at, filename, digest, pages) VALUES ($1, $2, $3, $4, $5) RETURNING id, participation_id, created_at, filename, digest, status, status_text, pages, printed_at, delivered_at, delivered_by
 `
 
 type CreatePrintJobParams struct {
@@ -239,6 +248,7 @@ type CreatePrintJobParams struct {
 	CreatedAt       time.Time `json:"created_at"`
 	Filename        string    `json:"filename"`
 	Digest          string    `json:"digest"`
+	Pages           *int32    `json:"pages"`
 }
 
 func (q *Queries) CreatePrintJob(ctx context.Context, arg CreatePrintJobParams) (PrintJob, error) {
@@ -247,6 +257,7 @@ func (q *Queries) CreatePrintJob(ctx context.Context, arg CreatePrintJobParams) 
 		arg.CreatedAt,
 		arg.Filename,
 		arg.Digest,
+		arg.Pages,
 	)
 	var i PrintJob
 	err := row.Scan(
@@ -258,6 +269,9 @@ func (q *Queries) CreatePrintJob(ctx context.Context, arg CreatePrintJobParams) 
 		&i.Status,
 		&i.StatusText,
 		&i.Pages,
+		&i.PrintedAt,
+		&i.DeliveredAt,
+		&i.DeliveredBy,
 	)
 	return i, err
 }
@@ -313,23 +327,20 @@ func (q *Queries) DeleteAnnouncement(ctx context.Context, id int64) error {
 }
 
 const finishPrintJob = `-- name: FinishPrintJob :exec
-UPDATE print_jobs SET status = $2, status_text = $3, pages = $4 WHERE id = $1
+UPDATE print_jobs SET status = $2, status_text = $3,
+    printed_at = CASE WHEN $2 = 'done' THEN now() ELSE printed_at END
+WHERE id = $1 AND status = 'printing'
 `
 
 type FinishPrintJobParams struct {
 	ID         int64  `json:"id"`
 	Status     string `json:"status"`
 	StatusText string `json:"status_text"`
-	Pages      *int32 `json:"pages"`
 }
 
+// Only a job still being printed (the staff may have cancelled it).
 func (q *Queries) FinishPrintJob(ctx context.Context, arg FinishPrintJobParams) error {
-	_, err := q.db.Exec(ctx, finishPrintJob,
-		arg.ID,
-		arg.Status,
-		arg.StatusText,
-		arg.Pages,
-	)
+	_, err := q.db.Exec(ctx, finishPrintJob, arg.ID, arg.Status, arg.StatusText)
 	return err
 }
 
@@ -347,6 +358,66 @@ func (q *Queries) GetAnnouncement(ctx context.Context, id int64) (Announcement, 
 		&i.Subject,
 		&i.Text,
 		&i.AdminID,
+	)
+	return i, err
+}
+
+const getPrintJobInfo = `-- name: GetPrintJobInfo :one
+SELECT j.id, j.participation_id, j.created_at, j.filename, j.digest, j.status, j.status_text, j.pages, j.printed_at, j.delivered_at, j.delivered_by, u.username, u.first_name, u.last_name, p.contest_id, c.name AS contest_name,
+       tm.code AS team_code, st.name AS site_name
+FROM print_jobs j
+JOIN participations p ON p.id = j.participation_id
+JOIN users u ON u.id = p.user_id
+JOIN contests c ON c.id = p.contest_id
+LEFT JOIN teams tm ON tm.id = p.team_id
+LEFT JOIN sites st ON st.id = p.site_id
+WHERE j.id = $1
+`
+
+type GetPrintJobInfoRow struct {
+	ID              int64      `json:"id"`
+	ParticipationID int64      `json:"participation_id"`
+	CreatedAt       time.Time  `json:"created_at"`
+	Filename        string     `json:"filename"`
+	Digest          string     `json:"digest"`
+	Status          string     `json:"status"`
+	StatusText      string     `json:"status_text"`
+	Pages           *int32     `json:"pages"`
+	PrintedAt       *time.Time `json:"printed_at"`
+	DeliveredAt     *time.Time `json:"delivered_at"`
+	DeliveredBy     *int64     `json:"delivered_by"`
+	Username        string     `json:"username"`
+	FirstName       string     `json:"first_name"`
+	LastName        string     `json:"last_name"`
+	ContestID       int64      `json:"contest_id"`
+	ContestName     string     `json:"contest_name"`
+	TeamCode        *string    `json:"team_code"`
+	SiteName        *string    `json:"site_name"`
+}
+
+// A job with what the banner page and the staff need.
+func (q *Queries) GetPrintJobInfo(ctx context.Context, id int64) (GetPrintJobInfoRow, error) {
+	row := q.db.QueryRow(ctx, getPrintJobInfo, id)
+	var i GetPrintJobInfoRow
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipationID,
+		&i.CreatedAt,
+		&i.Filename,
+		&i.Digest,
+		&i.Status,
+		&i.StatusText,
+		&i.Pages,
+		&i.PrintedAt,
+		&i.DeliveredAt,
+		&i.DeliveredBy,
+		&i.Username,
+		&i.FirstName,
+		&i.LastName,
+		&i.ContestID,
+		&i.ContestName,
+		&i.TeamCode,
+		&i.SiteName,
 	)
 	return i, err
 }
@@ -491,24 +562,39 @@ func (q *Queries) ListMessagesByParticipation(ctx context.Context, participation
 }
 
 const listPrintJobsByContest = `-- name: ListPrintJobsByContest :many
-SELECT j.id, j.participation_id, j.created_at, j.filename, j.digest, j.status, j.status_text, j.pages, u.username FROM print_jobs j
+SELECT j.id, j.participation_id, j.created_at, j.filename, j.digest, j.status, j.status_text, j.pages, j.printed_at, j.delivered_at, j.delivered_by, u.username, u.first_name, u.last_name, tm.code AS team_code, st.name AS site_name,
+       COALESCE(a.username, '')::text AS delivered_by_name
+FROM print_jobs j
 JOIN participations p ON p.id = j.participation_id
 JOIN users u ON u.id = p.user_id
-WHERE p.contest_id = $1 ORDER BY j.created_at DESC
+LEFT JOIN teams tm ON tm.id = p.team_id
+LEFT JOIN sites st ON st.id = p.site_id
+LEFT JOIN admins a ON a.id = j.delivered_by
+WHERE p.contest_id = $1 ORDER BY j.created_at, j.id
 `
 
 type ListPrintJobsByContestRow struct {
-	ID              int64     `json:"id"`
-	ParticipationID int64     `json:"participation_id"`
-	CreatedAt       time.Time `json:"created_at"`
-	Filename        string    `json:"filename"`
-	Digest          string    `json:"digest"`
-	Status          string    `json:"status"`
-	StatusText      string    `json:"status_text"`
-	Pages           *int32    `json:"pages"`
-	Username        string    `json:"username"`
+	ID              int64      `json:"id"`
+	ParticipationID int64      `json:"participation_id"`
+	CreatedAt       time.Time  `json:"created_at"`
+	Filename        string     `json:"filename"`
+	Digest          string     `json:"digest"`
+	Status          string     `json:"status"`
+	StatusText      string     `json:"status_text"`
+	Pages           *int32     `json:"pages"`
+	PrintedAt       *time.Time `json:"printed_at"`
+	DeliveredAt     *time.Time `json:"delivered_at"`
+	DeliveredBy     *int64     `json:"delivered_by"`
+	Username        string     `json:"username"`
+	FirstName       string     `json:"first_name"`
+	LastName        string     `json:"last_name"`
+	TeamCode        *string    `json:"team_code"`
+	SiteName        *string    `json:"site_name"`
+	DeliveredByName string     `json:"delivered_by_name"`
 }
 
+// The staff queue (index: participations (contest_id, user_id), then
+// print_jobs_participation_idx).
 func (q *Queries) ListPrintJobsByContest(ctx context.Context, contestID int64) ([]ListPrintJobsByContestRow, error) {
 	rows, err := q.db.Query(ctx, listPrintJobsByContest, contestID)
 	if err != nil {
@@ -527,7 +613,15 @@ func (q *Queries) ListPrintJobsByContest(ctx context.Context, contestID int64) (
 			&i.Status,
 			&i.StatusText,
 			&i.Pages,
+			&i.PrintedAt,
+			&i.DeliveredAt,
+			&i.DeliveredBy,
 			&i.Username,
+			&i.FirstName,
+			&i.LastName,
+			&i.TeamCode,
+			&i.SiteName,
+			&i.DeliveredByName,
 		); err != nil {
 			return nil, err
 		}
@@ -540,7 +634,7 @@ func (q *Queries) ListPrintJobsByContest(ctx context.Context, contestID int64) (
 }
 
 const listPrintJobsByParticipation = `-- name: ListPrintJobsByParticipation :many
-SELECT id, participation_id, created_at, filename, digest, status, status_text, pages FROM print_jobs WHERE participation_id = $1 ORDER BY created_at DESC, id DESC
+SELECT id, participation_id, created_at, filename, digest, status, status_text, pages, printed_at, delivered_at, delivered_by FROM print_jobs WHERE participation_id = $1 ORDER BY created_at DESC, id DESC
 `
 
 func (q *Queries) ListPrintJobsByParticipation(ctx context.Context, participationID int64) ([]PrintJob, error) {
@@ -561,6 +655,9 @@ func (q *Queries) ListPrintJobsByParticipation(ctx context.Context, participatio
 			&i.Status,
 			&i.StatusText,
 			&i.Pages,
+			&i.PrintedAt,
+			&i.DeliveredAt,
+			&i.DeliveredBy,
 		); err != nil {
 			return nil, err
 		}
@@ -742,6 +839,24 @@ func (q *Queries) ListTeamParticipations(ctx context.Context, arg ListTeamPartic
 	return items, nil
 }
 
+const printUsage = `-- name: PrintUsage :one
+SELECT count(*)::bigint AS jobs, COALESCE(sum(pages), 0)::bigint AS pages
+FROM print_jobs WHERE participation_id = $1 AND status <> 'failed'
+`
+
+type PrintUsageRow struct {
+	Jobs  int64 `json:"jobs"`
+	Pages int64 `json:"pages"`
+}
+
+// Jobs and pages a contestant has used (failed jobs do not count).
+func (q *Queries) PrintUsage(ctx context.Context, participationID int64) (PrintUsageRow, error) {
+	row := q.db.QueryRow(ctx, printUsage, participationID)
+	var i PrintUsageRow
+	err := row.Scan(&i.Jobs, &i.Pages)
+	return i, err
+}
+
 const replyQuestion = `-- name: ReplyQuestion :one
 UPDATE questions SET reply_at = now(), reply_subject = $2, reply_text = $3, reply_admin_id = $4, ignored = false,
     public = $5
@@ -783,12 +898,64 @@ func (q *Queries) ReplyQuestion(ctx context.Context, arg ReplyQuestionParams) (Q
 	return i, err
 }
 
+const requeueInterruptedPrintJobs = `-- name: RequeueInterruptedPrintJobs :many
+UPDATE print_jobs SET status = 'queued' WHERE status = 'printing' RETURNING id
+`
+
+// At start the printing service takes back the jobs it was printing.
+func (q *Queries) RequeueInterruptedPrintJobs(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.Query(ctx, requeueInterruptedPrintJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const requeuePrintJob = `-- name: RequeuePrintJob :exec
+UPDATE print_jobs SET status = 'queued', status_text = '', printed_at = NULL, delivered_at = NULL, delivered_by = NULL
+WHERE id = $1 AND status IN ('done', 'failed')
+`
+
+func (q *Queries) RequeuePrintJob(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, requeuePrintJob, id)
+	return err
+}
+
 const setCommunicationSeen = `-- name: SetCommunicationSeen :exec
 UPDATE participations SET communication_seen_at = now() WHERE id = $1
 `
 
 func (q *Queries) SetCommunicationSeen(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, setCommunicationSeen, id)
+	return err
+}
+
+const setPrintJobDelivered = `-- name: SetPrintJobDelivered :exec
+UPDATE print_jobs SET delivered_at = CASE WHEN $1::boolean THEN now() END,
+    delivered_by = CASE WHEN $1::boolean THEN $2::bigint END
+WHERE id = $3::bigint
+`
+
+type SetPrintJobDeliveredParams struct {
+	Delivered bool   `json:"delivered"`
+	AdminID   *int64 `json:"admin_id"`
+	ID        int64  `json:"id"`
+}
+
+func (q *Queries) SetPrintJobDelivered(ctx context.Context, arg SetPrintJobDeliveredParams) error {
+	_, err := q.db.Exec(ctx, setPrintJobDelivered, arg.Delivered, arg.AdminID, arg.ID)
 	return err
 }
 

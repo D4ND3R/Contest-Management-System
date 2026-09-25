@@ -39,10 +39,13 @@
       var d = JSON.parse(e.data);
       notify((t.alert || "System error:") + " " + (d.text || t.overview || ""), "bad");
     });
-    // A first accepted submission: open balloon lists reload.
-    es.addEventListener("balloon", function () {
-      document.querySelectorAll('[data-refresh="balloon"]').forEach(function (el) {
-        if (el.dataset.src && window.htmx) htmx.ajax("GET", el.dataset.src, { target: el, swap: "outerHTML" });
+    // Lists that follow an event (balloons: a first accepted submission;
+    // print queue: a job queued or printed) reload on it.
+    ["balloon", "print"].forEach(function (type) {
+      es.addEventListener(type, function () {
+        document.querySelectorAll('[data-refresh="' + type + '"]').forEach(function (el) {
+          if (el.dataset.src && window.htmx) htmx.ajax("GET", el.dataset.src, { target: el, swap: "outerHTML" });
+        });
       });
     });
     es.addEventListener("question_new", function (e) {

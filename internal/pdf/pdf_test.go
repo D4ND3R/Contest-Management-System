@@ -2,6 +2,7 @@ package pdf
 
 import (
 	"bytes"
+	"compress/zlib"
 	"regexp"
 	"strconv"
 	"strings"
@@ -56,5 +57,32 @@ func TestWidthAndFit(t *testing.T) {
 	s := Fit("A very long institution name that does not fit", 100, 10, false)
 	if Width(s, 10, false) > 100 || !strings.HasSuffix(s, "…") {
 		t.Fatalf("fit %q", s)
+	}
+}
+
+func TestCountPages(t *testing.T) {
+	d := New()
+	for i := 0; i < 3; i++ {
+		d.AddPage().Mono(40, 800, 9, "int main() { return 0; }")
+	}
+	if n, err := CountPages(d.Bytes()); n != 3 || err != nil {
+		t.Fatalf("own document: %d %v", n, err)
+	}
+	// A page tree inside a compressed object stream, an outline whose
+	// /Count is larger, a nested dictionary and a string with ">>" in it.
+	var z bytes.Buffer
+	zw := zlib.NewWriter(&z)
+	zw.Write([]byte("2 0 3 60 << /Type /Pages /Kids [4 0 R 5 0 R] /Resources << /Font << >> >> /Count 7 >>\n<< /Type /Outlines /First 9 0 R /Count 40 >>"))
+	zw.Close()
+	doc := "%PDF-1.5\n%\xe2\xe3\xcf\xd3\n1 0 obj << /Type /Catalog /Pages 2 0 R /Title (a >> b) >> endobj\n" +
+		"6 0 obj << /Type /ObjStm /N 2 /First 10 /Filter /FlateDecode /Length " + strconv.Itoa(z.Len()) + " >>\nstream\n" +
+		z.String() + "\nendstream\nendobj\n%%EOF\n"
+	if n, err := CountPages([]byte(doc)); n != 7 || err != nil {
+		t.Fatalf("object stream: %d %v", n, err)
+	}
+	for _, bad := range []string{"hello", "%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj", "%PDF-1.4\n<< /Type /Pages /Count 3 >>"} {
+		if _, err := CountPages([]byte(bad)); err == nil {
+			t.Errorf("%q: counted", bad)
+		}
 	}
 }

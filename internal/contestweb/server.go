@@ -175,6 +175,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{contest}/documentation", auth(s.handleDocumentation))
 	mux.HandleFunc("GET /{contest}/events", auth(s.handleEvents))
 	mux.HandleFunc("GET /{contest}/clock", auth(s.handleClock))
+	mux.HandleFunc("GET /{contest}/printing", auth(s.handlePrinting))
+	mux.HandleFunc("POST /{contest}/printing", auth(s.handlePrint))
 	s.registerExtra(mux, auth)
 
 	var h http.Handler = top

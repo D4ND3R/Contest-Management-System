@@ -61,7 +61,7 @@ func ContestToUpdate(c sqlc.Contest) sqlc.UpdateContestParams {
 		ScoreVisibility: c.ScoreVisibility, ShowCompilationOutput: c.ShowCompilationOutput,
 		MaxSubmissionBytes: c.MaxSubmissionBytes, Registration: c.Registration, InvitationCode: c.InvitationCode,
 		PasswordMinLength: c.PasswordMinLength, SessionMinutes: c.SessionMinutes, TeamMode: c.TeamMode,
-		MaxTeamSize: c.MaxTeamSize,
+		MaxTeamSize: c.MaxTeamSize, MaxPrintTotalPages: c.MaxPrintTotalPages,
 	}
 }
 

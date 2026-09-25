@@ -8,6 +8,7 @@
   <a href="/contests/{{$c.ID}}/ranking">{{.T "Ranking"}}</a> ·
   <a href="/contests/{{$c.ID}}/stats">{{.T "Statistics"}}</a> ·
   {{if eq $c.ScoringMode "icpc"}}<a href="/contests/{{$c.ID}}/balloons">{{.T "Balloons"}}</a> ·{{end}}
+  {{if $c.AllowPrinting}}<a href="/contests/{{$c.ID}}/printing">{{.T "Printing"}}</a> ·{{end}}
   <a href="/contests/{{$c.ID}}/sites">{{.T "Sites"}}</a> ·
   <a href="/contests/{{$c.ID}}/communication">{{.T "Communication"}}</a> ·
   <a href="/questions?contest={{$c.ID}}">{{.T "Questions"}}</a>
@@ -172,6 +173,7 @@
 <div class="grid">
   <label>{{.T "Max. print jobs per user"}} <input name="max_print_jobs" value="{{$c.MaxPrintJobs}}" inputmode="numeric"></label>
   <label>{{.T "Max. pages per job"}} <input name="max_print_pages" value="{{$c.MaxPrintPages}}" inputmode="numeric"></label>
+  <label>{{.T "Max. pages per contestant"}} <input name="max_print_total_pages" value="{{opt $c.MaxPrintTotalPages}}" inputmode="numeric" placeholder="{{.T "no limit"}}"></label>
 </div>
 </fieldset>
 {{if .CanWrite}}<button>{{if .Data.New}}{{.T "Create contest"}}{{else}}{{.T "Save"}}{{end}}</button>{{end}}

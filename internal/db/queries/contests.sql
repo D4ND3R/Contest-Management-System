@@ -40,7 +40,7 @@ UPDATE contests SET
     ranking_show_hidden = $47, ranking_anonymous = $48, status = $49, practice_enabled = $50,
     default_score_mode = $51, score_visibility = $52, show_compilation_output = $53,
     max_submission_bytes = $54, registration = $55, invitation_code = $56, password_min_length = $57,
-    session_minutes = $58, team_mode = $59, max_team_size = $60, updated_at = now()
+    session_minutes = $58, team_mode = $59, max_team_size = $60, max_print_total_pages = $61, updated_at = now()
 WHERE id = $1
 RETURNING *;
 

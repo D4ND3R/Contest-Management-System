@@ -55,6 +55,15 @@ func (p *Page) Text(x, y, size float64, bold bool, s string) {
 	fmt.Fprintf(&p.buf, "BT /%s %s Tf %s %s Td (%s) Tj ET\n", font, num(size), num(x), num(y), escape(encode(s)))
 }
 
+// Mono draws s in Courier (every character MonoWidth·size wide), for
+// source code.
+func (p *Page) Mono(x, y, size float64, s string) {
+	fmt.Fprintf(&p.buf, "BT /F3 %s Tf %s %s Td (%s) Tj ET\n", num(size), num(x), num(y), escape(encode(s)))
+}
+
+// MonoWidth is the advance of a Courier character in em.
+const MonoWidth = 0.6
+
 // TextCentered draws s centred on x.
 func (p *Page) TextCentered(x, y, size float64, bold bool, s string) {
 	p.Text(x-Width(s, size, bold)/2, y, size, bold, s)
@@ -114,8 +123,8 @@ func (d *Doc) Write(w io.Writer) error {
 	// 1: catalog, 2: pages (bodies written in order; numbering fixed below).
 	n := len(d.pages)
 	pagesID := 2
-	fontReg, fontBold := 3, 4
-	first := 5 // page i uses objects first+2i (page) and first+2i+1 (content)
+	fontReg, fontBold, fontMono := 3, 4, 5
+	first := 6 // page i uses objects first+2i (page) and first+2i+1 (content)
 	kids := make([]string, n)
 	for i := range d.pages {
 		kids[i] = fmt.Sprintf("%d 0 R", first+2*i)
@@ -124,9 +133,10 @@ func (d *Doc) Write(w io.Writer) error {
 	obj(fmt.Sprintf("<< /Type /Pages /Kids [%s] /Count %d >>", strings.Join(kids, " "), n))
 	obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
 	obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
+	obj("<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>")
 	for i, p := range d.pages {
-		obj(fmt.Sprintf("<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %s %s] /Resources << /Font << /F1 %d 0 R /F2 %d 0 R >> >> /Contents %d 0 R >>",
-			pagesID, num(p.w), num(p.h), fontReg, fontBold, first+2*i+1))
+		obj(fmt.Sprintf("<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %s %s] /Resources << /Font << /F1 %d 0 R /F2 %d 0 R /F3 %d 0 R >> >> /Contents %d 0 R >>",
+			pagesID, num(p.w), num(p.h), fontReg, fontBold, fontMono, first+2*i+1))
 		content := p.buf.Bytes()
 		obj(fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(content)+0, content))
 	}

@@ -75,6 +75,7 @@
         if (badge) { badge.textContent = String(Number(badge.textContent || 0) + 1); badge.hidden = false; }
       });
     });
+    es.addEventListener("print", function () { refresh(document.getElementById("print-jobs")); });
     es.addEventListener("reload", function () { location.reload(); });
     // The organizers changed the times: fetch this contestant's window
     // (spread over two seconds so thousands of pages do not ask at once).

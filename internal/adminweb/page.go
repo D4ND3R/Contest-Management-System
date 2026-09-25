@@ -88,6 +88,13 @@ func adminTr(r *http.Request) func(string, ...any) string {
 
 // wrap gives partial templates their data together with the page (for
 // translations and the CSRF token).
+// printForm is an action button of the print queue.
+type printForm struct {
+	P                          *page
+	ID                         int64
+	Action, Label, Class, Site string
+}
+
 type wrap struct {
 	P *page
 	V any
@@ -350,6 +357,9 @@ func (s *Server) funcs() template.FuncMap {
 			return reevalForm{P: p, CSRF: p.CSRF, Field: field, ID: id, Back: back}
 		},
 		"part": func(p *page, v any) wrap { return wrap{P: p, V: v} },
+		"printForm": func(p *page, id int64, action, label, class, site string) printForm {
+			return printForm{P: p, ID: id, Action: action, Label: label, Class: class, Site: site}
+		},
 		"since": func(t time.Time) string {
 			if t.IsZero() {
 				return ""

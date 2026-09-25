@@ -100,10 +100,10 @@ monitor:
 
 printing:
   metrics_listen: ":9104"
-  printer: ""                # CUPS destination; empty = render only
+  printer: ""                # CUPS destination; empty = jobs are marked done unprinted
   lp_path: lp
-  max_pages: 10
-  paper_size: A4
+  max_pages: 0               # safety cap per job for this printer (0 = none)
+  paper_size: A4             # passed to lp as media=, with fit-to-page
 
 # Backups (database + blobs in one verifiable file). The admin web server
 # takes the scheduled ones and the "Back up now" ones; "cmsctl dump" and

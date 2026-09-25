@@ -157,6 +157,27 @@ same way (`cmsctl migrate`).
    minutes around a contest ([backups](backups.md)).
 5. Read the [contest-day runbook](contest-day.md).
 
+### Printing
+
+Contestants' print jobs (enabled per contest, see [contest
+settings](contest-settings.md#printing)) are sent to CUPS by `cms-printing`,
+which runs on the main server. To use a printer:
+
+```sh
+sudo apt install cups-client          # or cups, if the printer is attached here
+lpstat -p -d                           # destinations CUPS knows
+```
+
+then set `printing.printer: <destination>` in `/etc/cms/cms.yaml` (and
+`paper_size: Letter` if needed) and `sudo systemctl restart cms-printing`.
+Every job prints as one CUPS job: a cover page (user, name, team, site,
+file, pages) followed by the document. Without a printer the jobs are marked
+printed with "not printed: no printer configured", which is handy for a
+rehearsal. `lp` failures are retried three times, then the job shows as
+*not printed* on the staff queue, where it can be printed again. Run a
+single printing service: when it starts it takes back the jobs it was
+printing, so a crash may print a job twice but never loses one.
+
 ## Monitoring
 
 - `https://admin.../system`: workers, queues, running jobs.

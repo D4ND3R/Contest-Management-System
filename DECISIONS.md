@@ -558,3 +558,26 @@ pusher's full board differs only in the freeze state, so the RWS sends the
 changed rows ordered by their frozen rank, worst first, and the page reveals
 them one by one (at most 30 s in all).
 
+## D58. Printing counts pages at upload; the service only prints
+The contest web server turns every upload into the PDF that will be
+printed before queuing it: PDFs as they are, plain text typeset in Courier
+with line numbers and a header (user, file, page i/n) by our own PDF
+writer. So the page count is known at once and the limits (jobs, pages per
+job, total pages) are checked in the same transaction that creates the job,
+under the participation lock, and the contestant gets the answer right
+away. PDF pages are counted without running anything: the largest /Count
+of the page tree nodes (dictionaries with /Type /Pages and /Kids, so
+outlines do not count), also inside Flate-compressed object streams with a
+64 MiB inflation budget; a PDF whose pages cannot be counted is refused
+with a hint to print it as text. Accepting only PDF and UTF-8 text keeps
+the printer away from arbitrary formats. The `cms printing` service claims
+jobs with `FOR UPDATE SKIP LOCKED`, sends a cover page and the document as
+one `lp` job (media and fit-to-page from the config), retries lp three
+times and then marks the job failed with lp's message; the staff can print
+it again. It is woken by the "print" event and polls every 5 s as a
+fallback. Jobs left "printing" by a crash are queued again at start: a job
+may print twice, never zero times, which is the right side to err on
+(there is one printing service per installation). Without a printer the
+jobs are marked done with "not printed", for rehearsals. Delivery is a
+separate staff mark (who and when), as with balloons.
+

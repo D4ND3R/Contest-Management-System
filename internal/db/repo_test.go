@@ -398,7 +398,7 @@ func TestCommunicationAndPrinting(t *testing.T) {
 
 	// Print jobs: concurrent claimers never take the same job.
 	for i := 0; i < 20; i++ {
-		must[sqlc.PrintJob](t)(q.CreatePrintJob(ctx, sqlc.CreatePrintJobParams{ParticipationID: f.part.ID, CreatedAt: time.Now(), Filename: "a.txt", Digest: digestOf("p")}))
+		must[sqlc.PrintJob](t)(q.CreatePrintJob(ctx, sqlc.CreatePrintJobParams{ParticipationID: f.part.ID, CreatedAt: time.Now(), Filename: "a.txt", Digest: digestOf("p"), Pages: ptr(int32(1))}))
 	}
 	var mu sync.Mutex
 	seen := map[int64]bool{}
@@ -422,7 +422,7 @@ func TestCommunicationAndPrinting(t *testing.T) {
 				}
 				seen[j.ID] = true
 				mu.Unlock()
-				_ = q.FinishPrintJob(ctx, sqlc.FinishPrintJobParams{ID: j.ID, Status: "done", Pages: ptr(int32(1))})
+				_ = q.FinishPrintJob(ctx, sqlc.FinishPrintJobParams{ID: j.ID, Status: "done"})
 			}
 		}()
 	}

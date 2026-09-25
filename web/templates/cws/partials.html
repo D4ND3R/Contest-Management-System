@@ -83,3 +83,17 @@
     <a href="{{$p.Base}}tests/{{$u.ID}}/output">{{$p.T "output"}}</a> · {{end}}<a href="{{$p.Base}}tests/{{$u.ID}}/input">{{$p.T "input"}}</a></td>
 </tr>
 {{end}}
+
+{{define "print-jobs"}}{{$d := .Data}}
+<div id="print-jobs" data-src="{{.Base}}printing?fragment=1">
+{{if $d.Jobs}}
+<table>
+<tr><th>{{.T "Time"}}</th><th>{{.T "File"}}</th><th class="num">{{.T "Pages"}}</th><th>{{.T "Status"}}</th></tr>
+{{range $d.Jobs}}<tr>
+  <td>{{$.Time .Created}}</td><td>{{.Filename}}</td><td class="num">{{.Pages}}</td>
+  <td class="{{.Class}}">{{.Status}}{{with .Detail}} <small class="muted">{{.}}</small>{{end}}</td>
+</tr>{{end}}
+</table>
+{{else}}<p class="muted">{{.T "Nothing printed yet."}}</p>{{end}}
+</div>
+{{end}}

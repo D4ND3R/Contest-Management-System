@@ -20,6 +20,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/httpx"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/monitor"
+	"github.com/D4ND3R/Contest-Management-System/internal/printing"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 	"github.com/D4ND3R/Contest-Management-System/internal/rankingpush"
 	"github.com/D4ND3R/Contest-Management-System/internal/rankingweb"
@@ -34,24 +35,23 @@ func init() {
 	services["worker"] = runWorker
 	services["monitor"] = runMonitor
 	services["blob-server"] = runBlobServer
-	services["printing"] = stub("printing", func(c *config.Config) string { return c.Printing.MetricsListen })
+	services["printing"] = runPrinting
 }
 
-// stub is a placeholder service exposing /healthz and /metrics; each one is
-// replaced by the real implementation in its phase.
-func stub(name string, listen func(*config.Config) string) ServiceFunc {
-	return func(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
-		d, err := deps.Open(ctx, cfg, log, deps.Need{DB: true, Redis: true})
-		if err != nil {
-			return err
-		}
-		defer d.Close()
-		g, ctx := app.NewGroup(ctx)
-		g.Go(func(ctx context.Context) error {
-			return httpx.Serve(ctx, log, listen(cfg), httpx.OpsMux(name, d.Checks()...), nil)
-		})
-		return g.Wait()
+// runPrinting sends queued print jobs to CUPS.
+func runPrinting(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
+	d, err := deps.Open(ctx, cfg, log, deps.Need{DB: true, Redis: true, Blobs: true})
+	if err != nil {
+		return err
 	}
+	defer d.Close()
+	svc := printing.New(sqlc.New(d.DB), d.Redis, cfg.Redis.Namespace, d.Blobs, cfg.Printing, log)
+	g, ctx := app.NewGroup(ctx)
+	g.Go(svc.Run)
+	g.Go(func(ctx context.Context) error {
+		return httpx.Serve(ctx, log, cfg.Printing.MetricsListen, httpx.OpsMux("printing", d.Checks()...), nil)
+	})
+	return g.Wait()
 }
 
 // loadLanguages reads the language definitions and mirrors them in the
