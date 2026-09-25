@@ -52,10 +52,12 @@ jobs:
       - name: start MinIO (S3 blob backend tests)
         run: |
           docker run -d --name minio -p 59000:9000 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin pgsty/minio:latest server /data
-          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:59000/minio/health/live && break; sleep 1; done
-          echo "CMS_TEST_S3_ENDPOINT=127.0.0.1:59000" >> "$GITHUB_ENV"
-          echo "CMS_TEST_S3_ACCESS_KEY=minioadmin" >> "$GITHUB_ENV"
-          echo "CMS_TEST_S3_SECRET_KEY=minioadmin" >> "$GITHUB_ENV"
+          for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:59000/minio/health/live && break; sleep 1; done
+          {
+            echo "CMS_TEST_S3_ENDPOINT=127.0.0.1:59000"
+            echo "CMS_TEST_S3_ACCESS_KEY=minioadmin"
+            echo "CMS_TEST_S3_SECRET_KEY=minioadmin"
+          } >> "$GITHUB_ENV"
       - name: go test -race
         run: go test -count=1 -race ./...
 
@@ -93,6 +95,22 @@ jobs:
             CMS_SANDBOX_TESTS=1 CMS_SAMPLE_LANGUAGES=c11,cpp17,cpp20,python3,java go test -count=1 -v ./internal/sandbox/ ./internal/worker/ ./internal/dispatcher/ ./internal/e2e/ 2>&1 | tee sandbox.log
           ! grep -q "^FAIL" sandbox.log
 
+  release-snapshot:
+    # The release configuration (.goreleaser.yaml) builds and packs what the
+    # installer needs, on every push, not only when a tag is pushed.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with: {fetch-depth: 0}
+      - uses: actions/setup-go@v6
+        with: {go-version-file: go.mod}
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish
+      - run: scripts/check-release.sh dist
+
   docker:
     runs-on: ubuntu-24.04
     steps:
@@ -101,3 +119,15 @@ jobs:
       - name: build cms image
         uses: docker/build-push-action@v6
         with: {context: ., target: cms, push: false, tags: "cms:ci"}
+      - name: build worker image
+        uses: docker/build-push-action@v6
+        with: {context: ., target: worker, push: false, load: true, tags: "cms-worker:ci"}
+      - name: the worker image judges with the production compose privileges (cgroup v2)
+        # Not --privileged: what deploy/docker/compose.yml grants the worker.
+        run: |
+          docker run --rm --cap-add SYS_ADMIN --cap-add NET_ADMIN --security-opt apparmor=unconfined --cgroupns private \
+            -v "$PWD/deploy/docker/cms.yaml:/etc/cms/cms.yaml:ro" cms-worker:ci cms ctl judge-selftest
+      - name: production compose file is valid
+        run: |
+          deploy/docker/setup.sh --env-only
+          docker compose -f deploy/docker/compose.yml config -q

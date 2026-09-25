@@ -15,6 +15,7 @@ x-cms: &cms
     init: {condition: service_completed_successfully}
   volumes:
     - ./config/languages:/etc/cms/languages:ro
+    - ./deploy/docker/cms.dev.yaml:/etc/cms/cms.yaml:ro
 
 services:
   postgres:
@@ -53,7 +54,9 @@ services:
   init:
     build: *build
     image: cms:dev
+    # Development only: the first login asks for a new password.
     command: ["ctl", "bootstrap", "-admin-password", "admin"]
+    volumes: [./deploy/docker/cms.dev.yaml:/etc/cms/cms.yaml:ro]
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -72,7 +75,10 @@ services:
     <<: *cms
     command: ["admin-web"]
     ports: ["8889:8889"]
-    volumes: [backups:/var/lib/cms/backups]
+    volumes:
+      - ./config/languages:/etc/cms/languages:ro
+      - ./deploy/docker/cms.dev.yaml:/etc/cms/cms.yaml:ro
+      - backups:/var/lib/cms/backups
     healthcheck:
       <<: *hc
       test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:8889/healthz"]
@@ -81,7 +87,10 @@ services:
     <<: *cms
     command: ["ranking-web"]
     ports: ["8890:8890"]
-    volumes: [rankingdata:/var/lib/cms/ranking]
+    volumes:
+      - ./config/languages:/etc/cms/languages:ro
+      - ./deploy/docker/cms.dev.yaml:/etc/cms/cms.yaml:ro
+      - rankingdata:/var/lib/cms/ranking
     healthcheck:
       <<: *hc
       test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:8890/healthz"]
@@ -114,6 +123,7 @@ services:
       args: {LANGS: "${WORKER_LANGS:-minimal}"}
     image: cms-worker:dev
     command: ["cms", "worker"]
+    volumes: [./deploy/docker/cms.dev.yaml:/etc/cms/cms.yaml:ro]
     privileged: true          # isolate needs namespaces and cgroups
     cgroup: private
     restart: unless-stopped

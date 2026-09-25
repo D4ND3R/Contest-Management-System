@@ -1,0 +1,208 @@
+# Production stack on one machine with Docker Compose: the alternative to
+# scripts/install.sh (docs/en/docker.md). From this directory:
+#   ./setup.sh --domain cms.example.org   # or without --domain: plain HTTP
+# which writes .env with random secrets (once), starts everything and
+# prints the first administrator's password once. By hand:
+#   ./setup.sh --env-only && docker compose up -d --wait
+#   docker compose run --rm init ctl bootstrap -generate-password
+#
+# Layout for a 2 vCPU machine (edit .env for more): web servers, database
+# and queues on WEB_CPUS, the sandbox alone on JUDGE_CPUS. Data lives in
+# named volumes (docker volume ls): pgdata, valkeydata, blobs, ranking,
+# backups, caddy. Upgrade: ./setup.sh --version X.Y.Z (sets CMS_VERSION in .env,
+# pulls and recreates; the migrations run first, in "init").
+name: cms-production   # not "cms": the development stack (make dev) uses that one
+
+x-cms: &cms
+  image: ${CMS_IMAGE:-ghcr.io/d4nd3r/contest-management-system}/cms:${CMS_VERSION:-latest}
+  restart: unless-stopped
+  cpuset: ${WEB_CPUS:-0}
+  environment: &env
+    CMS_DATABASE_URL: postgres://cms:${DB_PASSWORD:?run ./setup.sh or set DB_PASSWORD in .env}@postgres:5432/cms?sslmode=disable
+    CMS_REDIS_URL: redis://:${REDIS_PASSWORD:?run ./setup.sh or set REDIS_PASSWORD in .env}@valkey:6379/0
+    CMS_SECRET_KEY: ${SECRET_KEY:?run ./setup.sh or set SECRET_KEY in .env}
+    CMS_RANKING_PUSH_TOKEN: ${PUSH_TOKEN:?run ./setup.sh or set PUSH_TOKEN in .env}
+    CMS_COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    CMS_RANKING_PUBLIC_URL: ${RANKING_URL:-}
+  volumes: &volumes
+    - ./cms.yaml:/etc/cms/cms.yaml:ro
+    - blobs:/var/lib/cms/blobs
+  depends_on:
+    init: {condition: service_completed_successfully}
+  logging: &logging
+    driver: local
+    options: {max-size: 20m, max-file: "5"}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    cpuset: ${WEB_CPUS:-0}
+    environment:
+      POSTGRES_USER: cms
+      POSTGRES_DB: cms
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?run ./setup.sh or set DB_PASSWORD in .env}
+    # Durable and small: no parallel query workers (they would compete with
+    # the web servers on the web CPUs), no JIT.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-512MB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-2GB}
+      - -c
+      - work_mem=8MB
+      - -c
+      - max_connections=100
+      - -c
+      - synchronous_commit=on
+      - -c
+      - wal_compression=on
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - max_parallel_workers_per_gather=0
+      - -c
+      - max_parallel_workers=0
+      - -c
+      - jit=off
+      - -c
+      - log_min_duration_statement=250ms
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cms -d cms"]
+      interval: 2s
+      retries: 30
+    logging: *logging
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    cpuset: ${WEB_CPUS:-0}
+    # The judging queues: never evict, append-only log (a restart loses at
+    # most a second).
+    command: ["valkey-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction",
+              "--requirepass", "${REDIS_PASSWORD:?run ./setup.sh or set REDIS_PASSWORD in .env}"]
+    volumes: [valkeydata:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 2s
+      retries: 30
+    environment: {REDIS_PASSWORD: "${REDIS_PASSWORD:-}"}
+    logging: *logging
+
+  # One-shot, before every other CMS service: applies the migrations. Also
+  # the place for maintenance commands (docker compose run --rm init ctl ...:
+  # restore, admin-password), hence the backups volume.
+  init:
+    <<: *cms
+    restart: "no"
+    command: ["ctl", "migrate"]
+    volumes:
+      - ./cms.yaml:/etc/cms/cms.yaml:ro
+      - blobs:/var/lib/cms/blobs
+      - backups:/var/lib/cms/backups
+    depends_on:
+      postgres: {condition: service_healthy}
+      valkey: {condition: service_healthy}
+
+  contest-web:
+    <<: *cms
+    command: ["contest-web"]
+    healthcheck: &hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:8888/healthz"]
+      interval: 10s
+      retries: 6
+
+  admin-web:
+    <<: *cms
+    command: ["admin-web"]
+    volumes:
+      - ./cms.yaml:/etc/cms/cms.yaml:ro
+      - blobs:/var/lib/cms/blobs
+      - backups:/var/lib/cms/backups     # scheduled backups (backup.* in cms.yaml)
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:8889/healthz"]
+
+  ranking-web:
+    <<: *cms
+    command: ["ranking-web"]
+    volumes:
+      - ./cms.yaml:/etc/cms/cms.yaml:ro
+      - ranking:/var/lib/cms/ranking
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:8890/healthz"]
+
+  dispatcher:
+    <<: *cms
+    command: ["dispatcher"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:9101/healthz"]
+
+  monitor:
+    <<: *cms
+    command: ["monitor"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:9103/healthz"]
+
+  worker:
+    <<: *cms
+    image: ${CMS_IMAGE:-ghcr.io/d4nd3r/contest-management-system}/worker:${CMS_VERSION:-latest}
+    command: ["cms", "worker"]
+    cpuset: ${JUDGE_CPUS:-1}
+    environment:
+      <<: *env
+      CMS_WORKER_CORES: ${JUDGE_CPUS:-1}
+      CMS_WORKER_NAME: ${WORKER_NAME:-worker}
+    # The least isolate needs, instead of --privileged: CAP_SYS_ADMIN for its
+    # namespaces and mounts (Docker's default seccomp profile then allows
+    # them), CAP_NET_ADMIN to bring up the loopback interface of each box's
+    # network namespace, no AppArmor confinement (docker-default forbids
+    # mount), and a private cgroup namespace whose cgroup v2 tree the
+    # entrypoint remounts writable and delegates to isolate.
+    cap_add: [SYS_ADMIN, NET_ADMIN]
+    security_opt: ["apparmor:unconfined"]
+    cgroup: private
+    healthcheck:
+      <<: *hc
+      test: ["CMD", "cms", "ctl", "healthcheck", "http://localhost:9102/healthz"]
+
+  # HTTPS with automatic certificates when .env names the sites by domain
+  # (setup.sh --domain); plain HTTP on :80, :8080 and :8081 otherwise.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    cpuset: ${WEB_CPUS:-0}
+    ports: ["80:80", "443:443", "8080:8080", "8081:8081"]
+    environment:
+      CONTEST_SITE: ${CONTEST_SITE:-http://:80}
+      RANKING_SITE: ${RANKING_SITE:-http://:8080}
+      ADMIN_SITE: ${ADMIN_SITE:-http://:8081}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy:/data
+    depends_on: [contest-web, admin-web, ranking-web]
+    logging: *logging
+
+  # Contestant printing (B8): docker compose --profile printing up -d
+  printing:
+    <<: *cms
+    command: ["printing"]
+    profiles: [printing]
+
+networks:
+  default:
+    ipam:
+      config: [{subnet: "${CMS_SUBNET:-172.30.0.0/24}"}]
+
+volumes:
+  pgdata:
+  valkeydata:
+  blobs:
+  ranking:
+  backups:
+  caddy:

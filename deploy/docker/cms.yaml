@@ -1,0 +1,40 @@
+# Configuration of the production compose stack (compose.yml). It holds no
+# secrets: the database and Valkey passwords, secret_key and the ranking
+# push token come from .env as CMS_* variables. Edit freely; reference:
+# config/cms.example.yaml (/etc/cms/cms.example.yaml in the images).
+log: {level: info, format: json}
+database: {max_conns: 16}
+redis: {pool_size: 32}
+blob:
+  backend: local            # the "blobs" volume, shared by every CMS container
+  local_dir: /var/lib/cms/blobs
+  cache_dir: /var/cache/cms/blobs
+languages_dir: /etc/cms/languages
+# Behind Caddy, whose address is in the compose network (CMS_SUBNET).
+contest_web:
+  listen: ":8888"
+  trusted_proxies: ["172.30.0.0/24"]
+admin_web:
+  listen: ":8889"
+  trusted_proxies: ["172.30.0.0/24"]
+ranking_web:
+  listen: ":8890"
+  data_dir: /var/lib/cms/ranking
+dispatcher:
+  metrics_listen: ":9101"
+  ranking_urls: ["http://ranking-web:8890"]
+worker:
+  metrics_listen: ":9102"
+  isolate_path: /usr/local/bin/isolate
+  isolate_cg: true
+  work_dir: /var/lib/cms/worker
+  cache_dir: /var/cache/cms/testcases
+  cache_max_bytes: 2GiB
+monitor: {metrics_listen: ":9103"}
+printing: {metrics_listen: ":9104"}
+backup:
+  dir: /var/lib/cms/backups # the "backups" volume
+  interval: 24h
+  contest_interval: 15m
+  keep: 48
+  max_rate: 32MiB

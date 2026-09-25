@@ -1,4 +1,5 @@
-# Configuration used by docker-compose.yml.
+# Development configuration (docker-compose.yml at the repository root);
+# production: deploy/docker/compose.yml.
 log: {level: info, format: json}
 database: {url: "postgres://cms:cms@postgres:5432/cms?sslmode=disable", max_conns: 32}
 redis: {url: "redis://redis:6379/0"}
