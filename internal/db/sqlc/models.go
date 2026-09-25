@@ -62,6 +62,21 @@ type Blob struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type CertificateTemplate struct {
+	ContestID              int64           `json:"contest_id"`
+	Title                  string          `json:"title"`
+	Body                   string          `json:"body"`
+	Footer                 string          `json:"footer"`
+	DateText               string          `json:"date_text"`
+	Signatures             json.RawMessage `json:"signatures"`
+	Awards                 json.RawMessage `json:"awards"`
+	MinScore               *float64        `json:"min_score"`
+	OnlyAwarded            bool            `json:"only_awarded"`
+	LogoDigest             *string         `json:"logo_digest"`
+	ContestantsCanDownload bool            `json:"contestants_can_download"`
+	UpdatedAt              time.Time       `json:"updated_at"`
+}
+
 type Contest struct {
 	ID                          int64      `json:"id"`
 	Name                        string     `json:"name"`

@@ -123,7 +123,7 @@ versión de CMS o una más nueva importa como un concurso nuevo.
 | `results.csv` | la tabla de resultados finales (para personas; no se importa) |
 | `cms-contest.json` | formato, versión de CMS, migraciones, filas por tabla, cantidad de archivos |
 
-Las filas son la configuración del concurso, las sedes, las tareas con
+Las filas son la configuración del concurso, las sedes, la plantilla de certificados, las tareas con
 **todos** sus datasets (enunciados, adjuntos, testcases, managers, el
 dataset activo), los participantes con sus usuarios y equipos (incluidos los
 hashes de las contraseñas: guarda el archivo en un lugar seguro), los

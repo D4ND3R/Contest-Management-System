@@ -117,3 +117,33 @@ job live. Setting up the printer: [deployment](deployment.md#printing).
 - Maximum submissions and minimum interval between them, per contest and per
   task. **User tests** (run a source on the contestant's own input) have their
   own count and interval limits.
+
+## Certificates
+
+**Certificates** on the contest page designs one certificate per
+contestant (A4 landscape) from the final, unfrozen ranking:
+
+- a **title**, a **text** and a **footer** with placeholders: `{name}`,
+  `{first_name}`, `{last_name}`, `{username}`, `{institution}`, `{team}`,
+  `{site}`, `{contest}` (the contest description, or its name), `{rank}`,
+  `{participants}`, `{score}` (problems solved in ICPC contests),
+  `{max_score}`, `{award}` and `{date}` (the *Date* field: a date, or a
+  place and a date). Paragraphs are separated by blank lines; one starting
+  with `#` is printed large and bold, one with `##` bold, and a paragraph
+  that its placeholders leave empty (`## {award}` without an award) is
+  skipped;
+- **awards** by rank, one per line, `Name: last rank`, ranks growing
+  (`Gold medal: 3`, `Silver medal: 8`, `Bronze medal: 15`, `Honourable
+  mention: 25`); ties share the rank and the award;
+- who receives one: everybody in the ranking (hidden contestants never), or
+  only from a **minimum score**, or **only contestants with an award**;
+- up to three or four **signatures** (`Name | Role` per line) and a
+  **logo** (PNG or JPEG, up to 2 MiB) at the top.
+
+*Preview the first one* shows a page; *Download all* gives one PDF with a
+page per contestant, and each participation page has the contestant's
+own. Both downloads are in the audit log. With **contestants download
+their own certificate**, each contestant sees a *Download your
+certificate* link on the contest page once their contest time is over;
+turn it on after the closing ceremony if ranks should stay secret until
+then.

@@ -3,7 +3,7 @@
 - [Deploying on a VPS: step by step, install script, systemd, HTTPS](deployment.md)
 - [Adding a worker on another machine](external-worker.md)
 - [Contest-day runbook](contest-day.md)
-- [Contest settings: status, practice, access, registration, feedback](contest-settings.md)
+- [Contest settings: status, practice, access, registration, feedback, certificates](contest-settings.md)
 - [Task types and checkers](task-types.md)
 - [Problem packages: format, import (also italy_yaml and Polygon), validation and export](problem-package.md)
 - [Rankings: settings, freeze and the ranking web server](ranking.md)

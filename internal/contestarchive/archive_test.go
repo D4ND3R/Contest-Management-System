@@ -51,6 +51,9 @@ func seed(t *testing.T, pool *pgxpool.Pool, store blob.Store) int64 {
 	c := must[sqlc.Contest](t)(q.CreateContest(ctx, db.NewContestParams("ioi", now.Add(-5*time.Hour), now.Add(-time.Hour))))
 	other := must[sqlc.Contest](t)(q.CreateContest(ctx, db.NewContestParams("other", now, now.Add(time.Hour))))
 	site := must[sqlc.Site](t)(q.CreateSite(ctx, sqlc.CreateSiteParams{ContestID: c.ID, Name: "north", StartTime: ptr(now.Add(-4 * time.Hour))}))
+	check(t, q.UpsertCertificateTemplate(ctx, sqlc.UpsertCertificateTemplateParams{ContestID: c.ID, Title: "Certificado", Body: "# {name}",
+		Signatures: json.RawMessage(`[{"name":"Dra. Ruiz","role":"Presidenta"}]`), Awards: json.RawMessage(`[{"name":"Oro","up_to_rank":1}]`),
+		LogoDigest: ptr(put("logo")), ContestantsCanDownload: true}))
 	team := must[sqlc.Team](t)(q.CreateTeam(ctx, sqlc.CreateTeamParams{Code: "ARG", Name: "Argentina", FlagDigest: ptr(put("flag"))}))
 	alice := must[sqlc.User](t)(q.CreateUser(ctx, sqlc.CreateUserParams{Username: "alice", FirstName: "Alice", PasswordHash: "plaintext:a", PreferredLanguages: []string{"es", "en"}, Country: "AR"}))
 	bob := must[sqlc.User](t)(q.CreateUser(ctx, sqlc.CreateUserParams{Username: "bob", PasswordHash: "plaintext:b", PreferredLanguages: []string{}}))
@@ -218,7 +221,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 	src, srcStore := testutil.DB(t), newStore(t)
 	id := seed(t, src, srcStore)
 	h, arch := export(t, src, srcStore, id, Options{Submissions: true})
-	want := map[string]int64{"contests": 1, "sites": 1, "users": 2, "teams": 1, "tasks": 2, "statements": 2, "attachments": 2,
+	want := map[string]int64{"contests": 1, "sites": 1, "certificate_templates": 1, "users": 2, "teams": 1, "tasks": 2, "statements": 2, "attachments": 2,
 		"datasets": 4, "managers": 4, "testcases": 8, "participations": 2, "announcements": 1, "questions": 1, "messages": 1,
 		"submissions": 3, "submission_files": 3, "tokens": 1, "submission_results": 3, "evaluations": 6,
 		"participation_task_scores": 3, "score_adjustments": 1}
@@ -230,11 +233,11 @@ func TestExportImportRoundTrip(t *testing.T) {
 	if len(h.Tables) != len(want) || h.Contest != "ioi" || !h.Submissions || len(h.Missing) != 0 {
 		t.Fatalf("header = %+v", h)
 	}
-	// Files: flag, photo, 2 statements, 2 attachments, 4 checkers, 16
-	// testcase files, 3 sources; never executables, print jobs or user
+	// Files: logo, flag, photo, 2 statements, 2 attachments, 4 checkers,
+	// 16 testcase files, 3 sources; never executables, print jobs or user
 	// tests.
-	if h.Blobs != 29 {
-		t.Fatalf("%d files archived, want 29", h.Blobs)
+	if h.Blobs != 30 {
+		t.Fatalf("%d files archived, want 30", h.Blobs)
 	}
 	zr := open(t, arch)
 	res := find(zr, resultsName)
@@ -256,7 +259,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 	for _, n := range want {
 		total += n
 	}
-	if r.Rows != total || r.Blobs != 29 || r.ReusedUsers != 0 {
+	if r.Rows != total || r.Blobs != 30 || r.ReusedUsers != 0 {
 		t.Fatalf("result = %+v, want %d rows", r, total)
 	}
 	c := must[sqlc.Contest](t)(sqlc.New(dst).GetContest(ctx, r.ContestID))
@@ -264,7 +267,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 		t.Fatalf("imported contest %s is %s", c.Name, c.Status)
 	}
 	h2, again := export(t, dst, dstStore, r.ContestID, Options{Submissions: true})
-	if h2.Blobs != 29 || len(h2.Missing) != 0 {
+	if h2.Blobs != 30 || len(h2.Missing) != 0 {
 		t.Fatalf("re-export: %+v", h2)
 	}
 	a, b := normalized(t, arch), normalized(t, again)
@@ -316,8 +319,8 @@ func TestExportWithoutSubmissions(t *testing.T) {
 	if h.Submissions || h.Rows("submissions") != 0 || h.Rows("tasks") != 2 || find(open(t, arch), resultsName) != nil {
 		t.Fatalf("header = %+v", h)
 	}
-	if h.Blobs != 26 {
-		t.Fatalf("%d files, want 26 (no sources)", h.Blobs)
+	if h.Blobs != 27 {
+		t.Fatalf("%d files, want 27 (no sources)", h.Blobs)
 	}
 	dst := testutil.DB(t)
 	r, err := Import(ctx, dst, newStore(t), open(t, arch), ImportOptions{})

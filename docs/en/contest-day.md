@@ -106,6 +106,9 @@ web site; commands run on the main server unless noted.
       code after removing layout, comments and names, with a side-by-side
       view of the shared lines. Code given to contestants (attachments,
       graders, stubs) is ignored. It is a lead to review, not a verdict.
+- [ ] Certificates (contest page → **Certificates**): check the preview,
+      download them all for printing, and turn on the contestants'
+      download after the ceremony ([certificates](contest-settings.md#certificates)).
 - [ ] Archive the contest (contest page → **Archive**, with the
       submissions): one zip that any later installation imports
       ([contest archives](backups.md#contest-archives)).

@@ -112,6 +112,10 @@ principal salvo que se indique otra cosa.
       vista lado a lado de las líneas en común. Se ignora el código
       entregado a los concursantes (adjuntos, graders, stubs). Es una pista
       para revisar, no un veredicto.
+- [ ] Certificados (página del concurso → **Certificados**): revisa la
+      vista previa, descárgalos todos para imprimir y activa la descarga para
+      los concursantes después de la ceremonia
+      ([certificados](configuracion-del-concurso.md#certificados)).
 - [ ] Archiva el concurso (página del concurso → **Archivo**, con los
       envíos): un zip que cualquier instalación posterior importa
       ([archivos de un concurso](respaldos.md#archivos-de-un-concurso)).

@@ -50,6 +50,8 @@ type overviewData struct {
 	Total, MaxTotal float64
 	// Hidden: the contest does not show scores now.
 	Hidden bool
+	// Certificate: the contestant may download a certificate.
+	Certificate bool
 }
 
 func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -76,6 +78,13 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqC
 		d.Rows = append(d.Rows, row)
 	}
 	d.ShowTotal = len(d.Rows) > 1 && !d.Hidden && !rc.contest.ICPC()
+	// Only once the contestant's time is over (no query before).
+	cert, err := s.certificateTemplate(r.Context(), rc)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	d.Certificate = cert != nil
 	if err := s.adjustmentReasons(r, rc, d.Rows); err != nil {
 		s.fail(w, err)
 		return

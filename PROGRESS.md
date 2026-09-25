@@ -762,3 +762,18 @@ winnowed fingerprints, base code removed by token, common fragments
 ignored); ~80 ms for 500 submissions of 150 lines
 (plagiarism.BenchmarkReport500). Tests: plagiarism.Test*,
 highlight.TestTokens/TestHTMLMarked, adminweb.TestPlagiarismReport.
+
+## SPEC_CLOSE E2 — Certificates (done)
+Skipping skills: immersive-web-design, master skill.
+
+Contest → Certificates: title, text with placeholders ({name}, {rank},
+{award}, {score}, {institution}, {date}, …), awards by rank, minimum score
+or awarded only, signatures, footer and a PNG/JPEG logo; preview, one PDF
+with every certificate, and each participation's own (audited). Optional
+self-service download for contestants once their time is over (D66). The
+PDF writer draws images. The template is copied by contest clone and
+travels in contest archives. Tests: certificate.Test*, pdf.TestImages,
+adminweb.TestCertificatesFromAdmin, adminweb.TestContestClone,
+contestweb.TestContestantCertificate, contestarchive round trip.
+
+Block E is complete.

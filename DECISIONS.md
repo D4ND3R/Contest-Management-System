@@ -715,3 +715,26 @@ a copy padded with extra code; the page presents it as a lead to review.
 One submission per contestant (latest or best), official and valid; a
 team's members are not paired in team contests. Computed on request (the
 admin runs it after the contest; it never touches the judging queue).
+
+## D66. Certificates: a stored template rendered on demand
+A certificate template is one row per contest (texts, awards, signatures,
+logo digest), and certificates are rendered when downloaded from the
+final ranking, never stored: they always match the current results
+(after a late rejudge or adjustment) and cost no storage. The layout is
+fixed (A4 landscape, border, logo, title, centred paragraphs, signature
+lines, footer) and the organisers control the words: plain paragraphs
+with placeholders and two emphasis levels (`#`, `##`) instead of a
+templating language or HTML, so a template cannot break the page and
+needs no escaping rules; a paragraph emptied by its placeholders
+disappears, which lets one template serve contestants with and without an
+award. Awards are rank ranges (ties share rank and award), the common
+rule for medals and mentions; score cut-offs are covered by the minimum
+score. The PDF writer gained images (JPEG embedded as is, other formats
+re-encoded as compressed RGB over white, size capped before decoding) so
+the logo costs one object for the whole document. Contestants may
+download their own certificate only when the organisers allow it and
+their time is over (so ranks cannot leak during the contest or before the
+ceremony); the overview checks the template only after the contest, so
+the page costs nothing while the contest runs, and the ranking behind
+contestants' downloads is cached 30 seconds (everybody downloads at once
+after the ceremony).

@@ -69,9 +69,10 @@ type cloneOptions struct {
 	Participations bool
 }
 
-// cloneContest copies a contest (as a draft) with its sites and tasks —
-// statements, attachments, datasets with testcases and managers, the live
-// dataset — and optionally its participations, never submissions.
+// cloneContest copies a contest (as a draft) with its sites, certificate
+// template and tasks — statements, attachments, datasets with testcases
+// and managers, the live dataset — and optionally its participations,
+// never submissions.
 func cloneContest(ctx context.Context, tx pgx.Tx, id int64, o cloneOptions) (int64, error) {
 	q := sqlc.New(tx)
 	ids, err := copyRows(ctx, tx, "contests", "id = $1", map[string]string{
@@ -82,6 +83,23 @@ func cloneContest(ctx context.Context, tx pgx.Tx, id int64, o cloneOptions) (int
 	}
 	newID := ids[0]
 	if _, err := copyRows(ctx, tx, "sites", "contest_id = $1", map[string]string{"contest_id": "$2"}, id, newID); err != nil {
+		return 0, err
+	}
+	// The certificate template (one row keyed by the contest, no id).
+	cols, err := copyableColumns(ctx, tx, "certificate_templates")
+	if err != nil {
+		return 0, err
+	}
+	names, exprs := make([]string, len(cols)), make([]string, len(cols))
+	for i, c := range cols {
+		names[i] = pgx.Identifier{c}.Sanitize()
+		exprs[i] = names[i]
+		if c == "contest_id" {
+			exprs[i] = "$2"
+		}
+	}
+	if _, err := tx.Exec(ctx, "INSERT INTO certificate_templates ("+strings.Join(names, ", ")+") SELECT "+strings.Join(exprs, ", ")+
+		" FROM certificate_templates WHERE contest_id = $1", id, newID); err != nil {
 		return 0, err
 	}
 	tasks, err := q.ListTasksByContest(ctx, &id)

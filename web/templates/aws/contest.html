@@ -8,6 +8,7 @@
   <a href="/contests/{{$c.ID}}/ranking">{{.T "Ranking"}}</a> ·
   <a href="/contests/{{$c.ID}}/stats">{{.T "Statistics"}}</a> ·
   <a href="/contests/{{$c.ID}}/plagiarism">{{.T "Plagiarism"}}</a> ·
+  <a href="/contests/{{$c.ID}}/certificates">{{.T "Certificates"}}</a> ·
   {{if eq $c.ScoringMode "icpc"}}<a href="/contests/{{$c.ID}}/balloons">{{.T "Balloons"}}</a> ·{{end}}
   {{if $c.AllowPrinting}}<a href="/contests/{{$c.ID}}/printing">{{.T "Printing"}}</a> ·{{end}}
   <a href="/contests/{{$c.ID}}/sites">{{.T "Sites"}}</a> ·

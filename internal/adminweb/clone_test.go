@@ -40,6 +40,10 @@ func TestContestClone(t *testing.T) {
 	}
 	f.pool.Exec(bg, "UPDATE participations SET site_id = $1, starting_time = now() WHERE id = $2", site.ID, f.part.ID)
 	f.pool.Exec(bg, "UPDATE contests SET description = 'Final', icpc_penalty_minutes = 15, practice_enabled = true, ranking_unfrozen = true WHERE id = $1", f.contest.ID)
+	if err := f.q.UpsertCertificateTemplate(bg, sqlc.UpsertCertificateTemplateParams{ContestID: f.contest.ID, Title: "Constancia", Body: "{name}",
+		Signatures: json.RawMessage(`[]`), Awards: json.RawMessage(`[{"name":"Oro","up_to_rank":1}]`)}); err != nil {
+		t.Fatal(err)
+	}
 	if code, _ := f.login("read_only").Post(fmt.Sprintf("/contests/%d/clone", f.contest.ID), url.Values{"name": {"copia"}}); code != http.StatusForbidden {
 		t.Fatalf("read-only clone = %d", code)
 	}
@@ -89,6 +93,9 @@ func TestContestClone(t *testing.T) {
 		if a, b := count(q, f.task.ID), count(q, nt); a != b || a == 0 {
 			t.Errorf("%s: %d vs %d", q, a, b)
 		}
+	}
+	if ct, err := f.q.GetCertificateTemplate(bg, nc.ID); err != nil || ct.Title != "Constancia" || len(ct.Awards) < 10 {
+		t.Errorf("certificate template copy: %+v %v", ct, err)
 	}
 	if n := count("SELECT count(*) FROM submissions WHERE task_id = $1", nt); n != 0 {
 		t.Errorf("%d submissions copied", n)

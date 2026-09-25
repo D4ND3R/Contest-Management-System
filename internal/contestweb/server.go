@@ -41,28 +41,30 @@ import (
 
 // Server is the contest web server.
 type Server struct {
-	cfg      config.ContestWeb
-	log      *slog.Logger
-	pool     *pgxpool.Pool
-	q        *sqlc.Queries
-	rdb      *redis.Client
-	queue    *queue.Queue
-	ns       string
-	blobs    blob.Store
-	langs    *langs.Registry
-	pages    map[string]*template.Template
-	static   *webkit.Static
-	csrf     *webkit.CSRF
-	signer   *webkit.Signer
-	ips      *webkit.IPResolver
-	limiter  *webkit.Limiter
-	cache    *cache
-	secret   []byte
-	hub      *hub
-	sessions *webkit.SessionTracker
-	boards   boardCache
-	checks   []httpx.Check
-	now      func() time.Time
+	cfg     config.ContestWeb
+	log     *slog.Logger
+	pool    *pgxpool.Pool
+	q       *sqlc.Queries
+	rdb     *redis.Client
+	queue   *queue.Queue
+	ns      string
+	blobs   blob.Store
+	langs   *langs.Registry
+	pages   map[string]*template.Template
+	static  *webkit.Static
+	csrf    *webkit.CSRF
+	signer  *webkit.Signer
+	ips     *webkit.IPResolver
+	limiter *webkit.Limiter
+	cache   *cache
+	// certRanks caches the ranking behind contestants' certificates.
+	certRanks certRanking
+	secret    []byte
+	hub       *hub
+	sessions  *webkit.SessionTracker
+	boards    boardCache
+	checks    []httpx.Check
+	now       func() time.Time
 }
 
 // Deps are the dependencies of the server.
@@ -184,6 +186,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{contest}/events", auth(s.handleEvents))
 	mux.HandleFunc("GET /{contest}/clock", auth(s.handleClock))
 	mux.HandleFunc("GET /{contest}/printing", auth(s.handlePrinting))
+	mux.HandleFunc("GET /{contest}/certificate.pdf", auth(s.handleCertificate))
 	mux.HandleFunc("POST /{contest}/printing", auth(s.handlePrint))
 	s.registerExtra(mux, auth)
 

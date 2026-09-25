@@ -121,7 +121,7 @@ imports as a new contest.
 | `results.csv` | the final results table (for people; not imported) |
 | `cms-contest.json` | format, CMS version, migrations, rows per table, file count |
 
-The rows are the contest settings, sites, tasks with **every** dataset
+The rows are the contest settings, sites, certificate template, tasks with **every** dataset
 (statements, attachments, testcases, managers, the live dataset),
 participants with their users and teams (password hashes included: keep
 the file safe), announcements, questions and private messages, and,

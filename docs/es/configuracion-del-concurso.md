@@ -124,3 +124,35 @@ Configurar la impresora: [despliegue](despliegue.md#impresión).
 - Cantidad máxima de envíos e intervalo mínimo entre ellos, por concurso y por
   problema. Las **pruebas de usuario** (ejecutar un código con una entrada
   propia) tienen sus propios límites de cantidad e intervalo.
+
+## Certificados
+
+**Certificados**, en la página del concurso, diseña un certificado por
+concursante (A4 horizontal) a partir del ranking final, sin congelar:
+
+- un **título**, un **texto** y un **pie** con variables: `{name}`,
+  `{first_name}`, `{last_name}`, `{username}`, `{institution}`, `{team}`,
+  `{site}`, `{contest}` (la descripción del concurso, o su nombre),
+  `{rank}`, `{participants}`, `{score}` (problemas resueltos en concursos
+  ICPC), `{max_score}`, `{award}` y `{date}` (el campo *Fecha*: una fecha, o
+  un lugar y una fecha). Los párrafos se separan con líneas en blanco; uno
+  que empieza con `#` se imprime grande y en negrita, uno con `##` en
+  negrita, y un párrafo que sus variables dejan vacío (`## {award}` sin
+  premio) se omite;
+- **premios** por puesto, uno por línea, `Nombre: último puesto`, con
+  puestos crecientes (`Medalla de oro: 3`, `Medalla de plata: 8`, `Medalla
+  de bronce: 15`, `Mención honorífica: 25`); los empates comparten puesto y
+  premio;
+- quién recibe uno: todos los del ranking (nunca los concursantes ocultos),
+  o solo desde un **puntaje mínimo**, o **solo los concursantes con
+  premio**;
+- tres o cuatro **firmas** (`Nombre | Cargo` por línea) y un **logo** (PNG o
+  JPEG, hasta 2 MiB) arriba.
+
+*Vista previa del primero* muestra una página; *Descargar todos* da un PDF
+con una página por concursante, y la página de cada participación tiene el
+suyo. Ambas descargas quedan en el registro de auditoría. Con **los
+concursantes descargan su propio certificado**, cada concursante ve un
+enlace *Descargar tu certificado* en la página del concurso cuando termina
+su tiempo; actívalo después de la ceremonia de clausura si los puestos
+deben mantenerse en secreto hasta entonces.

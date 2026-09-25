@@ -18,6 +18,7 @@
   <button>{{.T "Start the contest"}}</button>
 </form>
 {{end}}
+{{if $d.Certificate}}<p><a class="button" href="{{.Base}}certificate.pdf">{{.T "Download your certificate"}}</a></p>{{end}}
 </section>
 {{if .Tasks}}
 <h2>{{.T "Tasks"}}</h2>

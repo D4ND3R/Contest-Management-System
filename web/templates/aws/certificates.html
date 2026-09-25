@@ -1,0 +1,28 @@
+{{define "content"}}{{$d := .Data}}{{$t := $d.T}}
+<h1>{{.T "Certificates"}} <small class="muted">{{$d.Contest.Name}}</small></h1>
+<p class="actions">
+  <a href="/contests/{{$d.Contest.ID}}/certificates.pdf?preview=1" target="_blank" rel="noopener">{{.T "Preview the first one"}}</a> ·
+  <a href="/contests/{{$d.Contest.ID}}/certificates.pdf">{{.T "Download all (%d, PDF)" $d.Recipients}}</a>
+</p>
+<form method="post" action="/contests/{{$d.Contest.ID}}/certificates" enctype="multipart/form-data" class="card">
+  {{template "csrf" .CSRF}}
+  <fieldset {{if not .CanWrite}}disabled{{end}}>
+  <label>{{.T "Title"}} <input name="title" value="{{$t.Title}}" required></label>
+  <label>{{.T "Text"}} <textarea name="body" rows="9">{{$t.Body}}</textarea></label>
+  <p class="muted small">{{.T "Paragraphs are separated by a blank line; a paragraph starting with # is printed large and bold, one with ## bold. A paragraph left empty by its placeholders (e.g. ## {award} without an award) is skipped."}}
+    {{.T "Placeholders:"}} {{range $d.Placeholders}}<code>{{"{"}}{{.}}{{"}"}}</code> {{end}}</p>
+  <label>{{.T "Date"}} <input name="date_text" value="{{$t.DateText}}"> <span class="muted small">{{.T "the value of {date}, e.g. a place and a date"}}</span></label>
+  <label>{{.T "Footer"}} <input name="footer" value="{{$t.Footer}}"></label>
+  <label>{{.T "Signatures"}} <textarea name="signatures" rows="3" placeholder="{{.T "Name | Role, one per line"}}">{{$d.Signatures}}</textarea></label>
+  <label>{{.T "Awards"}} <textarea name="awards" rows="4" placeholder="{{.T "Gold medal: 3"}}">{{$d.Awards}}</textarea></label>
+  <p class="muted small">{{.T "One award per line, “Name: last rank”, ranks growing: “Gold medal: 3” then “Silver medal: 8” gives gold to ranks 1–3 and silver to 4–8. Ties share the rank."}}</p>
+  <label>{{.T "Minimum score"}} <input name="min_score" value="{{$d.MinScore}}" inputmode="decimal" size="6"></label>
+  <label><input type="checkbox" name="only_awarded"{{if $t.OnlyAwarded}} checked{{end}}> {{.T "only contestants with an award"}}</label>
+  <label>{{.T "Logo (PNG or JPEG, up to 2 MiB)"}} <input type="file" name="logo" accept="image/png,image/jpeg"></label>
+  {{if $d.HasLogo}}<label><input type="checkbox" name="remove_logo"> {{.T "remove the current logo"}}</label>{{end}}
+  <label><input type="checkbox" name="contestants_can_download"{{if $t.ContestantsCanDownload}} checked{{end}}> {{.T "contestants download their own certificate once their contest time is over"}}</label>
+  {{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}
+  </fieldset>
+</form>
+<p class="muted small">{{.T "Certificates follow the final (unfrozen) ranking; hidden contestants get none. One A4 landscape page per contestant."}}</p>
+{{end}}

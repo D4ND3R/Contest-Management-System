@@ -1,8 +1,9 @@
 // Package pdf is a minimal PDF 1.4 writer for printable documents
 // (credential sheets, result lists, certificates): pages of text in the
 // standard Helvetica fonts (WinAnsi encoding, which covers Spanish and the
-// other Western European languages), lines and rectangles. No external
-// dependencies and no embedded fonts, so documents are tiny.
+// other Western European languages), lines, rectangles and images (JPEG
+// as is, others as compressed RGB). No external dependencies and no
+// embedded fonts, so documents are tiny.
 package pdf
 
 import (
@@ -21,8 +22,9 @@ const (
 
 // Doc is a document being built.
 type Doc struct {
-	pages []*Page
-	Title string
+	pages  []*Page
+	images []*Image
+	Title  string
 }
 
 // Page is one page; coordinates are in points from the bottom-left corner.
@@ -135,6 +137,15 @@ func (d *Doc) Write(w io.Writer) error {
 	pagesID := 2
 	fontReg, fontBold, fontMono := 3, 4, 5
 	first := 6 // page i uses objects first+2i (page) and first+2i+1 (content)
+	// Images follow the pages; every page may use any of them.
+	xobjects := ""
+	if len(d.images) > 0 {
+		var refs []string
+		for i := range d.images {
+			refs = append(refs, fmt.Sprintf("/Im%d %d 0 R", i+1, first+2*n+i))
+		}
+		xobjects = " /XObject << " + strings.Join(refs, " ") + " >>"
+	}
 	kids := make([]string, n)
 	for i := range d.pages {
 		kids[i] = fmt.Sprintf("%d 0 R", first+2*i)
@@ -145,10 +156,13 @@ func (d *Doc) Write(w io.Writer) error {
 	obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
 	obj("<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>")
 	for i, p := range d.pages {
-		obj(fmt.Sprintf("<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %s %s] /Resources << /Font << /F1 %d 0 R /F2 %d 0 R /F3 %d 0 R >> >> /Contents %d 0 R >>",
-			pagesID, num(p.w), num(p.h), fontReg, fontBold, fontMono, first+2*i+1))
+		obj(fmt.Sprintf("<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %s %s] /Resources << /Font << /F1 %d 0 R /F2 %d 0 R /F3 %d 0 R >>%s >> /Contents %d 0 R >>",
+			pagesID, num(p.w), num(p.h), fontReg, fontBold, fontMono, xobjects, first+2*i+1))
 		content := p.buf.Bytes()
 		obj(fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(content)+0, content))
+	}
+	for _, im := range d.images {
+		obj(im.object())
 	}
 	info := 0
 	if d.Title != "" {

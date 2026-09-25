@@ -70,6 +70,7 @@ const (
 var tables = []table{
 	{"contests", "id = $1", "id", false},
 	{"sites", "contest_id = $1", "id", false},
+	{"certificate_templates", "contest_id = $1", "contest_id", false},
 	{"users", "id IN (SELECT user_id FROM participations WHERE contest_id = $1)", "id", false},
 	{"teams", "id IN (SELECT team_id FROM participations WHERE contest_id = $1)", "id", false},
 	{"tasks", "contest_id = $1", "id", false},
