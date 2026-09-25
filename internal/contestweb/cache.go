@@ -47,6 +47,9 @@ type taskView struct {
 	MemoryLimit   int64
 	TaskType      string
 	SourceLimit   int64
+	// Languages accepted by the task: the contest's, narrowed by the task's
+	// own list when it has one.
+	Languages []*langs.Language
 }
 
 var errNotFound = errors.New("not found")
@@ -180,6 +183,11 @@ func (c *cache) load(ctx context.Context, name string) (*contestView, error) {
 	}
 	for _, t := range tasks {
 		tv := &taskView{Task: t, AttachDigest: map[string]string{}, Precision: int(t.ScorePrecision), Formats: t.SubmissionFormat}
+		for _, l := range cv.Languages {
+			if len(t.Languages) == 0 || contains(t.Languages, l.ID) {
+				tv.Languages = append(tv.Languages, l)
+			}
+		}
 		for _, f := range t.SubmissionFormat {
 			if containsSuffix(f, ".%l") {
 				tv.NeedsLanguage = true

@@ -92,3 +92,47 @@
   <button>{{.T "Printable credentials (PDF)"}}</button>
 </form>
 {{end}}
+
+{{define "score-editor"}}{{$e := .V}}
+<div id="score-editor" class="score-editor" hx-post="/datasets/{{$e.DatasetID}}/score-editor" hx-trigger="change" hx-include="closest form" hx-target="this" hx-swap="outerHTML">
+<input type="hidden" name="score_editor" value="1">
+<input type="hidden" name="st_n" value="{{len $e.Rows}}">
+{{with $e.Raw}}<p class="alert">{{$.T "The stored parameters cannot be shown in the editor (%s); edit the JSON below." .}}</p>{{end}}
+<fieldset data-group="score" data-for="Sum"><legend>Sum</legend>
+  <label>{{.T "Points per testcase"}} <input name="sum_points" value="{{$e.SumPoints}}" inputmode="decimal" size="6"></label>
+  <p class="muted small">{{.T "Maximum score %s (%d testcases)." (num $e.SumMax) (len $e.Testcases)}}</p>
+</fieldset>
+<fieldset data-group="score" data-for="GroupMin GroupMul GroupThreshold"><legend>{{.T "Subtasks"}}</legend>
+<table class="subtasks">
+<thead><tr><th>#</th><th>{{.T "Points"}}</th><th>{{.T "Testcases"}}</th><th data-group="score" data-for="GroupThreshold">{{.T "Threshold"}}</th><th>{{.T "Matches"}}</th><th></th></tr></thead>
+<tbody>
+{{range $row := $e.Rows}}{{$i := $row.Index}}
+<tr class="{{if not $row.Num}}new{{end}}">
+  <td>{{if $row.Num}}{{$row.Num}}{{else}}<span class="muted" title="{{$.T "Fill this row to add a subtask"}}">+</span>{{end}}</td>
+  <td><input name="st{{$i}}_score" value="{{$row.Score}}" size="5" inputmode="decimal" aria-label="{{$.T "Points"}}"></td>
+  <td>
+    <select name="st{{$i}}_mode" aria-label="{{$.T "How testcases are chosen"}}">
+      <option value="regex" {{if eq $row.Mode "regex"}}selected{{end}}>{{$.T "names matching"}}</option>
+      <option value="list" {{if eq $row.Mode "list"}}selected{{end}}>{{$.T "chosen testcases"}}</option>
+      <option value="count" {{if eq $row.Mode "count"}}selected{{end}}>{{$.T "the next N testcases"}}</option>
+    </select>
+    <input name="st{{$i}}_regex" value="{{$row.Regex}}" placeholder="1_.*" class="code" size="14" aria-label="{{$.T "Regular expression"}}" {{if ne $row.Mode "regex"}}hidden{{end}}>
+    <input name="st{{$i}}_count" value="{{$row.Count}}" size="4" inputmode="numeric" aria-label="{{$.T "Number of testcases"}}" {{if ne $row.Mode "count"}}hidden{{end}}>
+    <details {{if ne $row.Mode "list"}}hidden{{end}}><summary>{{$.T "%d chosen" (len $row.List)}}</summary>
+      <div class="tcgrid">{{range $e.Testcases}}<label><input type="checkbox" name="st{{$i}}_tc" value="{{.}}" {{if has $row.List .}}checked{{end}}> {{.}}</label>{{else}}<span class="muted">{{$.T "No testcases."}}</span>{{end}}</div>
+    </details>
+  </td>
+  <td data-group="score" data-for="GroupThreshold"><input name="st{{$i}}_threshold" value="{{$row.Threshold}}" size="4" inputmode="decimal" aria-label="{{$.T "Threshold"}}"></td>
+  <td class="small">{{with $row.Match}}{{if .Error}}<span class="bad">{{.Error}}</span>{{else}}<b>{{len .Testcases}}</b> <span class="muted">{{joinHead .Testcases 12}}</span>{{end}}{{end}}</td>
+  <td>{{if $row.Num}}<label class="small"><input type="checkbox" name="st{{$i}}_remove"> {{$.T "remove"}}</label>{{end}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+<p class="small"><b>{{.T "Total: %s points." (num $e.Coverage.Total)}}</b>
+  {{with $e.Coverage.Uncovered}}<span class="warn">{{$.T "Testcases in no subtask:"}} {{joinHead . 20}}</span>{{end}}
+  {{with $e.Coverage.Shared}}<span class="muted">{{$.T "Testcases in several subtasks:"}} {{joinHead . 20}}</span>{{end}}</p>
+<p class="muted small">{{.T "Fill the last row to add a subtask. Changes are previewed on this dataset's testcases and saved with the dataset. The threshold (GroupThreshold) is the minimum outcome of every testcase for the subtask to score."}}</p>
+</fieldset>
+</div>
+{{end}}

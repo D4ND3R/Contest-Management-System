@@ -98,6 +98,7 @@ type datasetPage struct {
 	Missing    []string
 	OtherSets  []sqlc.Dataset
 	TF         typeFields
+	Editor     *scoreEditor
 }
 
 var scoreTypes = []string{"Sum", "GroupMin", "GroupMul", "GroupThreshold"}
@@ -137,6 +138,7 @@ func (s *Server) datasetPage(ctx context.Context, d sqlc.Dataset, u sqlc.UpdateD
 	for i, tc := range p.Testcases {
 		codes[i], pub[i] = tc.Codename, tc.Public
 	}
+	p.Editor = editorFromParams(d.ID, u.ScoreType, u.ScoreTypeParams, codes)
 	if st, err := scoring.New(d.ScoreType, d.ScoreTypeParams, codes, pub, int(t.ScorePrecision)); err != nil {
 		p.ScoreError = err.Error()
 	} else {
@@ -197,7 +199,9 @@ func (s *Server) handleDataset(w http.ResponseWriter, r *http.Request, rc *reqCt
 	s.render(w, "dataset", http.StatusOK, s.datasetCrumbs(s.newPage(w, r, rc, p.Task.Name+" · "+d.Description, "tasks", p), p))
 }
 
-func parseDataset(f *form, u sqlc.UpdateDatasetParams) (sqlc.UpdateDatasetParams, string, string) {
+// parseDataset reads the dataset form; codes are the dataset's testcases
+// (for the score editor, which is returned when it was used).
+func parseDataset(f *form, u sqlc.UpdateDatasetParams, codes []string) (sqlc.UpdateDatasetParams, string, string, *scoreEditor) {
 	u.Description = f.required("description", "Description")
 	u.Autojudge = f.check("autojudge")
 	u.TimeLimitMs = f.secondsToMs("time_limit", "Time limit")
@@ -232,6 +236,13 @@ func parseDataset(f *form, u sqlc.UpdateDatasetParams) (sqlc.UpdateDatasetParams
 	}
 	u.ScoreType = f.oneOf("score_type", "Score type", scoreTypes...)
 	scoreText := f.str("score_type_params")
+	if f.str("score_editor") != "" && !f.check("raw_score") {
+		// The visual editor (the default in the page); the JSON field is
+		// used when "raw_score" is ticked or by API-style posts.
+		ed := editorFromForm(f, u.ID, codes)
+		u.ScoreTypeParams = ed.params(f, u.ScoreType)
+		return u, paramsText, prettyJSON(u.ScoreTypeParams), ed
+	}
 	if scoreText == "" {
 		scoreText = "{}"
 	}
@@ -240,7 +251,7 @@ func parseDataset(f *form, u sqlc.UpdateDatasetParams) (sqlc.UpdateDatasetParams
 	} else {
 		u.ScoreTypeParams = compactJSON(scoreText)
 	}
-	return u, paramsText, scoreText
+	return u, paramsText, scoreText, nil
 }
 
 func compactJSON(s string) json.RawMessage {
@@ -256,23 +267,21 @@ func (s *Server) handleDatasetUpdate(w http.ResponseWriter, r *http.Request, rc 
 	if !ok {
 		return
 	}
+	tcs, err := s.q.ListTestcases(r.Context(), d.ID)
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	codes, pub := make([]string, len(tcs)), make([]bool, len(tcs))
+	for i, tc := range tcs {
+		codes[i], pub[i] = tc.Codename, tc.Public
+	}
 	f := newForm(r)
-	u, paramsText, scoreText := parseDataset(f, db.DatasetToUpdate(d))
-	if f.err == nil {
-		// Score parameters must fit the current testcases (when there are any).
-		tcs, err := s.q.ListTestcases(r.Context(), d.ID)
-		if err != nil {
-			s.internalError(w, r, rc, err)
-			return
-		}
-		if len(tcs) > 0 {
-			codes, pub := make([]string, len(tcs)), make([]bool, len(tcs))
-			for i, tc := range tcs {
-				codes[i], pub[i] = tc.Codename, tc.Public
-			}
-			if _, err := scoring.New(u.ScoreType, u.ScoreTypeParams, codes, pub, 0); err != nil {
-				f.fail("score type parameters: %v", err)
-			}
+	u, paramsText, scoreText, editor := parseDataset(f, db.DatasetToUpdate(d), codes)
+	// Score parameters must fit the current testcases (when there are any).
+	if f.err == nil && len(tcs) > 0 {
+		if _, err := scoring.New(u.ScoreType, u.ScoreTypeParams, codes, pub, 0); err != nil {
+			f.fail("score type parameters: %v", err)
 		}
 	}
 	if f.err != nil {
@@ -280,6 +289,9 @@ func (s *Server) handleDatasetUpdate(w http.ResponseWriter, r *http.Request, rc 
 		if err != nil {
 			s.internalError(w, r, rc, err)
 			return
+		}
+		if editor != nil {
+			p.Editor = editor
 		}
 		s.formError(w, r, rc, "dataset", s.datasetCrumbs(s.newPage(w, r, rc, p.Task.Name+" · "+d.Description, "tasks", p), p), f.err.Error())
 		return

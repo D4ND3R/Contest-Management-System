@@ -3,9 +3,9 @@ INSERT INTO tasks (
     contest_id, num, name, title, primary_statements, submission_format,
     token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number,
     token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number,
-    min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode
+    min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, languages
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
 ) RETURNING *;
 
 -- name: GetTask :one
@@ -27,7 +27,7 @@ UPDATE tasks SET
     token_gen_initial = $11, token_gen_number = $12, token_gen_interval_s = $13,
     token_gen_max = $14, max_submission_number = $15, max_user_test_number = $16,
     min_submission_interval_s = $17, min_user_test_interval_s = $18, feedback_level = $19,
-    score_precision = $20, score_mode = $21, updated_at = now()
+    score_precision = $20, score_mode = $21, languages = $22, updated_at = now()
 WHERE id = $1
 RETURNING *;
 

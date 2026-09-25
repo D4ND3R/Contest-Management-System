@@ -225,6 +225,7 @@ func (s *Server) Handler() http.Handler {
 
 	get("/datasets/{id}", s.handleDataset)
 	post("/datasets/{id}", permAll, "dataset.update", s.handleDatasetUpdate)
+	post("/datasets/{id}/score-editor", permAll, "", s.handleScoreEditor)
 	post("/datasets/{id}/activate", permAll, "dataset.activate", s.handleDatasetActivate)
 	post("/datasets/{id}/delete", permAll, "dataset.delete", s.handleDatasetDelete)
 	post("/datasets/{id}/managers", permAll, "manager.upload", s.handleManagerUpload)

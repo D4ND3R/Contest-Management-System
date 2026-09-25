@@ -108,6 +108,10 @@
   <label>{{.T "Score precision"}} <input name="score_precision" value="{{$t.ScorePrecision}}" inputmode="numeric"></label>
 </div>
 </fieldset>
+<fieldset><legend>{{.T "Languages"}}</legend>
+<p class="checks">{{range .Data.Languages}}<label><input type="checkbox" name="languages" value="{{.ID}}" {{if has $t.Languages .ID}}checked{{end}}> {{.Name}}</label>{{end}}</p>
+<p class="muted small">{{.T "No language checked: the task accepts every language of its contest. Otherwise only the checked languages that the contest also allows."}}</p>
+</fieldset>
 {{template "token-fields" (part $ $t)}}
 {{template "limit-fields" (part $ $t)}}
 {{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}

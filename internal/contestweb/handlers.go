@@ -114,7 +114,7 @@ func (s *Server) taskData(r *http.Request, rc *reqCtx, p *page, t *taskView) (*t
 	if !d.CanSubmit {
 		d.CannotSubmit = p.T("Submissions are closed.")
 	}
-	for _, l := range rc.contest.Languages {
+	for _, l := range t.Languages {
 		d.Languages = append(d.Languages, langChoice{ID: l.ID, Name: l.Name})
 	}
 	subs, err := s.listSubs(r, rc, t)
@@ -337,7 +337,7 @@ func (s *Server) readSubmission(w http.ResponseWriter, r *http.Request, rc *reqC
 	var lang *langs.Language
 	if t.NeedsLanguage {
 		id := r.FormValue("language")
-		for _, l := range rc.contest.Languages {
+		for _, l := range t.Languages {
 			if l.ID == id {
 				lang = l
 			}

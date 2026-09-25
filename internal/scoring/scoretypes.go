@@ -263,6 +263,10 @@ func newGroup(kind string, params json.RawMessage, defs []testcaseDef, precision
 		return nil, errors.New("at least one subtask is required")
 	}
 	g := &group{kind: kind, defs: defs, precision: precision}
+	codes := make([]string, len(defs))
+	for k, d := range defs {
+		codes[k] = d.codename
+	}
 	next := 0 // for count-based subtasks: consecutive testcases in codename order
 	for i, p := range ps {
 		sd := groupDef{maxScore: p.MaxScore}
@@ -275,42 +279,9 @@ func newGroup(kind string, params json.RawMessage, defs []testcaseDef, precision
 			}
 			sd.threshold = *p.Threshold
 		}
-		var n int
-		var pattern string
-		var list []string
-		switch {
-		case json.Unmarshal(p.Testcases, &n) == nil:
-			if n <= 0 || next+n > len(defs) {
-				return nil, fmt.Errorf("subtask %d: %d testcases requested, %d available", i+1, n, len(defs)-next)
-			}
-			for k := next; k < next+n; k++ {
-				sd.members = append(sd.members, k)
-			}
-			next += n
-		case json.Unmarshal(p.Testcases, &pattern) == nil:
-			re, err := regexp.Compile("^(?:" + pattern + ")$")
-			if err != nil {
-				return nil, fmt.Errorf("subtask %d: invalid regex: %w", i+1, err)
-			}
-			for k, d := range defs {
-				if re.MatchString(d.codename) {
-					sd.members = append(sd.members, k)
-				}
-			}
-		case json.Unmarshal(p.Testcases, &list) == nil:
-			pos := map[string]int{}
-			for k, d := range defs {
-				pos[d.codename] = k
-			}
-			for _, c := range list {
-				k, ok := pos[c]
-				if !ok {
-					return nil, fmt.Errorf("subtask %d: unknown testcase %q", i+1, c)
-				}
-				sd.members = append(sd.members, k)
-			}
-		default:
-			return nil, fmt.Errorf("subtask %d: testcases must be a count, a regex or a list", i+1)
+		sd.members, err = members(i, p.Testcases, codes, &next)
+		if err != nil {
+			return nil, err
 		}
 		if len(sd.members) == 0 {
 			return nil, fmt.Errorf("subtask %d matches no testcase", i+1)
@@ -322,6 +293,51 @@ func newGroup(kind string, params json.RawMessage, defs []testcaseDef, precision
 		g.subtasks = append(g.subtasks, sd)
 	}
 	return g, nil
+}
+
+// members resolves the testcases of subtask i (0-based) among codenames
+// (sorted): a count takes the next consecutive testcases (next is advanced),
+// a string is an anchored regex, a list names them.
+func members(i int, spec json.RawMessage, codenames []string, next *int) ([]int, error) {
+	var n int
+	var pattern string
+	var list []string
+	var out []int
+	switch {
+	case json.Unmarshal(spec, &n) == nil:
+		if n <= 0 || *next+n > len(codenames) {
+			return nil, fmt.Errorf("subtask %d: %d testcases requested, %d available", i+1, n, len(codenames)-*next)
+		}
+		for k := *next; k < *next+n; k++ {
+			out = append(out, k)
+		}
+		*next += n
+	case json.Unmarshal(spec, &pattern) == nil:
+		re, err := regexp.Compile("^(?:" + pattern + ")$")
+		if err != nil {
+			return nil, fmt.Errorf("subtask %d: invalid regex: %w", i+1, err)
+		}
+		for k, c := range codenames {
+			if re.MatchString(c) {
+				out = append(out, k)
+			}
+		}
+	case json.Unmarshal(spec, &list) == nil:
+		pos := make(map[string]int, len(codenames))
+		for k, c := range codenames {
+			pos[c] = k
+		}
+		for _, c := range list {
+			k, ok := pos[c]
+			if !ok {
+				return nil, fmt.Errorf("subtask %d: unknown testcase %q", i+1, c)
+			}
+			out = append(out, k)
+		}
+	default:
+		return nil, fmt.Errorf("subtask %d: testcases must be a count, a regex or a list", i+1)
+	}
+	return out, nil
 }
 
 func (g *group) NumSubtasks() int { return len(g.subtasks) }

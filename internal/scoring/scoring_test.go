@@ -2,7 +2,9 @@ package scoring
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
+	"strings"
 	"testing"
 	"time"
 )
@@ -187,5 +189,43 @@ func BenchmarkGroupMin(b *testing.B) {
 	in := tcs(outcomes)
 	for b.Loop() {
 		st.Compute(in)
+	}
+}
+
+func TestSubtaskEditorRoundTrip(t *testing.T) {
+	half := 0.5
+	specs := []SubtaskSpec{
+		{MaxScore: 20, Mode: "count", Count: 2},
+		{MaxScore: 30, Mode: "regex", Regex: "b.*"},
+		{MaxScore: 50, Mode: "list", List: []string{"a1", "c1"}, Threshold: &half},
+	}
+	raw := EncodeSubtasks(specs, true)
+	if string(raw) != `[[20,2,1],[30,"b.*",1],[50,["a1","c1"],0.5]]` {
+		t.Fatalf("encoded %s", raw)
+	}
+	back, err := ParseSubtasks(raw)
+	if err != nil || len(back) != 3 || back[0].Count != 2 || back[1].Regex != "b.*" || back[2].List[1] != "c1" || *back[2].Threshold != 0.5 {
+		t.Fatalf("parsed %+v %v", back, err)
+	}
+	codes := []string{"c1", "b2", "a1", "a2", "b1", "d1"}
+	cov := MatchSubtasks(specs, codes)
+	if got := fmt.Sprint(cov.Subtasks[0].Testcases, cov.Subtasks[1].Testcases, cov.Subtasks[2].Testcases); got != "[a1 a2] [b1 b2] [a1 c1]" {
+		t.Fatalf("matches %s", got)
+	}
+	if cov.Total != 100 || fmt.Sprint(cov.Uncovered) != "[d1]" || fmt.Sprint(cov.Shared) != "[a1]" {
+		t.Fatalf("coverage %+v", cov)
+	}
+	// The preview and the score type agree.
+	st, err := New("GroupThreshold", raw, codes, make([]bool, len(codes)), 0)
+	if err != nil || st.MaxScore() != 100 || st.NumSubtasks() != 3 {
+		t.Fatalf("score type %v %v", st, err)
+	}
+	bad := MatchSubtasks([]SubtaskSpec{{MaxScore: 10, Mode: "regex", Regex: "("}, {MaxScore: 5, Mode: "regex", Regex: "zz"}}, codes)
+	if !strings.Contains(bad.Subtasks[0].Error, "invalid regex") || !strings.Contains(bad.Subtasks[1].Error, "matches no testcase") {
+		t.Fatalf("errors %+v", bad.Subtasks)
+	}
+	// Without thresholds (GroupMin/GroupMul) the array has two elements.
+	if raw := EncodeSubtasks(specs[:1], false); string(raw) != `[[20,2]]` {
+		t.Fatalf("encoded %s", raw)
 	}
 }

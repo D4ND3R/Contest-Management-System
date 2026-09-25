@@ -494,3 +494,28 @@ func TestJavaScriptBudget(t *testing.T) {
 		t.Fatalf("JavaScript budget exceeded: %d bytes", total)
 	}
 }
+
+// TestTaskLanguages checks that a task's own language list narrows the
+// contest's languages (K10).
+func TestTaskLanguages(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	if _, err := f.pool.Exec(bg, "UPDATE tasks SET languages = '{cpp17,java}' WHERE id = $1", f.task.ID); err != nil {
+		t.Fatal(err)
+	}
+	c := f.client()
+	_, page := f.login(c, "ana", "secret")
+	csrf := csrfOf(t, page)
+	_, body := f.get(c, "/ioi/tasks/sum")
+	// java is allowed by the task but not by the contest.
+	if !strings.Contains(body, `value="cpp17"`) || strings.Contains(body, `value="c11"`) || strings.Contains(body, `value="java"`) {
+		t.Fatalf("language choices:\n%s", body)
+	}
+	if code, body := f.submit(c, csrf, "c11", "int main(){}", true); code != 400 || !strings.Contains(body, "allowed language") {
+		t.Fatalf("contest language outside the task list: %d %s", code, body)
+	}
+	// The language is accepted (the helper's file is named sum.c, so only
+	// the extension check objects).
+	if _, body := f.submit(c, csrf, "cpp17", "int main(){}", true); strings.Contains(body, "allowed language") || !strings.Contains(body, "extension") {
+		t.Fatalf("allowed language: %s", body)
+	}
+}

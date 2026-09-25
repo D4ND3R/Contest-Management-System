@@ -76,9 +76,15 @@
   <textarea name="task_type_params" rows="6" class="code">{{.Data.ParamsJSON}}</textarea>
 </details>
 </div>
-<label>{{.T "Score type"}} <select name="score_type">{{range .Data.ScoreTypes}}<option {{if eq . $d.ScoreType}}selected{{end}}>{{.}}</option>{{end}}</select>
+<div>
+<label>{{.T "Score type"}} <select name="score_type" data-type-switch="score">{{range .Data.ScoreTypes}}<option {{if eq . $d.ScoreType}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+{{template "score-editor" (part $ .Data.Editor)}}
+<details {{if .Data.Editor.Raw}}open{{end}}><summary>{{.T "Advanced: raw score parameters (JSON)"}}</summary>
+  <p class="checks"><label><input type="checkbox" name="raw_score" {{if .Data.Editor.Raw}}checked{{end}}> {{.T "Use this JSON instead of the editor"}}</label></p>
   <textarea name="score_type_params" id="score_type_params" rows="7" class="code">{{.Data.ScoreJSON}}</textarea>
-  <small class="muted">{{.T "Sum: points per testcase (e.g. 10). Group*: one entry per subtask with its maximum score and testcases (regex, count or list) and an optional threshold, e.g."}} <code>[[40, "1_.*"], [60, 5]]</code></small></label>
+  <small class="muted">{{.T "Sum: points per testcase (e.g. 10). Group*: one entry per subtask with its maximum score and testcases (regex, count or list) and an optional threshold, e.g."}} <code>[[40, "1_.*"], [60, 5]]</code></small>
+</details>
+</div>
 </div>
 {{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}
 </fieldset>

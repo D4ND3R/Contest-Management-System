@@ -306,6 +306,7 @@ type Task struct {
 	ActiveDatasetID        *int64    `json:"active_dataset_id"`
 	CreatedAt              time.Time `json:"created_at"`
 	UpdatedAt              time.Time `json:"updated_at"`
+	Languages              []string  `json:"languages"`
 }
 
 type Team struct {

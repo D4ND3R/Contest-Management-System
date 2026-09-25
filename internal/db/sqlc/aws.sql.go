@@ -812,7 +812,7 @@ func (q *Queries) AdminTaskVerdictStats(ctx context.Context, contestID *int64) (
 }
 
 const adminUnassignedTasks = `-- name: AdminUnassignedTasks :many
-SELECT id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at FROM tasks WHERE contest_id IS NULL ORDER BY name
+SELECT id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at, languages FROM tasks WHERE contest_id IS NULL ORDER BY name
 `
 
 func (q *Queries) AdminUnassignedTasks(ctx context.Context) ([]Task, error) {
@@ -849,6 +849,7 @@ func (q *Queries) AdminUnassignedTasks(ctx context.Context) ([]Task, error) {
 			&i.ActiveDatasetID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Languages,
 		); err != nil {
 			return nil, err
 		}

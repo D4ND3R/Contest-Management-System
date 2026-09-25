@@ -279,3 +279,21 @@ the point where they reach the page; form errors whose format starts with
 fails when a literal message or label has no Spanish entry, another checks
 the dynamic values (phases, statuses, queue names). `POST /lang` needs no
 session or CSRF token: it only sets a cookie limited to the known languages.
+
+## D41. Subtask editor: server-rendered rows, JSON stays canonical
+The visual editor (K5) edits the same Group* parameters as before (CMS
+array form, `[[points, testcases(, threshold)], ...]`), so imports, exports
+and hand-written JSON keep working; the JSON field remains under
+"Advanced" for anything the editor cannot show. Rows are plain form fields
+with one blank row for adding and a "remove" box, so the editor works
+without JavaScript; with htmx every change re-renders the editor on the
+server, which matches testcases with the very function the score type uses
+(`scoring.MatchSubtasks` shares `members` with `newGroup`), so the preview
+cannot disagree with scoring.
+
+## D42. Languages per task narrow the contest's languages
+`tasks.languages` (empty = no restriction) is intersected with the
+contest's languages: a task cannot enable a language its contest forbids,
+and a contest-wide change still applies to every task. The admin task
+tester lists the task's languages but accepts any configured language, so
+reference solutions in other languages can still be checked.

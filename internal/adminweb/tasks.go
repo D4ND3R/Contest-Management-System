@@ -14,6 +14,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
+	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -119,10 +120,11 @@ type taskPage struct {
 	Attachments []sqlc.Attachment
 	Datasets    []sqlc.Dataset
 	Tester      *testerForm
+	Languages   []*langs.Language
 }
 
 func (s *Server) taskPage(ctx context.Context, t sqlc.Task, u sqlc.UpdateTaskParams) (*taskPage, error) {
-	d := &taskPage{T: u, Task: t}
+	d := &taskPage{T: u, Task: t, Languages: s.langs.All()}
 	var err error
 	if d.Contests, err = s.q.ListContests(ctx); err != nil {
 		return nil, err
@@ -206,6 +208,7 @@ func parseTask(f *form, u sqlc.UpdateTaskParams) sqlc.UpdateTaskParams {
 		f.fail("score precision must be between 0 and 6")
 	}
 	u.ScoreMode = f.oneOf("score_mode", "Score mode", "max_subtask", "max", "max_tokened_last")
+	u.Languages = f.multi("languages")
 	return u
 }
 
@@ -216,6 +219,11 @@ func (s *Server) handleTaskUpdate(w http.ResponseWriter, r *http.Request, rc *re
 	}
 	f := newForm(r)
 	u := parseTask(f, db.TaskToUpdate(t))
+	for _, l := range u.Languages {
+		if _, ok := s.langs.Get(l); !ok {
+			f.fail("unknown language %q", l)
+		}
+	}
 	if f.err == nil && u.Name != t.Name {
 		if _, err := s.q.GetTaskByName(r.Context(), u.Name); err == nil {
 			f.fail("a task named %q already exists", u.Name)

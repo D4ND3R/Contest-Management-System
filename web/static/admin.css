@@ -51,3 +51,13 @@ img.flag{height:1.2rem;vertical-align:middle}
 details{margin:.4rem 0}
 summary{cursor:pointer}
 img.photo{height:3rem;vertical-align:middle;border-radius:4px}
+[hidden]{display:none!important}
+table.subtasks td{vertical-align:top}
+table.subtasks tr.new{background:#f7f9fb}
+table.subtasks input.code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.tcgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(6rem,1fr));gap:.1rem .6rem;max-height:14rem;overflow:auto;padding:.3rem;border:1px solid var(--line);border-radius:4px}
+.tcgrid label{font-size:.85rem;white-space:nowrap}
+.dropzone{display:block;border:2px dashed var(--line);border-radius:8px;padding:2rem 1rem;text-align:center;background:var(--card);cursor:pointer}
+.dropzone.over{border-color:var(--accent);background:#e8f0fd}
+.dropzone input[type=file]{display:block;margin:.6rem auto 0}
+.report td.expected{white-space:nowrap}

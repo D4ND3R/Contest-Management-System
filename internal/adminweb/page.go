@@ -301,12 +301,14 @@ func (s *Server) funcs() template.FuncMap {
 			b, _ := json.Marshal(v)
 			return string(b)
 		},
-		"join":  func(v []string, sep string) string { return strings.Join(v, sep) },
-		"has":   contains,
-		"cidrs": formatPrefixes,
-		"add":   func(a, b int) int { return a + b },
-		"deref": derefStr,
-		"ptr64": func(v int64) *int64 { return &v },
+		"join":     func(v []string, sep string) string { return strings.Join(v, sep) },
+		"has":      contains,
+		"joinHead": joinHead,
+		"num":      fmtNum,
+		"cidrs":    formatPrefixes,
+		"add":      func(a, b int) int { return a + b },
+		"deref":    derefStr,
+		"ptr64":    func(v int64) *int64 { return &v },
 		"deref32": func(v *int32) int32 {
 			if v == nil {
 				return 0

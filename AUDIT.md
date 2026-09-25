@@ -62,12 +62,12 @@ first audit (after F6), the "status" column the current state.
 | K2 | I/O file names | partial (JSON) | complete | adminweb/typeparams.go | adminweb.TestTaskAndDatasetManagement |
 | K3 | Time, wall time, memory and output limits | complete | complete | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
 | K4 | Maximum score | complete (from the score type, shown) | complete | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
-| K5 | Subtasks with a visual editor (regex or selection) | missing | missing | — | — |
+| K5 | Subtasks with a visual editor (regex or selection) | missing | complete (regex, hand-picked testcases or next N; live preview of matches, uncovered and shared testcases; thresholds; raw JSON still available) | scoring/editor.go, adminweb/scoreeditor.go, web/templates/aws/partials.html (score-editor), web/static/admin.js | adminweb.TestSubtaskEditor, scoring.TestSubtaskEditorRoundTrip |
 | K6 | Score type | complete | complete | adminweb/datasets.go | adminweb.TestTaskAndDatasetManagement |
 | K7 | Feedback level | complete | complete | adminweb/tasks.go | adminweb.TestEveryPageRenders |
 | K8 | Score mode | complete | complete | adminweb/tasks.go | dispatcher.TestMaxSubtaskAcrossSubmissions |
 | K9 | Task tokens and submission limits | complete | complete | adminweb/tasks.go, contest/limits.go | contest.* |
-| K10 | Allowed languages per task | missing | missing | — | — |
+| K10 | Allowed languages per task | missing | complete (task list narrows the contest list; submit, task page and tester) | db/migrations/0005_task_languages.sql, adminweb/tasks.go, adminweb/tester.go, contestweb/cache.go, contestweb/handlers.go | adminweb.TestTaskLanguages, contestweb.TestTaskLanguages |
 | K11 | Statements per language | complete | complete | adminweb/tasks.go | adminweb.TestTaskAndDatasetManagement |
 | K12 | Attachments | complete | complete | adminweb/tasks.go | adminweb.TestEveryPageRenders |
 | K13 | Checker / interactor / manager upload | partial (no interactor) | complete | adminweb/datasets.go, tasktypes/checker.go (.c/.cpp/binary) | e2e.TestEveryTaskTypeFromAdminUI |

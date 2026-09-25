@@ -14,10 +14,10 @@ INSERT INTO tasks (
     contest_id, num, name, title, primary_statements, submission_format,
     token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number,
     token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number,
-    min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode
+    min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, languages
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
-) RETURNING id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+) RETURNING id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at, languages
 `
 
 type CreateTaskParams struct {
@@ -41,6 +41,7 @@ type CreateTaskParams struct {
 	FeedbackLevel          string   `json:"feedback_level"`
 	ScorePrecision         int32    `json:"score_precision"`
 	ScoreMode              string   `json:"score_mode"`
+	Languages              []string `json:"languages"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
@@ -65,6 +66,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.FeedbackLevel,
 		arg.ScorePrecision,
 		arg.ScoreMode,
+		arg.Languages,
 	)
 	var i Task
 	err := row.Scan(
@@ -92,6 +94,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.ActiveDatasetID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Languages,
 	)
 	return i, err
 }
@@ -134,7 +137,7 @@ func (q *Queries) DeleteTask(ctx context.Context, id int64) error {
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at FROM tasks WHERE id = $1
+SELECT id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at, languages FROM tasks WHERE id = $1
 `
 
 func (q *Queries) GetTask(ctx context.Context, id int64) (Task, error) {
@@ -165,12 +168,13 @@ func (q *Queries) GetTask(ctx context.Context, id int64) (Task, error) {
 		&i.ActiveDatasetID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Languages,
 	)
 	return i, err
 }
 
 const getTaskByName = `-- name: GetTaskByName :one
-SELECT id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at FROM tasks WHERE name = $1
+SELECT id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at, languages FROM tasks WHERE name = $1
 `
 
 func (q *Queries) GetTaskByName(ctx context.Context, name string) (Task, error) {
@@ -201,6 +205,7 @@ func (q *Queries) GetTaskByName(ctx context.Context, name string) (Task, error) 
 		&i.ActiveDatasetID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Languages,
 	)
 	return i, err
 }
@@ -324,7 +329,7 @@ func (q *Queries) ListStatementsByContest(ctx context.Context, contestID *int64)
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at FROM tasks ORDER BY contest_id NULLS LAST, num, id
+SELECT id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at, languages FROM tasks ORDER BY contest_id NULLS LAST, num, id
 `
 
 func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
@@ -361,6 +366,7 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 			&i.ActiveDatasetID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Languages,
 		); err != nil {
 			return nil, err
 		}
@@ -373,7 +379,7 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 }
 
 const listTasksByContest = `-- name: ListTasksByContest :many
-SELECT id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at FROM tasks WHERE contest_id = $1 ORDER BY num, id
+SELECT id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at, languages FROM tasks WHERE contest_id = $1 ORDER BY num, id
 `
 
 func (q *Queries) ListTasksByContest(ctx context.Context, contestID *int64) ([]Task, error) {
@@ -410,6 +416,7 @@ func (q *Queries) ListTasksByContest(ctx context.Context, contestID *int64) ([]T
 			&i.ActiveDatasetID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Languages,
 		); err != nil {
 			return nil, err
 		}
@@ -457,9 +464,9 @@ UPDATE tasks SET
     token_gen_initial = $11, token_gen_number = $12, token_gen_interval_s = $13,
     token_gen_max = $14, max_submission_number = $15, max_user_test_number = $16,
     min_submission_interval_s = $17, min_user_test_interval_s = $18, feedback_level = $19,
-    score_precision = $20, score_mode = $21, updated_at = now()
+    score_precision = $20, score_mode = $21, languages = $22, updated_at = now()
 WHERE id = $1
-RETURNING id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at
+RETURNING id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at, languages
 `
 
 type UpdateTaskParams struct {
@@ -484,6 +491,7 @@ type UpdateTaskParams struct {
 	FeedbackLevel          string   `json:"feedback_level"`
 	ScorePrecision         int32    `json:"score_precision"`
 	ScoreMode              string   `json:"score_mode"`
+	Languages              []string `json:"languages"`
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
@@ -509,6 +517,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		arg.FeedbackLevel,
 		arg.ScorePrecision,
 		arg.ScoreMode,
+		arg.Languages,
 	)
 	var i Task
 	err := row.Scan(
@@ -536,6 +545,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.ActiveDatasetID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Languages,
 	)
 	return i, err
 }

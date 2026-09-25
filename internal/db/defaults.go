@@ -45,7 +45,7 @@ func NewTaskParams(name, title string) sqlc.CreateTaskParams {
 	return sqlc.CreateTaskParams{
 		Name: name, Title: title, PrimaryStatements: []string{}, SubmissionFormat: []string{name + ".%l"},
 		TokenMode: "disabled", TokenGenInitial: 2, TokenGenNumber: 2, TokenGenIntervalS: 1800,
-		FeedbackLevel: "full", ScoreMode: "max_subtask",
+		FeedbackLevel: "full", ScoreMode: "max_subtask", Languages: []string{},
 	}
 }
 
@@ -58,7 +58,7 @@ func TaskToUpdate(t sqlc.Task) sqlc.UpdateTaskParams {
 		TokenGenNumber: t.TokenGenNumber, TokenGenIntervalS: t.TokenGenIntervalS, TokenGenMax: t.TokenGenMax,
 		MaxSubmissionNumber: t.MaxSubmissionNumber, MaxUserTestNumber: t.MaxUserTestNumber,
 		MinSubmissionIntervalS: t.MinSubmissionIntervalS, MinUserTestIntervalS: t.MinUserTestIntervalS,
-		FeedbackLevel: t.FeedbackLevel, ScorePrecision: t.ScorePrecision, ScoreMode: t.ScoreMode,
+		FeedbackLevel: t.FeedbackLevel, ScorePrecision: t.ScorePrecision, ScoreMode: t.ScoreMode, Languages: t.Languages,
 	}
 }
 

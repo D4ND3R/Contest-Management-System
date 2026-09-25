@@ -102,6 +102,8 @@ func TestDynamicKeysTranslated(t *testing.T) {
 		"upcoming", "running", "finished", // contest phases
 		"create", "update", // import actions
 		"system error", "compiling", "compilation failed", "scored", "binary file", // statuses and notes
+		"the points must be a non-negative number", "the number of testcases must be a positive integer", // score editor
+		"choose at least one testcase", "write a regular expression", "the threshold must be a number", "GroupThreshold needs a threshold",
 		"Bad Request", "Unauthorized", "Forbidden", "Not Found", "Method Not Allowed", "Conflict",
 		"Request Entity Too Large", "Unprocessable Entity", "Too Many Requests", "Internal Server Error"}
 	for _, st := range statusFilters {

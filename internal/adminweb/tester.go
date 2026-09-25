@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -81,7 +82,7 @@ func (s *Server) testerForm(ctx context.Context, t sqlc.Task) (*testerForm, erro
 	if err != nil {
 		return nil, err
 	}
-	f := &testerForm{Formats: formats, OutputOnly: outputOnly, Languages: s.langs.All()}
+	f := &testerForm{Formats: formats, OutputOnly: outputOnly, Languages: taskLanguages(s.langs, t)}
 	for _, x := range formats {
 		f.NeedsLanguage = f.NeedsLanguage || strings.HasSuffix(x, ".%l")
 	}
@@ -236,4 +237,19 @@ func (s *Server) handleTesterSubmit(w http.ResponseWriter, r *http.Request, rc *
 	rc.target("submission", id)
 	rc.note("task", t.Name)
 	s.done(w, r, "/submissions/"+strconv.FormatInt(id, 10), "Test run submitted: it is judged on every dataset and never counts as a submission.")
+}
+
+// taskLanguages returns the languages a task accepts: its own list when it
+// has one, otherwise every configured language.
+func taskLanguages(reg *langs.Registry, t sqlc.Task) []*langs.Language {
+	if len(t.Languages) == 0 {
+		return reg.All()
+	}
+	var out []*langs.Language
+	for _, l := range reg.All() {
+		if slices.Contains(t.Languages, l.ID) {
+			out = append(out, l)
+		}
+	}
+	return out
 }
