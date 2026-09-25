@@ -2,7 +2,8 @@
 
 - [Administrator's guide: a contest from scratch, each problem type step by step](admin-guide.md)
 - [Drill: a rehearsal contest with a checklist](drill.md)
-- [Deploying on a VPS: step by step, install script, systemd, HTTPS](deployment.md)
+- [Installing on a server: requirements, sizes, one-line install, upgrade, uninstall](deployment.md)
+- [Installing with Docker Compose](docker.md)
 - [Adding a worker on another machine](external-worker.md)
 - [Contest-day runbook](contest-day.md)
 - [Contest settings: status, practice, access, registration, feedback, certificates](contest-settings.md)

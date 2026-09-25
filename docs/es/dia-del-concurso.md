@@ -6,8 +6,9 @@ principal salvo que se indique otra cosa.
 
 ## El día anterior
 
-- [ ] Actualiza si hace falta (`git pull && make build && sudo scripts/install.sh …`
-      con las mismas opciones); nunca el mismo día del concurso.
+- [ ] Actualiza si hace falta (`sudo cmsctl upgrade`, luego la misma
+      versión en cada worker); nunca el mismo día del concurso (se niega
+      mientras hay un concurso en curso).
 - [ ] Cada problema validado: el informe de **Validación** de su página
       muestra cada solución de referencia con el veredicto esperado.
 - [ ] Configuración del concurso: hora de inicio y fin (en UTC en el

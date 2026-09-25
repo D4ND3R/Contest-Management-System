@@ -1,63 +1,145 @@
-# Deploying on a VPS (Debian / Ubuntu)
+# Installing CMS on a server
 
-This guide installs every CMS service on one clean machine running Debian
-12+ or Ubuntu 22.04+. The reference target is a **2 vCPU KVM VPS with 4 GB
-of RAM**: CPU 0 runs the web servers, PostgreSQL, Valkey and the HTTPS
-proxy; CPU 1 is reserved for the sandbox, so the queue of submissions never
-slows the contest web server down. Bigger machines work the same way (from 6
-CPUs up, CPUs 0–1 serve the web and the rest judge); more judging power
-comes from [workers on other machines](external-worker.md).
+This guide installs every CMS service on one Linux server with a single
+command, upgrades it and removes it. The reference target is a **2 vCPU
+KVM VPS with 4 GB of RAM**: CPU 0 runs the web servers, PostgreSQL, Valkey
+and the HTTPS proxy; CPU 1 is reserved for the sandbox, so the queue of
+submissions never slows the contest web server down. Bigger machines work
+the same way (from 6 CPUs up, CPUs 0–1 serve the web and the rest judge);
+more judging power comes from [workers on other machines](external-worker.md).
+To run it in containers instead, see [Docker Compose](docker.md).
 
-Measured capacity of that machine ([load tests](../../loadtest/README.md)):
-about **500 contestants with ample margin** (contest pages answered in
-under 20 ms for 95% of requests, with 1,000 ranking spectators) and **up
-to about 1,000** with pages still under 150 ms, if logins are spread over
-a few minutes. Judging is the tighter limit: one judging core scores 70–80
-submissions a minute of heavy C++; add cores or workers for a bigger final
-rush. Thousands of ranking spectators belong on the ranking server's own
-core or machine.
+## Server requirements
 
-`scripts/install.sh` does everything below; the manual steps are listed so
-you know what it changes and can adapt it.
+| | Required |
+|---|---|
+| System | **Linux**: Ubuntu 22.04 or 24.04, Debian 12 or 13 (the installer checks) |
+| Machine | a **KVM virtual machine** (most VPSs) or a **dedicated server** |
+| Access | **root** (sudo) over SSH |
+| Kernel | **control groups v2** (the default on those systems; the installer checks, and `--enable-cgroup-v2` turns them on) |
+| Architecture | **amd64** (x86-64) or **arm64** (aarch64) |
+| Network | a domain with three names (`cms.example.org`, `admin.`, `ranking.`) for HTTPS, or a LAN (plain HTTP) |
 
-## 0. Before you start
+**Not supported for judging** (the sandbox cannot measure or confine
+programs there, so verdicts would be wrong or insecure):
 
-- A machine with KVM (or bare metal) virtualisation: container VPSs
-  (OpenVZ, LXC) cannot run the sandbox.
-- DNS: three names pointing at the machine, e.g. `cms.example.org`
-  (contestants), `admin.cms.example.org` and `ranking.cms.example.org`.
-  For a contest on a local network without Internet, use `--lan` instead.
-- SSH access as a user with sudo.
+- **Windows and macOS** (including WSL and Docker Desktop): use them as
+  the administrators' or contestants' computers, not as the server.
+- **Container VPSs (OpenVZ, LXC, Virtuozzo)**: they share the host's
+  kernel and cannot create the sandbox's control groups. Ask for KVM.
+- **Serverless and PaaS platforms** (AWS Lambda, Cloud Run, Heroku,
+  Vercel...): CMS needs long-running services, a database and root.
+- 32-bit or other architectures.
 
-## 1. Quick install
+### Sizes by number of contestants
+
+| Contestants | Main server | Judging | Basis |
+|-------------|-------------|---------|-------|
+| up to ~500 | 2 vCPU, 4 GB RAM, 40 GB SSD | 1 core: 70–80 heavy C++ submissions a minute at the peak | measured ([load tests](../../loadtest/README.md)) |
+| up to ~1,000 | 4 vCPU, 8 GB RAM, 80 GB SSD | 3 cores | web measured on one core (pages under 150 ms; let contestants log in over a few minutes before the start) |
+| 1,000–3,000 | 8 vCPU, 16 GB RAM, 160 GB SSD, plus [external workers](external-worker.md) | 6 cores and more | estimate: confirm with `make loadtest` on that machine |
+
+Judging is usually the tighter limit: count the submissions of the final
+rush (every contestant every 30 seconds in the last minutes is common)
+against about 75 a minute per judging core with heavy C++, many more with
+light programs. Disk: submissions, testcases and 48 backups; a large
+contest with big testcases needs more.
+
+## Install (one line)
+
+On the server, as a user with sudo:
 
 ```sh
-sudo apt-get install -y git make golang   # only to build; or copy bin/ from a release
-git clone https://github.com/D4ND3R/Contest-Management-System.git /opt/cms-src
-cd /opt/cms-src && make build
-sudo scripts/install.sh --domain cms.example.org --email you@example.org \
-                        --admin-allow 203.0.113.0/24     # optional: who may open the admin
-sudo reboot            # only if the script says cgroup v2 had to be enabled
-sudo cms-verify-host --config /etc/cms/cms.yaml
+curl -fsSL https://raw.githubusercontent.com/D4ND3R/Contest-Management-System/main/scripts/install.sh \
+  | sudo bash -s -- --domain cms.example.org --email you@example.org
 ```
 
-Then open `https://admin.cms.example.org/`, log in as `admin` with the
-`ADMIN_PASSWORD` stored in `/etc/cms/secrets.env`, and change it (Account →
-password; enable two-factor authentication).
+Without `--domain` it serves plain HTTP on the machine's addresses
+(contest on port 80, ranking 8080, admin 8081), for a contest on a local
+network. It:
 
-Useful options: `--web nginx` (nginx + certbot instead of Caddy), `--lan`
-(plain HTTP: contest on port 80, ranking 8080, admin 8081), `--languages
-full` (all twelve toolchains instead of C, C++, Python and Java),
-`--private-ip 10.8.0.1` (let [external workers](external-worker.md) reach
-this server), `--no-firewall`. `--render-only DIR` writes every file the
-script would generate under `DIR` without touching the system.
+1. checks the machine (system, architecture, not a container, control
+   groups v2) and stops with an explanation if it cannot judge;
+2. downloads the latest release for this architecture from GitHub and
+   **verifies its SHA-256 checksum** (a corrupted or tampered download
+   stops everything);
+3. installs the packages, the compilers and isolate;
+4. creates the `cms` user, tunes PostgreSQL and Valkey to the CPUs and
+   memory it finds, installs the systemd units and pins them to the web CPU;
+5. sets up HTTPS with Caddy (certificates from Let's Encrypt) when a
+   domain is given, and the firewall;
+6. creates the first administrator, **`admin`, with a random password
+   printed once at the end** (stored nowhere);
+7. runs [`cms-verify-host`](verify-host.md): the security battery and the
+   sample solutions are judged twice. **Never start a contest on a server
+   where it fails.**
 
-The script can be run again at any time (after `git pull && make build`, to
-upgrade): it keeps `/etc/cms/cms.yaml` and the secrets, rewrites the other
-generated files only when they change, applies the database migrations and
-restarts the services.
+Useful options: `--version 1.2.0` (a given release), `--dry-run` (check
+the machine, download and verify the release, print every change, change
+nothing), `--web nginx` (nginx + certbot instead of Caddy), `--admin-allow
+203.0.113.0/24` (who may open the admin), `--languages full` (all twelve
+toolchains instead of C, C++, Python and Java), `--private-ip 10.8.0.1`
+(let [external workers](external-worker.md) reach this server),
+`--no-firewall`, `--enable-cgroup-v2`. The whole list: `--help`, or the top
+of [scripts/install.sh](../../scripts/install.sh).
 
-## 2. What the script does, step by step
+Without Internet access on the server, download `cms_<version>_linux_<arch>.tar.gz`
+and `checksums.txt` from the [releases page](https://github.com/D4ND3R/Contest-Management-System/releases),
+copy both, and run `sudo bash scripts/install.sh --archive cms_..._linux_amd64.tar.gz`
+from the unpacked tarball (the packages still come from the distribution's
+mirror).
+
+The installer can be run again at any time: it keeps `/etc/cms/cms.yaml`,
+the secrets and the installed release, rewrites the other generated files
+only when they change, and restarts the services. It never changes the
+version: that is [`cmsctl upgrade`](#upgrade).
+
+### First login
+
+Open the admin site and log in as `admin` with the password the installer
+printed. Then enable two-factor authentication (**My account**). If the
+password is lost: `sudo -u cms cmsctl admin-password` sets and prints a new
+one. Administrators who log in with a well-known default password
+(`admin`, `password`, their username...) must choose another one before
+anything else.
+
+## Upgrade
+
+```sh
+sudo cmsctl upgrade                    # the latest release
+sudo cmsctl upgrade -version 1.3.0     # a given one
+```
+
+It refuses to run while a contest is in progress (anyone's window is still
+open) unless you pass `-force`. Then it downloads the release and verifies
+its checksum, takes a backup (kind *upgrade*, listed in the admin's
+**Backups**), stops the services, switches `/opt/cms/current` to the new
+release, applies the database migrations, starts the services and waits
+until every one answers. **If any of that fails, it goes back by itself**:
+the previous release, the database restored from that backup, the services
+started. The services are down for about a minute; the last three releases
+stay in `/opt/cms/releases/`. Going back to an older version is only
+possible by restoring a backup taken with it ([backups](backups.md)).
+
+On an [external worker](external-worker.md), run
+`sudo cmsctl upgrade -version <the main server's version>` after the main
+server: a worker has no database, so it only switches the release and
+restarts (judging jobs in flight are re-queued).
+
+## Uninstall
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/D4ND3R/Contest-Management-System/main/scripts/install.sh | sudo bash -s -- --uninstall
+```
+
+stops and removes the services, the binaries and `/opt/cms`, and keeps the
+data: `/etc/cms` (configuration and secrets), `/var/lib/cms` (files and
+backups) and the PostgreSQL database `cms`. `--uninstall --purge` deletes
+those too, and the `cms` user (take a backup first). PostgreSQL, Valkey,
+the proxy, isolate and the compilers stay installed. Add `--dry-run` to see
+the list first.
+
+## What the installer does, step by step
 
 ### Packages
 
@@ -73,15 +155,18 @@ setuid root with the configuration `/usr/local/etc/isolate` (boxes under
 `/var/local/lib/isolate`, uids from 60000) and enables `isolate.service`,
 which keeps the control group isolate uses. isolate 2 needs the unified
 cgroup v2 hierarchy (the default on Debian 11+ and Ubuntu 21.10+); on an
-older setup the script adds `systemd.unified_cgroup_hierarchy=1` to the
-kernel command line and asks for a reboot.
+older setup the installer stops and explains; with `--enable-cgroup-v2` it
+adds `systemd.unified_cgroup_hierarchy=1` to the kernel command line, and
+you reboot and run it again.
 
 ### User and files
 
 | Path | Content |
 |------|---------|
-| `/usr/local/bin/cms`, `cmsctl` | the binaries |
-| `/usr/local/sbin/cms-verify-host` | `scripts/verify-host.sh` |
+| `/opt/cms/releases/<version>/` | the unpacked releases (the last three) |
+| `/opt/cms/current` | the release in use (`cmsctl upgrade` switches it) |
+| `/usr/local/bin/cms`, `cmsctl` | links to the binaries of the current release |
+| `/usr/local/sbin/cms-verify-host` | link to its `scripts/verify-host.sh` |
 | `/etc/cms/cms.yaml` | configuration (group `cms`, mode 640) |
 | `/etc/cms/secrets.env` | generated passwords and tokens (root, mode 600) |
 | `/etc/cms/languages/` | language definitions |
@@ -90,13 +175,15 @@ kernel command line and asks for a reboot.
 
 Every service runs as the unprivileged system user `cms`.
 
-### PostgreSQL for 2 vCPUs
+### PostgreSQL, tuned to the machine
 
 `/etc/postgresql/<version>/main/conf.d/cms.conf`: `shared_buffers` = RAM/8
-(128 MB–2 GB), `effective_cache_size` = RAM/2, `work_mem 8MB`,
-`max_connections 100`, **no parallel query workers** (they would take the
-judging core), `jit off` (short queries do not pay it back), `synchronous_commit
-on` (no accepted submission is ever lost), `wal_compression on`,
+(128 MB–4 GB), `effective_cache_size` = RAM/2, `maintenance_work_mem` =
+RAM/32, `work_mem 8MB` (16 MB from 16 GB of RAM), `max_worker_processes`
+= the CPUs, `max_connections 100`, **no parallel query workers** (they
+would take the judging cores), `jit off` (short queries do not pay it
+back), `synchronous_commit on` (no accepted submission is ever lost),
+`wal_compression on`,
 `random_page_cost 1.1` (SSD). The role and database `cms` get a random
 password. The services use at most 16 connections each (`database.max_conns`).
 
@@ -105,7 +192,8 @@ password. The services use at most 16 connections each (`database.max_conns`).
 `/etc/valkey/cms.conf` (included from `valkey.conf`): listens on localhost
 only (plus `--private-ip`), password required, `appendonly yes` with
 `appendfsync everysec` and `maxmemory-policy noeviction` — the judging
-queues live there and must survive a restart.
+queues live there and must survive a restart. From 6 CPUs up it uses two
+I/O threads.
 
 ### systemd
 
@@ -150,16 +238,18 @@ the admin port only from `--admin-allow`). With `--private-ip`, ports 6379
 
 ### Database and first administrator
 
-`cmsctl bootstrap` applies the migrations and creates the administrator
-`admin` with the generated password. Upgrades apply new migrations the
-same way (`cmsctl migrate`).
+`cmsctl bootstrap -generate-password` applies the migrations and, the
+first time only, creates the administrator `admin` with a random password
+that the installer prints once at the end; it is not written anywhere
+(`/etc/cms/secrets.env` keeps the database and Valkey passwords and the
+tokens). Upgrades apply new migrations with `cmsctl upgrade`.
 
-## 3. After installing
+## After installing
 
 1. `sudo cms-verify-host --config /etc/cms/cms.yaml` must end with
    `RESULT: OK` ([details](verify-host.md)). **Never start a contest on a
    host where it fails.**
-2. Log in to the admin, change the password, enable 2FA.
+2. Log in to the admin with the printed password and enable 2FA.
 3. Create or import a contest and its tasks ([problem
    packages](problem-package.md)), add the users.
 4. Check **Backups** in the admin: a backup is taken every day, every 15

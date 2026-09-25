@@ -2,7 +2,8 @@
 
 - [Guía del administrador: un concurso desde cero, cada tipo de problema paso a paso](guia-del-admin.md)
 - [Simulacro: un concurso de ensayo con checklist](simulacro.md)
-- [Despliegue en un VPS: paso a paso, script de instalación, systemd, HTTPS](despliegue.md)
+- [Instalar en un servidor: requisitos, tamaños, instalación en una línea, actualización, desinstalación](despliegue.md)
+- [Instalar con Docker Compose](docker.md)
 - [Agregar un worker en otra máquina](worker-externo.md)
 - [Manual del día del concurso](dia-del-concurso.md)
 - [Configuración del concurso: estado, práctica, acceso, registro, retroalimentación, certificados](configuracion-del-concurso.md)

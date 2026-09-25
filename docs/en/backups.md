@@ -60,7 +60,8 @@ backups stop.
 backup with its size, duration, S3 status and SHA-256. Full administrators
 can take one immediately (**Back up now**), download it and delete it. Every
 one of these actions is in the audit log (a backup contains the password
-hashes: keep the files safe).
+hashes: keep the files safe). `cmsctl upgrade` takes one of kind *upgrade*
+before switching releases ([upgrade](deployment.md#upgrade)).
 
 ## From the command line
 

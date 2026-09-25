@@ -62,7 +62,8 @@ y cada respaldo con su tamaño, duración, estado de S3 y SHA-256. Los
 administradores completos pueden tomar uno en el momento (**Respaldar
 ahora**), descargarlo y eliminarlo. Todas estas acciones quedan en el
 registro de auditoría (un respaldo contiene los hashes de las contraseñas:
-guarda los archivos en un lugar seguro).
+guarda los archivos en un lugar seguro). `cmsctl upgrade` toma uno de tipo
+*actualización* antes de cambiar de versión ([actualizar](despliegue.md#actualizar)).
 
 ## Desde la línea de comandos
 

@@ -843,3 +843,113 @@ core with 10,000 spectators), and the mark appears with the next update of
 the board, which during a contest is a moment away. The cost is one
 aggregate query and upsert per submission, in the transaction that
 enqueues its compilation.
+
+## D72. License: Apache-2.0
+The project is an independent implementation (CMS, AGPL-3.0, was studied
+only for behaviour and architecture, CLAUDE.md), so the license is
+free to choose. Apache-2.0: permissive, so schools and olympiad
+committees can adapt and host it without having to publish their
+deployment changes (AGPL would oblige every organizer who customizes a
+networked installation to do so, which in practice discourages use), and,
+unlike MIT, with an explicit patent grant and terms for contributions.
+Every dependency is MIT, BSD or Apache-2.0 and the bundled htmx is
+Zero-Clause BSD (NOTICE), all compatible.
+
+## D73. Releases: GoReleaser tarball per architecture, images on GHCR
+A tag `vX.Y.Z` runs `.github/workflows/release.yml`: the lint and the
+fast unit tests first, then GoReleaser (`.goreleaser.yaml`) and the
+images in parallel. The binaries are static (`CGO_ENABLED=0`) for
+linux/amd64 and linux/arm64, with the version stamped in. One tarball
+per architecture, `cms_<version>_linux_<arch>.tar.gz`, unpacks into one
+directory with everything an installation reads from disk: both
+binaries, example configuration, language files, systemd units, the
+installer and verify-host, the documentation, and the migrations,
+templates and static files. The last three are also embedded in the
+binary; they ship so an operator can review them. `checksums.txt`
+(SHA-256) is what both the installer and `cmsctl upgrade` verify
+before unpacking anything. The changelog comes from the commits since
+the previous tag. The images are
+`ghcr.io/<owner>/<repo>/cms` and `/worker` (GHCR requires lower case, so
+`${GITHUB_REPOSITORY,,}`), built by buildx for both architectures (QEMU
+for arm64; the Go part cross-compiles on the build platform, so only the
+apt steps are emulated), tagged `X.Y.Z`, `X.Y` and `latest` (not for
+pre-releases). No separate dispatcher image: the `cms` image runs every
+non-judging service, the `worker` image adds isolate and the compilers.
+`internal/cli.TestReleaseConfiguration` guards the configuration (every
+listed file exists, both architectures, the trigger, the image matrix);
+the CI job `release-snapshot` builds a real snapshot and
+`scripts/check-release.sh` checks it.
+
+## D74. One-line installer: releases under /opt/cms, dry run, blockers
+`scripts/install.sh` is meant to be piped (`curl … | sudo bash`), so the
+whole script is functions with `main "$@"` on the last line: a truncated
+download runs nothing. It installs releases side by side in
+`/opt/cms/releases/<version>` with `/opt/cms/current` pointing at the one
+in use, and `/usr/local/bin/cms` and `cmsctl` link through `current`.
+Switching versions and rolling back are then a single symlink change
+(D76), and the three most recent releases stay on disk. It checks everything it can
+before changing anything. It supports Ubuntu 22.04/24.04 and Debian 12
+on amd64/arm64. It refuses containers (OpenVZ, LXC, Docker), WSL and
+cgroup v1. On cgroup v1 it explains how to switch; with
+`--enable-cgroup-v2` it edits GRUB and asks for a reboot, and it never
+reboots by itself. `--dry-run` prints every command and file it would
+write and lists every blocker instead of stopping at the first, so one
+run shows everything to fix. Re-running it reconfigures the installed
+release: it keeps `/etc/cms/cms.yaml`, the secrets and the database, and
+never downloads a different version. A different `--version` is refused
+with a pointer to `cmsctl upgrade`, which takes the backup and handles
+rollback. PostgreSQL and Valkey are tuned from the detected CPUs and
+RAM. The tests run the real script piped from a fake release server
+(`TestInstallFromRelease`), in addition to the rendered-files test.
+
+## D75. Production Docker worker: minimal privileges, not --privileged
+isolate needs to create namespaces, mount inside them, bring up the
+loopback interface of each box and manage a cgroup v2 subtree. The worker
+container therefore gets `CAP_SYS_ADMIN` (namespaces and mounts; Docker's
+default seccomp profile relaxes for it), `CAP_NET_ADMIN` (the box's `lo`),
+`apparmor:unconfined` (docker-default denies `mount`) and a private
+cgroup namespace. Its entrypoint remounts `/sys/fs/cgroup` writable,
+moves its own processes into a leaf and delegates the rest to isolate.
+It is never `--privileged`: devices, the other capabilities and the
+host's cgroup tree stay out of reach. The worker then drops to the
+unprivileged `cms` user (uid/gid 2000 in both images, so volumes are
+shared without chown games). The production stack
+(`deploy/docker/compose.yml`, project `cms-production`) is separate from
+the development one (`docker-compose.yml` + `cms.dev.yaml`, project
+`cms`), so the two never share volumes. Its configuration carries no
+secrets: they live in `.env`, written once by `setup.sh`.
+
+## D76. cmsctl upgrade: contest check, backup, forward-only, rollback
+Migrations only go forward, so the previous release cannot run against a
+migrated schema. Rolling back therefore always means the previous
+release *and* the database restored from the backup taken just before.
+Order: resolve the version (downgrades refused), refuse while any
+participation's window is still open (extra time and delay included,
+`ListRunningContests`) unless `-force`, then download and verify the
+checksum and unpack. All of this happens before the services are
+touched, so a failure there changes nothing. Then: backup (kind
+*upgrade*), stop `cms.target`, switch `current`, migrate with the *new*
+binary, start, and wait until every enabled service answers `/healthz`.
+A failure after the stop rolls back automatically; if the rollback itself
+fails, the error names the backup to restore by hand. A remote worker
+(`blob.backend: http`, no database) only switches and restarts: no
+contest check, backup or migrations, since its judging jobs are
+re-queued. Workers are upgraded after the main server, to the same
+version. The Docker install upgrades by image tag instead (`setup.sh
+--version`; `init` migrates before the services start).
+
+## D77. First boot: no default administrator password
+There is no `admin/admin` any more outside `make dev`. The installer and
+`setup.sh` run `cms ctl bootstrap -generate-password`, which prints a
+random 16-character password (no look-alike characters) once and stores
+only its hash. `cms ctl admin-password` resets it the same way if lost.
+The development stacks keep `admin/admin` for convenience, but it is
+still caught at login. Any administrator who logs in with a well-known
+default is flagged `password_change_required` (migration 0016). This
+covers `admin`, `password`, `changeme`, `123456`… and a password equal
+to the username. Until the password is changed, every admin page
+redirects to the account page. Only that page, the password change and
+logout are allowed. The flag is stored, not recomputed per request, so
+the check costs nothing after login. It is set before the session exists,
+so it cannot be skipped by racing requests. Creating or updating an
+administrator with such a password is refused outright.

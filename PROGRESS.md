@@ -875,3 +875,55 @@ real VPS, and the important decisions. AUDIT.md has no row left missing
 or partial; the rows marked **hw** need the target machine (isolate 2
 with cgroup v2, the load tests on its CPUs). SPEC_CLOSE.md blocks A–F are
 complete.
+
+## Distribution and installation (done)
+Skipping skills: immersive-web-design, master skill.
+
+AUDIT.md §9 (G1–G8), decisions D72–D77.
+
+- **Releases (G1).** A tag `vX.Y.Z` runs `.github/workflows/release.yml`:
+  lint and fast tests, then GoReleaser publishes static binaries for
+  linux/amd64 and linux/arm64, `checksums.txt` (SHA-256), a changelog
+  from the commits and `cms_<version>_linux_<arch>.tar.gz`. The tarball
+  holds both binaries, example config, languages, migrations, templates,
+  static files, systemd units, installer, verify-host and docs. CI builds
+  a snapshot on every push and checks it (`scripts/check-release.sh`).
+- **Images (G2).** `ghcr.io/<owner>/<repo>/cms` and `/worker` for amd64 and
+  arm64, tagged X.Y.Z, X.Y and latest. The Go part is cross-compiled,
+  both images run as uid 2000, and there is no baked-in configuration.
+- **One-line installer (G3).** `curl -fsSL …/scripts/install.sh | sudo bash`
+  downloads the release and verifies its checksum. It lays out
+  `/opt/cms/releases/<v>` + `current`, installs isolate and PostgreSQL /
+  Valkey tuned to the machine's CPUs and RAM, systemd, and Caddy (or
+  nginx) HTTPS for a domain. It then runs `cms-verify-host`. It stops
+  on unsupported systems (containers, WSL, cgroup v1 with an explanation
+  or `--enable-cgroup-v2`), and `--dry-run` lists every blocker. It is
+  idempotent and can uninstall (`--uninstall [--purge]`).
+- **Docker Compose (G4).** `deploy/docker/compose.yml` + `setup.sh`: random
+  secrets in `.env` and a CPU/RAM layout. The worker gets only
+  `SYS_ADMIN` + `NET_ADMIN`, no AppArmor profile and a private cgroup
+  namespace (never privileged). Data is in named volumes, Caddy serves
+  HTTPS, and backups go to a volume. Verified end to end with locally
+  built images.
+- **`cmsctl upgrade` (G5).** Refuses during a contest unless `-force`
+  and refuses downgrades. It downloads and verifies the release, takes a
+  backup, stops, switches, migrates with the new binary, starts and waits
+  for `/healthz`. On any failure it switches back and restores the
+  database. Remote workers only switch and restart.
+- **First boot (G6).** No admin/admin outside `make dev`: the first
+  administrator's password is random and printed once (`cms ctl
+  bootstrap -generate-password`; `cms ctl admin-password` resets it).
+  Logging in with a well-known default forces a password change before
+  any other admin page.
+- **Documentation (G7).** README and docs/{en,es}: server requirements
+  (and what cannot judge), sizes by number of contestants, one-line
+  install, Docker, upgrade and uninstall. The external worker, contest
+  day and backups pages were updated to match.
+- **License (G8).** Apache-2.0 (LICENSE, NOTICE, README).
+
+Tested here: `make lint`, `make test`, shellcheck and actionlint on the
+scripts and workflows, a GoReleaser snapshot with `check-release.sh`, and
+the production compose stack with local images (all services healthy,
+backup and restore, re-run). Pending on real infrastructure: the first
+tag's release and GHCR push, the arm64 images on arm64 hardware, and a
+one-line install on a fresh VPS of each supported distribution.

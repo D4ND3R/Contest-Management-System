@@ -52,8 +52,7 @@ worker.
 ## 2. Servidor principal: escuchar en la dirección privada
 
 ```sh
-cd /opt/cms-src
-sudo scripts/install.sh --domain cms.example.org --private-ip 10.8.0.1   # mismas opciones que antes
+sudo bash /opt/cms/current/scripts/install.sh --domain cms.example.org --private-ip 10.8.0.1   # mismas opciones que antes
 ```
 
 Así Valkey también escucha en 10.8.0.1, se configura `blob_server.listen:
@@ -64,12 +63,16 @@ Así Valkey también escucha en 10.8.0.1, se configura `blob_server.listen:
 ## 3. Máquina del worker
 
 ```sh
-git clone https://github.com/D4ND3R/Contest-Management-System.git /opt/cms-src
-cd /opt/cms-src && make build          # o copia bin/ desde el servidor principal
-sudo scripts/install.sh --role worker --main 10.8.0.1 \
+curl -fsSL https://raw.githubusercontent.com/D4ND3R/Contest-Management-System/main/scripts/install.sh | sudo bash -s -- \
+     --role worker --version <la versión del servidor principal: cms version> --main 10.8.0.1 \
      --redis-password <REDIS_PASSWORD> --blob-token <BLOB_TOKEN> --worker-name juez-2
-sudo cms-verify-host --config /etc/cms/cms.yaml
 ```
+
+El instalador termina corriendo `cms-verify-host`, que debe pasar. Mantén
+cada worker en la versión del servidor principal: después de `sudo cmsctl
+upgrade` en el servidor principal, corre `sudo cmsctl upgrade -version <la
+misma>` en cada worker (un worker no tiene base de datos: solo cambia la
+versión y reinicia).
 
 El `cms.yaml` del worker usa `redis.url: redis://:<contraseña>@10.8.0.1:6379/0`
 y el backend de blobs `http` (`blob.http.url: http://10.8.0.1:8891`) con una

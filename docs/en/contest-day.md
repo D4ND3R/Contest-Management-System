@@ -5,8 +5,9 @@ web site; commands run on the main server unless noted.
 
 ## The day before
 
-- [ ] Upgrade if needed (`git pull && make build && sudo scripts/install.sh …`
-      with the same options) — never on the contest day itself.
+- [ ] Upgrade if needed (`sudo cmsctl upgrade`, then the same version on
+      every worker) — never on the contest day itself (it refuses while a
+      contest is in progress).
 - [ ] Every task validated: the task page's **Validation** report shows
       every reference solution with the expected verdict.
 - [ ] Contest settings: start and end time (in UTC on the server; check the
