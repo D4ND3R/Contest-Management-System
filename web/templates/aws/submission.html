@@ -36,7 +36,7 @@
 <h2>{{.T "Files"}}</h2>
 {{range .Data.Files}}
 <details open><summary><b>{{.Name}}</b> <a href="/submissions/{{$s.ID}}/files/{{.Name}}">{{$.T "download"}}</a></summary>
-{{if .Binary}}<p class="muted">{{$.T "Binary or large file."}}</p>{{else}}<pre class="code">{{.Text}}</pre>{{end}}
+{{if .Binary}}<p class="muted">{{$.T "Binary or large file."}}</p>{{else}}<pre class="code hl">{{.HTML}}</pre>{{end}}
 </details>
 {{end}}
 <h2>{{.T "Results"}}</h2>

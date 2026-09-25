@@ -6,14 +6,19 @@
   <label>{{.T "User"}} <input name="user" value="{{$f.User}}" placeholder="{{.T "username contains"}}"></label>
   <label>{{.T "Status"}} <select name="status"><option value="">{{.T "all"}}</option>{{range .Data.Statuses}}<option value="{{.}}" {{if eq . $f.Status}}selected{{end}}>{{$.T .}}</option>{{end}}</select></label>
   <label>{{.T "Language"}} <select name="language"><option value="">{{.T "all"}}</option>{{range .Data.Languages}}<option value="{{.ID}}" {{if eq .ID $f.Language}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  <label>{{.T "Verdict"}} <select name="verdict"><option value="">{{.T "all"}}</option>{{range .Data.Verdicts}}<option value="{{.}}" {{if eq . $f.Verdict}}selected{{end}}>{{.}}</option>{{end}}</select></label>
   <label>{{.T "Score ≥"}} <input name="min" value="{{$f.MinScore}}" size="4"></label>
   <label>≤ <input name="max" value="{{$f.MaxScore}}" size="4"></label>
+  <label>{{.T "From"}} <input type="datetime-local" name="from" value="{{$f.From}}"></label>
+  <label>{{.T "to"}} <input type="datetime-local" name="to" value="{{$f.To}}"></label>
   {{if $f.Participation}}<input type="hidden" name="participation" value="{{$f.Participation}}">{{end}}
   <button>{{.T "Filter"}}</button> <a href="/contests/{{$c.ID}}/submissions">{{.T "reset"}}</a>
+  · <a href="/contests/{{$c.ID}}/submissions.zip?{{$f.Query}}" title="{{.T "Every submission matching the filters (not only this page), with an index.csv"}}">{{.T "Download as zip"}}</a>
 </form>
+<p class="muted small">{{.T "Times are in the contest's timezone (%s)." $c.Timezone}}</p>
 <form method="get" action="/submissions/diff">
 <table id="submissions">
-<thead><tr><th></th><th>#</th><th>{{.T "Time (UTC)"}}</th><th>{{.T "User"}}</th><th>{{.T "Task"}}</th><th>{{.T "Language"}}</th><th>{{.T "Status"}}</th><th class="num">{{.T "Score"}}</th></tr></thead>
+<thead><tr><th></th><th>#</th><th>{{.T "Time (UTC)"}}</th><th>{{.T "User"}}</th><th>{{.T "Task"}}</th><th>{{.T "Language"}}</th><th>{{.T "Status"}}</th><th>{{.T "Verdict"}}</th><th class="num">{{.T "Score"}}</th></tr></thead>
 <tbody>
 {{range .Data.Rows}}
 <tr id="sub-{{.ID}}">
@@ -24,10 +29,11 @@
   <td>{{.TaskName}}</td>
   <td>{{deref .Language}}</td>
   <td>{{if .SystemError}}<span class="bad">{{$.T "system error"}}</span>{{else if not .CompilationOutcome}}{{$.T "compiling…"}}{{else if eq (deref .CompilationOutcome) "fail"}}<span class="bad">{{$.T "compilation failed"}}</span>{{else if not .ScoredAt}}{{$.T "evaluating %d/%d" (deref32 .TestcasesDone) (deref32 .TestcasesTotal)}}{{else}}<span class="ok">{{$.T "scored"}}</span>{{end}}</td>
+  <td>{{with deref .Verdict}}<span class="{{if eq . "AC"}}ok{{else}}bad{{end}}">{{.}}</span>{{end}}</td>
   <td class="num">{{score .Score .ScorePrecision}}</td>
 </tr>
 {{else}}
-<tr><td colspan="8" class="muted">{{.T "No submissions match."}}</td></tr>
+<tr><td colspan="9" class="muted">{{.T "No submissions match."}}</td></tr>
 {{end}}
 </tbody>
 </table>

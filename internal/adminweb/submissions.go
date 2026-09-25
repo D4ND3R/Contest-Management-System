@@ -1,15 +1,22 @@
 package adminweb
 
 import (
+	"archive/zip"
+	"encoding/csv"
 	"encoding/json"
+	"fmt"
+	"html/template"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/dispatcher"
+	"github.com/D4ND3R/Contest-Management-System/internal/highlight"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/scoring"
 )
@@ -21,6 +28,10 @@ type submissionFilter struct {
 	Task, Participation, Before int64
 	User, Status, Language      string
 	MinScore, MaxScore          string
+	Verdict                     string
+	// From and To bound the submission time (datetime-local values in
+	// the contest's timezone).
+	From, To string
 }
 
 func (f submissionFilter) query(before int64) string {
@@ -31,7 +42,8 @@ func (f submissionFilter) query(before int64) string {
 	if f.Participation != 0 {
 		v.Set("participation", strconv.FormatInt(f.Participation, 10))
 	}
-	for k, x := range map[string]string{"user": f.User, "status": f.Status, "language": f.Language, "min": f.MinScore, "max": f.MaxScore} {
+	for k, x := range map[string]string{"user": f.User, "status": f.Status, "language": f.Language, "min": f.MinScore,
+		"max": f.MaxScore, "verdict": f.Verdict, "from": f.From, "to": f.To} {
 		if x != "" {
 			v.Set(k, x)
 		}
@@ -42,8 +54,15 @@ func (f submissionFilter) query(before int64) string {
 	return v.Encode()
 }
 
+// Query is the filter as a query string (for the zip link).
+func (f submissionFilter) Query() string { return f.query(0) }
+
 // statusFilters are the values of the submission list's status filter.
 var statusFilters = []string{"pending", "compile_failed", "scored", "error"}
+
+// verdictFilters are the verdicts of the verdict filter.
+var verdictFilters = []string{scoring.VerdictAccepted, scoring.VerdictWrong, scoring.VerdictTime, scoring.VerdictMemory,
+	scoring.VerdictRuntime, scoring.VerdictOutputLimit, scoring.VerdictCompileError}
 
 type submissionsPage struct {
 	Contest   sqlc.Contest
@@ -53,16 +72,15 @@ type submissionsPage struct {
 	Rows      []sqlc.AdminListSubmissionsRow
 	Next      string
 	Statuses  []string
+	Verdicts  []string
 }
 
-func (s *Server) handleSubmissions(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	c, ok := s.loadContest(w, r, rc)
-	if !ok {
-		return
-	}
+// submissionQuery reads the filters of r into the list query.
+func submissionQuery(r *http.Request, c sqlc.Contest) (submissionFilter, sqlc.AdminListSubmissionsParams) {
 	qv := r.URL.Query()
 	f := submissionFilter{User: strings.TrimSpace(qv.Get("user")), Status: qv.Get("status"), Language: qv.Get("language"),
-		MinScore: strings.TrimSpace(qv.Get("min")), MaxScore: strings.TrimSpace(qv.Get("max"))}
+		MinScore: strings.TrimSpace(qv.Get("min")), MaxScore: strings.TrimSpace(qv.Get("max")), Verdict: qv.Get("verdict"),
+		From: qv.Get("from"), To: qv.Get("to")}
 	f.Task, _ = strconv.ParseInt(qv.Get("task"), 10, 64)
 	f.Participation, _ = strconv.ParseInt(qv.Get("participation"), 10, 64)
 	f.Before, _ = strconv.ParseInt(qv.Get("before"), 10, 64)
@@ -85,21 +103,49 @@ func (s *Server) handleSubmissions(w http.ResponseWriter, r *http.Request, rc *r
 	default:
 		f.Status = ""
 	}
+	if contains(verdictFilters, f.Verdict) {
+		p.Verdict = &f.Verdict
+	} else {
+		f.Verdict = ""
+	}
 	if x, err := strconv.ParseFloat(f.MinScore, 64); err == nil {
 		p.MinScore = &x
 	}
 	if x, err := strconv.ParseFloat(f.MaxScore, 64); err == nil {
 		p.MaxScore = &x
 	}
+	loc, err := time.LoadLocation(c.Timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	parse := func(v *string) *time.Time {
+		for _, layout := range []string{"2006-01-02T15:04", "2006-01-02T15:04:05", "2006-01-02"} {
+			if t, err := time.ParseInLocation(layout, *v, loc); err == nil {
+				return &t
+			}
+		}
+		*v = ""
+		return nil
+	}
+	p.FromTime, p.ToTime = parse(&f.From), parse(&f.To)
 	if f.Before != 0 {
 		p.BeforeID = &f.Before
 	}
+	return f, p
+}
+
+func (s *Server) handleSubmissions(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	c, ok := s.loadContest(w, r, rc)
+	if !ok {
+		return
+	}
+	f, p := submissionQuery(r, c)
 	rows, err := s.q.AdminListSubmissions(r.Context(), p)
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
 	}
-	d := &submissionsPage{Contest: c, Languages: s.langs.All(), F: f, Statuses: statusFilters}
+	d := &submissionsPage{Contest: c, Languages: s.langs.All(), F: f, Statuses: statusFilters, Verdicts: verdictFilters}
 	if len(rows) > submissionsPerPage {
 		rows = rows[:submissionsPerPage]
 		d.Next = f.query(rows[len(rows)-1].ID)
@@ -111,6 +157,109 @@ func (s *Server) handleSubmissions(w http.ResponseWriter, r *http.Request, rc *r
 	}
 	s.render(w, "submissions", http.StatusOK, s.newPage(w, r, rc, "Submissions", "contests", d).
 		crumb("Contests", "/contests").crumb(c.Name, "/contests/"+strconv.FormatInt(c.ID, 10)))
+}
+
+// maxZipFiles bounds a submissions zip (the index says when it is cut).
+const maxZipFiles = 200000
+
+// handleSubmissionsZip streams the source files of the submissions matching
+// the list's filters: index.csv, then task/user/id/file.
+func (s *Server) handleSubmissionsZip(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	c, ok := s.loadContest(w, r, rc)
+	if !ok {
+		return
+	}
+	_, lp := submissionQuery(r, c)
+	rows, err := s.q.AdminExportSubmissionFiles(r.Context(), sqlc.AdminExportSubmissionFilesParams{ContestID: c.ID,
+		TaskID: lp.TaskID, ParticipationID: lp.ParticipationID, Username: lp.Username, Language: lp.Language,
+		MinScore: lp.MinScore, MaxScore: lp.MaxScore, Status: lp.Status, Verdict: lp.Verdict, FromTime: lp.FromTime,
+		ToTime: lp.ToTime, Lim: maxZipFiles + 1})
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	truncated := len(rows) > maxZipFiles
+	if truncated {
+		rows = rows[:maxZipFiles]
+	}
+	name := c.Name + "-submissions"
+	if lp.TaskID != nil || lp.ParticipationID != nil || lp.Username != nil {
+		name += "-filtered"
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`.zip"`)
+	zw := zip.NewWriter(w)
+	// The index first: one line per submission.
+	iw, _ := zw.CreateHeader(&zip.FileHeader{Name: "index.csv", Method: zip.Deflate, Modified: s.now()})
+	cw := csv.NewWriter(iw)
+	cw.Write([]string{"id", "submitted_at", "username", "task", "language", "official", "invalidated", "compilation", "score", "verdict", "files"})
+	for i := 0; i < len(rows); {
+		j := i
+		var files []string
+		for ; j < len(rows) && rows[j].ID == rows[i].ID; j++ {
+			files = append(files, s.zipName(rows[j]))
+		}
+		x := rows[i]
+		score := ""
+		if x.Score != nil {
+			score = strconv.FormatFloat(*x.Score, 'f', -1, 64)
+		}
+		cw.Write([]string{strconv.FormatInt(x.ID, 10), x.SubmittedAt.UTC().Format(time.RFC3339), x.Username, x.TaskName,
+			derefStr(x.Language), strconv.FormatBool(x.Official), strconv.FormatBool(x.Invalidated), derefStr(x.CompilationOutcome),
+			score, derefStr(x.Verdict), strings.Join(files, " ")})
+		i = j
+	}
+	if truncated {
+		cw.Write([]string{"# truncated: at most " + strconv.Itoa(maxZipFiles) + " files; filter the list to get the rest"})
+	}
+	cw.Flush()
+	for _, x := range rows {
+		fw, err := zw.CreateHeader(&zip.FileHeader{Name: s.zipName(x), Method: zip.Deflate, Modified: x.SubmittedAt})
+		if err != nil {
+			s.log.Warn("submissions zip", "error", err)
+			return
+		}
+		rd, err := s.blobs.Open(r.Context(), x.Digest)
+		if err != nil {
+			fmt.Fprintf(fw, "missing from the blob store: %s\n", x.Digest)
+			continue
+		}
+		_, err = io.Copy(fw, rd)
+		rd.Close()
+		if err != nil {
+			s.log.Warn("submissions zip", "error", err)
+			return
+		}
+	}
+	if err := zw.Close(); err != nil {
+		s.log.Warn("submissions zip", "error", err)
+	}
+	rc.note("files", len(rows))
+}
+
+// zipName is a file's path in the submissions zip.
+func (s *Server) zipName(x sqlc.AdminExportSubmissionFilesRow) string {
+	name := x.Filename
+	if x.Language != nil {
+		if l, ok := s.langs.Get(*x.Language); ok {
+			name = strings.ReplaceAll(name, ".%l", l.SourceExtension())
+		}
+	}
+	return zipSafe(x.TaskName) + "/" + zipSafe(x.Username) + "/" + strconv.FormatInt(x.ID, 10) + "/" + zipSafe(name)
+}
+
+// zipSafe keeps a path component inside its directory.
+func zipSafe(s string) string {
+	s = strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r < 32 {
+			return '_'
+		}
+		return r
+	}, s)
+	if s == "" || s == "." || s == ".." {
+		return "_"
+	}
+	return s
 }
 
 // resultView is a submission result on one dataset.
@@ -133,6 +282,8 @@ type fileView struct {
 	Text         string
 	Binary       bool
 	Size         int
+	// HTML is the highlighted source.
+	HTML template.HTML
 }
 
 func (s *Server) loadSubmission(w http.ResponseWriter, r *http.Request, rc *reqCtx, id int64) (sqlc.AdminGetSubmissionRow, bool) {
@@ -171,6 +322,7 @@ func (s *Server) files(r *http.Request, sub sqlc.AdminGetSubmissionRow) ([]fileV
 			fv.Binary, fv.Size = true, len(data)
 		default:
 			fv.Text, fv.Size = string(data), len(data)
+			fv.HTML = highlight.HTML(fv.Text, highlight.ForFile(fv.Name))
 		}
 		out = append(out, fv)
 	}

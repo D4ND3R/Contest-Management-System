@@ -39,6 +39,11 @@ fieldset[hidden]{display:none}
 .right{float:right}
 textarea.code,pre.code{font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 pre.code{max-height:40rem}
+/* Highlighted source: numbered lines (CSS counters), GitHub-like colours. */
+pre.hl{counter-reset:l;white-space:pre}
+pre.hl .l{display:block}
+pre.hl .l::before{counter-increment:l;content:counter(l);display:inline-block;width:3.5em;margin-right:1em;padding-right:.5em;text-align:right;color:#8a94a6;border-right:1px solid #dde3ec;user-select:none}
+pre.hl .k{color:#a0115d;font-weight:600}pre.hl .s{color:#0a5c2c}pre.hl .c{color:#6a737d;font-style:italic}pre.hl .n{color:#0550ae}pre.hl .p{color:#8a4b08}
 table.diff{font:13px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 table.diff td{padding:0 .4rem;border:0}
 table.diff pre{margin:0;padding:0;background:none;max-height:none;overflow:visible;white-space:pre-wrap}

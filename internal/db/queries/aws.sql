@@ -6,7 +6,7 @@
 SELECT s.id, s.submitted_at, s.language, s.official, s.participation_id, s.task_id,
        u.username, t.name AS task_name, t.score_precision,
        sr.compilation_outcome, sr.testcases_done, sr.testcases_total, sr.score, sr.scored_at,
-       sr.system_error, (tk.submission_id IS NOT NULL)::boolean AS tokened,
+       sr.system_error, sr.verdict, (tk.submission_id IS NOT NULL)::boolean AS tokened,
        (s.invalidated_at IS NOT NULL)::boolean AS invalidated
 FROM submissions s
 JOIN participations p ON p.id = s.participation_id
@@ -27,8 +27,42 @@ WHERE p.contest_id = @contest_id::bigint
         WHEN 'scored' THEN sr.scored_at IS NOT NULL AND sr.compilation_outcome = 'ok'
         WHEN 'error' THEN sr.system_error IS NOT NULL
         ELSE true END)
+  AND (sqlc.narg(verdict)::text IS NULL OR sr.verdict = sqlc.narg(verdict)::text)
+  AND (sqlc.narg(from_time)::timestamptz IS NULL OR s.submitted_at >= sqlc.narg(from_time)::timestamptz)
+  AND (sqlc.narg(to_time)::timestamptz IS NULL OR s.submitted_at < sqlc.narg(to_time)::timestamptz)
   AND (sqlc.narg(before_id)::bigint IS NULL OR s.id < sqlc.narg(before_id)::bigint)
 ORDER BY s.id DESC
+LIMIT @lim::int;
+
+-- name: AdminExportSubmissionFiles :many
+-- The files of the submissions matching the list's filters, for the zip
+-- download (same filters as AdminListSubmissions, no pagination).
+SELECT s.id, s.submitted_at, s.language, s.official, u.username, t.name AS task_name,
+       sr.compilation_outcome, sr.score, sr.verdict, (s.invalidated_at IS NOT NULL)::boolean AS invalidated,
+       f.filename, f.digest
+FROM submissions s
+JOIN participations p ON p.id = s.participation_id
+JOIN users u ON u.id = p.user_id
+JOIN tasks t ON t.id = s.task_id
+JOIN submission_files f ON f.submission_id = s.id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE p.contest_id = @contest_id::bigint
+  AND (sqlc.narg(task_id)::bigint IS NULL OR s.task_id = sqlc.narg(task_id)::bigint)
+  AND (sqlc.narg(participation_id)::bigint IS NULL OR s.participation_id = sqlc.narg(participation_id)::bigint)
+  AND (sqlc.narg(username)::text IS NULL OR u.username ILIKE '%' || sqlc.narg(username)::text || '%')
+  AND (sqlc.narg(language)::text IS NULL OR s.language = sqlc.narg(language)::text)
+  AND (sqlc.narg(min_score)::float8 IS NULL OR sr.score >= sqlc.narg(min_score)::float8)
+  AND (sqlc.narg(max_score)::float8 IS NULL OR sr.score <= sqlc.narg(max_score)::float8)
+  AND (sqlc.narg(status)::text IS NULL OR CASE sqlc.narg(status)::text
+        WHEN 'pending' THEN sr.scored_at IS NULL AND sr.system_error IS NULL
+        WHEN 'compile_failed' THEN sr.compilation_outcome = 'fail'
+        WHEN 'scored' THEN sr.scored_at IS NOT NULL AND sr.compilation_outcome = 'ok'
+        WHEN 'error' THEN sr.system_error IS NOT NULL
+        ELSE true END)
+  AND (sqlc.narg(verdict)::text IS NULL OR sr.verdict = sqlc.narg(verdict)::text)
+  AND (sqlc.narg(from_time)::timestamptz IS NULL OR s.submitted_at >= sqlc.narg(from_time)::timestamptz)
+  AND (sqlc.narg(to_time)::timestamptz IS NULL OR s.submitted_at < sqlc.narg(to_time)::timestamptz)
+ORDER BY t.name, u.username, s.id, f.filename
 LIMIT @lim::int;
 
 -- name: AdminGetSubmission :one

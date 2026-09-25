@@ -660,3 +660,14 @@ adminweb.TestPrintQueue.
 
 Block B is complete: B1–B8 (C1–C9 and X11 of the audit).
 
+## SPEC_CLOSE D1 — Submissions (done)
+Skipping skills: immersive-web-design, master skill.
+
+The admin submission list filters by verdict and by a date range (contest
+timezone) besides task, user, status, language and score, and shows the
+verdict. Sources are highlighted server-side with line numbers. "Download
+as zip" gives every submission matching the filters (contest, task or user)
+with an index.csv; bulk downloads (this one and backups) are audited.
+Tests: highlight.TestHighlight (+ benchmark),
+adminweb.TestSubmissionFiltersSourceAndZip.
+

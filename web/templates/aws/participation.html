@@ -1,7 +1,7 @@
 {{define "content"}}
 {{$p := .Data.P}}
 <h1>{{$p.Username}} <small class="muted">{{$p.FirstName}} {{$p.LastName}} · {{$p.ContestName}}</small></h1>
-<p class="actions"><a href="/users/{{$p.UserID}}">{{.T "User"}}</a> · <a href="/contests/{{$p.ContestID}}/submissions?participation={{$p.ID}}">{{.T "Submissions"}}</a>{{template "extra-participation-links" .}}
+<p class="actions"><a href="/users/{{$p.UserID}}">{{.T "User"}}</a> · <a href="/contests/{{$p.ContestID}}/submissions?participation={{$p.ID}}">{{.T "Submissions"}}</a> (<a href="/contests/{{$p.ContestID}}/submissions.zip?participation={{$p.ID}}">zip</a>){{template "extra-participation-links" .}}
   <form method="post" action="/participations/{{$p.ID}}/view-as" class="inline">{{template "csrf" .CSRF}}<button class="secondary small">{{.T "View as contestant (read-only)"}}</button></form></p>
 <div class="row">
 <section class="card">

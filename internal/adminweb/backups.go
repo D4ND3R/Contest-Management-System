@@ -85,6 +85,7 @@ func (s *Server) handleBackupDownload(w http.ResponseWriter, r *http.Request, rc
 		s.notFound(w, r, rc)
 		return
 	}
+	rc.note("name", name)
 	f, err := os.Open(path)
 	if err != nil {
 		s.notFound(w, r, rc)

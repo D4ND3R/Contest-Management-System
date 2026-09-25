@@ -232,6 +232,11 @@ var esClose = map[string]string{
 	"Only jobs waiting for the printer can be cancelled.":             "Solo se pueden cancelar los trabajos que esperan a la impresora.",
 	"reprint":     "reimprimir",
 	"print again": "imprimir de nuevo",
+	// D1: submissions.
+	"From":            "Desde",
+	"Download as zip": "Descargar en zip",
+	"Every submission matching the filters (not only this page), with an index.csv": "Todos los envíos que cumplen los filtros (no solo esta página), con un index.csv",
+	"Times are in the contest's timezone (%s).":                                     "Las horas están en la zona horaria del concurso (%s).",
 }
 
 func init() {

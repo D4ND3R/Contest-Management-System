@@ -201,6 +201,8 @@ func (s *Server) Handler() http.Handler {
 	get("/contests/{id}/balloons", s.handleBalloons)
 	post("/contests/{id}/balloons/deliver", permMessaging, "balloon.deliver", s.handleBalloonDeliver)
 	get("/contests/{id}/printing", s.handlePrintQueue)
+	// Bulk downloads are audited.
+	route("GET /contests/{id}/submissions.zip", permRead, "submissions.download", s.handleSubmissionsZip)
 	get("/print-jobs/{id}/pdf", s.handlePrintJobPDF)
 	post("/print-jobs/{id}/{action}", permMessaging, "print_job.action", s.handlePrintJobAction)
 	post("/contests/{id}/extend", permAll, "contest.extend", s.handleContestExtend)
@@ -274,7 +276,7 @@ func (s *Server) Handler() http.Handler {
 
 	get("/backups", s.handleBackups)
 	post("/backups", permAll, "backup.create", s.handleBackupCreate)
-	route("GET /backups/{name}/download", permAll, "", s.handleBackupDownload)
+	route("GET /backups/{name}/download", permAll, "backup.download", s.handleBackupDownload)
 	post("/backups/{name}/delete", permAll, "backup.delete", s.handleBackupDelete)
 	get("/submissions/diff", s.handleSubmissionDiff)
 	get("/submissions/{id}", s.handleSubmission)
@@ -414,7 +416,9 @@ func (s *Server) withAdmin(p perm, action string, h handler) http.HandlerFunc {
 			s.errorPage(w, r, rc, http.StatusForbidden, "Your role ("+a.Role+") does not allow this action.")
 			return
 		}
-		if r.Method != http.MethodPost || action == "" {
+		// Changes are audited, and the few reads registered with an action
+		// (bulk downloads).
+		if action == "" {
 			h(w, r, rc)
 			return
 		}

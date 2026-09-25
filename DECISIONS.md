@@ -581,3 +581,21 @@ may print twice, never zero times, which is the right side to err on
 jobs are marked done with "not printed", for rehearsals. Delivery is a
 separate staff mark (who and when), as with balloons.
 
+## D59. Source highlighting is a server-side tokenizer
+The admin's source view is highlighted in Go (`internal/highlight`): a
+single pass per file that recognises comments, strings, numbers, keywords
+and preprocessor lines by the conventions of a language family chosen by
+file extension, and writes one `<span class="l">` per line (spans that
+cross lines are closed and reopened), numbered with CSS counters. No
+JavaScript library (the admin keeps its strict CSP and tiny assets), no
+parser to maintain, and a language configured in YAML with a known
+extension is highlighted without code. Profiled: the first version spent
+most of its time allocating tokens; writing straight into one builder and
+skipping bytes that cannot start a token brought it from 16 to 52 MB/s
+(`BenchmarkHighlight`), so a typical source costs well under a
+millisecond. The submissions zip uses the same filters as the list and is
+streamed (index.csv first, then task/user/id/file) without temporary
+files; being a bulk export, it is audited like a change (GET routes can
+now carry an audit action; backup downloads use it too). Date filters are
+read in the contest's timezone, as the contest's times are entered.
+

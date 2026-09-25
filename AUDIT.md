@@ -84,10 +84,10 @@ first audit (after F6), the "status" column the current state.
 
 | ID | Requirement | Initial | Status | Files | Tests |
 |----|-------------|---------|--------|-------|-------|
-| X1 | Submission search/filters: user, task, verdict, language, date | partial (no date/verdict filters) | partial | adminweb/submissions.go, db/queries/aws.sql | adminweb.TestEveryPageRenders |
-| X2 | Source view with syntax highlighting | partial (plain) | partial | adminweb/submissions.go | adminweb.TestEveryPageRenders |
+| X1 | Submission search/filters: user, task, verdict, language, date | partial (no date/verdict filters) | complete (task, user, status, verdict, language, score range and a date range in the contest's timezone; verdict column; keyset pagination) | adminweb/submissions.go, db/queries/aws.sql | adminweb.TestSubmissionFiltersSourceAndZip, adminweb.TestEveryPageRenders |
+| X2 | Source view with syntax highlighting | partial (plain) | complete (server-side highlighting by file extension — C, C++, Java, Kotlin, C#, Go, Rust, Python, Pascal, Haskell, JavaScript — with CSS line numbers; no JavaScript; ~50 MB/s) | highlight/highlight.go, adminweb/submissions.go, web/static/admin.css | highlight.TestHighlight, highlight.BenchmarkHighlight, adminweb.TestSubmissionFiltersSourceAndZip |
 | X3 | Diff between submissions | complete | complete | adminweb/diff.go | adminweb.TestLineDiff, adminweb.TestEveryPageRenders |
-| X4 | Download all submissions as zip | missing | missing | — | — |
+| X4 | Download all submissions as zip | missing | complete (the list's filters — contest, task, user, verdict, dates… — as a streamed zip: index.csv plus task/user/id/file; link on the list and on each participation; audited) | adminweb/submissions.go, db/queries/aws.sql | adminweb.TestSubmissionFiltersSourceAndZip |
 | X5 | Rejudge by submission, user, task, contest | complete | complete | adminweb/submissions.go, dispatcher/reeval.go | adminweb.TestReevaluateFromUI, dispatcher.TestReevaluationLevels |
 | X6 | Invalidate (exclude) submissions | missing | complete (reason mandatory and shown to the contestant; restorable; excluded from task scores, ICPC attempts, rankings and output-only merges; audited) | db/migrations/0008_invalidation.sql, adminweb/invalidate.go, dispatcher/judging.go (reaggregateSubmission), db/queries/{dispatcher,aws,cws}.sql, web/templates/{aws,cws}/submission*.html | dispatcher.TestInvalidatedSubmissionsDoNotCount, e2e.TestInvalidateSubmissionFromAdminUI |
 | X7 | Manual score adjustment with mandatory justification (audited) | missing | missing | — | — |

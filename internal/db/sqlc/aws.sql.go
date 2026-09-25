@@ -130,6 +130,114 @@ func (q *Queries) AdminExportParticipants(ctx context.Context, contestID int64) 
 	return items, nil
 }
 
+const adminExportSubmissionFiles = `-- name: AdminExportSubmissionFiles :many
+SELECT s.id, s.submitted_at, s.language, s.official, u.username, t.name AS task_name,
+       sr.compilation_outcome, sr.score, sr.verdict, (s.invalidated_at IS NOT NULL)::boolean AS invalidated,
+       f.filename, f.digest
+FROM submissions s
+JOIN participations p ON p.id = s.participation_id
+JOIN users u ON u.id = p.user_id
+JOIN tasks t ON t.id = s.task_id
+JOIN submission_files f ON f.submission_id = s.id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE p.contest_id = $1::bigint
+  AND ($2::bigint IS NULL OR s.task_id = $2::bigint)
+  AND ($3::bigint IS NULL OR s.participation_id = $3::bigint)
+  AND ($4::text IS NULL OR u.username ILIKE '%' || $4::text || '%')
+  AND ($5::text IS NULL OR s.language = $5::text)
+  AND ($6::float8 IS NULL OR sr.score >= $6::float8)
+  AND ($7::float8 IS NULL OR sr.score <= $7::float8)
+  AND ($8::text IS NULL OR CASE $8::text
+        WHEN 'pending' THEN sr.scored_at IS NULL AND sr.system_error IS NULL
+        WHEN 'compile_failed' THEN sr.compilation_outcome = 'fail'
+        WHEN 'scored' THEN sr.scored_at IS NOT NULL AND sr.compilation_outcome = 'ok'
+        WHEN 'error' THEN sr.system_error IS NOT NULL
+        ELSE true END)
+  AND ($9::text IS NULL OR sr.verdict = $9::text)
+  AND ($10::timestamptz IS NULL OR s.submitted_at >= $10::timestamptz)
+  AND ($11::timestamptz IS NULL OR s.submitted_at < $11::timestamptz)
+ORDER BY t.name, u.username, s.id, f.filename
+LIMIT $12::int
+`
+
+type AdminExportSubmissionFilesParams struct {
+	ContestID       int64      `json:"contest_id"`
+	TaskID          *int64     `json:"task_id"`
+	ParticipationID *int64     `json:"participation_id"`
+	Username        *string    `json:"username"`
+	Language        *string    `json:"language"`
+	MinScore        *float64   `json:"min_score"`
+	MaxScore        *float64   `json:"max_score"`
+	Status          *string    `json:"status"`
+	Verdict         *string    `json:"verdict"`
+	FromTime        *time.Time `json:"from_time"`
+	ToTime          *time.Time `json:"to_time"`
+	Lim             int32      `json:"lim"`
+}
+
+type AdminExportSubmissionFilesRow struct {
+	ID                 int64     `json:"id"`
+	SubmittedAt        time.Time `json:"submitted_at"`
+	Language           *string   `json:"language"`
+	Official           bool      `json:"official"`
+	Username           string    `json:"username"`
+	TaskName           string    `json:"task_name"`
+	CompilationOutcome *string   `json:"compilation_outcome"`
+	Score              *float64  `json:"score"`
+	Verdict            *string   `json:"verdict"`
+	Invalidated        bool      `json:"invalidated"`
+	Filename           string    `json:"filename"`
+	Digest             string    `json:"digest"`
+}
+
+// The files of the submissions matching the list's filters, for the zip
+// download (same filters as AdminListSubmissions, no pagination).
+func (q *Queries) AdminExportSubmissionFiles(ctx context.Context, arg AdminExportSubmissionFilesParams) ([]AdminExportSubmissionFilesRow, error) {
+	rows, err := q.db.Query(ctx, adminExportSubmissionFiles,
+		arg.ContestID,
+		arg.TaskID,
+		arg.ParticipationID,
+		arg.Username,
+		arg.Language,
+		arg.MinScore,
+		arg.MaxScore,
+		arg.Status,
+		arg.Verdict,
+		arg.FromTime,
+		arg.ToTime,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminExportSubmissionFilesRow{}
+	for rows.Next() {
+		var i AdminExportSubmissionFilesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SubmittedAt,
+			&i.Language,
+			&i.Official,
+			&i.Username,
+			&i.TaskName,
+			&i.CompilationOutcome,
+			&i.Score,
+			&i.Verdict,
+			&i.Invalidated,
+			&i.Filename,
+			&i.Digest,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminGetParticipation = `-- name: AdminGetParticipation :one
 SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, p.communication_seen_at, p.approved, u.username, u.first_name, u.last_name, c.name AS contest_name
 FROM participations p
@@ -348,7 +456,7 @@ const adminListSubmissions = `-- name: AdminListSubmissions :many
 SELECT s.id, s.submitted_at, s.language, s.official, s.participation_id, s.task_id,
        u.username, t.name AS task_name, t.score_precision,
        sr.compilation_outcome, sr.testcases_done, sr.testcases_total, sr.score, sr.scored_at,
-       sr.system_error, (tk.submission_id IS NOT NULL)::boolean AS tokened,
+       sr.system_error, sr.verdict, (tk.submission_id IS NOT NULL)::boolean AS tokened,
        (s.invalidated_at IS NOT NULL)::boolean AS invalidated
 FROM submissions s
 JOIN participations p ON p.id = s.participation_id
@@ -369,22 +477,28 @@ WHERE p.contest_id = $1::bigint
         WHEN 'scored' THEN sr.scored_at IS NOT NULL AND sr.compilation_outcome = 'ok'
         WHEN 'error' THEN sr.system_error IS NOT NULL
         ELSE true END)
-  AND ($9::bigint IS NULL OR s.id < $9::bigint)
+  AND ($9::text IS NULL OR sr.verdict = $9::text)
+  AND ($10::timestamptz IS NULL OR s.submitted_at >= $10::timestamptz)
+  AND ($11::timestamptz IS NULL OR s.submitted_at < $11::timestamptz)
+  AND ($12::bigint IS NULL OR s.id < $12::bigint)
 ORDER BY s.id DESC
-LIMIT $10::int
+LIMIT $13::int
 `
 
 type AdminListSubmissionsParams struct {
-	ContestID       int64    `json:"contest_id"`
-	TaskID          *int64   `json:"task_id"`
-	ParticipationID *int64   `json:"participation_id"`
-	Username        *string  `json:"username"`
-	Language        *string  `json:"language"`
-	MinScore        *float64 `json:"min_score"`
-	MaxScore        *float64 `json:"max_score"`
-	Status          *string  `json:"status"`
-	BeforeID        *int64   `json:"before_id"`
-	Lim             int32    `json:"lim"`
+	ContestID       int64      `json:"contest_id"`
+	TaskID          *int64     `json:"task_id"`
+	ParticipationID *int64     `json:"participation_id"`
+	Username        *string    `json:"username"`
+	Language        *string    `json:"language"`
+	MinScore        *float64   `json:"min_score"`
+	MaxScore        *float64   `json:"max_score"`
+	Status          *string    `json:"status"`
+	Verdict         *string    `json:"verdict"`
+	FromTime        *time.Time `json:"from_time"`
+	ToTime          *time.Time `json:"to_time"`
+	BeforeID        *int64     `json:"before_id"`
+	Lim             int32      `json:"lim"`
 }
 
 type AdminListSubmissionsRow struct {
@@ -403,6 +517,7 @@ type AdminListSubmissionsRow struct {
 	Score              *float64   `json:"score"`
 	ScoredAt           *time.Time `json:"scored_at"`
 	SystemError        *string    `json:"system_error"`
+	Verdict            *string    `json:"verdict"`
 	Tokened            bool       `json:"tokened"`
 	Invalidated        bool       `json:"invalidated"`
 }
@@ -420,6 +535,9 @@ func (q *Queries) AdminListSubmissions(ctx context.Context, arg AdminListSubmiss
 		arg.MinScore,
 		arg.MaxScore,
 		arg.Status,
+		arg.Verdict,
+		arg.FromTime,
+		arg.ToTime,
 		arg.BeforeID,
 		arg.Lim,
 	)
@@ -446,6 +564,7 @@ func (q *Queries) AdminListSubmissions(ctx context.Context, arg AdminListSubmiss
 			&i.Score,
 			&i.ScoredAt,
 			&i.SystemError,
+			&i.Verdict,
 			&i.Tokened,
 			&i.Invalidated,
 		); err != nil {
