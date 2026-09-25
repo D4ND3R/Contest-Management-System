@@ -1,11 +1,11 @@
 {{define "content"}}
 {{$r := .Data}}
-<h1>Ranking of {{$r.Contest}} {{if $r.ICPC}}<span class="tag">ICPC</span>{{end}}</h1>
-<p class="actions"><a href="/contests/{{$r.ContestID}}/ranking.csv{{if $r.Site}}?site={{$r.Site}}{{end}}">Export CSV</a> · <a href="/contests/{{$r.ContestID}}/ranking.json{{if $r.Site}}?site={{$r.Site}}{{end}}">Export JSON</a> ·
-  <a href="?hidden=1">include hidden users</a> · <a href="/contests/{{$r.ContestID}}/stats">statistics</a></p>
-{{if $r.Sites}}<form method="get" class="filters"><label>Site <select name="site"><option value="">all</option>{{range $r.Sites}}<option value="{{.ID}}" {{if eq .ID $r.Site}}selected{{end}}>{{.Name}}</option>{{end}}</select></label> <button>Filter</button></form>{{end}}
+<h1>{{.T "Ranking of %s" $r.Contest}} {{if $r.ICPC}}<span class="tag">ICPC</span>{{end}}</h1>
+<p class="actions"><a href="/contests/{{$r.ContestID}}/ranking.csv{{if $r.Site}}?site={{$r.Site}}{{end}}">{{.T "Export CSV"}}</a> · <a href="/contests/{{$r.ContestID}}/ranking.json{{if $r.Site}}?site={{$r.Site}}{{end}}">{{.T "Export JSON"}}</a> ·
+  <a href="?hidden=1">{{.T "include hidden users"}}</a> · <a href="/contests/{{$r.ContestID}}/stats">{{.T "statistics"}}</a></p>
+{{if $r.Sites}}<form method="get" class="filters"><label>{{.T "Site"}} <select name="site"><option value="">{{.T "all"}}</option>{{range $r.Sites}}<option value="{{.ID}}" {{if eq .ID $r.Site}}selected{{end}}>{{.Name}}</option>{{end}}</select></label> <button>{{.T "Filter"}}</button></form>{{end}}
 <table class="ranking">
-<thead><tr><th class="num">#</th><th>User</th><th>Team</th>{{range $r.Tasks}}<th class="num" title="{{.Title}}">{{.Name}}<br><small class="muted">{{score .MaxScore .Precision}}</small></th>{{end}}<th class="num">Total</th>{{if $r.ICPC}}<th class="num">Penalty</th>{{end}}</tr></thead>
+<thead><tr><th class="num">#</th><th>{{.T "User"}}</th><th>{{.T "Team"}}</th>{{range $r.Tasks}}<th class="num" title="{{.Title}}">{{.Name}}<br><small class="muted">{{score .MaxScore .Precision}}</small></th>{{end}}<th class="num">{{.T "Total"}}</th>{{if $r.ICPC}}<th class="num">{{.T "Penalty"}}</th>{{end}}</tr></thead>
 <tbody>
 {{range $r.Rows}}
 <tr class="{{if .Hidden}}pending{{end}}">
@@ -15,13 +15,13 @@
   {{range $i, $c := .Cells}}{{$t := index $r.Tasks $i}}
   <td class="num {{if not $c.Submitted}}muted{{else if and (gt $t.MaxScore 0.0) (ge $c.Score $t.MaxScore)}}ok{{else if gt $c.Score 0.0}}warn{{else}}bad{{end}}">
     {{if $r.ICPC}}{{if $c.Solved}}+{{if $c.Attempts}}{{$c.Attempts}}{{end}} <small>{{$c.SolvedMinute}}'</small>{{else if $c.Attempts}}−{{$c.Attempts}}{{else}}·{{end}}
-    {{else}}{{if $c.Submitted}}{{score $c.Score $t.Precision}}{{else}}–{{end}}{{end}}{{if $c.Pending}} <small title="pending">…</small>{{end}}
+    {{else}}{{if $c.Submitted}}{{score $c.Score $t.Precision}}{{else}}–{{end}}{{end}}{{if $c.Pending}} <small title="{{$.T "pending"}}">…</small>{{end}}
   </td>{{end}}
   <td class="num"><b>{{if $r.ICPC}}{{.Solved}}{{else}}{{score .Total $r.Precision}}{{end}}</b></td>
   {{if $r.ICPC}}<td class="num">{{.Penalty}}</td>{{end}}
 </tr>
 {{else}}
-<tr><td colspan="99" class="muted">Nobody takes part yet.</td></tr>
+<tr><td colspan="99" class="muted">{{.T "Nobody takes part yet."}}</td></tr>
 {{end}}
 </tbody>
 </table>

@@ -1,37 +1,37 @@
 {{define "content"}}
 {{$c := .Data.Contest}}
-<h1>Participations in {{$c.Name}} <small class="muted">{{len .Data.Rows}} ({{.Data.Hidden}} hidden)</small></h1>
-<p class="actions"><a href="/contests/{{$c.ID}}/sites">Sites</a> · <a href="/users/export.csv?contest={{$c.ID}}">Export CSV</a></p>
+<h1>{{.T "Participations in %s" $c.Name}} <small class="muted">{{.T "%d (%d hidden)" (len .Data.Rows) .Data.Hidden}}</small></h1>
+<p class="actions"><a href="/contests/{{$c.ID}}/sites">{{.T "Sites"}}</a> · <a href="/users/export.csv?contest={{$c.ID}}">{{.T "Export CSV"}}</a></p>
 {{if .CanWrite}}
 <div class="row">
 <form method="post" action="/contests/{{$c.ID}}/participations" class="card">
   {{template "csrf" .CSRF}}
-  <h3>Add users</h3>
-  <label>Usernames (separated by spaces, commas or lines) <textarea name="usernames" rows="3" required></textarea></label>
-  <label>Team <select name="team_id"><option value="">—</option>{{range .Data.Teams}}<option value="{{.ID}}">{{.Code}} — {{.Name}}</option>{{end}}</select></label>
-  <p class="checks"><label><input type="checkbox" name="hidden"> Hidden</label> <label><input type="checkbox" name="unrestricted"> Unrestricted</label></p>
-  <button>Add</button>
+  <h3>{{.T "Add users"}}</h3>
+  <label>{{.T "Usernames (separated by spaces, commas or lines)"}} <textarea name="usernames" rows="3" required></textarea></label>
+  <label>{{.T "Team"}} <select name="team_id"><option value="">—</option>{{range .Data.Teams}}<option value="{{.ID}}">{{.Code}} — {{.Name}}</option>{{end}}</select></label>
+  <p class="checks"><label><input type="checkbox" name="hidden"> {{.T "Hidden"}}</label> <label><input type="checkbox" name="unrestricted"> {{.T "Unrestricted"}}</label></p>
+  <button>{{.T "Add"}}</button>
 </form>
-<form method="post" action="/users/import" enctype="multipart/form-data" class="card">
+<form method="post" action="/users/import" enctype="multipart/form-data" class="card" data-drop>
   {{template "csrf" .CSRF}}
   <input type="hidden" name="contest_id" value="{{$c.ID}}">
-  <h3>Import users from CSV into this contest</h3>
-  <p class="muted small">Columns: username, password, first_name, last_name, email, institution, country, region, timezone, team, site, ip, hidden, unrestricted, delay_time, extra_time. A preview is shown before importing.</p>
+  <h3>{{.T "Import users from CSV into this contest"}}</h3>
+  <p class="muted small">{{.T "Columns: username, password, first_name, last_name, email, institution, country, region, timezone, team, site, ip, hidden, unrestricted, delay_time, extra_time. A preview is shown before importing."}}</p>
   <input type="file" name="file" accept=".csv,text/csv" required>
-  <p class="checks"><label><input type="checkbox" name="update"> Update existing users</label> <label><input type="checkbox" name="generate" checked> Generate missing passwords</label></p>
-  <button>Import</button>
+  <p class="checks"><label><input type="checkbox" name="update"> {{.T "Update existing users"}}</label> <label><input type="checkbox" name="generate" checked> {{.T "Generate missing passwords"}}</label></p>
+  <button>{{.T "Import"}}</button>
 </form>
 </div>
-<form method="post" action="/contests/{{$c.ID}}/reset-passwords" class="card inline-form" data-confirm="Generate new passwords for every participant?">
+<form method="post" action="/contests/{{$c.ID}}/reset-passwords" class="card inline-form" data-confirm="{{.T "Generate new passwords for every participant?"}}">
   {{template "csrf" .CSRF}}
-  <b>New passwords for everybody</b>
-  <label><input type="checkbox" name="include_hidden"> include hidden</label>
-  <label>Type RESET <input name="confirm" size="7" autocomplete="off"></label>
-  <button class="secondary">Generate and print</button>
+  <b>{{.T "New passwords for everybody"}}</b>
+  <label><input type="checkbox" name="include_hidden"> {{.T "include hidden"}}</label>
+  <label>{{.T "Type RESET"}} <input name="confirm" size="7" autocomplete="off"></label>
+  <button class="secondary">{{.T "Generate and print"}}</button>
 </form>
 {{end}}
 <table>
-<thead><tr><th>User</th><th>Name</th><th>Team</th><th>Site</th><th>Flags</th><th>IP</th><th class="num">Delay (s)</th><th class="num">Extra (s)</th><th>Started</th><th></th></tr></thead>
+<thead><tr><th>{{.T "User"}}</th><th>{{.T "Name"}}</th><th>{{.T "Team"}}</th><th>{{.T "Site"}}</th><th>{{.T "Flags"}}</th><th>IP</th><th class="num">{{.T "Delay (s)"}}</th><th class="num">{{.T "Extra (s)"}}</th><th>{{.T "Started"}}</th><th></th></tr></thead>
 <tbody>
 {{range .Data.Rows}}{{$p := .Participation}}
 <tr>
@@ -39,14 +39,14 @@
   <td>{{.FirstName}} {{.LastName}}</td>
   <td>{{deref .TeamCode}}</td>
   <td>{{deref .SiteName}}</td>
-  <td>{{if .Disabled}}<span class="tag bad">disabled</span>{{end}}{{if $p.Hidden}}<span class="tag">hidden</span>{{end}}{{if $p.Unrestricted}}<span class="tag">unrestricted</span>{{end}}{{if $p.PasswordHash}}<span class="tag">own password</span>{{end}}</td>
+  <td>{{if .Disabled}}<span class="tag bad">{{$.T "disabled"}}</span>{{end}}{{if $p.Hidden}}<span class="tag">{{$.T "hidden"}}</span>{{end}}{{if $p.Unrestricted}}<span class="tag">{{$.T "unrestricted"}}</span>{{end}}{{if $p.PasswordHash}}<span class="tag">{{$.T "own password"}}</span>{{end}}</td>
   <td>{{cidrs $p.Ip}}</td>
   <td class="num">{{$p.DelayTimeS}}</td><td class="num">{{$p.ExtraTimeS}}</td>
   <td>{{dt $p.StartingTime}}</td>
-  <td><a href="/contests/{{$c.ID}}/submissions?participation={{$p.ID}}">submissions</a></td>
+  <td><a href="/contests/{{$c.ID}}/submissions?participation={{$p.ID}}">{{$.T "submissions"}}</a></td>
 </tr>
 {{else}}
-<tr><td colspan="10" class="muted">Nobody takes part yet.</td></tr>
+<tr><td colspan="10" class="muted">{{.T "Nobody takes part yet."}}</td></tr>
 {{end}}
 </tbody>
 </table>

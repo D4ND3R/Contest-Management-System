@@ -1,17 +1,17 @@
 {{define "content"}}
-<h1>Contests {{if .CanWrite}}<a class="button small" href="/contests/new">New contest</a>{{end}}</h1>
+<h1>{{.T "Contests"}} {{if .CanWrite}}<a class="button small" href="/contests/new">{{.T "New contest"}}</a>{{end}}</h1>
 <table>
-<thead><tr><th>Name</th><th>Description</th><th>Phase</th><th>Start (UTC)</th><th>End (UTC)</th><th class="num">Tasks</th><th class="num">Participants</th><th class="num">Submissions</th></tr></thead>
+<thead><tr><th>{{.T "Name"}}</th><th>{{.T "Description"}}</th><th>{{.T "Phase"}}</th><th>{{.T "Start (UTC)"}}</th><th>{{.T "End (UTC)"}}</th><th class="num">{{.T "Tasks"}}</th><th class="num">{{.T "Participants"}}</th><th class="num">{{.T "Submissions"}}</th></tr></thead>
 <tbody>
 {{range .Data}}
 <tr>
   <td><a href="/contests/{{.ID}}">{{.Name}}</a></td><td>{{.Description}}</td>
-  <td><span class="phase {{.Phase}}">{{.Phase}}</span></td>
+  <td><span class="phase {{.Phase}}">{{$.T .Phase}}</span></td>
   <td>{{dt .StartTime}}</td><td>{{dt .StopTime}}</td>
   <td class="num">{{.Tasks}}</td><td class="num">{{.Participations}}</td><td class="num">{{.Submissions}}</td>
 </tr>
 {{else}}
-<tr><td colspan="8" class="muted">No contests yet.</td></tr>
+<tr><td colspan="8" class="muted">{{.T "No contests yet."}}</td></tr>
 {{end}}
 </tbody>
 </table>

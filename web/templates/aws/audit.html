@@ -1,16 +1,16 @@
 {{define "content"}}
-<h1>Audit log</h1>
-<form method="get" class="filters"><label>Administrator <select name="admin"><option value="">all</option>{{range .Data.Admins}}<option value="{{.ID}}" {{if eq .ID $.Data.Admin}}selected{{end}}>{{.Username}}</option>{{end}}</select></label> <button>Filter</button></form>
+<h1>{{.T "Audit log"}}</h1>
+<form method="get" class="filters"><label>{{.T "Administrator"}} <select name="admin"><option value="">{{.T "all"}}</option>{{range .Data.Admins}}<option value="{{.ID}}" {{if eq .ID $.Data.Admin}}selected{{end}}>{{.Username}}</option>{{end}}</select></label> <button>{{.T "Filter"}}</button></form>
 <table class="audit">
-<thead><tr><th>Time (UTC)</th><th>Administrator</th><th>Action</th><th>Target</th><th>Details</th><th>IP</th></tr></thead>
+<thead><tr><th>{{.T "Time (UTC)"}}</th><th>{{.T "Administrator"}}</th><th>{{.T "Action"}}</th><th>{{.T "Target"}}</th><th>{{.T "Details"}}</th><th>IP</th></tr></thead>
 <tbody>
 {{range .Data.Rows}}
 <tr><td>{{dt .CreatedAt}}</td><td>{{deref .AdminUsername}}</td><td><code>{{.Action}}</code></td>
 <td>{{.TargetType}}{{if .TargetID}} {{deref64 .TargetID}}{{end}}</td><td><code class="small">{{printf "%s" .Details}}</code></td><td>{{.Ip}}</td></tr>
 {{else}}
-<tr><td colspan="6" class="muted">Nothing yet.</td></tr>
+<tr><td colspan="6" class="muted">{{.T "Nothing yet."}}</td></tr>
 {{end}}
 </tbody>
 </table>
-{{with .Data.Next}}<p><a href="?{{.}}">Older →</a></p>{{end}}
+{{with .Data.Next}}<p><a href="?{{.}}">{{$.T "Older →"}}</a></p>{{end}}
 {{end}}

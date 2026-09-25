@@ -1,49 +1,49 @@
 {{define "content"}}
 {{$p := .Data.P}}
 <h1>{{$p.Username}} <small class="muted">{{$p.FirstName}} {{$p.LastName}} · {{$p.ContestName}}</small></h1>
-<p class="actions"><a href="/users/{{$p.UserID}}">User</a> · <a href="/contests/{{$p.ContestID}}/submissions?participation={{$p.ID}}">Submissions</a>{{template "extra-participation-links" .}}
-  <form method="post" action="/participations/{{$p.ID}}/view-as" class="inline">{{template "csrf" .CSRF}}<button class="secondary small">View as contestant (read-only)</button></form></p>
+<p class="actions"><a href="/users/{{$p.UserID}}">{{.T "User"}}</a> · <a href="/contests/{{$p.ContestID}}/submissions?participation={{$p.ID}}">{{.T "Submissions"}}</a>{{template "extra-participation-links" .}}
+  <form method="post" action="/participations/{{$p.ID}}/view-as" class="inline">{{template "csrf" .CSRF}}<button class="secondary small">{{.T "View as contestant (read-only)"}}</button></form></p>
 <div class="row">
 <section class="card">
-<h2>Scores</h2>
+<h2>{{.T "Scores"}}</h2>
 <table>
-<thead><tr><th>Task</th><th class="num">Score</th><th class="num">Pending</th></tr></thead>
+<thead><tr><th>{{.T "Task"}}</th><th class="num">{{.T "Score"}}</th><th class="num">{{.T "Pending"}}</th></tr></thead>
 <tbody>{{range .Data.Scores}}<tr><td>{{.Task}}</td><td class="num">{{score .Score .Precision}}</td><td class="num">{{if .Pending}}{{.Pending}}{{end}}</td></tr>{{end}}</tbody>
 </table>
-{{if .CanWrite}}<h3>Reevaluate this participation</h3>{{template "reevaluate" (reeval .CSRF "participation_id" $p.ID (printf "/participations/%d" $p.ID))}}{{end}}
+{{if .CanWrite}}<h3>{{.T "Reevaluate this participation"}}</h3>{{template "reevaluate" (reeval $ "participation_id" $p.ID (printf "/participations/%d" $p.ID))}}{{end}}
 </section>
 <form method="post" action="/participations/{{$p.ID}}" class="card">
 {{template "csrf" .CSRF}}
 <fieldset {{if not .CanWrite}}disabled{{end}}>
-  <label>Team <select name="team_id"><option value="">—</option>{{range .Data.Teams}}<option value="{{.ID}}" {{if and $p.TeamID (eq .ID (deref64 $p.TeamID))}}selected{{end}}>{{.Code}} — {{.Name}}</option>{{end}}</select></label>
-  <label>Site <select name="site_id"><option value="">—</option>{{range .Data.Sites}}<option value="{{.ID}}" {{if and $p.SiteID (eq .ID (deref64 $p.SiteID))}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
-  <label>Allowed addresses (IPs or subnets) <input name="ip" value="{{cidrs $p.Ip}}" placeholder="any"></label>
+  <label>{{.T "Team"}} <select name="team_id"><option value="">—</option>{{range .Data.Teams}}<option value="{{.ID}}" {{if and $p.TeamID (eq .ID (deref64 $p.TeamID))}}selected{{end}}>{{.Code}} — {{.Name}}</option>{{end}}</select></label>
+  <label>{{.T "Site"}} <select name="site_id"><option value="">—</option>{{range .Data.Sites}}<option value="{{.ID}}" {{if and $p.SiteID (eq .ID (deref64 $p.SiteID))}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  <label>{{.T "Allowed addresses (IPs or subnets)"}} <input name="ip" value="{{cidrs $p.Ip}}" placeholder="{{.T "any"}}"></label>
   <div class="grid">
-    <label>Delay (s) <input name="delay_time_s" value="{{$p.DelayTimeS}}" inputmode="numeric"></label>
-    <label>Extra time (s) <input name="extra_time_s" value="{{$p.ExtraTimeS}}" inputmode="numeric"></label>
+    <label>{{.T "Delay (s)"}} <input name="delay_time_s" value="{{$p.DelayTimeS}}" inputmode="numeric"></label>
+    <label>{{.T "Extra time (s)"}} <input name="extra_time_s" value="{{$p.ExtraTimeS}}" inputmode="numeric"></label>
   </div>
   <p class="checks">
-    <label><input type="checkbox" name="hidden" {{if $p.Hidden}}checked{{end}}> Hidden (not in the ranking)</label>
-    <label><input type="checkbox" name="unrestricted" {{if $p.Unrestricted}}checked{{end}}> Unrestricted (no time or limit checks)</label>
+    <label><input type="checkbox" name="hidden" {{if $p.Hidden}}checked{{end}}> {{.T "Hidden (not in the ranking)"}}</label>
+    <label><input type="checkbox" name="unrestricted" {{if $p.Unrestricted}}checked{{end}}> {{.T "Unrestricted (no time or limit checks)"}}</label>
   </p>
-  <p>Started: {{if $p.StartingTime}}{{dt $p.StartingTime}} UTC <label class="inline"><input type="checkbox" name="reset_start"> reset</label>{{else}}<span class="muted">not yet</span>{{end}}</p>
-  <label>Contest-specific password <input type="password" name="participation_password" autocomplete="new-password" placeholder="{{if $p.PasswordHash}}set — leave empty to keep{{else}}none (the user's password is used){{end}}"></label>
-  <p class="checks">{{if $p.PasswordHash}}<label><input type="checkbox" name="clear_password"> Remove the contest-specific password</label>{{end}}
-    <label><input type="checkbox" name="logout"> Log out all sessions</label></p>
-  {{if .CanWrite}}<button>Save</button>{{end}}
+  <p>{{.T "Started:"}} {{if $p.StartingTime}}{{dt $p.StartingTime}} UTC <label class="inline"><input type="checkbox" name="reset_start"> {{.T "reset"}}</label>{{else}}<span class="muted">{{.T "not yet"}}</span>{{end}}</p>
+  <label>{{.T "Contest-specific password"}} <input type="password" name="participation_password" autocomplete="new-password" placeholder="{{if $p.PasswordHash}}{{.T "set — leave empty to keep"}}{{else}}{{.T "none (the user's password is used)"}}{{end}}"></label>
+  <p class="checks">{{if $p.PasswordHash}}<label><input type="checkbox" name="clear_password"> {{.T "Remove the contest-specific password"}}</label>{{end}}
+    <label><input type="checkbox" name="logout"> {{.T "Log out all sessions"}}</label></p>
+  {{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}
 </fieldset>
 </form>
 </div>
 <section class="card">
-<h2>Sessions <small class="muted">last 24 hours</small></h2>
-{{template "sessions" .Data.Sessions}}
+<h2>{{.T "Sessions"}} <small class="muted">{{.T "last 24 hours"}}</small></h2>
+{{template "sessions" (part $ .Data.Sessions)}}
 </section>
 {{if .CanWrite}}
 <section class="card danger">
-<form method="post" action="/participations/{{$p.ID}}/delete" data-confirm="Delete the participation and its submissions?">
+<form method="post" action="/participations/{{$p.ID}}/delete" data-confirm="{{.T "Delete the participation and its submissions?"}}">
   {{template "csrf" .CSRF}}
-  <label>Type <b>{{$p.Username}}</b> to delete the participation <input name="confirm" autocomplete="off"></label>
-  <button class="danger">Delete participation</button>
+  <label>{{.T "Type %s to delete the participation" $p.Username}} <input name="confirm" autocomplete="off"></label>
+  <button class="danger">{{.T "Delete participation"}}</button>
 </form>
 </section>
 {{end}}

@@ -99,7 +99,7 @@ first audit (after F6), the "status" column the current state.
 | X13 | Optional certificates in PDF | missing | missing | — | — |
 | X14 | Backups: scheduled dump and restore from the admin or the CLI | missing (F9) | missing | — | — |
 | X15 | Audit log of every admin action, with filters | partial (admin filter only) | partial | adminweb/server.go, adminweb/system.go | adminweb.TestLoginRolesAndAudit |
-| X16 | i18n es/en on every new screen | missing (admin is English only) | missing | — | — |
+| X16 | i18n es/en on every new screen | missing (admin is English only) | complete (admin and contest web; new screens keep it) | i18n/es.go, i18n/es_admin.go, adminweb/page.go (adminLang, page.T), adminweb/forms.go, web/templates/aws/* | adminweb.TestAdminInSpanish, adminweb.TestMessagesTranslated, adminweb.TestDynamicKeysTranslated, contestweb.TestTemplatesTranslated |
 
 ## §7 Closing
 

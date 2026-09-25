@@ -1,63 +1,63 @@
 {{define "content"}}
 {{$s := .Data.S}}
 {{if $s.Tester}}
-<h1>Test run {{$s.ID}} <small class="muted">{{$s.TaskName}} · {{dt $s.SubmittedAt}} UTC</small></h1>
-<p class="info">Task tester run by {{$s.TesterUsername}}: judged on every dataset, never counted as a submission.</p>
+<h1>{{.T "Test run %d" $s.ID}} <small class="muted">{{$s.TaskName}} · {{dt $s.SubmittedAt}} UTC</small></h1>
+<p class="info">{{.T "Task tester run by %s: judged on every dataset, never counted as a submission." $s.TesterUsername}}</p>
 <dl class="meta card">
 {{else}}
-<h1>Submission {{$s.ID}} <small class="muted">{{$s.Username}} · {{$s.TaskName}} · {{dt $s.SubmittedAt}} UTC</small></h1>
+<h1>{{.T "Submission %d" $s.ID}} <small class="muted">{{$s.Username}} · {{$s.TaskName}} · {{dt $s.SubmittedAt}} UTC</small></h1>
 <dl class="meta card">
-  <dt>User</dt><dd><a href="/participations/{{deref64 $s.ParticipationID}}">{{$s.Username}}</a> (<a href="/users/{{$s.UserID}}">user</a>)</dd>
+  <dt>{{.T "User"}}</dt><dd><a href="/participations/{{deref64 $s.ParticipationID}}">{{$s.Username}}</a> (<a href="/users/{{$s.UserID}}">{{.T "user"}}</a>)</dd>
 {{end}}
-  <dt>Task</dt><dd><a href="/tasks/{{$s.TaskID}}">{{$s.TaskName}}</a> — {{$s.TaskTitle}}</dd>
-  <dt>Language</dt><dd>{{.Data.Lang}}</dd>
-  <dt>Official</dt><dd>{{if $s.Official}}yes{{else}}no (analysis mode){{end}}</dd>
-  <dt>Token</dt><dd>{{if $s.Tokened}}played{{else}}no{{end}}</dd>
-  {{if $s.Comment}}<dt>Comment</dt><dd>{{$s.Comment}}</dd>{{end}}
+  <dt>{{.T "Task"}}</dt><dd><a href="/tasks/{{$s.TaskID}}">{{$s.TaskName}}</a> — {{$s.TaskTitle}}</dd>
+  <dt>{{.T "Language"}}</dt><dd>{{.Data.Lang}}</dd>
+  <dt>{{.T "Official"}}</dt><dd>{{if $s.Official}}{{.T "yes"}}{{else}}{{.T "no (analysis or practice)"}}{{end}}</dd>
+  <dt>{{.T "Token"}}</dt><dd>{{if $s.Tokened}}{{.T "played"}}{{else}}{{.T "no"}}{{end}}</dd>
+  {{if $s.Comment}}<dt>{{.T "Comment"}}</dt><dd>{{$s.Comment}}</dd>{{end}}
 </dl>
-{{if .CanWrite}}<p>{{template "reevaluate" (reeval .CSRF "submission_id" $s.ID (printf "/submissions/%d" $s.ID))}}</p>{{end}}
+{{if .CanWrite}}<p>{{template "reevaluate" (reeval $ "submission_id" $s.ID (printf "/submissions/%d" $s.ID))}}</p>{{end}}
 <form method="get" action="/submissions/diff" class="inline-form">
   <input type="hidden" name="a" value="{{$s.ID}}">
-  <label>Compare with submission # <input name="b" size="8" inputmode="numeric" required></label> <button class="secondary">Diff</button>
+  <label>{{.T "Compare with submission #"}} <input name="b" size="8" inputmode="numeric" required></label> <button class="secondary">{{.T "Diff"}}</button>
 </form>
-<h2>Files</h2>
+<h2>{{.T "Files"}}</h2>
 {{range .Data.Files}}
-<details open><summary><b>{{.Name}}</b> <a href="/submissions/{{$s.ID}}/files/{{.Name}}">download</a></summary>
-{{if .Binary}}<p class="muted">Binary or large file.</p>{{else}}<pre class="code">{{.Text}}</pre>{{end}}
+<details open><summary><b>{{.Name}}</b> <a href="/submissions/{{$s.ID}}/files/{{.Name}}">{{$.T "download"}}</a></summary>
+{{if .Binary}}<p class="muted">{{$.T "Binary or large file."}}</p>{{else}}<pre class="code">{{.Text}}</pre>{{end}}
 </details>
 {{end}}
-<h2>Results</h2>
+<h2>{{.T "Results"}}</h2>
 {{range .Data.Results}}
 <section class="card">
-<h3>Dataset {{.DatasetDescription}} {{if .Live}}<span class="tag ok">live</span>{{end}}
-  {{if .ScoredAt}}— score {{score .Score 2}} (public {{score .PublicScore 2}}){{end}}</h3>
-{{with .SystemError}}<p class="alert">System error: {{.}}</p>{{end}}
+<h3>{{$.T "Dataset %s" .DatasetDescription}} {{if .Live}}<span class="tag ok">{{$.T "live"}}</span>{{end}}
+  {{if .ScoredAt}}— {{$.T "score %s (public %s)" (score .Score 2) (score .PublicScore 2)}}{{end}}</h3>
+{{with .SystemError}}<p class="alert">{{$.T "System error:"}} {{.}}</p>{{end}}
 <dl class="meta">
-  <dt>Compilation</dt><dd>{{if .CompilationOutcome}}{{deref .CompilationOutcome}} — {{.CompilationText}} ({{secs .CompilationTime}}, {{bytes .CompilationMemory}}, {{deref .CompilationWorker}}, tries {{.CompilationTries}}){{else}}pending{{end}}</dd>
-  <dt>Evaluation</dt><dd>{{.TestcasesDone}}/{{.TestcasesTotal}} testcases, tries {{.EvaluationTries}}, generation {{.Generation}}</dd>
+  <dt>{{$.T "Compilation"}}</dt><dd>{{if .CompilationOutcome}}{{deref .CompilationOutcome}} — {{.CompilationText}} ({{secs .CompilationTime}}, {{bytes .CompilationMemory}}, {{deref .CompilationWorker}}, {{$.T "tries %d" .CompilationTries}}){{else}}{{$.T "pending"}}{{end}}</dd>
+  <dt>{{$.T "Evaluation"}}</dt><dd>{{$.T "%d/%d testcases, tries %d, generation %d" .TestcasesDone .TestcasesTotal .EvaluationTries .Generation}}</dd>
 </dl>
-{{if .CompilationStdout}}<details><summary>Compiler output</summary><pre>{{.CompilationStdout}}</pre></details>{{end}}
-{{if .CompilationStderr}}<details {{if eq (deref .CompilationOutcome) "fail"}}open{{end}}><summary>Compiler errors</summary><pre>{{.CompilationStderr}}</pre></details>{{end}}
+{{if .CompilationStdout}}<details><summary>{{$.T "Compiler output"}}</summary><pre>{{.CompilationStdout}}</pre></details>{{end}}
+{{if .CompilationStderr}}<details {{if eq (deref .CompilationOutcome) "fail"}}open{{end}}><summary>{{$.T "Compiler errors"}}</summary><pre>{{.CompilationStderr}}</pre></details>{{end}}
 {{with .Details}}{{if eq .Type "group"}}
-<table><thead><tr><th>Subtask</th><th class="num">Score</th><th class="num">Max</th></tr></thead><tbody>
-{{range .Subtasks}}<tr><td>{{.Index}}{{if .Public}} <span class="tag">public</span>{{end}}</td><td class="num">{{score .Score 2}}</td><td class="num">{{score .MaxScore 2}}</td></tr>{{end}}
+<table><thead><tr><th>{{$.T "Subtask"}}</th><th class="num">{{$.T "Score"}}</th><th class="num">{{$.T "Max"}}</th></tr></thead><tbody>
+{{range .Subtasks}}<tr><td>{{.Index}}{{if .Public}} <span class="tag">{{$.T "public"}}</span>{{end}}</td><td class="num">{{score .Score 2}}</td><td class="num">{{score .MaxScore 2}}</td></tr>{{end}}
 </tbody></table>
 {{end}}{{end}}
 {{if .Evaluations}}
 <table>
-<thead><tr><th>Testcase</th><th>Outcome</th><th>Message</th><th class="num">Time</th><th class="num">Wall</th><th class="num">Memory</th><th>Exit</th><th>Worker</th></tr></thead>
+<thead><tr><th>{{$.T "Testcase"}}</th><th>{{$.T "Outcome"}}</th><th>{{$.T "Message"}}</th><th class="num">{{$.T "Time"}}</th><th class="num">{{$.T "Wall"}}</th><th class="num">{{$.T "Memory"}}</th><th>{{$.T "Exit"}}</th><th>{{$.T "Worker"}}</th></tr></thead>
 <tbody>
 {{range .Evaluations}}
-<tr><td>{{.Codename}}{{if .Public}} <span class="tag">public</span>{{end}}</td>
+<tr><td>{{.Codename}}{{if .Public}} <span class="tag">{{$.T "public"}}</span>{{end}}</td>
 <td class="{{if ge .Outcome 1.0}}ok{{else if le .Outcome 0.0}}bad{{else}}warn{{end}}">{{.Outcome}}</td>
 <td>{{.Text}}</td><td class="num">{{secs .ExecutionTime}}</td><td class="num">{{secs .ExecutionWallTime}}</td><td class="num">{{bytes .ExecutionMemory}}</td>
-<td>{{.ExitStatus}}{{if .Signal}} (signal {{deref32 .Signal}}){{end}}{{if .ExitCode}} (code {{deref32 .ExitCode}}){{end}}</td><td>{{deref .Worker}}</td></tr>
+<td>{{.ExitStatus}}{{if .Signal}} ({{$.T "signal %d" (deref32 .Signal)}}){{end}}{{if .ExitCode}} ({{$.T "code %d" (deref32 .ExitCode)}}){{end}}</td><td>{{deref .Worker}}</td></tr>
 {{end}}
 </tbody>
 </table>
 {{end}}
 </section>
 {{else}}
-<p class="muted">Not judged yet.</p>
+<p class="muted">{{.T "Not judged yet."}}</p>
 {{end}}
 {{end}}

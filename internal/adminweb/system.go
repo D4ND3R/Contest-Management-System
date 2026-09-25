@@ -2,6 +2,7 @@ package adminweb
 
 import (
 	"context"
+	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"net/http"
 	"sort"
 	"strconv"
@@ -24,10 +25,15 @@ type systemStatus struct {
 	Slots      int
 	Time       time.Time
 	QueueError string
+	Lang       string
 }
 
-func (s *Server) systemStatus(ctx context.Context) *systemStatus {
-	st := &systemStatus{Time: s.now()}
+// T translates for the status partial (polled without a page).
+func (st *systemStatus) T(msg string, args ...any) string { return i18n.T(st.Lang, msg, args...) }
+
+func (s *Server) systemStatus(r *http.Request) *systemStatus {
+	ctx := r.Context()
+	st := &systemStatus{Time: s.now(), Lang: adminLang(r)}
 	for _, p := range queue.Priorities() {
 		st.Priorities = append(st.Priorities, p.String())
 	}
@@ -74,7 +80,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request, rc *req
 	for _, c := range counts {
 		byID[c.ID] = c
 	}
-	d := &dashboard{Status: s.systemStatus(r.Context())}
+	d := &dashboard{Status: s.systemStatus(r)}
 	now := s.now()
 	for _, c := range list {
 		// Current and upcoming contests first; old ones are on /contests.
@@ -100,13 +106,13 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request, rc *req
 }
 
 func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	s.render(w, "system", http.StatusOK, s.newPage(w, r, rc, "Workers and queues", "system", s.systemStatus(r.Context())))
+	s.render(w, "system", http.StatusOK, s.newPage(w, r, rc, "Workers and queues", "system", s.systemStatus(r)))
 }
 
 // handleSystemStatus is polled by the system page (htmx).
 func (s *Server) handleSystemStatus(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	w.Header().Set("Cache-Control", "no-store")
-	s.renderPartial(w, "system-status", s.systemStatus(r.Context()))
+	s.renderPartial(w, "system-status", s.systemStatus(r))
 }
 
 func (s *Server) handleLanguages(w http.ResponseWriter, r *http.Request, rc *reqCtx) {

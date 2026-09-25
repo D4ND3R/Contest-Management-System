@@ -1,28 +1,28 @@
 {{define "content"}}
-<h1>Users <small class="muted">{{.Data.Total}}</small> {{if .CanWrite}}<a class="button small" href="/users/new">New user</a>{{end}} <a class="button small secondary" href="/users/export.csv">Export CSV</a></h1>
+<h1>{{.T "Users"}} <small class="muted">{{.Data.Total}}</small> {{if .CanWrite}}<a class="button small" href="/users/new">{{.T "New user"}}</a>{{end}} <a class="button small secondary" href="/users/export.csv">{{.T "Export CSV"}}</a></h1>
 {{if .CanWrite}}
 <form method="post" action="/users/import" enctype="multipart/form-data" class="card inline-form">
   {{template "csrf" .CSRF}}
-  <b>Import CSV</b>
+  <b>{{.T "Import CSV"}}</b>
   <input type="file" name="file" accept=".csv,text/csv" required>
-  <label>and add to <select name="contest_id"><option value="">no contest</option>{{range .Data.Contests}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
-  <label><input type="checkbox" name="update"> update existing</label>
-  <label><input type="checkbox" name="generate" checked> generate missing passwords</label>
-  <button>Import</button>
-  <p class="muted small">Header row required. Columns: username, password, first_name, last_name, email, institution, country, region, timezone, team (code), site, ip, hidden, unrestricted, delay_time, extra_time. A preview with every row is shown first; nothing is imported if a row is invalid.</p>
+  <label>{{.T "and add to"}} <select name="contest_id"><option value="">{{.T "no contest"}}</option>{{range .Data.Contests}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
+  <label><input type="checkbox" name="update"> {{.T "update existing"}}</label>
+  <label><input type="checkbox" name="generate" checked> {{.T "generate missing passwords"}}</label>
+  <button>{{.T "Import"}}</button>
+  <p class="muted small">{{.T "Header row required. Columns: username, password, first_name, last_name, email, institution, country, region, timezone, team (code), site, ip, hidden, unrestricted, delay_time, extra_time. A preview with every row is shown first; nothing is imported if a row is invalid."}}</p>
 </form>
 {{end}}
-<form method="get" class="filters"><label>Search <input name="q" value="{{.Data.Search}}" placeholder="username or name"></label> <button>Search</button></form>
+<form method="get" class="filters"><label>{{.T "Search"}} <input name="q" value="{{.Data.Search}}" placeholder="{{.T "username or name"}}"></label> <button>{{.T "Search"}}</button></form>
 <table>
-<thead><tr><th>Username</th><th>Name</th><th>Institution</th><th>Email</th><th class="num">Contests</th></tr></thead>
+<thead><tr><th>{{.T "Username"}}</th><th>{{.T "Name"}}</th><th>{{.T "Institution"}}</th><th>{{.T "Email"}}</th><th class="num">{{.T "Contests"}}</th></tr></thead>
 <tbody>
 {{range .Data.Users}}
-<tr><td><a href="/users/{{.ID}}">{{.Username}}</a>{{if .Disabled}} <span class="tag bad">disabled</span>{{end}}</td><td>{{.FirstName}} {{.LastName}}</td><td>{{.Institution}}</td><td>{{.Email}}</td><td class="num">{{.Participations}}</td></tr>
+<tr><td><a href="/users/{{.ID}}">{{.Username}}</a>{{if .Disabled}} <span class="tag bad">{{$.T "disabled"}}</span>{{end}}</td><td>{{.FirstName}} {{.LastName}}</td><td>{{.Institution}}</td><td>{{.Email}}</td><td class="num">{{.Participations}}</td></tr>
 {{else}}
-<tr><td colspan="5" class="muted">No users.</td></tr>
+<tr><td colspan="5" class="muted">{{.T "No users."}}</td></tr>
 {{end}}
 </tbody>
 </table>
-<p>{{if .Data.Page}}<a href="?q={{urlquery .Data.Search}}&amp;page={{add .Data.Page -1}}">← previous</a>{{end}}
-{{if .Data.HasMore}}<a class="right" href="?q={{urlquery .Data.Search}}&amp;page={{add .Data.Page 1}}">next →</a>{{end}}</p>
+<p>{{if .Data.Page}}<a href="?q={{urlquery .Data.Search}}&amp;page={{add .Data.Page -1}}">{{.T "← previous"}}</a>{{end}}
+{{if .Data.HasMore}}<a class="right" href="?q={{urlquery .Data.Search}}&amp;page={{add .Data.Page 1}}">{{.T "next →"}}</a>{{end}}</p>
 {{end}}

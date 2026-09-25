@@ -163,6 +163,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /login", s.handleLoginForm)
 	mux.HandleFunc("POST /login", s.handleLogin)
 	mux.HandleFunc("POST /login/2fa", s.handleLogin2FA)
+	mux.HandleFunc("POST /lang", s.handleLang)
 
 	// route registers pattern with the permission it needs; mutating
 	// requests are audited under action.

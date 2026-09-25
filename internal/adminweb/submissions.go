@@ -42,6 +42,9 @@ func (f submissionFilter) query(before int64) string {
 	return v.Encode()
 }
 
+// statusFilters are the values of the submission list's status filter.
+var statusFilters = []string{"pending", "compile_failed", "scored", "error"}
+
 type submissionsPage struct {
 	Contest   sqlc.Contest
 	Tasks     []sqlc.Task
@@ -96,7 +99,7 @@ func (s *Server) handleSubmissions(w http.ResponseWriter, r *http.Request, rc *r
 		s.internalError(w, r, rc, err)
 		return
 	}
-	d := &submissionsPage{Contest: c, Languages: s.langs.All(), F: f, Statuses: []string{"pending", "compile_failed", "scored", "error"}}
+	d := &submissionsPage{Contest: c, Languages: s.langs.All(), F: f, Statuses: statusFilters}
 	if len(rows) > submissionsPerPage {
 		rows = rows[:submissionsPerPage]
 		d.Next = f.query(rows[len(rows)-1].ID)

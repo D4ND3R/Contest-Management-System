@@ -1,35 +1,35 @@
 {{define "content"}}
-<h1>My account <small class="muted">{{.Admin.Username}} ({{.Admin.Role}})</small></h1>
+<h1>{{.T "My account"}} <small class="muted">{{.Admin.Username}} ({{.Admin.Role}})</small></h1>
 <section class="card">
-<h2>Two-factor authentication</h2>
+<h2>{{.T "Two-factor authentication"}}</h2>
 {{if .Data.Pending}}
-<p>Scan the code with an authenticator app (or type the key), then enter the 6-digit code it shows.</p>
-<div class="row"><div>{{.Data.QR}}</div><div><p>Key: <code>{{.Data.Secret}}</code></p>
+<p>{{.T "Scan the code with an authenticator app (or type the key), then enter the 6-digit code it shows."}}</p>
+<div class="row"><div>{{.Data.QR}}</div><div><p>{{.T "Key:"}} <code>{{.Data.Secret}}</code></p>
 <form method="post" action="/account/2fa/enable">
   {{template "csrf" .CSRF}}
   <input type="hidden" name="pending" value="{{.Data.Pending}}">
-  <label>Code <input name="totp_code" inputmode="numeric" autocomplete="one-time-code" required size="8"></label>
-  <button>Enable</button>
+  <label>{{.T "Code"}} <input name="totp_code" inputmode="numeric" autocomplete="one-time-code" required size="8"></label>
+  <button>{{.T "Enable"}}</button>
 </form></div></div>
 {{else if .Data.TwoFA}}
-<p class="ok">Enabled: logins ask for a code from your authenticator app.</p>
+<p class="ok">{{.T "Enabled: logins ask for a code from your authenticator app."}}</p>
 <form method="post" action="/account/2fa/disable" class="inline-form">
   {{template "csrf" .CSRF}}
-  <label>Current code <input name="totp_code" inputmode="numeric" autocomplete="one-time-code" required size="8"></label>
-  <button class="danger">Disable</button>
+  <label>{{.T "Current code"}} <input name="totp_code" inputmode="numeric" autocomplete="one-time-code" required size="8"></label>
+  <button class="danger">{{.T "Disable"}}</button>
 </form>
 {{else}}
-<p>Disabled. Protect your account with a code from an authenticator app (TOTP).</p>
-<form method="post" action="/account/2fa/start">{{template "csrf" .CSRF}}<button>Set up two-factor authentication</button></form>
+<p>{{.T "Disabled. Protect your account with a code from an authenticator app (TOTP)."}}</p>
+<form method="post" action="/account/2fa/start">{{template "csrf" .CSRF}}<button>{{.T "Set up two-factor authentication"}}</button></form>
 {{end}}
 </section>
 <section class="card">
-<h2>Password</h2>
+<h2>{{.T "Password"}}</h2>
 <form method="post" action="/account/password" class="inline-form">
   {{template "csrf" .CSRF}}
-  <label>Current password <input type="password" name="current_password" autocomplete="current-password" required></label>
-  <label>New password <input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
-  <button>Change</button>
+  <label>{{.T "Current password"}} <input type="password" name="current_password" autocomplete="current-password" required></label>
+  <label>{{.T "New password"}} <input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+  <button>{{.T "Change"}}</button>
 </form>
 </section>
 {{end}}

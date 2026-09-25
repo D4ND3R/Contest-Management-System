@@ -1,33 +1,33 @@
 {{define "content"}}
-<h1>Statistics of {{.Data.Contest}} <small class="muted">{{.Data.Participants}} ranked contestants</small></h1>
+<h1>{{.T "Statistics of %s" .Data.Contest}} <small class="muted">{{.T "%d ranked contestants" .Data.Participants}}</small></h1>
 {{range .Data.Tasks}}
 <section class="card">
-<h2>{{.Task.Name}} <small class="muted">{{.Task.Title}} · max {{score .Task.MaxScore .Task.Precision}}</small></h2>
+<h2>{{.Task.Name}} <small class="muted">{{.Task.Title}} · {{$.T "max %s" (score .Task.MaxScore .Task.Precision)}}</small></h2>
 <div class="stats">
-  <div class="stat"><b>{{.Submissions}}</b><span>submissions</span></div>
-  <div class="stat"><b>{{.Participants}}</b><span>contestants submitted</span></div>
-  <div class="stat"><b>{{.Full}}</b><span>full score</span></div>
-  <div class="stat"><b>{{.Partial}}</b><span>partial</span></div>
-  <div class="stat"><b>{{.Zero}}</b><span>zero</span></div>
-  <div class="stat"><b>{{.NotAttempted}}</b><span>not attempted</span></div>
-  <div class="stat"><b>{{score .Average 2}}</b><span>average (of attempted)</span></div>
-  <div class="stat"><b>{{.CompileFailed}}</b><span>compilation errors</span></div>
-  <div class="stat"><b>{{.Pending}}</b><span>pending</span></div>
-  <div class="stat"><b class="{{if .Errors}}bad{{end}}">{{.Errors}}</b><span>system errors</span></div>
+  <div class="stat"><b>{{.Submissions}}</b><span>{{$.T "submissions"}}</span></div>
+  <div class="stat"><b>{{.Participants}}</b><span>{{$.T "contestants submitted"}}</span></div>
+  <div class="stat"><b>{{.Full}}</b><span>{{$.T "full score"}}</span></div>
+  <div class="stat"><b>{{.Partial}}</b><span>{{$.T "partial"}}</span></div>
+  <div class="stat"><b>{{.Zero}}</b><span>{{$.T "zero"}}</span></div>
+  <div class="stat"><b>{{.NotAttempted}}</b><span>{{$.T "not attempted"}}</span></div>
+  <div class="stat"><b>{{score .Average 2}}</b><span>{{$.T "average (of attempted)"}}</span></div>
+  <div class="stat"><b>{{.CompileFailed}}</b><span>{{$.T "compilation errors"}}</span></div>
+  <div class="stat"><b>{{.Pending}}</b><span>{{$.T "pending"}}</span></div>
+  <div class="stat"><b class="{{if .Errors}}bad{{end}}">{{.Errors}}</b><span>{{$.T "system errors"}}</span></div>
 </div>
 <div class="row">
 <div>
-<h3>Score distribution</h3>
+<h3>{{$.T "Score distribution"}}</h3>
 <table class="hist"><tbody>
 {{range .Histogram}}<tr><td>{{.Label}}</td><td class="num">{{.Count}}</td><td class="barcell"><progress max="100" value="{{.Pct}}">{{.Pct}}%</progress></td></tr>{{end}}
 </tbody></table>
 </div>
 <div>
-<h3>Testcase verdicts (live dataset)</h3>
-<table><thead><tr><th>Verdict</th><th class="num">Count</th><th class="num">%</th><th class="num">Avg time</th><th class="num">Max time</th><th class="num">Max memory</th></tr></thead><tbody>
+<h3>{{$.T "Testcase verdicts (live dataset)"}}</h3>
+<table><thead><tr><th>{{$.T "Verdict"}}</th><th class="num">{{$.T "Count"}}</th><th class="num">%</th><th class="num">{{$.T "Avg time"}}</th><th class="num">{{$.T "Max time"}}</th><th class="num">{{$.T "Max memory"}}</th></tr></thead><tbody>
 {{$tot := .VerdictTotal}}
 {{range .Verdicts}}<tr><td>{{.Verdict}}</td><td class="num">{{.N}}</td><td class="num">{{pct .N $tot}}</td><td class="num">{{secs .AvgTime}}</td><td class="num">{{secs .MaxTime}}</td><td class="num">{{bytes .MaxMemory}}</td></tr>
-{{else}}<tr><td colspan="6" class="muted">No evaluations yet.</td></tr>{{end}}
+{{else}}<tr><td colspan="6" class="muted">{{$.T "No evaluations yet."}}</td></tr>{{end}}
 </tbody></table>
 </div>
 </div>

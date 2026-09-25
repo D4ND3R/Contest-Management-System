@@ -268,3 +268,14 @@ task configuration items (K5, K10, K18–K21); then blocks A → F in order.
 Target hardware is a 2 vCPU VPS: one core for web + PostgreSQL + Redis, the
 other reserved for one sandbox slot, so evaluation never competes with the
 web servers for CPU.
+
+## D40. Admin interface translated with the contestant catalog
+The admin server reuses the gettext-style catalog of the contest web server
+(English text as key, Spanish in `internal/i18n/es_admin.go`, merged at
+init), so one language cookie (`cms_lang`) drives both servers. Messages
+built in Go (flash notices, error pages, form validation) are translated at
+the point where they reach the page; form errors whose format starts with
+`%s` also translate the field label. A test parses the admin sources and
+fails when a literal message or label has no Spanish entry, another checks
+the dynamic values (phases, statuses, queue names). `POST /lang` needs no
+session or CSRF token: it only sets a cookie limited to the known languages.

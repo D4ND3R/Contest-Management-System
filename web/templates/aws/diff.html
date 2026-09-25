@@ -1,9 +1,9 @@
 {{define "content"}}
-<h1>Submission <a href="/submissions/{{.Data.A.ID}}">{{.Data.A.ID}}</a> → <a href="/submissions/{{.Data.B.ID}}">{{.Data.B.ID}}</a></h1>
+<h1>{{.T "Submission"}} <a href="/submissions/{{.Data.A.ID}}">{{.Data.A.ID}}</a> → <a href="/submissions/{{.Data.B.ID}}">{{.Data.B.ID}}</a></h1>
 <p class="muted">{{.Data.A.Username}} · {{.Data.A.TaskName}} · {{dt .Data.A.SubmittedAt}} &nbsp;→&nbsp; {{.Data.B.Username}} · {{.Data.B.TaskName}} · {{dt .Data.B.SubmittedAt}} (UTC)</p>
 {{range .Data.Files}}
-<h2>{{.Name}}{{if .Same}} <span class="tag">identical</span>{{end}}</h2>
-{{with .Note}}<p class="muted">{{.}}</p>{{end}}
+<h2>{{.Name}}{{if .Same}} <span class="tag">{{$.T "identical"}}</span>{{end}}</h2>
+{{with .Note}}<p class="muted">{{$.T .}}</p>{{end}}
 {{if and .Lines (not .Same)}}
 <table class="diff"><tbody>
 {{range .Lines}}<tr class="{{if eq .Op "-"}}del{{else if eq .Op "+"}}ins{{end}}"><td class="num">{{if .A}}{{.A}}{{end}}</td><td class="num">{{if .B}}{{.B}}{{end}}</td><td><pre>{{if eq .Op "-"}}-{{else if eq .Op "+"}}+{{else}} {{end}}{{.Text}}</pre></td></tr>{{end}}

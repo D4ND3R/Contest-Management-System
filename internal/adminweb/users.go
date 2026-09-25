@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/csv"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/netip"
@@ -384,26 +383,26 @@ var csvColumns = map[string]bool{"username": true, "password": true, "first_name
 
 // parseUsersCSV reads the rows; row problems are attached to the row,
 // file problems returned separately.
-func parseUsersCSV(rd io.Reader) ([]csvUser, []string) {
+func parseUsersCSV(rd io.Reader, tr func(string, ...any) string) ([]csvUser, []string) {
 	cr := csv.NewReader(rd)
 	cr.TrimLeadingSpace = true
 	cr.FieldsPerRecord = -1
 	head, err := cr.Read()
 	if err != nil {
-		return nil, []string{"cannot read the header row: " + err.Error()}
+		return nil, []string{tr("cannot read the header row: %v", err)}
 	}
 	idx := map[string]int{}
 	var errs []string
 	for i, h := range head {
 		h = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(h, "\ufeff")))
 		if !csvColumns[h] {
-			errs = append(errs, fmt.Sprintf("unknown column %q", h))
+			errs = append(errs, tr("unknown column %q", h))
 			continue
 		}
 		idx[h] = i
 	}
 	if _, ok := idx["username"]; !ok {
-		return nil, append(errs, "the username column is required")
+		return nil, append(errs, tr("the username column is required"))
 	}
 	var out []csvUser
 	seen := map[string]int{}
@@ -415,7 +414,7 @@ func parseUsersCSV(rd io.Reader) ([]csvUser, []string) {
 			break
 		}
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("line %d: %v", line, err))
+			errs = append(errs, tr("line %d: %v", line, err))
 			continue
 		}
 		get := func(col string) string {
@@ -429,16 +428,16 @@ func parseUsersCSV(rd io.Reader) ([]csvUser, []string) {
 			institution: get("institution"), country: get("country"), region: get("region"), site: get("site")}
 		if u.username == "" {
 			if strings.Join(rec, "") != "" {
-				u.err = "empty username"
+				u.err = tr("empty username")
 				out = append(out, u)
 			}
 			continue
 		}
 		switch {
 		case strings.ContainsAny(u.username, " \t/"):
-			u.err = "invalid username"
+			u.err = tr("invalid username")
 		case seen[u.username] != 0:
-			u.err = fmt.Sprintf("username repeated (line %d)", seen[u.username])
+			u.err = tr("username repeated (line %d)", seen[u.username])
 		}
 		if seen[u.username] == 0 {
 			seen[u.username] = line
@@ -452,7 +451,7 @@ func parseUsersCSV(rd io.Reader) ([]csvUser, []string) {
 			if v := get(col.name); v != "" {
 				n, err := strconv.ParseInt(v, 10, 64)
 				if err != nil || n < 0 {
-					u.err = fmt.Sprintf("invalid %s %q (seconds)", col.name, v)
+					u.err = tr("invalid %s %q (seconds)", col.name, v)
 				}
 				*col.dst = n
 			}
@@ -563,7 +562,7 @@ func (s *Server) handleUserImport(w http.ResponseWriter, r *http.Request, rc *re
 			res.Title = c.Name
 		}
 	}
-	users, fileErrs := parseUsersCSV(strings.NewReader(string(data)))
+	users, fileErrs := parseUsersCSV(strings.NewReader(string(data)), adminTr(r))
 	res.Errors = fileErrs
 	if err := s.validateImport(r, users, res, contestID); err != nil {
 		s.internalError(w, r, rc, err)
@@ -625,36 +624,46 @@ func (s *Server) validateImport(r *http.Request, users []csvUser, res *importPag
 			siteIDs[st.Name] = true
 		}
 	}
+	names := make([]string, 0, len(users))
+	for _, u := range users {
+		names = append(names, u.username)
+	}
+	existing, err := s.q.ListExistingUsernames(r.Context(), names)
+	if err != nil {
+		return err
+	}
+	exists := make(map[string]bool, len(existing))
+	for _, n := range existing {
+		exists[n] = true
+	}
+	tr := adminTr(r)
 	for i := range users {
 		u := &users[i]
 		row := importRow{Line: u.line, Username: u.username, Name: strings.TrimSpace(u.first + " " + u.last), Team: u.team, Site: u.site}
 		switch {
 		case u.err != "":
 		case u.team != "" && !teamIDs[u.team]:
-			u.err = fmt.Sprintf("unknown team %q", u.team)
+			u.err = tr("unknown team %q", u.team)
 		case u.site != "" && contestID == 0:
-			u.err = "a site needs a contest"
+			u.err = tr("a site needs a contest")
 		case u.site != "" && !siteIDs[u.site]:
-			u.err = fmt.Sprintf("unknown site %q", u.site)
+			u.err = tr("unknown site %q", u.site)
 		case u.timezone != "" && !validTZ(u.timezone):
-			u.err = fmt.Sprintf("unknown timezone %q", u.timezone)
+			u.err = tr("unknown timezone %q", u.timezone)
 		case u.ip != "" && !validIPs(u.ip):
-			u.err = fmt.Sprintf("invalid ip %q", u.ip)
+			u.err = tr("invalid ip %q", u.ip)
 		}
 		if u.err == "" {
-			_, err := s.q.GetUserByUsername(r.Context(), u.username)
 			switch {
-			case err == nil && !res.Update:
-				u.err = "the user exists (tick \"update existing users\")"
-			case err == nil:
+			case exists[u.username] && !res.Update:
+				u.err = tr("the user exists (tick “update existing”)")
+			case exists[u.username]:
 				row.Action = "update"
-			case errors.Is(err, pgx.ErrNoRows):
+			default:
 				row.Action = "create"
 				if u.password == "" && !res.Generate {
-					u.err = "a password is required (or tick \"generate passwords\")"
+					u.err = tr("a password is required (or tick “generate missing passwords”)")
 				}
-			default:
-				return err
 			}
 		}
 		if u.err != "" {

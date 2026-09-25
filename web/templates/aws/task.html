@@ -1,19 +1,19 @@
 {{define "content"}}
 {{$t := .Data.T}}{{$task := .Data.Task}}
-<h1>Task {{$task.Name}} <small class="muted">{{$task.Title}}{{with .Data.Contest}} · in <a href="/contests/{{.ID}}">{{.Name}}</a>{{end}}</small></h1>
+<h1>{{.T "Task %s" $task.Name}} <small class="muted">{{$task.Title}}{{with .Data.Contest}} · {{$.T "in"}} <a href="/contests/{{.ID}}">{{.Name}}</a>{{end}}</small></h1>
 
 <section class="card" id="datasets">
-<h2>Datasets</h2>
+<h2>{{.T "Datasets"}}</h2>
 <table>
-<thead><tr><th>Description</th><th>Type</th><th>Score type</th><th>Limits</th><th></th></tr></thead>
+<thead><tr><th>{{.T "Description"}}</th><th>{{.T "Type"}}</th><th>{{.T "Score type"}}</th><th>{{.T "Limits"}}</th><th></th></tr></thead>
 <tbody>
 {{range .Data.Datasets}}
 <tr>
-  <td><a href="/datasets/{{.ID}}">{{.Description}}</a> {{if and $task.ActiveDatasetID (eq .ID (deref64 $task.ActiveDatasetID))}}<span class="tag ok">live</span>{{end}}{{if .Autojudge}}<span class="tag">autojudge</span>{{end}}</td>
+  <td><a href="/datasets/{{.ID}}">{{.Description}}</a> {{if and $task.ActiveDatasetID (eq .ID (deref64 $task.ActiveDatasetID))}}<span class="tag ok">{{$.T "live"}}</span>{{end}}{{if .Autojudge}}<span class="tag">{{$.T "autojudge"}}</span>{{end}}</td>
   <td>{{.TaskType}}</td><td>{{.ScoreType}}</td>
   <td>{{msToS .TimeLimitMs}} s · {{bytes .MemoryLimitBytes}}</td>
   <td>{{if and $.CanWrite (not (and $task.ActiveDatasetID (eq .ID (deref64 $task.ActiveDatasetID))))}}
-    <form method="post" action="/datasets/{{.ID}}/activate" class="inline" data-confirm="Make {{.Description}} the live dataset? Scores will change.">{{template "csrf" $.CSRF}}<button class="link">make live</button></form>{{end}}</td>
+    <form method="post" action="/datasets/{{.ID}}/activate" class="inline" data-confirm="{{$.T "Make %s the live dataset? Scores will change." .Description}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "make live"}}</button></form>{{end}}</td>
 </tr>
 {{end}}
 </tbody>
@@ -21,33 +21,33 @@
 {{if .CanWrite}}
 <form method="post" action="/tasks/{{$task.ID}}/datasets" class="inline-form">
   {{template "csrf" .CSRF}}
-  <label>New dataset <input name="description" placeholder="description" required></label>
-  <label>copy from <select name="clone_from"><option value="">nothing (defaults)</option>{{range .Data.Datasets}}<option value="{{.ID}}">{{.Description}}</option>{{end}}</select></label>
-  <button>Create</button>
+  <label>{{.T "New dataset"}} <input name="description" placeholder="{{.T "description"}}" required></label>
+  <label>{{.T "copy from"}} <select name="clone_from"><option value="">{{.T "nothing (defaults)"}}</option>{{range .Data.Datasets}}<option value="{{.ID}}">{{.Description}}</option>{{end}}</select></label>
+  <button>{{.T "Create"}}</button>
 </form>
 {{end}}
 </section>
 
 <section class="card" id="tester">
-<h2>Task tester <small class="muted">reference solutions, judged on every dataset; never counted</small></h2>
+<h2>{{.T "Task tester"}} <small class="muted">{{.T "reference solutions, judged on every dataset; never counted"}}</small></h2>
 {{with .Data.Tester}}
 {{if $.CanWrite}}
 <form method="post" action="/tasks/{{$task.ID}}/tester" enctype="multipart/form-data" class="inline-form">
   {{template "csrf" $.CSRF}}
-  {{if .NeedsLanguage}}<label>Language <select name="language">{{range .Languages}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
+  {{if .NeedsLanguage}}<label>{{$.T "Language"}} <select name="language">{{range .Languages}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
   {{range .Formats}}<label>{{.}} <input type="file" name="{{.}}"></label>{{end}}
-  {{if .OutputOnly}}<label>or a zip <input type="file" name="zip" accept=".zip"></label>{{end}}
-  <button>Test</button>
+  {{if .OutputOnly}}<label>{{$.T "or a zip"}} <input type="file" name="zip" accept=".zip"></label>{{end}}
+  <button>{{$.T "Test"}}</button>
 </form>
 {{end}}
 <table>
-<thead><tr><th>Run</th><th>Time (UTC)</th><th>By</th><th>Language</th><th>Results per dataset</th></tr></thead>
+<thead><tr><th>{{$.T "Run"}}</th><th>{{$.T "Time (UTC)"}}</th><th>{{$.T "By"}}</th><th>{{$.T "Language"}}</th><th>{{$.T "Results per dataset"}}</th></tr></thead>
 <tbody>
 {{range .Runs}}
 <tr><td><a href="/submissions/{{.ID}}">#{{.ID}}</a></td><td>{{dt .Time}}</td><td>{{.Admin}}</td><td>{{.Language}}</td>
-<td>{{range .Results}}<span class="tag {{.Class}}">{{.Dataset}}: {{.Status}}{{if .Score}} {{score .Score 2}}{{end}}</span> {{end}}</td></tr>
+<td>{{range .Results}}<span class="tag {{.Class}}">{{.Dataset}}: {{if eq .Status "evaluating"}}{{$.T "evaluating %d/%d" .Done .Total}}{{else}}{{$.T .Status}}{{end}}{{if .Score}} {{score .Score 2}}{{end}}</span> {{end}}</td></tr>
 {{else}}
-<tr><td colspan="5" class="muted">No test runs yet.</td></tr>
+<tr><td colspan="5" class="muted">{{$.T "No test runs yet."}}</td></tr>
 {{end}}
 </tbody>
 </table>
@@ -56,29 +56,29 @@
 
 <div class="row">
 <section class="card" id="statements">
-<h2>Statements</h2>
-<ul>{{range .Data.Statements}}<li><a href="/tasks/{{$task.ID}}/statements/{{.Language}}">{{.Language}}</a> <small class="muted">{{.ContentType}}</small>{{if has $task.PrimaryStatements .Language}} <span class="tag">primary</span>{{end}}
-  {{if $.CanWrite}}<form method="post" action="/tasks/{{$task.ID}}/statements/{{.Language}}/delete" class="inline" data-confirm="Delete the {{.Language}} statement?">{{template "csrf" $.CSRF}}<button class="link">delete</button></form>{{end}}</li>
-{{else}}<li class="muted">None.</li>{{end}}</ul>
+<h2>{{.T "Statements"}}</h2>
+<ul>{{range .Data.Statements}}<li><a href="/tasks/{{$task.ID}}/statements/{{.Language}}">{{.Language}}</a> <small class="muted">{{.ContentType}}</small>{{if has $task.PrimaryStatements .Language}} <span class="tag">{{$.T "primary"}}</span>{{end}}
+  {{if $.CanWrite}}<form method="post" action="/tasks/{{$task.ID}}/statements/{{.Language}}/delete" class="inline" data-confirm="{{$.T "Delete the %s statement?" .Language}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
+{{else}}<li class="muted">{{.T "None."}}</li>{{end}}</ul>
 {{if .CanWrite}}
 <form method="post" action="/tasks/{{$task.ID}}/statements" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
-  <div class="grid"><label>Language <input name="language" placeholder="es" required size="6"></label>
-  <label>File (PDF or HTML) <input type="file" name="file" accept=".pdf,.html,.htm,.txt,.md" required></label></div>
-  <p class="checks"><label><input type="checkbox" name="primary"> Primary</label></p>
-  <button>Upload statement</button>
+  <div class="grid"><label>{{.T "Language"}} <input name="language" placeholder="es" required size="6"></label>
+  <label>{{.T "File (PDF or HTML)"}} <input type="file" name="file" accept=".pdf,.html,.htm,.txt,.md" required></label></div>
+  <p class="checks"><label><input type="checkbox" name="primary"> {{.T "Primary"}}</label></p>
+  <button>{{.T "Upload statement"}}</button>
 </form>
 {{end}}
 </section>
 <section class="card" id="attachments">
-<h2>Attachments</h2>
+<h2>{{.T "Attachments"}}</h2>
 <ul>{{range .Data.Attachments}}<li><a href="/tasks/{{$task.ID}}/attachments/{{.Filename}}">{{.Filename}}</a>
-  {{if $.CanWrite}}<form method="post" action="/tasks/{{$task.ID}}/attachments/{{.Filename}}/delete" class="inline" data-confirm="Delete {{.Filename}}?">{{template "csrf" $.CSRF}}<button class="link">delete</button></form>{{end}}</li>
-{{else}}<li class="muted">None.</li>{{end}}</ul>
+  {{if $.CanWrite}}<form method="post" action="/tasks/{{$task.ID}}/attachments/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
+{{else}}<li class="muted">{{.T "None."}}</li>{{end}}</ul>
 {{if .CanWrite}}
 <form method="post" action="/tasks/{{$task.ID}}/attachments" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
-  <input type="file" name="file" required> <button>Upload attachment</button>
+  <input type="file" name="file" required> <button>{{.T "Upload attachment"}}</button>
 </form>
 {{end}}
 </section>
@@ -87,42 +87,42 @@
 <form method="post" action="/tasks/{{$task.ID}}" class="card">
 {{template "csrf" .CSRF}}
 <fieldset {{if not .CanWrite}}disabled{{end}}>
-<fieldset><legend>General</legend>
+<fieldset><legend>{{.T "General"}}</legend>
 <div class="grid">
-  <label>Name <input name="name" value="{{$t.Name}}" required pattern="[A-Za-z0-9_.\-]+"></label>
-  <label>Title <input name="title" value="{{$t.Title}}" required></label>
-  <label>Submission files <input name="submission_format" value="{{join $t.SubmissionFormat " "}}" placeholder="{{$t.Name}}.%l"></label>
-  <label>Primary statements <input name="primary_statements" value="{{join $t.PrimaryStatements " "}}" placeholder="es en"></label>
+  <label>{{.T "Name"}} <input name="name" value="{{$t.Name}}" required pattern="[A-Za-z0-9_.\-]+"></label>
+  <label>{{.T "Title"}} <input name="title" value="{{$t.Title}}" required></label>
+  <label>{{.T "Submission files"}} <input name="submission_format" value="{{join $t.SubmissionFormat " "}}" placeholder="{{$t.Name}}.%l"></label>
+  <label>{{.T "Primary statements"}} <input name="primary_statements" value="{{join $t.PrimaryStatements " "}}" placeholder="es en"></label>
 </div>
-<p class="muted small">Submission files: <code>.%l</code> is replaced by the language extension; OutputOnly tasks list <code>output_001.txt</code>… files.</p>
+<p class="muted small">{{.T "Submission files: .%l is replaced by the language extension; OutputOnly tasks list output_001.txt… files."}}</p>
 </fieldset>
-<fieldset><legend>Scoring and feedback</legend>
+<fieldset><legend>{{.T "Scoring and feedback"}}</legend>
 <div class="grid">
-  <label>Score mode <select name="score_mode">
-    <option value="max_subtask" {{if eq $t.ScoreMode "max_subtask"}}selected{{end}}>best per subtask (IOI 2017+)</option>
-    <option value="max" {{if eq $t.ScoreMode "max"}}selected{{end}}>best submission</option>
-    <option value="max_tokened_last" {{if eq $t.ScoreMode "max_tokened_last"}}selected{{end}}>max of tokened and last</option></select></label>
-  <label>Feedback <select name="feedback_level">
-    <option value="full" {{if eq $t.FeedbackLevel "full"}}selected{{end}}>full</option>
-    <option value="restricted" {{if eq $t.FeedbackLevel "restricted"}}selected{{end}}>restricted (first failure per subtask)</option></select></label>
-  <label>Score precision <input name="score_precision" value="{{$t.ScorePrecision}}" inputmode="numeric"></label>
+  <label>{{.T "Score mode"}} <select name="score_mode">
+    <option value="max_subtask" {{if eq $t.ScoreMode "max_subtask"}}selected{{end}}>{{.T "best per subtask (IOI 2017+)"}}</option>
+    <option value="max" {{if eq $t.ScoreMode "max"}}selected{{end}}>{{.T "best submission"}}</option>
+    <option value="max_tokened_last" {{if eq $t.ScoreMode "max_tokened_last"}}selected{{end}}>{{.T "max of tokened and last"}}</option></select></label>
+  <label>{{.T "Feedback"}} <select name="feedback_level">
+    <option value="full" {{if eq $t.FeedbackLevel "full"}}selected{{end}}>{{.T "full"}}</option>
+    <option value="restricted" {{if eq $t.FeedbackLevel "restricted"}}selected{{end}}>{{.T "restricted (first failure per subtask)"}}</option></select></label>
+  <label>{{.T "Score precision"}} <input name="score_precision" value="{{$t.ScorePrecision}}" inputmode="numeric"></label>
 </div>
 </fieldset>
-{{template "token-fields" $t}}
-{{template "limit-fields" $t}}
-{{if .CanWrite}}<button>Save</button>{{end}}
+{{template "token-fields" (part $ $t)}}
+{{template "limit-fields" (part $ $t)}}
+{{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}
 </fieldset>
 </form>
 
 {{if .CanWrite}}
 <section class="card danger">
-<h2>Reevaluate this task</h2>
-{{template "reevaluate" (reeval .CSRF "task_id" $task.ID (printf "/tasks/%d" $task.ID))}}
-<h2>Delete</h2>
-<form method="post" action="/tasks/{{$task.ID}}/delete" data-confirm="Delete the task and ALL its submissions?">
+<h2>{{.T "Reevaluate this task"}}</h2>
+{{template "reevaluate" (reeval $ "task_id" $task.ID (printf "/tasks/%d" $task.ID))}}
+<h2>{{.T "Delete"}}</h2>
+<form method="post" action="/tasks/{{$task.ID}}/delete" data-confirm="{{.T "Delete the task and ALL its submissions?"}}">
   {{template "csrf" .CSRF}}
-  <label>Type <b>{{$task.Name}}</b> to confirm <input name="confirm" autocomplete="off"></label>
-  <button class="danger">Delete task</button>
+  <label>{{.T "Type %s to confirm" $task.Name}} <input name="confirm" autocomplete="off"></label>
+  <button class="danger">{{.T "Delete task"}}</button>
 </form>
 </section>
 {{end}}

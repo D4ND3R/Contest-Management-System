@@ -432,6 +432,31 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 	return i, err
 }
 
+const listExistingUsernames = `-- name: ListExistingUsernames :many
+SELECT username FROM users WHERE username = ANY($1::text[])
+`
+
+// One round trip for a whole CSV import preview (users_username_key).
+func (q *Queries) ListExistingUsernames(ctx context.Context, usernames []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listExistingUsernames, usernames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var username string
+		if err := rows.Scan(&username); err != nil {
+			return nil, err
+		}
+		items = append(items, username)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listParticipationsByContest = `-- name: ListParticipationsByContest :many
 SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, u.username, u.first_name, u.last_name, u.timezone AS user_timezone,
        u.institution, u.country, u.disabled, t.code AS team_code, t.name AS team_name,

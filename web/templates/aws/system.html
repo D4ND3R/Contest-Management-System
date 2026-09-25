@@ -1,5 +1,5 @@
 {{define "content"}}
-<h1>Workers and queues <small class="muted">live</small></h1>
+<h1>{{.T "Workers and queues"}} <small class="muted">{{.T "live"}}</small></h1>
 {{template "system-status" .Data}}
-<p class="muted small">Queues are served in priority order: compile, evaluate, user tests, background (rejudges and non-live datasets). A job running longer than the monitor's job timeout, or on a worker whose heartbeat stopped, is requeued automatically. See also <a href="/languages">languages</a>.</p>
+<p class="muted small">{{.T "Queues are served in priority order: compile, evaluate, user tests, background (rejudges and non-live datasets). A job running longer than the monitor's job timeout, or on a worker whose heartbeat stopped, is requeued automatically."}} <a href="/languages">{{.T "Languages"}}</a>.</p>
 {{end}}

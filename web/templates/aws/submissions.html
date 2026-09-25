@@ -1,45 +1,45 @@
 {{define "content"}}
 {{$c := .Data.Contest}}{{$f := .Data.F}}
-<h1>Submissions to {{$c.Name}}</h1>
+<h1>{{.T "Submissions to %s" $c.Name}}</h1>
 <form method="get" class="filters">
-  <label>Task <select name="task"><option value="">all</option>{{range .Data.Tasks}}<option value="{{.ID}}" {{if eq .ID $f.Task}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
-  <label>User <input name="user" value="{{$f.User}}" placeholder="username contains"></label>
-  <label>Status <select name="status"><option value="">all</option>{{range .Data.Statuses}}<option value="{{.}}" {{if eq . $f.Status}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-  <label>Language <select name="language"><option value="">all</option>{{range .Data.Languages}}<option value="{{.ID}}" {{if eq .ID $f.Language}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
-  <label>Score ≥ <input name="min" value="{{$f.MinScore}}" size="4"></label>
+  <label>{{.T "Task"}} <select name="task"><option value="">{{.T "all"}}</option>{{range .Data.Tasks}}<option value="{{.ID}}" {{if eq .ID $f.Task}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  <label>{{.T "User"}} <input name="user" value="{{$f.User}}" placeholder="{{.T "username contains"}}"></label>
+  <label>{{.T "Status"}} <select name="status"><option value="">{{.T "all"}}</option>{{range .Data.Statuses}}<option value="{{.}}" {{if eq . $f.Status}}selected{{end}}>{{$.T .}}</option>{{end}}</select></label>
+  <label>{{.T "Language"}} <select name="language"><option value="">{{.T "all"}}</option>{{range .Data.Languages}}<option value="{{.ID}}" {{if eq .ID $f.Language}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  <label>{{.T "Score ≥"}} <input name="min" value="{{$f.MinScore}}" size="4"></label>
   <label>≤ <input name="max" value="{{$f.MaxScore}}" size="4"></label>
   {{if $f.Participation}}<input type="hidden" name="participation" value="{{$f.Participation}}">{{end}}
-  <button>Filter</button> <a href="/contests/{{$c.ID}}/submissions">reset</a>
+  <button>{{.T "Filter"}}</button> <a href="/contests/{{$c.ID}}/submissions">{{.T "reset"}}</a>
 </form>
 <form method="get" action="/submissions/diff">
 <table id="submissions">
-<thead><tr><th></th><th>#</th><th>Time (UTC)</th><th>User</th><th>Task</th><th>Language</th><th>Status</th><th class="num">Score</th></tr></thead>
+<thead><tr><th></th><th>#</th><th>{{.T "Time (UTC)"}}</th><th>{{.T "User"}}</th><th>{{.T "Task"}}</th><th>{{.T "Language"}}</th><th>{{.T "Status"}}</th><th class="num">{{.T "Score"}}</th></tr></thead>
 <tbody>
 {{range .Data.Rows}}
 <tr id="sub-{{.ID}}">
-  <td><input type="checkbox" name="id" value="{{.ID}}" aria-label="compare"></td>
-  <td><a href="/submissions/{{.ID}}">{{.ID}}</a>{{if not .Official}} <span class="tag">unofficial</span>{{end}}{{if .Tokened}} <span class="tag">token</span>{{end}}</td>
+  <td><input type="checkbox" name="id" value="{{.ID}}" aria-label="{{$.T "compare"}}"></td>
+  <td><a href="/submissions/{{.ID}}">{{.ID}}</a>{{if not .Official}} <span class="tag">{{$.T "unofficial"}}</span>{{end}}{{if .Tokened}} <span class="tag">{{$.T "token"}}</span>{{end}}</td>
   <td>{{dt .SubmittedAt}}</td>
   <td><a href="/participations/{{.ParticipationID}}">{{.Username}}</a></td>
   <td>{{.TaskName}}</td>
   <td>{{deref .Language}}</td>
-  <td>{{if .SystemError}}<span class="bad">system error</span>{{else if not .CompilationOutcome}}compiling…{{else if eq (deref .CompilationOutcome) "fail"}}<span class="bad">compilation failed</span>{{else if not .ScoredAt}}evaluating {{deref32 .TestcasesDone}}/{{deref32 .TestcasesTotal}}{{else}}<span class="ok">scored</span>{{end}}</td>
+  <td>{{if .SystemError}}<span class="bad">{{$.T "system error"}}</span>{{else if not .CompilationOutcome}}{{$.T "compiling…"}}{{else if eq (deref .CompilationOutcome) "fail"}}<span class="bad">{{$.T "compilation failed"}}</span>{{else if not .ScoredAt}}{{$.T "evaluating %d/%d" (deref32 .TestcasesDone) (deref32 .TestcasesTotal)}}{{else}}<span class="ok">{{$.T "scored"}}</span>{{end}}</td>
   <td class="num">{{score .Score .ScorePrecision}}</td>
 </tr>
 {{else}}
-<tr><td colspan="8" class="muted">No submissions match.</td></tr>
+<tr><td colspan="8" class="muted">{{.T "No submissions match."}}</td></tr>
 {{end}}
 </tbody>
 </table>
-<p><button class="secondary">Compare the two checked submissions</button>
-{{with .Data.Next}}<a class="right" href="?{{.}}">Older →</a>{{end}}</p>
+<p><button class="secondary">{{.T "Compare the two checked submissions"}}</button>
+{{with .Data.Next}}<a class="right" href="?{{.}}">{{$.T "Older →"}}</a>{{end}}</p>
 </form>
 {{if .CanWrite}}
 <section class="card">
-<h2>Reevaluate</h2>
-{{if $f.Task}}<p>Task: {{template "reevaluate" (reeval .CSRF "task_id" $f.Task (printf "/contests/%d/submissions?task=%d" $c.ID $f.Task))}}</p>{{end}}
-{{if $f.Participation}}<p>Participation: {{template "reevaluate" (reeval .CSRF "participation_id" $f.Participation (printf "/contests/%d/submissions?participation=%d" $c.ID $f.Participation))}}</p>{{end}}
-<p>Whole contest: {{template "reevaluate" (reeval .CSRF "contest_id" $c.ID (printf "/contests/%d/submissions" $c.ID))}}</p>
+<h2>{{.T "Reevaluate"}}</h2>
+{{if $f.Task}}<p>{{.T "Task:"}} {{template "reevaluate" (reeval $ "task_id" $f.Task (printf "/contests/%d/submissions?task=%d" $c.ID $f.Task))}}</p>{{end}}
+{{if $f.Participation}}<p>{{.T "Participation:"}} {{template "reevaluate" (reeval $ "participation_id" $f.Participation (printf "/contests/%d/submissions?participation=%d" $c.ID $f.Participation))}}</p>{{end}}
+<p>{{.T "Whole contest:"}} {{template "reevaluate" (reeval $ "contest_id" $c.ID (printf "/contests/%d/submissions" $c.ID))}}</p>
 </section>
 {{end}}
 {{end}}

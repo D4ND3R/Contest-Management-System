@@ -1,27 +1,39 @@
 package adminweb
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"net/netip"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 )
 
 // form reads and validates submitted values, collecting the first error.
 type form struct {
-	r   *http.Request
-	err error
+	r    *http.Request
+	err  error
+	lang string
 }
 
-func newForm(r *http.Request) *form { return &form{r: r} }
+func newForm(r *http.Request) *form { return &form{r: r, lang: adminLang(r)} }
 
+// fail records the first error, translated into the administrator's
+// language. Messages starting with "%s" name the field first: its label is
+// translated too.
 func (f *form) fail(format string, args ...any) {
-	if f.err == nil {
-		f.err = fmt.Errorf(format, args...)
+	if f.err != nil {
+		return
 	}
+	if len(args) > 0 && strings.HasPrefix(format, "%s") {
+		if label, ok := args[0].(string); ok {
+			args = append([]any{i18n.T(f.lang, label)}, args[1:]...)
+		}
+	}
+	f.err = errors.New(i18n.T(f.lang, format, args...))
 }
 
 func (f *form) str(name string) string { return strings.TrimSpace(f.r.FormValue(name)) }

@@ -1,21 +1,21 @@
 {{define "content"}}
-<h1>Tasks</h1>
+<h1>{{.T "Tasks"}}</h1>
 {{if .CanWrite}}
 <form method="post" action="/tasks" class="card inline-form">
   {{template "csrf" .CSRF}}
-  <label>Name <input name="name" required pattern="[A-Za-z0-9_.\-]+"></label>
-  <label>Title <input name="title"></label>
-  <label>Contest <select name="contest_id"><option value="">none</option>{{range .Data.Contests}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
-  <button>Create task</button>
+  <label>{{.T "Name"}} <input name="name" required pattern="[A-Za-z0-9_.\-]+"></label>
+  <label>{{.T "Title"}} <input name="title"></label>
+  <label>{{.T "Contest"}} <select name="contest_id"><option value="">{{.T "none"}}</option>{{range .Data.Contests}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
+  <button>{{.T "Create task"}}</button>
 </form>
 {{end}}
 <table>
-<thead><tr><th>Name</th><th>Title</th><th>Contest</th><th>Score mode</th><th>Feedback</th></tr></thead>
+<thead><tr><th>{{.T "Name"}}</th><th>{{.T "Title"}}</th><th>{{.T "Contest"}}</th><th>{{.T "Score mode"}}</th><th>{{.T "Feedback"}}</th></tr></thead>
 <tbody>
 {{range .Data.Tasks}}
 <tr><td><a href="/tasks/{{.ID}}">{{.Name}}</a></td><td>{{.Title}}</td><td>{{if .ContestID}}<a href="/contests/{{deref64 .ContestID}}">{{.Contest}}</a>{{else}}<span class="muted">—</span>{{end}}</td><td>{{.ScoreMode}}</td><td>{{.FeedbackLevel}}</td></tr>
 {{else}}
-<tr><td colspan="5" class="muted">No tasks yet.</td></tr>
+<tr><td colspan="5" class="muted">{{.T "No tasks yet."}}</td></tr>
 {{end}}
 </tbody>
 </table>

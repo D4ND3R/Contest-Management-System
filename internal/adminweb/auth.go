@@ -2,10 +2,13 @@ package adminweb
 
 import (
 	"net/http"
+	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/auth"
+	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 )
 
@@ -89,4 +92,23 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request, rc *reqCtx
 	s.cookie().Clear(w)
 	s.audit(r, &rc.admin.ID, "logout", nil)
 	webkit.Redirect(w, r, "/login")
+}
+
+// handleLang stores the interface language (the cookie is shared with the
+// contest web server on the same host).
+func (s *Server) handleLang(w http.ResponseWriter, r *http.Request) {
+	if lang := r.FormValue("lang"); slices.Contains(i18n.Languages(), lang) {
+		http.SetCookie(w, &http.Cookie{Name: "cms_lang", Value: lang, Path: "/", MaxAge: 365 * 24 * 3600,
+			HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteLaxMode})
+	}
+	back := r.Header.Get("HX-Current-URL")
+	if back == "" {
+		back = r.Referer()
+	}
+	if u, err := url.Parse(back); err == nil && u.Path != "" {
+		back = u.RequestURI()
+	} else {
+		back = "/"
+	}
+	webkit.Redirect(w, r, safeNext(back))
 }

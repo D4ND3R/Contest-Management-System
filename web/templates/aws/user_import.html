@@ -1,9 +1,9 @@
 {{define "content"}}
 {{$d := .Data}}
-<h1>{{if $d.Preview}}Import preview{{else}}User import{{end}}{{with $d.Contest}} <small class="muted">into {{.Name}}</small>{{end}}</h1>
-{{with $d.Errors}}<div class="alert"><p>The file has problems; nothing was imported:</p><ul>{{range .}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
+<h1>{{if $d.Preview}}{{.T "Import preview"}}{{else}}{{.T "User import"}}{{end}}{{with $d.Contest}} <small class="muted">{{$.T "into %s" .Name}}</small>{{end}}</h1>
+{{with $d.Errors}}<div class="alert"><p>{{$.T "The file has problems; nothing was imported:"}}</p><ul>{{range .}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
 {{if $d.Preview}}
-<p>{{$d.Valid}} valid rows, <span class="{{if $d.Invalid}}bad{{end}}">{{$d.Invalid}} with errors</span>. Nothing has been written yet.</p>
+<p>{{.T "%d valid rows," $d.Valid}} <span class="{{if $d.Invalid}}bad{{end}}">{{.T "%d with errors" $d.Invalid}}</span>. {{.T "Nothing has been written yet."}}</p>
 {{if and (not $d.Invalid) (not $d.Errors) $d.Valid}}
 <form method="post" action="/users/import" class="card inline-form">
   {{template "csrf" .CSRF}}
@@ -12,18 +12,18 @@
   {{with $d.Contest}}<input type="hidden" name="contest_id" value="{{.ID}}">{{end}}
   {{if $d.Update}}<input type="hidden" name="update" value="on">{{end}}
   {{if $d.Generate}}<input type="hidden" name="generate" value="on">{{end}}
-  <button>Import {{$d.Valid}} users</button> <a href="/users">cancel</a>
+  <button>{{.T "Import %d users" $d.Valid}}</button> <a href="/users">{{.T "cancel"}}</a>
 </form>
-{{else}}<p>Fix the rows marked in red and upload the file again. <a href="/users">Back</a></p>{{end}}
+{{else}}<p>{{.T "Fix the rows marked in red and upload the file again."}} <a href="/users">{{.T "Back"}}</a></p>{{end}}
 {{else if not $d.Errors}}
-<p class="info">{{$d.Created}} users created, {{$d.Updated}} updated, {{$d.Participations}} participations added.</p>
+<p class="info">{{.T "%d users created, %d updated, %d participations added." $d.Created $d.Updated $d.Participations}}</p>
 {{end}}
 {{with $d.Credentials}}
 <section class="card">
-<h2>Generated passwords</h2>
-<p class="alert">Save or print them now: they are stored hashed and cannot be shown again.</p>
+<h2>{{$.T "Generated passwords"}}</h2>
+<p class="alert">{{$.T "Save or print them now: they are stored hashed and cannot be shown again."}}</p>
 {{template "credentials-form" $}}
-<table><thead><tr><th>Username</th><th>Password</th></tr></thead><tbody>
+<table><thead><tr><th>{{$.T "Username"}}</th><th>{{$.T "Password"}}</th></tr></thead><tbody>
 {{range .}}<tr><td>{{.Username}}</td><td><code>{{.Password}}</code></td></tr>{{end}}
 </tbody></table>
 <textarea rows="6" class="code" readonly>{{$d.CSV}}</textarea>
@@ -31,12 +31,12 @@
 {{end}}
 {{if $d.Rows}}
 <table>
-<thead><tr><th class="num">Line</th><th>Username</th><th>Name</th><th>Team</th><th>Site</th><th>Action</th></tr></thead>
+<thead><tr><th class="num">{{.T "Line"}}</th><th>{{.T "Username"}}</th><th>{{.T "Name"}}</th><th>{{.T "Team"}}</th><th>{{.T "Site"}}</th><th>{{.T "Action"}}</th></tr></thead>
 <tbody>
 {{range $d.Rows}}<tr><td class="num">{{.Line}}</td><td>{{.Username}}</td><td>{{.Name}}</td><td>{{.Team}}</td><td>{{.Site}}</td>
-<td>{{if eq .Action "error"}}<span class="bad">{{.Error}}</span>{{else}}{{.Action}}{{end}}</td></tr>{{end}}
+<td>{{if eq .Action "error"}}<span class="bad">{{.Error}}</span>{{else}}{{$.T .Action}}{{end}}</td></tr>{{end}}
 </tbody>
 </table>
 {{end}}
-<p><a href="/users">Back to users</a></p>
+<p><a href="/users">{{.T "Back to users"}}</a></p>
 {{end}}

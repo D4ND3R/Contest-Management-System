@@ -33,32 +33,53 @@
     var url = meta("cms-events");
     if (!url || !window.EventSource) return;
     var es = new EventSource(url);
+    // Translated labels come from the page (data-* of #notifications).
+    var t = (document.getElementById("notifications") || { dataset: {} }).dataset;
     es.addEventListener("alert", function (e) {
       var d = JSON.parse(e.data);
-      notify("System error: " + (d.text || "see the overview"), "bad");
+      notify((t.alert || "System error:") + " " + (d.text || t.overview || ""), "bad");
     });
     es.addEventListener("question_new", function (e) {
       var d = JSON.parse(e.data);
-      notify("New question: " + (d.text || ""));
+      notify((t.question || "New question:") + " " + (d.text || ""));
       var list = document.getElementById("questions");
       if (list && list.dataset.src && window.htmx) htmx.ajax("GET", list.dataset.src, { target: list, swap: "outerHTML" });
     });
   }
 
-  // Dataset form: show only the options of the chosen task type.
-  function taskTypes() {
+  // Dataset form: show only the options of the chosen task or score type
+  // (select[data-type-switch=G] drives the [data-group=G][data-for] parts).
+  function switches() {
     document.querySelectorAll("select[data-type-switch]").forEach(function (sel) {
-      var form = sel.form;
+      var group = sel.getAttribute("data-type-switch");
       function apply() {
-        form.querySelectorAll("fieldset[data-for]").forEach(function (fs) {
-          var on = fs.dataset["for"].split(" ").indexOf(sel.value) >= 0;
-          fs.hidden = !on;
+        sel.form.querySelectorAll('[data-for][data-group="' + group + '"]').forEach(function (el) {
+          el.hidden = el.dataset["for"].split(" ").indexOf(sel.value) < 0;
         });
       }
-      sel.addEventListener("change", apply);
+      if (!sel.dataset.bound) { sel.dataset.bound = "1"; sel.addEventListener("change", apply); }
       apply();
     });
   }
 
-  document.addEventListener("DOMContentLoaded", function () { connect(); taskTypes(); });
+  // Drop zones: files dropped on a [data-dropzone] fill its file input.
+  function dropzones() {
+    document.querySelectorAll("[data-dropzone]").forEach(function (z) {
+      var input = z.querySelector("input[type=file]"), name = z.querySelector("[data-filename]");
+      if (!input || z.dataset.bound) return;
+      z.dataset.bound = "1";
+      var show = function () { if (name) name.textContent = Array.prototype.map.call(input.files, function (f) { return f.name; }).join(", "); };
+      ["dragenter", "dragover"].forEach(function (ev) { z.addEventListener(ev, function (e) { e.preventDefault(); z.classList.add("over"); }); });
+      ["dragleave", "drop"].forEach(function (ev) { z.addEventListener(ev, function () { z.classList.remove("over"); }); });
+      z.addEventListener("drop", function (e) {
+        e.preventDefault();
+        if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; show(); }
+      });
+      input.addEventListener("change", show);
+    });
+  }
+
+  function init() { switches(); dropzones(); }
+  document.addEventListener("DOMContentLoaded", function () { connect(); init(); });
+  document.addEventListener("htmx:afterSettle", init);
 })();

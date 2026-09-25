@@ -1,9 +1,9 @@
 {{define "layout"}}<!doctype html>
-<html lang="en">
+<html lang="{{.Lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} · CMS admin</title>
+<title>{{.Title}} · {{.T "CMS admin"}}</title>
 <link rel="stylesheet" href="{{static "style.css"}}">
 <link rel="stylesheet" href="{{static "admin.css"}}">
 <meta name="csrf-token" content="{{.CSRF}}">
@@ -14,23 +14,29 @@
 </head>
 <body class="admin">
 <header class="top">
-  <a class="brand" href="/">CMS admin</a>
+  <a class="brand" href="/">{{.T "CMS admin"}}</a>
   {{if .Admin}}
   <nav>
-    <a href="/" {{if eq .Active "home"}}class="active"{{end}}>Overview</a>
-    <a href="/contests" {{if eq .Active "contests"}}class="active"{{end}}>Contests</a>
-    <a href="/tasks" {{if eq .Active "tasks"}}class="active"{{end}}>Tasks</a>
-    <a href="/users" {{if eq .Active "users"}}class="active"{{end}}>Users</a>
-    <a href="/teams" {{if eq .Active "teams"}}class="active"{{end}}>Teams</a>
-    <a href="/system" {{if eq .Active "system"}}class="active"{{end}}>Workers &amp; queues</a>
-    <a href="/admins" {{if eq .Active "admins"}}class="active"{{end}}>Admins</a>
-    <a href="/audit">Audit log</a>
+    <a href="/" {{if eq .Active "home"}}class="active"{{end}}>{{.T "Overview"}}</a>
+    <a href="/contests" {{if eq .Active "contests"}}class="active"{{end}}>{{.T "Contests"}}</a>
+    <a href="/tasks" {{if eq .Active "tasks"}}class="active"{{end}}>{{.T "Tasks"}}</a>
+    <a href="/users" {{if eq .Active "users"}}class="active"{{end}}>{{.T "Users"}}</a>
+    <a href="/teams" {{if eq .Active "teams"}}class="active"{{end}}>{{.T "Teams"}}</a>
+    {{template "nav-extra" .}}
+    <a href="/system" {{if eq .Active "system"}}class="active"{{end}}>{{.T "Workers & queues"}}</a>
+    <a href="/admins" {{if eq .Active "admins"}}class="active"{{end}}>{{.T "Admins"}}</a>
+    <a href="/audit">{{.T "Audit log"}}</a>
   </nav>
   <div class="user">
     <a href="/account">{{.Admin.Username}}</a> <small class="muted">({{.Admin.Role}})</small>
-    <form method="post" action="/logout" class="inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link">Log out</button></form>
+    <form method="post" action="/logout" class="inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link">{{.T "Log out"}}</button></form>
   </div>
   {{end}}
+  <form method="post" action="/lang" class="inline">
+    <select name="lang" aria-label="{{.T "Language"}}" hx-post="/lang" hx-trigger="change">
+      {{range .Languages}}<option value="{{.Code}}" {{if eq .Code $.Lang}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+  </form>
 </header>
 <main class="wide">
 {{if .Crumbs}}<p class="crumbs">{{range .Crumbs}}<a href="{{.URL}}">{{.Name}}</a> › {{end}}</p>{{end}}
@@ -38,6 +44,7 @@
 {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
 {{template "content" .}}
 </main>
-<div id="notifications" aria-live="polite"></div>
+<div id="notifications" aria-live="polite" data-alert="{{.T "System error:"}}" data-question="{{.T "New question:"}}" data-overview="{{.T "see the overview"}}"></div>
 </body>
 </html>{{end}}
+{{define "nav-extra"}}{{end}}

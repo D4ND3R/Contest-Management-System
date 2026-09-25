@@ -1,134 +1,134 @@
 {{define "content"}}
 {{$d := .Data.D}}{{$ds := .Data.Dataset}}
-<h1>Dataset {{$ds.Description}} <small class="muted">task <a href="/tasks/{{.Data.Task.ID}}">{{.Data.Task.Name}}</a></small>
-  {{if .Data.Live}}<span class="tag ok">live</span>{{end}}{{if $ds.Autojudge}}<span class="tag">autojudge</span>{{end}}</h1>
+<h1>{{.T "Dataset %s" $ds.Description}} <small class="muted">{{.T "task"}} <a href="/tasks/{{.Data.Task.ID}}">{{.Data.Task.Name}}</a></small>
+  {{if .Data.Live}}<span class="tag ok">{{.T "live"}}</span>{{end}}{{if $ds.Autojudge}}<span class="tag">{{.T "autojudge"}}</span>{{end}}</h1>
 {{if .CanWrite}}<p class="actions">
-  {{if not .Data.Live}}<form method="post" action="/datasets/{{$ds.ID}}/activate" class="inline" data-confirm="Make this the live dataset? Scores will change.">{{template "csrf" .CSRF}}<button>Make live</button></form>{{end}}
-  Reevaluate on this dataset: {{template "reevaluate" (reeval .CSRF "dataset_id" $ds.ID (printf "/datasets/%d" $ds.ID))}}
+  {{if not .Data.Live}}<form method="post" action="/datasets/{{$ds.ID}}/activate" class="inline" data-confirm="{{.T "Make this the live dataset? Scores will change."}}">{{template "csrf" .CSRF}}<button>{{.T "Make live"}}</button></form>{{end}}
+  {{.T "Reevaluate on this dataset:"}} {{template "reevaluate" (reeval $ "dataset_id" $ds.ID (printf "/datasets/%d" $ds.ID))}}
 </p>{{end}}
-{{with .Data.ScoreError}}<p class="alert">Score type: {{.}}</p>{{else}}<p>Maximum score <b>{{score .Data.MaxScore .Data.Task.ScorePrecision}}</b>{{if gt (len .Data.Subtasks) 1}} (subtasks: {{range $i, $x := .Data.Subtasks}}{{if $i}}, {{end}}{{score $x $.Data.Task.ScorePrecision}}{{end}}){{end}}.</p>{{end}}
-{{with .Data.Missing}}<p class="alert">Missing managers for this configuration: {{join . ", "}}.</p>{{end}}
+{{with .Data.ScoreError}}<p class="alert">{{$.T "Score type:"}} {{.}}</p>{{else}}<p>{{.T "Maximum score"}} <b>{{score .Data.MaxScore .Data.Task.ScorePrecision}}</b>{{if gt (len .Data.Subtasks) 1}} ({{.T "subtasks:"}} {{range $i, $x := .Data.Subtasks}}{{if $i}}, {{end}}{{score $x $.Data.Task.ScorePrecision}}{{end}}){{end}}.</p>{{end}}
+{{with .Data.Missing}}<p class="alert">{{$.T "Missing managers for this configuration:"}} {{join . ", "}}.</p>{{end}}
 
 <form method="post" action="/datasets/{{$ds.ID}}" class="card">
 {{template "csrf" .CSRF}}
 <fieldset {{if not .CanWrite}}disabled{{end}}>
 <div class="grid">
-  <label>Description <input name="description" value="{{$d.Description}}" required></label>
-  <label>Time limit (s) <input name="time_limit" value="{{msToS $d.TimeLimitMs}}" inputmode="decimal"></label>
-  <label>Wall time limit (s) <input name="wall_time_limit" value="{{msToS $d.WallTimeLimitMs}}" inputmode="decimal" placeholder="max(2×TL, TL+1s)"></label>
-  <label>Memory limit (MiB) <input name="memory_limit_mib" value="{{mib $d.MemoryLimitBytes}}" inputmode="decimal"></label>
-  <label>Output limit (MiB) <input name="output_limit_mib" value="{{mib (ptr64 $d.OutputLimitBytes)}}" inputmode="decimal"></label>
-  <label>Processes <input name="process_limit" value="{{$d.ProcessLimit}}" inputmode="numeric"></label>
-  <label>Source size limit (KiB) <input name="source_size_limit_kib" value="{{kib $d.SourceSizeLimitBytes}}" inputmode="decimal" placeholder="none"></label>
+  <label>{{.T "Description"}} <input name="description" value="{{$d.Description}}" required></label>
+  <label>{{.T "Time limit (s)"}} <input name="time_limit" value="{{msToS $d.TimeLimitMs}}" inputmode="decimal"></label>
+  <label>{{.T "Wall time limit (s)"}} <input name="wall_time_limit" value="{{msToS $d.WallTimeLimitMs}}" inputmode="decimal" placeholder="max(2×TL, TL+1s)"></label>
+  <label>{{.T "Memory limit (MiB)"}} <input name="memory_limit_mib" value="{{mib $d.MemoryLimitBytes}}" inputmode="decimal"></label>
+  <label>{{.T "Output limit (MiB)"}} <input name="output_limit_mib" value="{{mib (ptr64 $d.OutputLimitBytes)}}" inputmode="decimal"></label>
+  <label>{{.T "Processes"}} <input name="process_limit" value="{{$d.ProcessLimit}}" inputmode="numeric"></label>
+  <label>{{.T "Source size limit (KiB)"}} <input name="source_size_limit_kib" value="{{kib $d.SourceSizeLimitBytes}}" inputmode="decimal" placeholder="{{.T "none"}}"></label>
 </div>
-<p class="checks"><label><input type="checkbox" name="autojudge" {{if $d.Autojudge}}checked{{end}}> Judge new submissions on this dataset in the background (to compare with the live one)</label></p>
+<p class="checks"><label><input type="checkbox" name="autojudge" {{if $d.Autojudge}}checked{{end}}> {{.T "Judge new submissions on this dataset in the background (to compare with the live one)"}}</label></p>
 {{$tf := .Data.TF}}
 <div class="row">
 <div>
-<label>Task type <select name="task_type" data-type-switch>{{range .Data.TaskTypes}}<option {{if eq . $d.TaskType}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-<fieldset data-for="Batch"><legend>Batch</legend>
-  <label>Compilation <select name="tt_compilation"><option value="alone" {{if ne $tf.Compilation "grader"}}selected{{end}}>the submission alone</option><option value="grader" {{if eq $tf.Compilation "grader"}}selected{{end}}>with the grader (manager grader.&lt;ext&gt; + headers)</option></select></label>
-  <div class="grid"><label>Input file <input name="tt_input_file" value="{{$tf.InputFile}}" placeholder="standard input"></label>
-  <label>Output file <input name="tt_output_file" value="{{$tf.OutputFile}}" placeholder="standard output"></label></div>
+<label>{{.T "Task type"}} <select name="task_type" data-type-switch="task">{{range .Data.TaskTypes}}<option {{if eq . $d.TaskType}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+<fieldset data-group="task" data-for="Batch"><legend>Batch</legend>
+  <label>{{.T "Compilation"}} <select name="tt_compilation"><option value="alone" {{if ne $tf.Compilation "grader"}}selected{{end}}>{{.T "the submission alone"}}</option><option value="grader" {{if eq $tf.Compilation "grader"}}selected{{end}}>{{.T "with the grader (manager grader.<ext> + headers)"}}</option></select></label>
+  <div class="grid"><label>{{.T "Input file"}} <input name="tt_input_file" value="{{$tf.InputFile}}" placeholder="{{.T "standard input"}}"></label>
+  <label>{{.T "Output file"}} <input name="tt_output_file" value="{{$tf.OutputFile}}" placeholder="{{.T "standard output"}}"></label></div>
 </fieldset>
-<fieldset data-for="OutputOnly"><legend>Output only</legend>
-  <label>Output file names <input name="tt_output_pattern" value="{{$tf.OutputPattern}}" placeholder="output_%s.txt (%s = testcase codename)"></label>
-  <p class="checks"><label><input type="checkbox" name="tt_merge_previous" {{if $tf.MergePrevious}}checked{{end}}> Missing outputs take the best previous result of each testcase</label></p>
+<fieldset data-group="task" data-for="OutputOnly"><legend>{{.T "Output only"}}</legend>
+  <label>{{.T "Output file names"}} <input name="tt_output_pattern" value="{{$tf.OutputPattern}}" placeholder="{{.T "output_%s.txt (%s = testcase codename)"}}"></label>
+  <p class="checks"><label><input type="checkbox" name="tt_merge_previous" {{if $tf.MergePrevious}}checked{{end}}> {{.T "Missing outputs take the best previous result of each testcase"}}</label></p>
 </fieldset>
-<fieldset data-for="TwoSteps"><legend>Two steps</legend>
-  <label>Manager source name <input name="tt_manager" value="{{$tf.Manager}}" placeholder="manager (manager.&lt;ext&gt;)"></label>
+<fieldset data-group="task" data-for="TwoSteps"><legend>{{.T "Two steps"}}</legend>
+  <label>{{.T "Manager source name"}} <input name="tt_manager" value="{{$tf.Manager}}" placeholder="manager (manager.&lt;ext&gt;)"></label>
 </fieldset>
-<fieldset data-for="Communication"><legend>Communication</legend>
+<fieldset data-group="task" data-for="Communication"><legend>{{.T "Communication"}}</legend>
   <div class="grid">
-  <label>Contestant processes <input name="tt_num_processes" value="{{if $tf.NumProcesses}}{{$tf.NumProcesses}}{{else}}1{{end}}" inputmode="numeric"></label>
-  <label>Compilation <select name="tt_comm_compilation"><option value="stub" {{if ne $tf.Compilation "alone"}}selected{{end}}>with the stub (stub.&lt;ext&gt;)</option><option value="alone" {{if eq $tf.Compilation "alone"}}selected{{end}}>alone</option></select></label>
-  <label>Contestant I/O <select name="tt_user_io"><option value="fifos" {{if ne $tf.UserIO "std_io"}}selected{{end}}>FIFO paths as arguments</option><option value="std_io" {{if eq $tf.UserIO "std_io"}}selected{{end}}>standard input/output</option></select></label>
-  <label>Limits <select name="tt_limits_mode"><option value="per_process" {{if ne $tf.LimitsMode "total"}}selected{{end}}>per process</option><option value="total" {{if eq $tf.LimitsMode "total"}}selected{{end}}>summed over the processes</option></select></label>
-  <label>Manager time limit (ms) <input name="tt_manager_time_limit_ms" value="{{if $tf.ManagerTimeLimitMs}}{{$tf.ManagerTimeLimitMs}}{{end}}" placeholder="default" inputmode="numeric"></label>
-  <label>Manager memory (MiB) <input name="tt_manager_memory_mib" value="{{if $tf.ManagerMemoryBytes}}{{$tf.ManagerMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
+  <label>{{.T "Contestant processes"}} <input name="tt_num_processes" value="{{if $tf.NumProcesses}}{{$tf.NumProcesses}}{{else}}1{{end}}" inputmode="numeric"></label>
+  <label>{{.T "Compilation"}} <select name="tt_comm_compilation"><option value="stub" {{if ne $tf.Compilation "alone"}}selected{{end}}>{{.T "with the stub (stub.<ext>)"}}</option><option value="alone" {{if eq $tf.Compilation "alone"}}selected{{end}}>{{.T "alone"}}</option></select></label>
+  <label>{{.T "Contestant I/O"}} <select name="tt_user_io"><option value="fifos" {{if ne $tf.UserIO "std_io"}}selected{{end}}>{{.T "FIFO paths as arguments"}}</option><option value="std_io" {{if eq $tf.UserIO "std_io"}}selected{{end}}>{{.T "standard input/output"}}</option></select></label>
+  <label>{{.T "Limits"}} <select name="tt_limits_mode"><option value="per_process" {{if ne $tf.LimitsMode "total"}}selected{{end}}>{{.T "per process"}}</option><option value="total" {{if eq $tf.LimitsMode "total"}}selected{{end}}>{{.T "summed over the processes"}}</option></select></label>
+  <label>{{.T "Manager time limit (ms)"}} <input name="tt_manager_time_limit_ms" value="{{if $tf.ManagerTimeLimitMs}}{{$tf.ManagerTimeLimitMs}}{{end}}" placeholder="{{.T "default"}}" inputmode="numeric"></label>
+  <label>{{.T "Manager memory (MiB)"}} <input name="tt_manager_memory_mib" value="{{if $tf.ManagerMemoryBytes}}{{$tf.ManagerMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
   </div>
-  <p class="muted small">Managers: <code>manager</code> (binary, .c or .cpp); stubs per language: <code>stub.c</code>, <code>stub.cpp</code>, <code>stub.py</code>, <code>stub.java</code>…</p>
+  <p class="muted small">{{.T "Managers: manager (binary, .c or .cpp); stubs per language: stub.c, stub.cpp, stub.py, stub.java…"}}</p>
 </fieldset>
-<fieldset data-for="Interactive"><legend>Interactive</legend>
+<fieldset data-group="task" data-for="Interactive"><legend>{{.T "Interactive"}}</legend>
   <div class="grid">
-  <label>Interactor time limit (ms) <input name="tt_interactor_time_limit_ms" value="{{if $tf.InteractorTimeLimitMs}}{{$tf.InteractorTimeLimitMs}}{{end}}" placeholder="10 s + time limit" inputmode="numeric"></label>
-  <label>Interactor memory (MiB) <input name="tt_interactor_memory_mib" value="{{if $tf.InteractorMemoryBytes}}{{$tf.InteractorMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
+  <label>{{.T "Interactor time limit (ms)"}} <input name="tt_interactor_time_limit_ms" value="{{if $tf.InteractorTimeLimitMs}}{{$tf.InteractorTimeLimitMs}}{{end}}" placeholder="{{.T "10 s + time limit"}}" inputmode="numeric"></label>
+  <label>{{.T "Interactor memory (MiB)"}} <input name="tt_interactor_memory_mib" value="{{if $tf.InteractorMemoryBytes}}{{$tf.InteractorMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
   </div>
-  <p class="muted small">Upload the interactor as the manager <code>interactor</code> (binary, .c or .cpp, testlib allowed with <code>testlib.h</code>). It is run as <code>interactor input output answer</code>, talks to the contestant through its standard input/output and decides the verdict with testlib exit codes.</p>
+  <p class="muted small">{{.T "Upload the interactor as the manager interactor (binary, .c or .cpp, testlib allowed with testlib.h). It is run as “interactor input output answer”, talks to the contestant through its standard input/output and decides the verdict with testlib exit codes."}}</p>
 </fieldset>
-<fieldset data-for="Batch OutputOnly TwoSteps"><legend>Checker</legend>
+<fieldset data-group="task" data-for="Batch OutputOnly TwoSteps"><legend>{{.T "Checker"}}</legend>
   <div class="grid">
-  <label>Comparison <select name="tt_checker">
-    <option value="white_diff" {{if or (eq $tf.Checker "") (eq $tf.Checker "white_diff")}}selected{{end}}>ignore whitespace</option>
-    <option value="exact" {{if eq $tf.Checker "exact"}}selected{{end}}>exact</option>
-    <option value="float" {{if eq $tf.Checker "float"}}selected{{end}}>reals with tolerance</option>
-    <option value="custom" {{if eq $tf.Checker "custom"}}selected{{end}}>custom checker (CMS protocol)</option>
-    <option value="testlib" {{if eq $tf.Checker "testlib"}}selected{{end}}>custom checker (testlib)</option></select></label>
-  <label>Absolute tolerance <input name="tt_float_abs_tol" value="{{if $tf.FloatAbsTol}}{{$tf.FloatAbsTol}}{{end}}" placeholder="0" inputmode="decimal"></label>
-  <label>Relative tolerance <input name="tt_float_rel_tol" value="{{if $tf.FloatRelTol}}{{$tf.FloatRelTol}}{{end}}" placeholder="0" inputmode="decimal"></label>
-  <label>Checker time limit (ms) <input name="tt_checker_time_limit_ms" value="{{if $tf.CheckerTimeLimitMs}}{{$tf.CheckerTimeLimitMs}}{{end}}" placeholder="10000" inputmode="numeric"></label>
-  <label>Checker memory (MiB) <input name="tt_checker_memory_mib" value="{{if $tf.CheckerMemoryBytes}}{{$tf.CheckerMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
+  <label>{{.T "Comparison"}} <select name="tt_checker">
+    <option value="white_diff" {{if or (eq $tf.Checker "") (eq $tf.Checker "white_diff")}}selected{{end}}>{{.T "ignore whitespace"}}</option>
+    <option value="exact" {{if eq $tf.Checker "exact"}}selected{{end}}>{{.T "exact"}}</option>
+    <option value="float" {{if eq $tf.Checker "float"}}selected{{end}}>{{.T "reals with tolerance"}}</option>
+    <option value="custom" {{if eq $tf.Checker "custom"}}selected{{end}}>{{.T "custom checker (CMS protocol)"}}</option>
+    <option value="testlib" {{if eq $tf.Checker "testlib"}}selected{{end}}>{{.T "custom checker (testlib)"}}</option></select></label>
+  <label>{{.T "Absolute tolerance"}} <input name="tt_float_abs_tol" value="{{if $tf.FloatAbsTol}}{{$tf.FloatAbsTol}}{{end}}" placeholder="0" inputmode="decimal"></label>
+  <label>{{.T "Relative tolerance"}} <input name="tt_float_rel_tol" value="{{if $tf.FloatRelTol}}{{$tf.FloatRelTol}}{{end}}" placeholder="0" inputmode="decimal"></label>
+  <label>{{.T "Checker time limit (ms)"}} <input name="tt_checker_time_limit_ms" value="{{if $tf.CheckerTimeLimitMs}}{{$tf.CheckerTimeLimitMs}}{{end}}" placeholder="10000" inputmode="numeric"></label>
+  <label>{{.T "Checker memory (MiB)"}} <input name="tt_checker_memory_mib" value="{{if $tf.CheckerMemoryBytes}}{{$tf.CheckerMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
   </div>
-  <p class="muted small">Custom checkers are the manager <code>checker</code> (binary, .c or .cpp).</p>
+  <p class="muted small">{{.T "Custom checkers are the manager checker (binary, .c or .cpp)."}}</p>
 </fieldset>
-<details><summary>Advanced: raw parameters (JSON)</summary>
-  <p class="checks"><label><input type="checkbox" name="raw_params"> Use this JSON instead of the fields above</label></p>
+<details><summary>{{.T "Advanced: raw parameters (JSON)"}}</summary>
+  <p class="checks"><label><input type="checkbox" name="raw_params"> {{.T "Use this JSON instead of the fields above"}}</label></p>
   <textarea name="task_type_params" rows="6" class="code">{{.Data.ParamsJSON}}</textarea>
 </details>
 </div>
-<label>Score type <select name="score_type">{{range .Data.ScoreTypes}}<option {{if eq . $d.ScoreType}}selected{{end}}>{{.}}</option>{{end}}</select>
+<label>{{.T "Score type"}} <select name="score_type">{{range .Data.ScoreTypes}}<option {{if eq . $d.ScoreType}}selected{{end}}>{{.}}</option>{{end}}</select>
   <textarea name="score_type_params" id="score_type_params" rows="7" class="code">{{.Data.ScoreJSON}}</textarea>
-  <small class="muted">Sum: points per testcase (e.g. <code>10</code>). Group*: <code>[[40, "1_.*"], [60, 5]]</code> (max score, regex/count/list[, threshold]).</small></label>
+  <small class="muted">{{.T "Sum: points per testcase (e.g. 10). Group*: one entry per subtask with its maximum score and testcases (regex, count or list) and an optional threshold, e.g."}} <code>[[40, "1_.*"], [60, 5]]</code></small></label>
 </div>
-{{if .CanWrite}}<button>Save</button>{{end}}
+{{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}
 </fieldset>
 </form>
 
 <section class="card" id="managers">
-<h2>Managers <small class="muted">checkers, graders, stubs, headers</small></h2>
+<h2>{{.T "Managers"}} <small class="muted">{{.T "checkers, graders, stubs, headers"}}</small></h2>
 <ul>{{range .Data.Managers}}<li><a href="/datasets/{{$ds.ID}}/managers/{{.Filename}}">{{.Filename}}</a>
-  {{if $.CanWrite}}<form method="post" action="/datasets/{{$ds.ID}}/managers/{{.Filename}}/delete" class="inline" data-confirm="Delete {{.Filename}}?">{{template "csrf" $.CSRF}}<button class="link">delete</button></form>{{end}}</li>
-{{else}}<li class="muted">None.</li>{{end}}</ul>
-{{with .Data.Required}}<p class="muted small">This configuration uses: {{join . ", "}}.</p>{{end}}
+  {{if $.CanWrite}}<form method="post" action="/datasets/{{$ds.ID}}/managers/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
+{{else}}<li class="muted">{{.T "None."}}</li>{{end}}</ul>
+{{with .Data.Required}}<p class="muted small">{{$.T "This configuration uses:"}} {{join . ", "}}.</p>{{end}}
 {{if .CanWrite}}
 <form method="post" action="/datasets/{{$ds.ID}}/managers" enctype="multipart/form-data">
-  {{template "csrf" .CSRF}}<input type="file" name="files" multiple required> <button>Upload</button>
+  {{template "csrf" .CSRF}}<input type="file" name="files" multiple required> <button>{{.T "Upload"}}</button>
 </form>
 {{end}}
 </section>
 
 <section class="card" id="testcases">
-<h2>Testcases <small class="muted">{{len .Data.Testcases}}</small></h2>
+<h2>{{.T "Testcases"}} <small class="muted">{{len .Data.Testcases}}</small></h2>
 {{if .CanWrite}}
 <div class="row">
 <form method="post" action="/datasets/{{$ds.ID}}/testcases/archive" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
-  <h3>From a zip archive</h3>
-  <div class="grid"><label>Input names <input name="input_template" value="*.in"></label><label>Output names <input name="output_template" value="*.out"></label></div>
+  <h3>{{.T "From a zip archive"}}</h3>
+  <div class="grid"><label>{{.T "Input names"}} <input name="input_template" value="*.in"></label><label>{{.T "Output names"}} <input name="output_template" value="*.out"></label></div>
   <input type="file" name="archive" accept=".zip,application/zip" required>
-  <p class="checks"><label><input type="checkbox" name="overwrite"> Overwrite existing</label> <label><input type="checkbox" name="public"> Public</label></p>
-  <button>Import</button>
+  <p class="checks"><label><input type="checkbox" name="overwrite"> {{.T "Overwrite existing"}}</label> <label><input type="checkbox" name="public"> {{.T "Public"}}</label></p>
+  <button>{{.T "Import"}}</button>
 </form>
 <form method="post" action="/datasets/{{$ds.ID}}/testcases" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
-  <h3>Single testcase</h3>
-  <label>Codename <input name="codename" required></label>
-  <div class="grid"><label>Input <input type="file" name="input" required></label><label>Output <input type="file" name="output" required></label></div>
-  <p class="checks"><label><input type="checkbox" name="public"> Public</label></p>
-  <button>Add</button>
+  <h3>{{.T "Single testcase"}}</h3>
+  <label>{{.T "Codename"}} <input name="codename" required></label>
+  <div class="grid"><label>{{.T "Input"}} <input type="file" name="input" required></label><label>{{.T "Output"}} <input type="file" name="output" required></label></div>
+  <p class="checks"><label><input type="checkbox" name="public"> {{.T "Public"}}</label></p>
+  <button>{{.T "Add"}}</button>
 </form>
 </div>
 {{end}}
 <table>
-<thead><tr><th>Codename</th><th>Public</th><th>Input</th><th>Output</th><th></th></tr></thead>
+<thead><tr><th>{{.T "Codename"}}</th><th>{{.T "Public"}}</th><th>{{.T "Input"}}</th><th>{{.T "Output"}}</th><th></th></tr></thead>
 <tbody>
 {{range .Data.Testcases}}
 <tr><td>{{.Codename}}</td>
-<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/public" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="public" value="{{if .Public}}0{{else}}1{{end}}"><button class="link">{{if .Public}}yes{{else}}no{{end}}</button></form>{{else}}{{if .Public}}yes{{else}}no{{end}}{{end}}</td>
-<td><a href="/testcases/{{.ID}}/input">input</a></td><td><a href="/testcases/{{.ID}}/output">output</a></td>
-<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/delete" class="inline" data-confirm="Delete testcase {{.Codename}}?">{{template "csrf" $.CSRF}}<button class="link">delete</button></form>{{end}}</td></tr>
+<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/public" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="public" value="{{if .Public}}0{{else}}1{{end}}"><button class="link">{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}</button></form>{{else}}{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}{{end}}</td>
+<td><a href="/testcases/{{.ID}}/input">{{$.T "input"}}</a></td><td><a href="/testcases/{{.ID}}/output">{{$.T "output"}}</a></td>
+<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/delete" class="inline" data-confirm="{{$.T "Delete testcase %s?" .Codename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
 {{else}}
-<tr><td colspan="5" class="muted">No testcases.</td></tr>
+<tr><td colspan="5" class="muted">{{.T "No testcases."}}</td></tr>
 {{end}}
 </tbody>
 </table>
@@ -136,8 +136,8 @@
 
 {{if and .CanWrite (not .Data.Live)}}
 <section class="card danger">
-<form method="post" action="/datasets/{{$ds.ID}}/delete" data-confirm="Delete this dataset and its results?">
-  {{template "csrf" .CSRF}}<button class="danger">Delete dataset</button>
+<form method="post" action="/datasets/{{$ds.ID}}/delete" data-confirm="{{.T "Delete this dataset and its results?"}}">
+  {{template "csrf" .CSRF}}<button class="danger">{{.T "Delete dataset"}}</button>
 </form>
 </section>
 {{end}}

@@ -12,11 +12,13 @@ import (
 	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
+	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 )
 
 // page is the data of every admin page.
 type page struct {
+	Lang       string
 	Title      string
 	Admin      *sqlc.Admin
 	CSRF       string
@@ -33,7 +35,8 @@ type page struct {
 type crumb struct{ Name, URL string }
 
 func (s *Server) newPage(w http.ResponseWriter, r *http.Request, rc *reqCtx, title, active string, data any) *page {
-	p := &page{Title: title, Active: active, Data: data, ServerTime: s.now()}
+	lang := adminLang(r)
+	p := &page{Lang: lang, Title: i18n.T(lang, title), Active: active, Data: data, ServerTime: s.now()}
 	if rc != nil {
 		p.Admin = &rc.admin
 		p.CSRF = s.csrf.Token(rc.sess.ID)
@@ -45,9 +48,47 @@ func (s *Server) newPage(w http.ResponseWriter, r *http.Request, rc *reqCtx, tit
 }
 
 func (p *page) crumb(name, url string) *page {
-	p.Crumbs = append(p.Crumbs, crumb{name, url})
+	p.Crumbs = append(p.Crumbs, crumb{i18n.T(p.Lang, name), url})
 	return p
 }
+
+// T translates a message into the page's language.
+func (p *page) T(msg string, args ...any) string { return i18n.T(p.Lang, msg, args...) }
+
+// Languages lists the UI languages for the selector.
+func (p *page) Languages() []localization {
+	var out []localization
+	for _, code := range i18n.Languages() {
+		out = append(out, localization{code, i18n.Names[code]})
+	}
+	return out
+}
+
+// adminLang negotiates the interface language: the language cookie (shared
+// with the contest web server), then the browser's preferences.
+func adminLang(r *http.Request) string {
+	explicit := ""
+	if c, err := r.Cookie("cms_lang"); err == nil {
+		explicit = c.Value
+	}
+	return i18n.Negotiate(explicit, nil, r.Header.Get("Accept-Language"), nil)
+}
+
+// adminTr returns a translator into the administrator's language, for
+// messages built outside a page (validation, previews).
+func adminTr(r *http.Request) func(string, ...any) string {
+	lang := adminLang(r)
+	return func(msg string, args ...any) string { return i18n.T(lang, msg, args...) }
+}
+
+// wrap gives partial templates their data together with the page (for
+// translations and the CSRF token).
+type wrap struct {
+	P *page
+	V any
+}
+
+func (w wrap) T(msg string, args ...any) string { return w.P.T(msg, args...) }
 
 func (s *Server) render(w http.ResponseWriter, name string, status int, p *page) {
 	t := s.pages[name]
@@ -70,11 +111,11 @@ func (s *Server) errorPage(w http.ResponseWriter, r *http.Request, rc *reqCtx, s
 	if webkit.IsHTMX(r) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(status)
-		w.Write([]byte(msg))
+		w.Write([]byte(i18n.TDetail(adminLang(r), msg)))
 		return
 	}
 	p := s.newPage(w, r, rc, http.StatusText(status), "", nil)
-	p.Error = msg
+	p.Error = i18n.TDetail(p.Lang, msg)
 	s.render(w, "error", status, p)
 }
 
@@ -83,7 +124,7 @@ func (s *Server) formError(w http.ResponseWriter, r *http.Request, rc *reqCtx, n
 	if rc.audit != nil {
 		rc.audit.skip = true
 	}
-	p.Error = msg
+	p.Error = i18n.TDetail(p.Lang, msg)
 	s.render(w, name, http.StatusUnprocessableEntity, p)
 }
 
@@ -109,10 +150,11 @@ func (s *Server) takeFlash(w http.ResponseWriter, r *http.Request) string {
 	return string(b)
 }
 
-// done redirects after a successful POST with a flash message.
-func (s *Server) done(w http.ResponseWriter, r *http.Request, to, msg string) {
+// done redirects after a successful POST with a flash message (translated
+// into the administrator's language, formatted with args).
+func (s *Server) done(w http.ResponseWriter, r *http.Request, to, msg string, args ...any) {
 	if msg != "" {
-		s.setFlash(w, msg)
+		s.setFlash(w, i18n.T(adminLang(r), msg, args...))
 	}
 	webkit.Redirect(w, r, to)
 }
@@ -294,9 +336,10 @@ func (s *Server) funcs() template.FuncMap {
 			return strconv.FormatInt(*v/60, 10)
 		},
 		// reeval builds the data of a reevaluation form for one scope.
-		"reeval": func(csrf, field string, id int64, back string) reevalForm {
-			return reevalForm{CSRF: csrf, Field: field, ID: id, Back: back}
+		"reeval": func(p *page, field string, id int64, back string) reevalForm {
+			return reevalForm{P: p, CSRF: p.CSRF, Field: field, ID: id, Back: back}
 		},
+		"part": func(p *page, v any) wrap { return wrap{P: p, V: v} },
 		"since": func(t time.Time) string {
 			if t.IsZero() {
 				return ""
@@ -350,6 +393,9 @@ func urlQueryEscape(s string) string { return url.QueryEscape(s) }
 
 // reevalForm is the data of the "reevaluate" partial.
 type reevalForm struct {
+	P                 *page
 	CSRF, Field, Back string
 	ID                int64
 }
+
+func (r reevalForm) T(msg string, args ...any) string { return r.P.T(msg, args...) }

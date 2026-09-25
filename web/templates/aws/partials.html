@@ -1,42 +1,44 @@
 {{define "csrf"}}<input type="hidden" name="csrf" value="{{.}}">{{end}}
 
 {{define "reevaluate"}}
-<form method="post" action="/reevaluate" class="inline reeval" data-confirm="Reevaluate every selected result?">
+<form method="post" action="/reevaluate" class="inline reeval" data-confirm="{{.T "Reevaluate every selected result?"}}">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
   <input type="hidden" name="{{.Field}}" value="{{.ID}}">
   <input type="hidden" name="back" value="{{.Back}}">
-  <select name="level" aria-label="Reevaluation level">
-    <option value="rescore">Rescore</option>
-    <option value="reevaluate">Reevaluate</option>
-    <option value="recompile">Recompile</option>
+  <select name="level" aria-label="{{.T "Reevaluation level"}}">
+    <option value="rescore">{{.T "Rescore"}}</option>
+    <option value="reevaluate">{{.T "Reevaluate"}}</option>
+    <option value="recompile">{{.T "Recompile"}}</option>
   </select>
-  <button class="secondary">Run</button>
+  <button class="secondary">{{.T "Run"}}</button>
 </form>
 {{end}}
 
-{{define "token-fields"}}
-<fieldset><legend>Tokens</legend>
+{{define "token-fields"}}{{$v := .V}}
+<fieldset><legend>{{.T "Tokens"}}</legend>
 <div class="grid">
-  <label>Mode <select name="token_mode">
-    {{range $m := (split "disabled finite infinite")}}<option value="{{$m}}" {{if eq $m $.TokenMode}}selected{{end}}>{{$m}}</option>{{end}}
+  <label>{{.T "Mode"}} <select name="token_mode">
+    <option value="disabled" {{if eq $v.TokenMode "disabled"}}selected{{end}}>{{.T "disabled"}}</option>
+    <option value="finite" {{if eq $v.TokenMode "finite"}}selected{{end}}>{{.T "finite"}}</option>
+    <option value="infinite" {{if eq $v.TokenMode "infinite"}}selected{{end}}>{{.T "infinite"}}</option>
   </select></label>
-  <label>Maximum tokens <input name="token_max_number" value="{{opt .TokenMaxNumber}}" inputmode="numeric" placeholder="unlimited"></label>
-  <label>Min. interval between tokens (s) <input name="token_min_interval_s" value="{{.TokenMinIntervalS}}" inputmode="numeric"></label>
-  <label>Initial tokens <input name="token_gen_initial" value="{{.TokenGenInitial}}" inputmode="numeric"></label>
-  <label>Tokens generated <input name="token_gen_number" value="{{.TokenGenNumber}}" inputmode="numeric"></label>
-  <label>Generation interval (s) <input name="token_gen_interval_s" value="{{.TokenGenIntervalS}}" inputmode="numeric"></label>
-  <label>Max. accumulated <input name="token_gen_max" value="{{opt .TokenGenMax}}" inputmode="numeric" placeholder="unlimited"></label>
+  <label>{{.T "Maximum tokens"}} <input name="token_max_number" value="{{opt $v.TokenMaxNumber}}" inputmode="numeric" placeholder="{{.T "unlimited"}}"></label>
+  <label>{{.T "Min. interval between tokens (s)"}} <input name="token_min_interval_s" value="{{$v.TokenMinIntervalS}}" inputmode="numeric"></label>
+  <label>{{.T "Initial tokens"}} <input name="token_gen_initial" value="{{$v.TokenGenInitial}}" inputmode="numeric"></label>
+  <label>{{.T "Tokens generated"}} <input name="token_gen_number" value="{{$v.TokenGenNumber}}" inputmode="numeric"></label>
+  <label>{{.T "Generation interval (s)"}} <input name="token_gen_interval_s" value="{{$v.TokenGenIntervalS}}" inputmode="numeric"></label>
+  <label>{{.T "Max. accumulated"}} <input name="token_gen_max" value="{{opt $v.TokenGenMax}}" inputmode="numeric" placeholder="{{.T "unlimited"}}"></label>
 </div>
 </fieldset>
 {{end}}
 
-{{define "limit-fields"}}
-<fieldset><legend>Submission limits</legend>
+{{define "limit-fields"}}{{$v := .V}}
+<fieldset><legend>{{.T "Submission limits"}}</legend>
 <div class="grid">
-  <label>Max. submissions <input name="max_submission_number" value="{{opt .MaxSubmissionNumber}}" inputmode="numeric" placeholder="unlimited"></label>
-  <label>Max. user tests <input name="max_user_test_number" value="{{opt .MaxUserTestNumber}}" inputmode="numeric" placeholder="unlimited"></label>
-  <label>Min. interval between submissions (s) <input name="min_submission_interval_s" value="{{opt .MinSubmissionIntervalS}}" inputmode="numeric" placeholder="none"></label>
-  <label>Min. interval between user tests (s) <input name="min_user_test_interval_s" value="{{opt .MinUserTestIntervalS}}" inputmode="numeric" placeholder="none"></label>
+  <label>{{.T "Max. submissions"}} <input name="max_submission_number" value="{{opt $v.MaxSubmissionNumber}}" inputmode="numeric" placeholder="{{.T "unlimited"}}"></label>
+  <label>{{.T "Max. user tests"}} <input name="max_user_test_number" value="{{opt $v.MaxUserTestNumber}}" inputmode="numeric" placeholder="{{.T "unlimited"}}"></label>
+  <label>{{.T "Min. interval between submissions (s)"}} <input name="min_submission_interval_s" value="{{opt $v.MinSubmissionIntervalS}}" inputmode="numeric" placeholder="{{.T "none"}}"></label>
+  <label>{{.T "Min. interval between user tests (s)"}} <input name="min_user_test_interval_s" value="{{opt $v.MinUserTestIntervalS}}" inputmode="numeric" placeholder="{{.T "none"}}"></label>
 </div>
 </fieldset>
 {{end}}
@@ -45,37 +47,37 @@
 <div id="system-status" hx-get="/system/status" hx-trigger="every 2s" hx-swap="outerHTML">
 {{with .QueueError}}<p class="alert">Redis: {{.}}</p>{{end}}
 <div class="stats">
-  <div class="stat"><b>{{.Alive}}</b><span>workers alive</span></div>
-  <div class="stat"><b>{{.Busy}} / {{.Slots}}</b><span>slots busy</span></div>
-  {{range .Priorities}}<div class="stat"><b>{{index $.Queues.Waiting .}}</b><span>{{.}} waiting ({{index $.Queues.Pending .}} running)</span></div>{{end}}
-  <div class="stat"><b>{{.Queues.Results}}</b><span>results to process</span></div>
+  <div class="stat"><b>{{.Alive}}</b><span>{{.T "workers alive"}}</span></div>
+  <div class="stat"><b>{{.Busy}} / {{.Slots}}</b><span>{{.T "slots busy"}}</span></div>
+  {{range .Priorities}}<div class="stat"><b>{{index $.Queues.Waiting .}}</b><span>{{$.T "%s waiting (%d running)" ($.T .) (index $.Queues.Pending .)}}</span></div>{{end}}
+  <div class="stat"><b>{{.Queues.Results}}</b><span>{{.T "results to process"}}</span></div>
 </div>
 <table>
-<thead><tr><th>Worker</th><th>Host</th><th>Version</th><th>State</th><th class="num">Jobs</th><th class="num">Errors</th><th>Slots</th></tr></thead>
+<thead><tr><th>{{.T "Worker"}}</th><th>{{.T "Host"}}</th><th>{{.T "Version"}}</th><th>{{.T "State"}}</th><th class="num">{{.T "Jobs"}}</th><th class="num">{{.T "Errors"}}</th><th>{{.T "Slots"}}</th></tr></thead>
 <tbody>
 {{range .Workers}}
 <tr class="{{if not .Alive}}pending{{end}}">
   <td>{{.Name}}</td><td>{{.Hostname}}</td><td>{{.Version}}</td>
-  <td>{{if .Alive}}<span class="ok">alive</span>{{else}}<span class="bad">dead</span> (last seen {{dt .LastSeen}}){{end}}</td>
+  <td>{{if .Alive}}<span class="ok">{{$.T "alive"}}</span>{{else}}<span class="bad">{{$.T "dead"}}</span> ({{$.T "last seen %s" (dt .LastSeen)}}){{end}}</td>
   <td class="num">{{.JobsDone}}</td><td class="num">{{.Errors}}</td>
-  <td>{{range .Slots}}<span class="slot {{if .JobID}}busy{{end}}" title="core {{.Core}}">{{if .JobID}}{{.Kind}}{{if .SubmissionID}} <a href="/submissions/{{.SubmissionID}}">#{{.SubmissionID}}</a>{{end}}{{if .UserTestID}} test {{.UserTestID}}{{end}} · {{since .Since}}{{else}}idle{{end}}</span>{{end}}</td>
+  <td>{{range .Slots}}<span class="slot {{if .JobID}}busy{{end}}" title="{{$.T "core %d" .Core}}">{{if .JobID}}{{.Kind}}{{if .SubmissionID}} <a href="/submissions/{{.SubmissionID}}">#{{.SubmissionID}}</a>{{end}}{{if .UserTestID}} {{$.T "test %d" .UserTestID}}{{end}} · {{since .Since}}{{else}}{{$.T "idle"}}{{end}}</span>{{end}}</td>
 </tr>
 {{else}}
-<tr><td colspan="7" class="muted">No worker has reported yet.</td></tr>
+<tr><td colspan="7" class="muted">{{.T "No worker has reported yet."}}</td></tr>
 {{end}}
 </tbody>
 </table>
-<p class="muted small">Updated {{dt .Time}} UTC.</p>
+<p class="muted small">{{.T "Updated %s UTC." (dt .Time)}}</p>
 </div>
 {{end}}
 
 {{define "sessions"}}
 <table>
-<thead><tr><th>Contest</th><th>IP</th><th>Browser</th><th>Logged in (UTC)</th><th>Last seen (UTC)</th><th>State</th></tr></thead>
+<thead><tr><th>{{.T "Contest"}}</th><th>IP</th><th>{{.T "Browser"}}</th><th>{{.T "Logged in (UTC)"}}</th><th>{{.T "Last seen (UTC)"}}</th><th>{{.T "State"}}</th></tr></thead>
 <tbody>
-{{range .}}<tr><td>{{.Contest}}</td><td>{{.IP}}</td><td class="small">{{.UserAgent}}</td><td>{{dt .Issued}}</td><td>{{dt .LastSeen}}</td>
-<td>{{if .Valid}}<span class="ok">active</span>{{else}}<span class="muted">closed</span>{{end}}</td></tr>
-{{else}}<tr><td colspan="6" class="muted">No session in the last 24 hours.</td></tr>{{end}}
+{{range .V}}<tr><td>{{.Contest}}</td><td>{{.IP}}</td><td class="small">{{.UserAgent}}</td><td>{{dt .Issued}}</td><td>{{dt .LastSeen}}</td>
+<td>{{if .Valid}}<span class="ok">{{$.T "active"}}</span>{{else}}<span class="muted">{{$.T "closed"}}</span>{{end}}</td></tr>
+{{else}}<tr><td colspan="6" class="muted">{{.T "No session in the last 24 hours."}}</td></tr>{{end}}
 </tbody>
 </table>
 {{end}}
@@ -84,9 +86,9 @@
 <form method="post" action="/credentials.pdf" class="inline-form">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
   <input type="hidden" name="credentials" value="{{.Data.CSV}}">
-  <label>Title <input name="title" value="{{.Data.Title}}" placeholder="contest name"></label>
-  <label>Address <input name="url" value="{{.Data.URL}}" placeholder="https://…"></label>
-  <label>Cards per page <select name="per_page"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
-  <button>Printable credentials (PDF)</button>
+  <label>{{.T "Title"}} <input name="title" value="{{.Data.Title}}" placeholder="{{.T "contest name"}}"></label>
+  <label>{{.T "Address"}} <input name="url" value="{{.Data.URL}}" placeholder="https://…"></label>
+  <label>{{.T "Cards per page"}} <select name="per_page"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+  <button>{{.T "Printable credentials (PDF)"}}</button>
 </form>
 {{end}}

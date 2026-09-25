@@ -1,23 +1,23 @@
 {{define "content"}}
-<h1>Administrators</h1>
+<h1>{{.T "Administrators"}}</h1>
 <table>
-<thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Enabled</th><th>2FA</th><th>Created</th></tr></thead>
+<thead><tr><th>{{.T "Username"}}</th><th>{{.T "Name"}}</th><th>{{.T "Role"}}</th><th>{{.T "Enabled"}}</th><th>2FA</th><th>{{.T "Created"}}</th></tr></thead>
 <tbody>
 {{range .Data.Admins}}
-<tr><td><a href="/admins/{{.ID}}">{{.Username}}</a></td><td>{{.Name}}</td><td>{{.Role}}</td><td>{{if .Enabled}}yes{{else}}<span class="bad">no</span>{{end}}</td><td>{{if .TotpSecret}}<span class="ok">on</span>{{else}}off{{end}}</td><td>{{dt .CreatedAt}}</td></tr>
+<tr><td><a href="/admins/{{.ID}}">{{.Username}}</a></td><td>{{.Name}}</td><td>{{.Role}}</td><td>{{if .Enabled}}{{$.T "yes"}}{{else}}<span class="bad">{{$.T "no"}}</span>{{end}}</td><td>{{if .TotpSecret}}<span class="ok">{{$.T "on"}}</span>{{else}}{{$.T "off"}}{{end}}</td><td>{{dt .CreatedAt}}</td></tr>
 {{end}}
 </tbody>
 </table>
-<p class="muted small">Roles: <b>all</b> can change everything; <b>messaging</b> can read everything and answer questions, send announcements and messages; <b>read_only</b> can only look.</p>
+<p class="muted small">{{.T "Roles: all can change everything; messaging can read everything and answer questions, send announcements and messages; read_only can only look."}}</p>
 {{if .CanWrite}}
 <form method="post" action="/admins" class="card inline-form">
   {{template "csrf" .CSRF}}
-  <b>New administrator</b>
-  <label>Username <input name="username" required autocomplete="off"></label>
-  <label>Name <input name="name"></label>
-  <label>Password <input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
-  <label>Role <select name="role">{{range .Data.Roles}}<option>{{.}}</option>{{end}}</select></label>
-  <button>Create</button>
+  <b>{{.T "New administrator"}}</b>
+  <label>{{.T "Username"}} <input name="username" required autocomplete="off"></label>
+  <label>{{.T "Name"}} <input name="name"></label>
+  <label>{{.T "Password"}} <input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+  <label>{{.T "Role"}} <select name="role">{{range .Data.Roles}}<option>{{.}}</option>{{end}}</select></label>
+  <button>{{.T "Create"}}</button>
 </form>
 {{end}}
 {{end}}

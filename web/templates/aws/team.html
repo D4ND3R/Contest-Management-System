@@ -1,37 +1,37 @@
 {{define "content"}}
 {{$t := .Data.T}}
-<h1>Team {{$t.Code}}</h1>
+<h1>{{.T "Team %s" $t.Code}}</h1>
 <form method="post" action="/teams/{{$t.ID}}" enctype="multipart/form-data" class="card">
 {{template "csrf" .CSRF}}
 <fieldset {{if not .CanWrite}}disabled{{end}}>
 <div class="grid">
-  <label>Code <input name="code" value="{{$t.Code}}" required pattern="[A-Za-z0-9_.\-]+"></label>
-  <label>Name <input name="name" value="{{$t.Name}}" required></label>
-  <label>Institution <input name="institution" value="{{$t.Institution}}"></label>
-  <label>Flag / logo {{if $t.FlagDigest}}<img src="/teams/{{$t.ID}}/flag" alt="" class="flag"> <label class="inline"><input type="checkbox" name="remove_flag"> remove</label>{{end}} <input type="file" name="flag" accept="image/*"></label>
-  <label>Photo {{if $t.PhotoDigest}}<a href="/teams/{{$t.ID}}/photo">current</a> <label class="inline"><input type="checkbox" name="remove_photo"> remove</label>{{end}} <input type="file" name="photo" accept="image/*"></label>
+  <label>{{.T "Code"}} <input name="code" value="{{$t.Code}}" required pattern="[A-Za-z0-9_.\-]+"></label>
+  <label>{{.T "Name"}} <input name="name" value="{{$t.Name}}" required></label>
+  <label>{{.T "Institution"}} <input name="institution" value="{{$t.Institution}}"></label>
+  <label>{{.T "Flag / logo"}} {{if $t.FlagDigest}}<img src="/teams/{{$t.ID}}/flag" alt="" class="flag"> <label class="inline"><input type="checkbox" name="remove_flag"> {{.T "remove"}}</label>{{end}} <input type="file" name="flag" accept="image/*"></label>
+  <label>{{.T "Photo"}} {{if $t.PhotoDigest}}<a href="/teams/{{$t.ID}}/photo">{{.T "current"}}</a> <label class="inline"><input type="checkbox" name="remove_photo"> {{.T "remove"}}</label>{{end}} <input type="file" name="photo" accept="image/*"></label>
 </div>
-{{if .CanWrite}}<button>Save</button>{{end}}
+{{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}
 </fieldset>
 </form>
 <section class="card">
-<h2>Members</h2>
-<table><thead><tr><th>Contest</th><th>User</th><th>Name</th></tr></thead><tbody>
+<h2>{{.T "Members"}}</h2>
+<table><thead><tr><th>{{.T "Contest"}}</th><th>{{.T "User"}}</th><th>{{.T "Name"}}</th></tr></thead><tbody>
 {{range .Data.Members}}<tr><td>{{.ContestName}}</td><td><a href="/participations/{{.ID}}">{{.Username}}</a></td><td>{{.FirstName}} {{.LastName}}</td></tr>
-{{else}}<tr><td colspan="3" class="muted">No members yet.</td></tr>{{end}}
+{{else}}<tr><td colspan="3" class="muted">{{.T "No members yet."}}</td></tr>{{end}}
 </tbody></table>
 {{if .CanWrite}}
 <form method="post" action="/teams/{{$t.ID}}/members" class="inline-form">
   {{template "csrf" .CSRF}}
-  <label>Contest <select name="contest_id">{{range .Data.Contests}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
-  <label>Usernames <input name="usernames" placeholder="ana, beto" required></label>
-  <button>Add members</button>
+  <label>{{.T "Contest"}} <select name="contest_id">{{range .Data.Contests}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
+  <label>{{.T "Usernames"}} <input name="usernames" placeholder="ana, beto" required></label>
+  <button>{{.T "Add members"}}</button>
 </form>
 {{end}}
 </section>
 {{if .CanWrite}}
-<form method="post" action="/teams/{{$t.ID}}/delete" class="card danger" data-confirm="Delete team {{$t.Code}}? Participations keep existing without a team.">
-  {{template "csrf" .CSRF}}<button class="danger">Delete team</button>
+<form method="post" action="/teams/{{$t.ID}}/delete" class="card danger" data-confirm="{{.T "Delete team %s? Participations keep existing without a team." $t.Code}}">
+  {{template "csrf" .CSRF}}<button class="danger">{{.T "Delete team"}}</button>
 </form>
 {{end}}
 {{end}}

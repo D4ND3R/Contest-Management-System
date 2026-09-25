@@ -11,6 +11,10 @@ SELECT * FROM users WHERE id = $1;
 -- name: GetUserByUsername :one
 SELECT * FROM users WHERE username = $1;
 
+-- name: ListExistingUsernames :many
+-- One round trip for a whole CSV import preview (users_username_key).
+SELECT username FROM users WHERE username = ANY(@usernames::text[]);
+
 -- name: ListUsers :many
 SELECT * FROM users ORDER BY username;
 

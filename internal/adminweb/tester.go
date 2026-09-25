@@ -42,8 +42,10 @@ type testerRun struct {
 
 type testerResult struct {
 	Dataset string
-	Status  string
+	Status  string // an i18n key; "evaluating" uses Done/Total
 	Class   string
+	Done    int32
+	Total   int32
 	Score   *float64
 }
 
@@ -103,7 +105,7 @@ func (s *Server) testerForm(ctx context.Context, t sqlc.Task) (*testerForm, erro
 		case *row.CompilationOutcome == "fail":
 			res.Status, res.Class = "compilation failed", "bad"
 		case row.ScoredAt == nil:
-			res.Status = "evaluating " + strconv.Itoa(int(deref32(row.TestcasesDone))) + "/" + strconv.Itoa(int(deref32(row.TestcasesTotal)))
+			res.Status, res.Done, res.Total = "evaluating", deref32(row.TestcasesDone), deref32(row.TestcasesTotal)
 		default:
 			res.Status, res.Class = "scored", "ok"
 		}
