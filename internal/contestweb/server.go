@@ -210,6 +210,12 @@ func (s *Server) onEvent(e events.Event) {
 		return
 	case events.TypeAlert, events.TypeQuestionNew:
 		return // for admins only
+	case events.TypeSubmission:
+		// Team contests: teammates' pages follow the submission too.
+		if pv, err := s.cache.participation(context.Background(), e.ParticipationID); err == nil && pv.TeamID != nil {
+			s.hub.publishTeam(e, pv.ContestID, *pv.TeamID)
+			return
+		}
 	}
 	s.hub.publish(e)
 }
@@ -219,11 +225,14 @@ type reqCtx struct {
 	ctx     context.Context
 	contest *contestView
 	part    sqlc.GetParticipationViewRow
-	sess    *webkit.Session
-	lang    string
-	status  contest.Status
-	ip      netip.Addr
-	now     time.Time
+	// group is the participation, or every participation of its team in a
+	// team contest (they share submissions, limits and scores).
+	group  []int64
+	sess   *webkit.Session
+	lang   string
+	status contest.Status
+	ip     netip.Addr
+	now    time.Time
 }
 
 func (s *Server) cookie(contestID int64) *webkit.CookieCodec {
@@ -314,6 +323,12 @@ func (s *Server) withAuth(h func(http.ResponseWriter, *http.Request, *reqCtx)) h
 		now := s.now()
 		rc := &reqCtx{ctx: r.Context(), contest: cv, part: part, sess: sess, ip: ip, now: now,
 			lang: s.language(r, cv, part.PreferredLanguages, sess.Lang)}
+		rc.group = []int64{part.ID}
+		if cv.TeamMode && part.TeamID != nil {
+			if ids, err := s.cache.team(r.Context(), cv.ID, *part.TeamID); err == nil && len(ids) > 0 {
+				rc.group = ids
+			}
+		}
 		rc.status = contest.Compute(cv.Rules, participantOf(part), now)
 		if cv.Status == "archived" {
 			// Archived contests are read-only for everybody.

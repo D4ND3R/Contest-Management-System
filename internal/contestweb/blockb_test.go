@@ -4,13 +4,17 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/auth"
+	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/events"
 )
 
@@ -142,5 +146,87 @@ func TestClockFollowsExtension(t *testing.T) {
 	}
 	if _, end2 := clock(); end2-end != 10*60*1000 {
 		t.Fatalf("clock moved by %d ms", end2-end)
+	}
+}
+
+// TestTeamSharedSubmissions (SPEC_CLOSE B3): in a team contest members
+// see and open each other's submissions (with the author), share the
+// submission limits and the task score, and get each other's live
+// updates; in an individual contest they do not.
+func TestTeamSharedSubmissions(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	team, err := f.q.CreateTeam(bg, sqlc.CreateTeamParams{Code: "ARG", Name: "Argentina"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash, _ := auth.HashPassword("secret")
+	beto, _ := f.q.CreateUser(bg, sqlc.CreateUserParams{Username: "beto", PasswordHash: hash, PreferredLanguages: []string{}})
+	bp, err := f.q.CreateParticipation(bg, sqlc.CreateParticipationParams{ContestID: f.contest.ID, UserID: beto.ID, TeamID: &team.ID, Ip: []netip.Prefix{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.pool.Exec(bg, "UPDATE participations SET team_id = $1 WHERE id = $2", team.ID, f.part.ID)
+	f.setContest(t, "team_mode = true, max_submission_number = 2")
+
+	ana, bc := f.client(), f.client()
+	_, body := f.login(ana, "ana", "secret")
+	if code, _ := f.submit(ana, csrfOf(t, body), "c11", "int main(){}", false); code != 200 {
+		t.Fatalf("ana submits = %d", code)
+	}
+	subs, _ := f.q.ListSubmissionsByParticipation(bg, f.part.ID)
+	f.login(bc, "beto", "secret")
+	_, page := f.get(bc, "/ioi/tasks/sum")
+	if !strings.Contains(page, fmt.Sprintf(`id="sub-%d"`, subs[0].ID)) || !strings.Contains(page, "· ana") {
+		t.Fatalf("beto does not see ana's submission:\n%s", page)
+	}
+	if code, _ := f.get(bc, fmt.Sprintf("/ioi/submissions/%d", subs[0].ID)); code != 200 {
+		t.Fatalf("beto opens ana's submission = %d", code)
+	}
+	// Live: beto's page hears about ana's submissions.
+	bc.Timeout = 0
+	req, _ := http.NewRequest("GET", f.url+"/ioi/events", nil)
+	ctx, cancel := context.WithTimeout(bg, 5*time.Second)
+	defer cancel()
+	resp, err := bc.Do(req.WithContext(ctx))
+	if err != nil {
+		t.Fatal(err)
+	}
+	br := bufio.NewReader(resp.Body)
+	br.ReadString('\n')
+	time.Sleep(100 * time.Millisecond)
+	events.Publish(bg, f.rdb, f.ns, events.Event{Type: events.TypeSubmission, ParticipationID: f.part.ID, SubmissionID: subs[0].ID, Status: "scored"})
+	for {
+		line, err := br.ReadString('\n')
+		if err != nil {
+			t.Fatalf("no team event: %v", err)
+		}
+		if strings.HasPrefix(line, "data: ") && strings.Contains(line, fmt.Sprintf(`"submission_id":%d`, subs[0].ID)) {
+			break
+		}
+	}
+	resp.Body.Close()
+	bc.Timeout = 10 * time.Second
+	// The limit counts the team: one more, then no more.
+	if code, _ := f.submit(bc, csrfOf(t, page), "c11", "int main(){}", false); code != 200 {
+		t.Fatalf("beto's first submission = %d", code)
+	}
+	if code, body := f.submit(bc, csrfOf(t, page), "c11", "int main(){}", false); code != 429 && code != 403 || !strings.Contains(body, "maximum") {
+		t.Fatalf("third team submission = %d\n%s", code, body)
+	}
+	// Scores merge per subtask: 30 + 70 = 100 for both.
+	f.q.UpsertParticipationTaskScore(bg, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: f.part.ID, TaskID: f.task.ID, Score: 30, SubtaskScores: json.RawMessage(`[30, 0]`)})
+	f.q.UpsertParticipationTaskScore(bg, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: bp.ID, TaskID: f.task.ID, Score: 70, SubtaskScores: json.RawMessage(`[0, 70]`)})
+	for _, c := range []*http.Client{ana, bc} {
+		if _, body := f.get(c, "/ioi/"); !strings.Contains(body, ">100 / 100<") {
+			t.Fatalf("team score not merged:\n%s", body)
+		}
+	}
+	// Individual contest: nothing is shared.
+	f.setContest(t, "team_mode = false")
+	if code, _ := f.get(bc, fmt.Sprintf("/ioi/submissions/%d", subs[0].ID)); code != 404 {
+		t.Fatalf("individual contest: beto opens ana's submission = %d", code)
+	}
+	if _, body := f.get(bc, "/ioi/"); !strings.Contains(body, ">70 / 100<") {
+		t.Fatal("individual contest shows the team score")
 	}
 }

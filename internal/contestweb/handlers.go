@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -46,19 +47,16 @@ type overviewData struct {
 func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	p := s.newPage(rc, rc.contest.Name, "overview")
 	d := &overviewData{PerUserTime: rc.contest.Rules.PerUserTime}
-	scores, err := s.q.ListScoresByParticipation(r.Context(), rc.part.ID)
+	scores, err := s.q.ListScoresByParticipations(r.Context(), rc.group)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
-	byTask := map[int64]sqlc.ListScoresByParticipationRow{}
-	for _, sc := range scores {
-		byTask[sc.TaskID] = sc
-	}
+	byTask := mergeScores(scores, rc.contest.TaskByID)
 	for _, t := range p.Tasks {
 		row := overviewRow{Name: t.Name, Title: t.Title, Max: t.MaxScore, Precision: t.Precision}
 		if sc, ok := byTask[t.ID]; ok {
-			row.HasScore, row.Score, row.Pending = true, sc.Score, sc.Pending > 0
+			row.HasScore, row.Score, row.Pending = true, sc.score, sc.pending > 0
 		}
 		d.Total += row.Score
 		d.MaxTotal += row.Max
@@ -274,7 +272,7 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request, rc *reqCtx
 		return
 	}
 	now := rc.now
-	stats, err := s.q.SubmissionStats(r.Context(), sqlc.SubmissionStatsParams{ParticipationID: rc.part.ID, TaskID: t.ID})
+	stats, err := s.q.SubmissionStats(r.Context(), sqlc.SubmissionStatsParams{ParticipationIds: rc.group, TaskID: t.ID})
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -454,7 +452,7 @@ func (s *Server) mergePreviousOutputs(r *http.Request, rc *reqCtx, t *taskView, 
 		return files, nil
 	}
 	prev, err := s.q.BestPreviousOutputs(r.Context(), sqlc.BestPreviousOutputsParams{DatasetID: t.Dataset.ID, Pattern: pattern,
-		ParticipationID: rc.part.ID, TaskID: t.ID})
+		ParticipationIds: rc.group, TaskID: t.ID})
 	if err != nil {
 		return nil, err
 	}
@@ -526,7 +524,7 @@ func (s *Server) ownSubmission(w http.ResponseWriter, r *http.Request, rc *reqCt
 	}
 	// The live dataset is needed before loading: resolve the task first.
 	sub, err := s.q.GetSubmission(r.Context(), id)
-	if err != nil || sub.ParticipationID == nil || *sub.ParticipationID != rc.part.ID {
+	if err != nil || sub.ParticipationID == nil || !slices.Contains(rc.group, *sub.ParticipationID) {
 		http.NotFound(w, r)
 		return zero, nil, false
 	}

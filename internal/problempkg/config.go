@@ -63,13 +63,15 @@ type Config struct {
 
 	// Scoring: sum (points_per_test) or group_min, group_mul,
 	// group_threshold (subtasks).
-	Scoring        string    `yaml:"scoring,omitempty"`
-	PointsPerTest  *float64  `yaml:"points_per_test,omitempty"`
-	Subtasks       []Subtask `yaml:"subtasks,omitempty"`
-	PublicTests    []string  `yaml:"public_tests,omitempty"` // regexes of public testcases
-	ScoreMode      string    `yaml:"score_mode,omitempty"`   // max_subtask|max|max_tokened_last
-	ScorePrecision int       `yaml:"score_precision,omitempty"`
-	Feedback       string    `yaml:"feedback,omitempty"` // full|restricted
+	Scoring       string    `yaml:"scoring,omitempty"`
+	PointsPerTest *float64  `yaml:"points_per_test,omitempty"`
+	Subtasks      []Subtask `yaml:"subtasks,omitempty"`
+	PublicTests   []string  `yaml:"public_tests,omitempty"` // regexes of public testcases
+	ScoreMode     string    `yaml:"score_mode,omitempty"`   // max_subtask|max|max_tokened_last
+	// ScorePrecision and ScoreMode default to the contest's (when imported
+	// into one) or to 0 and max_subtask.
+	ScorePrecision *int   `yaml:"score_precision,omitempty"`
+	Feedback       string `yaml:"feedback,omitempty"` // full|restricted
 
 	Languages         []string `yaml:"languages,omitempty"`
 	SubmissionFormat  []string `yaml:"submission_format,omitempty"`
@@ -169,9 +171,6 @@ func ParseConfig(data []byte) (*Config, error) {
 	if c.Feedback == "" {
 		c.Feedback = "full"
 	}
-	if c.ScoreMode == "" {
-		c.ScoreMode = "max_subtask"
-	}
 	if c.Dataset == "" {
 		c.Dataset = "Default"
 	}
@@ -206,11 +205,11 @@ func (c *Config) Check() []string {
 	if c.ProcessLimit < 1 || c.ProcessLimit > 256 {
 		bad("process_limit must be between 1 and 256")
 	}
-	if c.ScorePrecision < 0 || c.ScorePrecision > 6 {
+	if c.ScorePrecision != nil && (*c.ScorePrecision < 0 || *c.ScorePrecision > 6) {
 		bad("score_precision must be between 0 and 6")
 	}
 	switch c.ScoreMode {
-	case "max_subtask", "max", "max_tokened_last":
+	case "", "max_subtask", "max", "max_tokened_last":
 	default:
 		bad("score_mode %q: use max_subtask, max or max_tokened_last", c.ScoreMode)
 	}
@@ -342,4 +341,12 @@ func (c *Config) ScoreTypeParams(nTests int) json.RawMessage {
 		return json.RawMessage(strconv.FormatFloat(p, 'f', -1, 64))
 	}
 	return scoring.EncodeSubtasks(c.Specs(), c.Scoring == "group_threshold")
+}
+
+// Precision is the score precision the package asks for (0 when unset).
+func (c *Config) Precision() int {
+	if c.ScorePrecision == nil {
+		return 0
+	}
+	return *c.ScorePrecision
 }

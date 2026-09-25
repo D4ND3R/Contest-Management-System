@@ -87,6 +87,12 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request, rc *re
 				return err
 			}
 			tp.ContestID, tp.Num = contestID, &next
+			// New tasks of a contest start with its scoring defaults.
+			c, err := q.GetContest(r.Context(), *contestID)
+			if err != nil {
+				return err
+			}
+			tp.ScoreMode, tp.ScorePrecision = c.DefaultScoreMode, c.ScorePrecision
 		}
 		t, err := q.CreateTask(r.Context(), tp)
 		if err != nil {

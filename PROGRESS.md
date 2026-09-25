@@ -577,3 +577,14 @@ window; open contest pages receive a `clock` event and update their
 countdown without reloading. Per-user windows with Start, analysis mode and
 the countdown were already in place. Tests: contestweb.TestPracticeMode,
 contestweb.TestClockFollowsExtension, adminweb.TestContestExtend.
+
+## SPEC_CLOSE B3 — Modality (done)
+Skipping skills: immersive-web-design, master skill.
+
+Team mode and the maximum team size are editable; in team contests members
+see and open each other's submissions (with the author), share the
+submission limits and the task score (merged as the ranking does) and get
+each other's live updates. IOI/ICPC with penalty already existed. New tasks
+and imported packages take the contest's default score mode and precision
+(packages keep what they state). Tests: contestweb.TestTeamSharedSubmissions,
+adminweb.TestContestModality, problempkg.TestImportExportRoundTrip.

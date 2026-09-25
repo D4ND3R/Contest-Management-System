@@ -203,6 +203,14 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 		f.fail("score precision must be between 0 and 6")
 	}
 	c.ScoringMode = f.oneOf("scoring_mode", "Scoring mode", "ioi", "icpc")
+	if f.str("default_score_mode") != "" {
+		c.DefaultScoreMode = f.oneOf("default_score_mode", "Score mode of new tasks", "max_subtask", "max", "max_tokened_last")
+	}
+	c.TeamMode = f.check("team_mode")
+	c.MaxTeamSize = f.optInt32("max_team_size", "Maximum team size")
+	if c.MaxTeamSize != nil && *c.MaxTeamSize < 1 {
+		f.fail("%s must be positive", "Maximum team size")
+	}
 	c.IcpcPenaltyMinutes = f.int32("icpc_penalty_minutes", "ICPC penalty", 20)
 	if c.IcpcPenaltyMinutes < 0 {
 		f.fail("the ICPC penalty must not be negative")

@@ -225,7 +225,7 @@ func TestSubmissionsResultsAndEvaluations(t *testing.T) {
 	q := f.q
 	base := time.Now().UTC().Truncate(time.Microsecond)
 
-	empty := must[sqlc.SubmissionStatsRow](t)(q.SubmissionStats(ctx, sqlc.SubmissionStatsParams{ParticipationID: f.part.ID, TaskID: f.task.ID}))
+	empty := must[sqlc.SubmissionStatsRow](t)(q.SubmissionStats(ctx, sqlc.SubmissionStatsParams{ParticipationIds: []int64{f.part.ID}, TaskID: f.task.ID}))
 	if empty.ContestCount != 0 || !empty.ContestLast.Equal(time.Unix(0, 0)) {
 		t.Fatalf("empty stats = %+v", empty)
 	}
@@ -242,7 +242,7 @@ func TestSubmissionsResultsAndEvaluations(t *testing.T) {
 		}
 		subs = append(subs, s)
 	}
-	stats := must[sqlc.SubmissionStatsRow](t)(q.SubmissionStats(ctx, sqlc.SubmissionStatsParams{ParticipationID: f.part.ID, TaskID: f.task.ID}))
+	stats := must[sqlc.SubmissionStatsRow](t)(q.SubmissionStats(ctx, sqlc.SubmissionStatsParams{ParticipationIds: []int64{f.part.ID}, TaskID: f.task.ID}))
 	if stats.ContestCount != 3 || stats.TaskCount != 3 || !stats.TaskLast.Equal(base.Add(2*time.Minute)) {
 		t.Fatalf("stats = %+v", stats)
 	}

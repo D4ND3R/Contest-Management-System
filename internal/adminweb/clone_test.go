@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 )
@@ -138,5 +139,36 @@ func TestContestExtend(t *testing.T) {
 	}
 	if !found {
 		t.Error("extension not audited")
+	}
+}
+
+// TestContestModality (SPEC_CLOSE B3): the contest form saves team mode,
+// the maximum team size and the scoring defaults, and new tasks of the
+// contest start with those defaults.
+func TestContestModality(t *testing.T) {
+	f := newFixture(t)
+	a := f.login("all")
+	now := time.Now().UTC()
+	form := url.Values{"name": {"seeded"}, "timezone": {"UTC"},
+		"start_time": {now.Add(-time.Hour).Format("2006-01-02T15:04:05")}, "stop_time": {now.Add(time.Hour).Format("2006-01-02T15:04:05")},
+		"token_mode": {"disabled"}, "token_gen_interval_s": {"1800"}, "scoring_mode": {"icpc"}, "score_precision": {"2"},
+		"default_score_mode": {"max"}, "team_mode": {"on"}, "max_team_size": {"3"}, "icpc_penalty_minutes": {"10"}}
+	if code, body := a.Post(fmt.Sprintf("/contests/%d", f.contest.ID), form); code != 200 {
+		t.Fatalf("save = %d\n%s", code, body)
+	}
+	c, _ := f.q.GetContest(bg, f.contest.ID)
+	if !c.TeamMode || c.MaxTeamSize == nil || *c.MaxTeamSize != 3 || c.DefaultScoreMode != "max" || c.ScoringMode != "icpc" || c.IcpcPenaltyMinutes != 10 {
+		t.Fatalf("contest %+v", c)
+	}
+	form.Set("max_team_size", "0")
+	if code, _ := a.Post(fmt.Sprintf("/contests/%d", f.contest.ID), form); code != 422 {
+		t.Fatalf("team size 0 = %d", code)
+	}
+	if code, body := a.Post("/tasks", url.Values{"name": {"nueva"}, "title": {"Nueva"}, "contest_id": {fmt.Sprint(f.contest.ID)}}); code != 200 {
+		t.Fatalf("task = %d\n%s", code, body)
+	}
+	task, _ := f.q.GetTaskByName(bg, "nueva")
+	if task.ScoreMode != "max" || task.ScorePrecision != 2 {
+		t.Fatalf("new task %s %d", task.ScoreMode, task.ScorePrecision)
 	}
 }

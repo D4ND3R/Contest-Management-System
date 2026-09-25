@@ -433,3 +433,6 @@ func (g *group) Compute(tcs []Testcase) Result {
 	return Result{Score: round(score, g.precision), Details: det, PublicScore: round(pub, g.precision),
 		PublicDetails: pdet, RankingDetails: ranking}
 }
+
+// Round rounds v to precision decimal digits (as every score is).
+func Round(v float64, precision int) float64 { return round(v, precision) }

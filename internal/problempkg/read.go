@@ -383,7 +383,7 @@ func (p *Package) checkScoring() {
 	for i, t := range p.Tests {
 		codes[i], pub[i] = t.Codename, t.Public
 	}
-	st, err := scoring.New(c.ScoreType(), c.ScoreTypeParams(len(p.Tests)), codes, pub, c.ScorePrecision)
+	st, err := scoring.New(c.ScoreType(), c.ScoreTypeParams(len(p.Tests)), codes, pub, c.Precision())
 	if err != nil {
 		p.fail("problem.yaml", "scoring: %v", err)
 		return

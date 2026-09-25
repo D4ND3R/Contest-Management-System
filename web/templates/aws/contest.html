@@ -105,7 +105,16 @@
   <label>{{.T "Mode"}} <select name="scoring_mode"><option value="ioi" {{if eq $c.ScoringMode "ioi"}}selected{{end}}>{{.T "IOI (scores)"}}</option><option value="icpc" {{if eq $c.ScoringMode "icpc"}}selected{{end}}>{{.T "ICPC (solved + penalty)"}}</option></select></label>
   <label>{{.T "Score precision (decimals)"}} <input name="score_precision" value="{{$c.ScorePrecision}}" inputmode="numeric"></label>
   <label>{{.T "ICPC penalty per rejected attempt (min)"}} <input name="icpc_penalty_minutes" value="{{$c.IcpcPenaltyMinutes}}" inputmode="numeric"></label>
+  <label>{{.T "Score mode of new tasks"}} <select name="default_score_mode">
+    <option value="max_subtask" {{if eq $c.DefaultScoreMode "max_subtask"}}selected{{end}}>{{.T "best per subtask (IOI 2017+)"}}</option>
+    <option value="max" {{if eq $c.DefaultScoreMode "max"}}selected{{end}}>{{.T "best submission"}}</option>
+    <option value="max_tokened_last" {{if eq $c.DefaultScoreMode "max_tokened_last"}}selected{{end}}>{{.T "max of tokened and last"}}</option></select></label>
 </div>
+<p class="checks">
+  <label><input type="checkbox" name="team_mode" {{if $c.TeamMode}}checked{{end}}> {{.T "Team contest (members share submissions, limits and scores)"}}</label>
+  <label>{{.T "Maximum team size"}} <input name="max_team_size" value="{{opt $c.MaxTeamSize}}" inputmode="numeric" size="3" placeholder="{{.T "no limit"}}"></label>
+</p>
+<p class="muted small">{{.T "New tasks of the contest start with this score mode and the score precision above; each task can change them."}}</p>
 </fieldset>
 <fieldset><legend>{{.T "Ranking"}}</legend>
 <div class="grid">

@@ -63,6 +63,34 @@ type cache struct {
 	mu       sync.Mutex
 	contests map[string]*contestView
 	parts    map[int64]*partEntry
+	teams    map[[2]int64]*teamEntry
+}
+
+type teamEntry struct {
+	ids    []int64
+	loaded time.Time
+}
+
+// team returns the participations of a team in a contest.
+func (c *cache) team(ctx context.Context, contestID, teamID int64) ([]int64, error) {
+	key := [2]int64{contestID, teamID}
+	c.mu.Lock()
+	e, ok := c.teams[key]
+	c.mu.Unlock()
+	if ok && time.Since(e.loaded) < c.ttl {
+		return e.ids, nil
+	}
+	ids, err := c.q.ListTeamParticipations(ctx, sqlc.ListTeamParticipationsParams{ContestID: contestID, TeamID: &teamID})
+	if err != nil {
+		return nil, err
+	}
+	c.mu.Lock()
+	if len(c.teams) > 10000 {
+		c.teams = map[[2]int64]*teamEntry{}
+	}
+	c.teams[key] = &teamEntry{ids: ids, loaded: time.Now()}
+	c.mu.Unlock()
+	return ids, nil
 }
 
 type partEntry struct {
@@ -71,7 +99,8 @@ type partEntry struct {
 }
 
 func newCache(q *sqlc.Queries, reg *langs.Registry, ttl time.Duration) *cache {
-	return &cache{q: q, langs: reg, ttl: ttl, contests: map[string]*contestView{}, parts: map[int64]*partEntry{}}
+	return &cache{q: q, langs: reg, ttl: ttl, contests: map[string]*contestView{}, parts: map[int64]*partEntry{},
+		teams: map[[2]int64]*teamEntry{}}
 }
 
 // invalidateContest drops a contest (by id; 0 = all).

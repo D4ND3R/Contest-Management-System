@@ -18,15 +18,15 @@ FROM submissions s
 JOIN submission_files f ON f.submission_id = s.id
 LEFT JOIN testcases tc ON tc.dataset_id = $1::bigint AND f.filename = replace($2::text, '%s', tc.codename)
 LEFT JOIN evaluations e ON e.submission_id = s.id AND e.dataset_id = $1::bigint AND e.testcase_id = tc.id
-WHERE s.participation_id = $3::bigint AND s.task_id = $4::bigint AND s.invalidated_at IS NULL
+WHERE s.participation_id = ANY($3::bigint[]) AND s.task_id = $4::bigint AND s.invalidated_at IS NULL
 ORDER BY f.filename, e.outcome DESC NULLS LAST, s.submitted_at DESC, s.id DESC
 `
 
 type BestPreviousOutputsParams struct {
-	DatasetID       int64  `json:"dataset_id"`
-	Pattern         string `json:"pattern"`
-	ParticipationID int64  `json:"participation_id"`
-	TaskID          int64  `json:"task_id"`
+	DatasetID        int64   `json:"dataset_id"`
+	Pattern          string  `json:"pattern"`
+	ParticipationIds []int64 `json:"participation_ids"`
+	TaskID           int64   `json:"task_id"`
 }
 
 type BestPreviousOutputsRow struct {
@@ -42,7 +42,7 @@ func (q *Queries) BestPreviousOutputs(ctx context.Context, arg BestPreviousOutpu
 	rows, err := q.db.Query(ctx, bestPreviousOutputs,
 		arg.DatasetID,
 		arg.Pattern,
-		arg.ParticipationID,
+		arg.ParticipationIds,
 		arg.TaskID,
 	)
 	if err != nil {
@@ -64,7 +64,7 @@ func (q *Queries) BestPreviousOutputs(ctx context.Context, arg BestPreviousOutpu
 }
 
 const getParticipationView = `-- name: GetParticipationView :one
-SELECT p.id, p.contest_id, p.user_id, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted,
+SELECT p.id, p.contest_id, p.user_id, p.team_id, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted,
        p.login_nonce, p.ip, u.username, u.first_name, u.last_name, u.timezone, u.preferred_languages,
        u.disabled, t.code AS team_code, t.name AS team_name, s.start_time AS site_start_time
 FROM participations p
@@ -78,6 +78,7 @@ type GetParticipationViewRow struct {
 	ID                 int64          `json:"id"`
 	ContestID          int64          `json:"contest_id"`
 	UserID             int64          `json:"user_id"`
+	TeamID             *int64         `json:"team_id"`
 	StartingTime       *time.Time     `json:"starting_time"`
 	DelayTimeS         int64          `json:"delay_time_s"`
 	ExtraTimeS         int64          `json:"extra_time_s"`
@@ -104,6 +105,7 @@ func (q *Queries) GetParticipationView(ctx context.Context, id int64) (GetPartic
 		&i.ID,
 		&i.ContestID,
 		&i.UserID,
+		&i.TeamID,
 		&i.StartingTime,
 		&i.DelayTimeS,
 		&i.ExtraTimeS,
@@ -130,8 +132,11 @@ SELECT s.id, s.participation_id, s.task_id, s.submitted_at, s.language, s.offici
        sr.compilation_outcome, sr.compilation_text, sr.compilation_stdout, sr.compilation_stderr,
        sr.compilation_time, sr.compilation_memory,
        sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
-       sr.score, sr.score_details, sr.public_score, sr.public_score_details, sr.scored_at, sr.system_error
+       sr.score, sr.score_details, sr.public_score, sr.public_score_details, sr.scored_at, sr.system_error,
+       COALESCE(u.username, '')::text AS author
 FROM submissions s
+LEFT JOIN participations p ON p.id = s.participation_id
+LEFT JOIN users u ON u.id = p.user_id
 LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = $1::bigint
 LEFT JOIN tokens k ON k.submission_id = s.id
 WHERE s.id = $2::bigint
@@ -167,6 +172,7 @@ type GetSubmissionWithResultRow struct {
 	PublicScoreDetails json.RawMessage `json:"public_score_details"`
 	ScoredAt           *time.Time      `json:"scored_at"`
 	SystemError        *string         `json:"system_error"`
+	Author             string          `json:"author"`
 }
 
 func (q *Queries) GetSubmissionWithResult(ctx context.Context, arg GetSubmissionWithResultParams) (GetSubmissionWithResultRow, error) {
@@ -197,6 +203,7 @@ func (q *Queries) GetSubmissionWithResult(ctx context.Context, arg GetSubmission
 		&i.PublicScoreDetails,
 		&i.ScoredAt,
 		&i.SystemError,
+		&i.Author,
 	)
 	return i, err
 }
@@ -285,22 +292,65 @@ func (q *Queries) ListScoresByParticipation(ctx context.Context, participationID
 	return items, nil
 }
 
+const listScoresByParticipations = `-- name: ListScoresByParticipations :many
+SELECT participation_id, task_id, score, subtask_scores, pending
+FROM participation_task_scores WHERE participation_id = ANY($1::bigint[])
+`
+
+type ListScoresByParticipationsRow struct {
+	ParticipationID int64           `json:"participation_id"`
+	TaskID          int64           `json:"task_id"`
+	Score           float64         `json:"score"`
+	SubtaskScores   json.RawMessage `json:"subtask_scores"`
+	Pending         int32           `json:"pending"`
+}
+
+// Task scores of a contestant, or of every member of a team (merged by the
+// caller).
+func (q *Queries) ListScoresByParticipations(ctx context.Context, participationIds []int64) ([]ListScoresByParticipationsRow, error) {
+	rows, err := q.db.Query(ctx, listScoresByParticipations, participationIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListScoresByParticipationsRow{}
+	for rows.Next() {
+		var i ListScoresByParticipationsRow
+		if err := rows.Scan(
+			&i.ParticipationID,
+			&i.TaskID,
+			&i.Score,
+			&i.SubtaskScores,
+			&i.Pending,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubmissionsWithResults = `-- name: ListSubmissionsWithResults :many
 SELECT s.id, s.submitted_at, s.language, s.official, (k.submission_id IS NOT NULL)::boolean AS tokened,
-       s.invalidated_at, s.invalidated_reason,
+       s.invalidated_at, s.invalidated_reason, u.username AS author,
        sr.compilation_outcome, sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
        sr.score, sr.public_score, sr.scored_at, sr.system_error
 FROM submissions s
+JOIN participations p ON p.id = s.participation_id
+JOIN users u ON u.id = p.user_id
 LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = $1::bigint
 LEFT JOIN tokens k ON k.submission_id = s.id
-WHERE s.participation_id = $2::bigint AND s.task_id = $3::bigint
+WHERE s.participation_id = ANY($2::bigint[]) AND s.task_id = $3::bigint
 ORDER BY s.submitted_at DESC, s.id DESC
 `
 
 type ListSubmissionsWithResultsParams struct {
-	DatasetID       int64 `json:"dataset_id"`
-	ParticipationID int64 `json:"participation_id"`
-	TaskID          int64 `json:"task_id"`
+	DatasetID        int64   `json:"dataset_id"`
+	ParticipationIds []int64 `json:"participation_ids"`
+	TaskID           int64   `json:"task_id"`
 }
 
 type ListSubmissionsWithResultsRow struct {
@@ -311,6 +361,7 @@ type ListSubmissionsWithResultsRow struct {
 	Tokened            bool       `json:"tokened"`
 	InvalidatedAt      *time.Time `json:"invalidated_at"`
 	InvalidatedReason  string     `json:"invalidated_reason"`
+	Author             string     `json:"author"`
 	CompilationOutcome *string    `json:"compilation_outcome"`
 	EvaluationOutcome  *string    `json:"evaluation_outcome"`
 	TestcasesDone      *int32     `json:"testcases_done"`
@@ -321,10 +372,10 @@ type ListSubmissionsWithResultsRow struct {
 	SystemError        *string    `json:"system_error"`
 }
 
-// A contestant's submissions to a task with their result on the live
-// dataset (index: submissions_participation_task_idx + result PK).
+// A contestant's (or a team's) submissions to a task with their result on
+// the live dataset (index: submissions_participation_task_idx + result PK).
 func (q *Queries) ListSubmissionsWithResults(ctx context.Context, arg ListSubmissionsWithResultsParams) ([]ListSubmissionsWithResultsRow, error) {
-	rows, err := q.db.Query(ctx, listSubmissionsWithResults, arg.DatasetID, arg.ParticipationID, arg.TaskID)
+	rows, err := q.db.Query(ctx, listSubmissionsWithResults, arg.DatasetID, arg.ParticipationIds, arg.TaskID)
 	if err != nil {
 		return nil, err
 	}
@@ -340,6 +391,7 @@ func (q *Queries) ListSubmissionsWithResults(ctx context.Context, arg ListSubmis
 			&i.Tokened,
 			&i.InvalidatedAt,
 			&i.InvalidatedReason,
+			&i.Author,
 			&i.CompilationOutcome,
 			&i.EvaluationOutcome,
 			&i.TestcasesDone,

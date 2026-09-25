@@ -25,17 +25,21 @@ type hub struct {
 	mu        sync.RWMutex
 	byPart    map[int64]map[*sseClient]struct{}
 	byContest map[int64]map[*sseClient]struct{}
-	n         atomic.Int64
+	// byTeam: clients of team contests, by (contest, team).
+	byTeam map[[2]int64]map[*sseClient]struct{}
+	n      atomic.Int64
 }
 
 type sseClient struct {
 	ch       chan []byte
 	pid, cid int64
+	team     int64 // team contests only
 	dropped  atomic.Int64
 }
 
 func newHub() *hub {
-	return &hub{byPart: map[int64]map[*sseClient]struct{}{}, byContest: map[int64]map[*sseClient]struct{}{}}
+	return &hub{byPart: map[int64]map[*sseClient]struct{}{}, byContest: map[int64]map[*sseClient]struct{}{},
+		byTeam: map[[2]int64]map[*sseClient]struct{}{}}
 }
 
 func (h *hub) add(c *sseClient) {
@@ -49,6 +53,13 @@ func (h *hub) add(c *sseClient) {
 		h.byContest[c.cid] = map[*sseClient]struct{}{}
 	}
 	h.byContest[c.cid][c] = struct{}{}
+	if c.team != 0 {
+		k := [2]int64{c.cid, c.team}
+		if h.byTeam[k] == nil {
+			h.byTeam[k] = map[*sseClient]struct{}{}
+		}
+		h.byTeam[k][c] = struct{}{}
+	}
 	sseClients.WithLabelValues("contest-web").Set(float64(h.n.Add(1)))
 }
 
@@ -62,6 +73,13 @@ func (h *hub) remove(c *sseClient) {
 	delete(h.byContest[c.cid], c)
 	if len(h.byContest[c.cid]) == 0 {
 		delete(h.byContest, c.cid)
+	}
+	if c.team != 0 {
+		k := [2]int64{c.cid, c.team}
+		delete(h.byTeam[k], c)
+		if len(h.byTeam[k]) == 0 {
+			delete(h.byTeam, k)
+		}
 	}
 	sseClients.WithLabelValues("contest-web").Set(float64(h.n.Add(-1)))
 }
@@ -78,18 +96,43 @@ func (h *hub) publish(e events.Event) {
 	} else if e.ContestID != 0 {
 		targets = h.byContest[e.ContestID]
 	}
-	for c := range targets {
-		select {
-		case c.ch <- frame:
-		default:
-			c.dropped.Add(1)
+	h.send(frame, targets)
+}
+
+// publishTeam delivers a submission event to the submitter's pages and to
+// those of the teammates (team contests).
+func (h *hub) publishTeam(e events.Event, contestID, teamID int64) {
+	frame := webkit.SSEFrame(e.Type, jsonBytes(e))
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	h.send(frame, h.byPart[e.ParticipationID])
+	for c := range h.byTeam[[2]int64{contestID, teamID}] {
+		if c.pid != e.ParticipationID {
+			h.sendOne(frame, c)
 		}
+	}
+}
+
+func (h *hub) send(frame []byte, targets map[*sseClient]struct{}) {
+	for c := range targets {
+		h.sendOne(frame, c)
+	}
+}
+
+func (h *hub) sendOne(frame []byte, c *sseClient) {
+	select {
+	case c.ch <- frame:
+	default:
+		c.dropped.Add(1)
 	}
 }
 
 // handleEvents streams events to a contestant.
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	c := &sseClient{ch: make(chan []byte, 32), pid: rc.part.ID, cid: rc.contest.ID}
+	if rc.contest.TeamMode && rc.part.TeamID != nil {
+		c.team = *rc.part.TeamID
+	}
 	s.hub.add(c)
 	defer s.hub.remove(c)
 	webkit.ServeSSE(w, r, c.ch, 25*time.Second, 3*time.Second)

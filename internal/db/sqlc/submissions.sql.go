@@ -814,12 +814,12 @@ SELECT count(*)::bigint AS contest_count,
        (count(*) FILTER (WHERE task_id = $1::bigint))::bigint AS task_count,
        COALESCE(max(submitted_at), 'epoch')::timestamptz AS contest_last,
        COALESCE(max(submitted_at) FILTER (WHERE task_id = $1::bigint), 'epoch')::timestamptz AS task_last
-FROM submissions WHERE participation_id = $2::bigint AND official
+FROM submissions WHERE participation_id = ANY($2::bigint[]) AND official
 `
 
 type SubmissionStatsParams struct {
-	TaskID          int64 `json:"task_id"`
-	ParticipationID int64 `json:"participation_id"`
+	TaskID           int64   `json:"task_id"`
+	ParticipationIds []int64 `json:"participation_ids"`
 }
 
 type SubmissionStatsRow struct {
@@ -830,9 +830,9 @@ type SubmissionStatsRow struct {
 }
 
 // Counts and last submission time used to enforce the contest-wide and
-// per-task limits in a single index scan.
+// per-task limits (of a contestant, or of a whole team) in one index scan.
 func (q *Queries) SubmissionStats(ctx context.Context, arg SubmissionStatsParams) (SubmissionStatsRow, error) {
-	row := q.db.QueryRow(ctx, submissionStats, arg.TaskID, arg.ParticipationID)
+	row := q.db.QueryRow(ctx, submissionStats, arg.TaskID, arg.ParticipationIds)
 	var i SubmissionStatsRow
 	err := row.Scan(
 		&i.ContestCount,

@@ -113,7 +113,23 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 				}
 			}
 			tp.Languages = nonNil(c.Languages)
-			tp.FeedbackLevel, tp.ScoreMode, tp.ScorePrecision = c.Feedback, c.ScoreMode, int32(c.ScorePrecision)
+			tp.FeedbackLevel, tp.ScoreMode, tp.ScorePrecision = c.Feedback, c.ScoreMode, int32(c.Precision())
+			if o.ContestID != nil {
+				// What the package leaves unset comes from the contest.
+				ct, err := q.GetContest(ctx, *o.ContestID)
+				if err != nil {
+					return err
+				}
+				if c.ScoreMode == "" {
+					tp.ScoreMode = ct.DefaultScoreMode
+				}
+				if c.ScorePrecision == nil {
+					tp.ScorePrecision = ct.ScorePrecision
+				}
+			}
+			if tp.ScoreMode == "" {
+				tp.ScoreMode = "max_subtask"
+			}
 			if o.ContestID != nil {
 				next, err := q.AdminNextTaskNum(ctx, o.ContestID)
 				if err != nil {

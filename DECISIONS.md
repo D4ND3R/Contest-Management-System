@@ -477,3 +477,30 @@ extension reopened a finished contest). Nothing a contestant was typing is
 lost by a mere extension. "Extend the contest" moves `stop_time` and the
 per-user duration in one UPDATE; analysis windows are left alone (analysis
 only starts once the contestant's window is over).
+
+## D53. Team contests share through the participation group
+Team members keep one participation each (logins, sessions, questions and
+extra time stay personal), and the contest web server widens its queries to
+the **group**: the participation, or all participations of its team in a
+team contest (cached for 3 s like other participation data). Submission
+lists, access to a submission, the limits (`SubmissionStats` counts the
+group) and output-only merges use `participation_id = ANY(group)` on the
+existing index; task scores are merged exactly as the ranking merges a
+team row (best member per subtask with "best per subtask", else the best
+member score). Submission events are fanned out to the teammates' open
+pages through a per-(contest, team) index of SSE clients. The dispatcher and
+the stored aggregates stay per participation, so switching a contest
+between individual and team mode needs no recomputation.
+
+## D54. Tests that judge take a machine-wide lock
+`go test ./...` runs packages in parallel, and four packages judge real
+programs (worker, dispatcher, e2e, cli's verify-host). Disjoint isolate box
+ranges (A2) removed box collisions, but not CPU contention: on a 4-core
+machine the packages together ran more sandboxes than cores, so wall-clock
+limits expired (a memory hog ended as "timeout_wall", a two-steps solution
+lost a testcase to TLE) — exactly the instability the judge must never
+show. `sandbox.TestIsolate` now takes an exclusive `flock` on
+`$TMPDIR/cms-judging-tests.lock` for the rest of the test (reentrant within
+a process), so judging tests of different packages run one at a time while
+everything else stays parallel. The full suite got faster (4 min instead of
+~5), because nothing is retried or waits on overloaded cores.

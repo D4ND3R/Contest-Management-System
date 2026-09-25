@@ -26,6 +26,8 @@ type subView struct {
 	HasScore   bool
 	Score, Max float64
 	Precision  int
+	// Author is the team member who submitted (team contests only).
+	Author string
 	// Invalidated submissions stay visible but do not count.
 	Invalidated       *time.Time
 	InvalidatedReason string
@@ -82,7 +84,7 @@ func (s *Server) listSubs(r *http.Request, rc *reqCtx, t *taskView) ([]subView, 
 		return nil, nil
 	}
 	rows, err := s.q.ListSubmissionsWithResults(r.Context(), sqlc.ListSubmissionsWithResultsParams{
-		DatasetID: t.Dataset.ID, ParticipationID: rc.part.ID, TaskID: t.ID})
+		DatasetID: t.Dataset.ID, ParticipationIds: rc.group, TaskID: t.ID})
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +93,9 @@ func (s *Server) listSubs(r *http.Request, rc *reqCtx, t *taskView) ([]subView, 
 	for _, row := range rows {
 		sv := subView{ID: row.ID, Time: row.SubmittedAt, Official: row.Official, Tokened: row.Tokened,
 			Invalidated: row.InvalidatedAt, InvalidatedReason: row.InvalidatedReason}
+		if len(rc.group) > 1 {
+			sv.Author = row.Author // team contests: who submitted it
+		}
 		if row.Language != nil {
 			sv.langID = *row.Language
 			sv.Language = s.langName(*row.Language)
@@ -120,6 +125,9 @@ func (s *Server) langName(id string) string {
 func (s *Server) subViewFromDetail(p *page, rc *reqCtx, t *taskView, row sqlc.GetSubmissionWithResultRow) subView {
 	sv := subView{ID: row.ID, Time: row.SubmittedAt, Official: row.Official, Tokened: row.Tokened,
 		Invalidated: row.InvalidatedAt, InvalidatedReason: row.InvalidatedReason}
+	if len(rc.group) > 1 {
+		sv.Author = row.Author
+	}
 	if row.Language != nil {
 		sv.langID, sv.Language = *row.Language, s.langName(*row.Language)
 	}
@@ -271,4 +279,50 @@ func replaceExt(name, ext string) string {
 		return name[:len(name)-3] + ext
 	}
 	return name
+}
+
+// taskScore is a task score of a contestant or, in team contests, of the
+// team: per task the best member score or, with "best per subtask"
+// scoring, the sum of the best member score of every subtask (as the
+// ranking does).
+type taskScore struct {
+	score   float64
+	pending int32
+}
+
+func mergeScores(rows []sqlc.ListScoresByParticipationsRow, tasks map[int64]*taskView) map[int64]taskScore {
+	out := map[int64]taskScore{}
+	subtasks := map[int64][]float64{}
+	for _, r := range rows {
+		ts := out[r.TaskID]
+		ts.pending += r.Pending
+		ts.score = max(ts.score, r.Score)
+		var st []float64
+		if json.Unmarshal(r.SubtaskScores, &st) == nil {
+			best := subtasks[r.TaskID]
+			for i, v := range st {
+				if i < len(best) {
+					best[i] = max(best[i], v)
+				} else {
+					best = append(best, v)
+				}
+			}
+			subtasks[r.TaskID] = best
+		}
+		out[r.TaskID] = ts
+	}
+	for id, best := range subtasks {
+		t := tasks[id]
+		if t == nil || t.ScoreMode != "max_subtask" || len(best) == 0 {
+			continue
+		}
+		sum := 0.0
+		for _, v := range best {
+			sum += v
+		}
+		ts := out[id]
+		ts.score = scoring.Round(sum, t.Precision)
+		out[id] = ts
+	}
+	return out
 }

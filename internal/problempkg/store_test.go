@@ -62,6 +62,8 @@ func TestImportExportRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// What the packages leave unset comes from the contest (SPEC_CLOSE B3).
+	pool.Exec(bg, "UPDATE contests SET default_score_mode = 'max', score_precision = 2 WHERE id = $1", ct.ID)
 	for _, name := range []string{"batch-suma", "interactive-adivina", "output-only-cuadrados", "communication-suma", "two-steps-binario"} {
 		t.Run(name, func(t *testing.T) {
 			p := Read(zipDir(t, filepath.Join(examples, name), ""), o)
@@ -77,6 +79,9 @@ func TestImportExportRoundTrip(t *testing.T) {
 			if !res.NewTask || task.ContestID == nil || *task.ContestID != ct.ID || *task.ActiveDatasetID != ds.ID ||
 				ds.TaskType != p.Config.TaskType() || ds.Description != "Default" {
 				t.Fatalf("task %+v dataset %+v", task, ds)
+			}
+			if p.Config.ScoreMode == "" && (task.ScoreMode != "max" || task.ScorePrecision != 2) {
+				t.Fatalf("contest defaults not applied: %s %d", task.ScoreMode, task.ScorePrecision)
 			}
 			var buf bytes.Buffer
 			if err := Export(bg, q, store, task.ID, 0, &buf); err != nil {

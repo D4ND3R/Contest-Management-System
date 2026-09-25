@@ -23,12 +23,12 @@ SELECT * FROM submissions WHERE participation_id = @participation_id::bigint ORD
 
 -- name: SubmissionStats :one
 -- Counts and last submission time used to enforce the contest-wide and
--- per-task limits in a single index scan.
+-- per-task limits (of a contestant, or of a whole team) in one index scan.
 SELECT count(*)::bigint AS contest_count,
        (count(*) FILTER (WHERE task_id = @task_id::bigint))::bigint AS task_count,
        COALESCE(max(submitted_at), 'epoch')::timestamptz AS contest_last,
        COALESCE(max(submitted_at) FILTER (WHERE task_id = @task_id::bigint), 'epoch')::timestamptz AS task_last
-FROM submissions WHERE participation_id = @participation_id::bigint AND official;
+FROM submissions WHERE participation_id = ANY(@participation_ids::bigint[]) AND official;
 
 -- name: DeleteSubmission :exec
 DELETE FROM submissions WHERE id = $1;

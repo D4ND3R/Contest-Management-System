@@ -79,7 +79,7 @@ func mibOf(bytes int64) float64 { return float64(bytes) / (1 << 20) }
 func ConfigFromCMS(t sqlc.Task, d sqlc.Dataset, codes []string, public []bool) (*Config, error) {
 	c := &Config{Format: Version, Name: t.Name, Title: t.Title, Type: inverse(TaskTypes, d.TaskType),
 		Scoring: inverse(ScoreTypes, d.ScoreType), ProcessLimit: int(d.ProcessLimit), ScoreMode: t.ScoreMode,
-		ScorePrecision: int(t.ScorePrecision), Feedback: t.FeedbackLevel, Languages: t.Languages,
+		ScorePrecision: ptrInt(int(t.ScorePrecision)), Feedback: t.FeedbackLevel, Languages: t.Languages,
 		SubmissionFormat: t.SubmissionFormat, PrimaryStatements: t.PrimaryStatements, Dataset: d.Description}
 	if c.Type == "" || c.Scoring == "" {
 		return nil, fmt.Errorf("task type %s / score type %s cannot be exported", d.TaskType, d.ScoreType)
@@ -161,3 +161,5 @@ func ConfigFromCMS(t sqlc.Task, d sqlc.Dataset, codes []string, public []bool) (
 	}
 	return c, nil
 }
+
+func ptrInt(v int) *int { return &v }

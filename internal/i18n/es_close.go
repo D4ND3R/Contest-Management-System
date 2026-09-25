@@ -83,6 +83,13 @@ var esClose = map[string]string{
 	"give a number of minutes between -600 and 600 (not 0)":                    "indica una cantidad de minutos entre -600 y 600 (distinta de 0)",
 	"the per-user time would not be positive":                                  "el tiempo por usuario no sería positivo",
 	"End of the contest moved by %d minutes; contestants' clocks are updated.": "Fin del concurso movido %d minutos; los relojes de los concursantes se actualizaron.",
+
+	// B3: modality.
+	"Score mode of new tasks":                                     "Modo de puntaje de los problemas nuevos",
+	"Team contest (members share submissions, limits and scores)": "Concurso por equipos (los integrantes comparten envíos, límites y puntajes)",
+	"Maximum team size":                                           "Tamaño máximo del equipo",
+	"no limit":                                                    "sin límite",
+	"New tasks of the contest start with this score mode and the score precision above; each task can change them.": "Los problemas nuevos del concurso empiezan con este modo de puntaje y la precisión de arriba; cada problema puede cambiarlos.",
 }
 
 func init() {
