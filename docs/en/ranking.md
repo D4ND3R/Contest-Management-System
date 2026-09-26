@@ -9,7 +9,7 @@ Three places show a ranking:
 - **Ranking web server** (`cms ranking-web`, RWS): the public live
   scoreboard, with per-participant score history, flags and live updates.
 
-## Settings (contest page → Ranking)
+## Settings (contest Settings → Ranking)
 
 | setting | values |
 |---------|--------|

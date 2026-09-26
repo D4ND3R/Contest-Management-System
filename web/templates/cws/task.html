@@ -1,6 +1,6 @@
 {{define "content"}}
 {{$d := .Data}}{{$t := $d.Task}}
-<h1>{{$t.Name}} — {{$t.Title}}</h1>
+{{$i := .TaskIndex $t.Name}}<div class="page-head"><h1><span class="letter {{lclass $i}}">{{letter $i}}</span> {{$t.Name}} <span class="muted">— {{$t.Title}}</span></h1></div>
 <div class="task-layout">
 <div class="task-main">
 <section class="card statement-card" id="statement">
@@ -8,7 +8,7 @@
     <h2>{{.T "Statement"}}</h2>
     {{with $d.Statement}}<div class="card-actions">
       {{if gt (len .Languages) 1}}<nav class="tabs" aria-label="{{$.T "Statement language"}}">{{range .Languages}}<a href="?lang={{.Lang}}#statement" {{if eq .Lang $d.Statement.Current.Lang}}class="active" aria-current="true"{{end}}>{{.Name}}{{if .Primary}} ★{{end}}</a>{{end}}</nav>{{end}}
-      {{with .PDFURL}}<a class="button" href="{{.}}" target="_blank" rel="noopener">{{$.T "PDF"}}</a>{{end}}
+      {{with .PDFURL}}<a class="button" href="{{.}}" target="_blank" rel="noopener">{{icon "download"}} {{$.T "PDF"}}</a>{{end}}
     </div>{{end}}
   </div>
   {{with $d.Statement}}

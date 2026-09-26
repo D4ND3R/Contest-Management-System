@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}}{{if .Contest}} · {{.Contest.Name}}{{end}}</title>
+<title>{{.Title}}{{if .Contest}} · {{.Contest.Heading}}{{end}}</title>
 <link rel="stylesheet" href="{{static "style.css"}}">
 <meta name="csrf-token" content="{{.CSRF}}">
 <meta name="server-time" content="{{.ServerTime}}">
@@ -14,36 +14,81 @@
 <script src="{{static "app.js"}}" defer></script>
 </head>
 <body>
-<header class="top">
-  {{if .Contest}}<a class="brand" href="{{.Base}}">{{.Contest.Name}}</a>{{else}}<span class="brand">CMS</span>{{end}}
-  {{if .Part}}
-  <nav>
-    <a href="{{.Base}}" {{if eq .Active "overview"}}class="active"{{end}}>{{.T "Overview"}}</a>
-    {{range .Tasks}}<a href="{{$.Base}}tasks/{{.Name}}" {{if eq $.Active .Name}}class="active"{{end}}>{{.Name}}</a>{{end}}
-    <a href="{{.Base}}communication" {{if eq .Active "communication"}}class="active"{{end}}>{{.T "Communication"}} <span id="unread" class="badge" title="{{.T "unread"}}" {{if not .Unread}}hidden{{end}}>{{.Unread}}</span></a>
-    {{if .Contest.AllowUserTests}}<a href="{{.Base}}testing" {{if eq .Active "testing"}}class="active"{{end}}>{{.T "Testing"}}</a>{{end}}
-    {{if .Contest.AllowPrinting}}<a href="{{.Base}}printing" {{if eq .Active "printing"}}class="active"{{end}}>{{.T "Printing"}}</a>{{end}}
-    {{if .Ranking}}<a href="{{.Base}}ranking" {{if eq .Active "ranking"}}class="active"{{end}}>{{.T "Ranking"}}</a>{{end}}
-    <a href="{{.Base}}documentation" {{if eq .Active "documentation"}}class="active"{{end}}>{{.T "Documentation"}}</a>
-  </nav>
-  <div class="user">
-    {{if .Status.Running}}<span title="{{.T "Remaining time"}}" class="clock" data-countdown="{{.EndMillis}}">{{.Dur .Status.Remaining}}</span>{{end}}
-    <span>{{.Part.Username}}</span>
-    <form method="post" action="{{.Base}}logout" class="inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link">{{.T "Log out"}}</button></form>
+<a class="skip" href="#main">{{.T "Skip to content"}}</a>
+{{if .Part}}
+<input type="checkbox" id="nav" class="navtoggle" aria-hidden="true" tabindex="-1">
+<div class="app">
+<header class="topbar">
+  <label for="nav" class="iconbtn burger" title="{{.T "Menu"}}">{{icon "menu"}}</label>
+  <a class="brand" href="{{.Base}}">
+    <span class="logo">{{icon "logo"}}</span>
+    <span><b>{{.Contest.Heading}}</b><small>{{.T "Contest Management System"}}</small></span>
+  </a>
+  <div class="crumbs">
+    {{with .Contest.Subheading}}<span>{{.}}</span><span class="sep">·</span>{{end}}
+    <b>{{.Title}}</b>
+    <span class="pill {{.PhaseClass}}">{{.PhaseLabel}}</span>
   </div>
-  {{end}}
-  <form method="post" action="{{if .Contest}}{{.Base}}{{else}}/{{end}}lang" class="inline">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <select name="lang" aria-label="{{.T "Language"}}" hx-post="{{if .Contest}}{{.Base}}{{else}}/{{end}}lang" hx-trigger="change">
-      {{range .UILanguages}}<option value="{{.Code}}" {{if eq .Code $.Lang}}selected{{end}}>{{.Name}}</option>{{end}}
-    </select>
-  </form>
+  <div class="top-right">
+    {{if .Status.Running}}<div class="timer" title="{{.T "Remaining time"}}"><small>{{.T "Time remaining"}}</small><span class="clock" data-countdown="{{.EndMillis}}">{{.Dur .Status.Remaining}}</span></div>{{end}}
+    <a class="iconbtn" href="{{.Base}}communication" title="{{.T "Communication"}}">{{icon "bell"}}<span id="unread" class="badge" title="{{.T "unread"}}" {{if not .Unread}}hidden{{end}}>{{.Unread}}</span></a>
+    <details class="userbox">
+      <summary><span class="avatar {{avatarc .Part.Username}}">{{initials .FullName}}</span><span class="who"><b>{{.FullName}}</b><small>{{if .ViewAs}}{{.T "Administrator view"}}{{else}}{{.Part.Username}}{{end}}</small></span>{{icon "chevron-down"}}</summary>
+      <div class="menu">
+        <form method="post" action="{{.Base}}lang">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <label for="ui-lang">{{.T "Language"}}</label>
+          <select id="ui-lang" name="lang" hx-post="{{.Base}}lang" hx-trigger="change">
+            {{range .UILanguages}}<option value="{{.Code}}" {{if eq .Code $.Lang}}selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+        </form>
+        <a href="{{.Base}}documentation">{{icon "book"}} {{.T "Documentation"}}</a>
+        <hr>
+        <form method="post" action="{{.Base}}logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="item">{{icon "logout"}} {{.T "Log out"}}</button></form>
+      </div>
+    </details>
+  </div>
 </header>
-<main>
+<nav class="sidebar" aria-label="{{.T "Contest"}}">
+  <a class="nav {{if eq .Active "overview"}}active{{end}}" href="{{.Base}}">{{icon "dashboard"}}<span class="t">{{.T "Overview"}}</span></a>
+  {{if .Tasks}}<div class="group">{{.T "Tasks"}}</div>
+  {{range $i, $t := .Tasks}}<a class="nav task {{if eq $.Active $t.Name}}active{{end}}" href="{{$.Base}}tasks/{{$t.Name}}" title="{{$t.Title}}"><span class="letter {{lclass $i}}">{{letter $i}}</span><span class="t">{{$t.Name}}</span></a>
+  {{end}}{{end}}
+  <div class="group">{{.T "Contest"}}</div>
+  {{if .Ranking}}<a class="nav {{if eq .Active "ranking"}}active{{end}}" href="{{.Base}}ranking">{{icon "trophy"}}<span class="t">{{.T "Ranking"}}</span></a>{{end}}
+  {{if .Contest.AllowUserTests}}<a class="nav {{if eq .Active "testing"}}active{{end}}" href="{{.Base}}testing">{{icon "flask"}}<span class="t">{{.T "Testing"}}</span></a>{{end}}
+  {{if .Contest.AllowPrinting}}<a class="nav {{if eq .Active "printing"}}active{{end}}" href="{{.Base}}printing">{{icon "printer"}}<span class="t">{{.T "Printing"}}</span></a>{{end}}
+  <a class="nav {{if eq .Active "communication"}}active{{end}}" href="{{.Base}}communication">{{icon "message"}}<span class="t">{{.T "Communication"}}</span></a>
+  <a class="nav {{if eq .Active "documentation"}}active{{end}}" href="{{.Base}}documentation">{{icon "book"}}<span class="t">{{.T "Documentation"}}</span></a>
+  <div class="foot">{{.T "Times in %s" .TZ}}<br>CMS {{.Version}}</div>
+</nav>
+<main id="main" class="content">
 {{with .ViewAs}}<p class="alert" role="status">{{$.T "Administrator view as %s (read-only)." .}}</p>{{end}}
 {{with .Flash}}<p class="info">{{.}}</p>{{end}}
 {{template "content" .}}
 </main>
+</div>
+{{else}}
+<div class="auth">
+  <a class="brand" href="{{if .Contest}}{{.Base}}{{else}}/{{end}}">
+    <span class="logo">{{icon "logo"}}</span>
+    <span><b>{{if .Contest}}{{.Contest.Heading}}{{else}}CMS{{end}}</b><small>{{.T "Contest Management System"}}</small></span>
+  </a>
+  <main id="main" class="card {{if not .Contest}}wide{{end}}">
+  {{with .Flash}}<p class="info">{{.}}</p>{{end}}
+  {{template "content" .}}
+  </main>
+  <div class="foot">
+    <form method="post" action="{{if .Contest}}{{.Base}}{{else}}/{{end}}lang" class="inline">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <select name="lang" aria-label="{{.T "Language"}}" hx-post="{{if .Contest}}{{.Base}}{{else}}/{{end}}lang" hx-trigger="change">
+        {{range .UILanguages}}<option value="{{.Code}}" {{if eq .Code $.Lang}}selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </form>
+    <span>CMS {{.Version}}</span>
+  </div>
+</div>
+{{end}}
 <div id="notifications" aria-live="polite"></div>
 </body>
 </html>{{end}}

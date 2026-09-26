@@ -153,14 +153,15 @@ func TestAdminInSpanish(t *testing.T) {
 	webtest.MustOK(t, "lang", code, body)
 	id := func(v int64) string { return fmt.Sprint(v) }
 	for path, want := range map[string][]string{
-		"/":                             {`<html lang="es">`, "Resumen", "Cerrar sesión"},
-		"/contests/" + id(f.contest.ID): {"Guardar", "Reevaluar todo el concurso"},
-		"/tasks/" + id(f.task.ID):       {"Enunciados", "Probador de problemas", "Límites de envíos"},
-		"/datasets/" + id(f.ds.ID):      {"Límite de tiempo (s)", "Casos de prueba", "Puntaje máximo"},
-		"/submissions/" + id(f.subs[0]): {"Resultados", "Oficial"},
-		"/users/" + id(f.user.ID):       {"Participaciones", "Sesiones"},
-		"/system":                       {"Workers y colas", "workers activos"},
-		"/contests/" + id(f.contest.ID) + "/stats": {"puntaje completo"},
+		"/":                             {`<html lang="es">`, "Panel", "Cerrar sesión", "Clasificación en vivo"},
+		"/contests/" + id(f.contest.ID): {"Estado de los problemas", "Eventos recientes", "Estado del sistema"},
+		"/contests/" + id(f.contest.ID) + "/settings": {"Guardar", "Reevaluar todo el concurso", "Imagen del banner"},
+		"/tasks/" + id(f.task.ID):                     {"Enunciados", "Probador de problemas", "Límites de envíos"},
+		"/datasets/" + id(f.ds.ID):                    {"Límite de tiempo (s)", "Casos de prueba", "Puntaje máximo"},
+		"/submissions/" + id(f.subs[0]):               {"Resultados", "Oficial"},
+		"/users/" + id(f.user.ID):                     {"Participaciones", "Sesiones"},
+		"/system":                                     {"Workers y colas", "workers activos"},
+		"/contests/" + id(f.contest.ID) + "/stats":    {"puntaje completo"},
 		"/backups": {"Respaldar ahora", "Rotación", "Todavía no hay respaldos."},
 	} {
 		code, body := b.Get(path)
@@ -183,11 +184,11 @@ func TestAdminInSpanish(t *testing.T) {
 	}
 	// An unknown language is ignored.
 	b.Post("/lang", url.Values{"lang": {"xx"}})
-	if _, body := b.Get("/"); !strings.Contains(body, "Resumen") {
+	if _, body := b.Get("/"); !strings.Contains(body, "Panel") {
 		t.Fatal("unknown language replaced the choice")
 	}
 	b.Post("/lang", url.Values{"lang": {"en"}})
-	if _, body := b.Get("/"); !strings.Contains(body, "Overview") {
+	if _, body := b.Get("/"); !strings.Contains(body, "Dashboard") {
 		t.Fatal("back to English")
 	}
 }

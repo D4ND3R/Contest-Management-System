@@ -51,7 +51,7 @@ WHERE s.id = @id::bigint;
 
 -- name: ListActiveContests :many
 -- Contests shown on the CWS landing page.
-SELECT id, name, description, start_time, stop_time FROM contests
+SELECT id, name, description, title, start_time, stop_time FROM contests
 WHERE status = 'published' AND (stop_time > now() - interval '30 days' OR analysis_stop > now() OR practice_enabled)
 ORDER BY start_time DESC;
 
@@ -71,3 +71,25 @@ ORDER BY f.filename, e.outcome DESC NULLS LAST, s.submitted_at DESC, s.id DESC;
 -- name: LockParticipation :exec
 -- Serialises token plays of a participation (no double spending).
 SELECT id FROM participations WHERE id = $1 FOR UPDATE;
+
+-- name: ListRecentSubmissions :many
+-- A contestant's (or a team's) latest submissions to any task with their
+-- result on the task's live dataset, for the overview
+-- (submissions_participation_task_idx per member; a few hundred at most).
+SELECT s.id, s.task_id, s.submitted_at, s.language, s.official, (k.submission_id IS NOT NULL)::boolean AS tokened,
+       s.invalidated_at, sr.compilation_outcome, sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
+       sr.score, sr.public_score, sr.scored_at, sr.system_error, sr.verdict
+FROM submissions s
+JOIN tasks t ON t.id = s.task_id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+LEFT JOIN tokens k ON k.submission_id = s.id
+WHERE s.participation_id = ANY(@participation_ids::bigint[])
+ORDER BY s.submitted_at DESC, s.id DESC
+LIMIT @lim::int;
+
+-- name: CountSubmissionsByTask :many
+-- A contestant's (or a team's) submissions per task, for the overview
+-- (submissions_participation_task_idx).
+SELECT task_id, count(*)::bigint AS n FROM submissions
+WHERE participation_id = ANY(@participation_ids::bigint[])
+GROUP BY task_id;

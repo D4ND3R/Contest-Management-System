@@ -135,7 +135,7 @@ los ejecutables compilados (una reevaluación vuelve a compilar), los user
 tests, los trabajos de impresión, los globos, el registro de auditoría y los
 administradores (las referencias a ellos quedan vacías).
 
-- **Panel de administración**: *Archivo* en la página del concurso lo
+- **Panel de administración**: *Archivo* en la página de Configuración del concurso lo
   descarga (con o sin envíos); *Importar el archivo de un concurso*, al
   final de la página de concursos, crea el concurso nuevo.
 - **Línea de comandos**:

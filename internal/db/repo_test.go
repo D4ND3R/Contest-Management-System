@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/netip"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -578,5 +579,44 @@ func TestEveryIndexIsDocumented(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// TestBlobGCKnowsEveryDigest: every column holding a blob digest is
+// consulted by the garbage collector's query, so no referenced blob (a
+// certificate logo, a contest banner...) is ever deleted.
+func TestBlobGCKnowsEveryDigest(t *testing.T) {
+	pool := testutil.DB(t)
+	rows, err := pool.Query(ctx, `SELECT c.relname::text, a.attname::text
+FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+WHERE c.relnamespace = current_schema()::regnamespace AND c.relkind = 'r'
+  AND a.attnum > 0 AND NOT a.attisdropped AND a.atttypid = 'sha256_digest'::regtype`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cols, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) ([2]string, error) {
+		var c [2]string
+		return c, r.Scan(&c[0], &c[1])
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile("queries/blobs.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := string(src)
+	q = q[strings.Index(q, "-- name: ListUnreferencedBlobs"):]
+	q = q[:strings.Index(q, "LIMIT")]
+	for _, c := range cols {
+		if c[0] == "blobs" {
+			continue
+		}
+		if !strings.Contains(q, "FROM "+c[0]+" x WHERE") || !strings.Contains(q, "x."+c[1]+" = b.digest") {
+			t.Errorf("the blob GC ignores %s.%s", c[0], c[1])
+		}
+	}
+	if len(cols) < 10 {
+		t.Fatalf("digest columns: %v", cols)
 	}
 }

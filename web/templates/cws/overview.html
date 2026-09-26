@@ -1,37 +1,115 @@
 {{define "content"}}
 {{$d := .Data}}
-<h1>{{.Contest.Name}}</h1>
-{{with .Contest.Description}}<p>{{.}}</p>{{end}}
-<section class="card">
-<dl class="meta">
-  <dt>{{.T "Status"}}</dt><dd>{{.PhaseText}}</dd>
-  {{if $d.PerUserTime}}<dt>{{.T "Time available"}}</dt><dd>{{.Dur $d.PerUserTime}}</dd>{{end}}
-  {{if not .Status.Begin.IsZero}}<dt>{{.T "Start"}}</dt><dd>{{.DateTime .Status.Begin}}</dd>{{end}}
-  {{if not .Status.End.IsZero}}<dt>{{.T "End"}}</dt><dd>{{.DateTime .Status.End}}</dd>{{end}}
-  {{if .Status.Running}}<dt>{{.T "Remaining time"}}</dt><dd class="clock" data-countdown="{{.EndMillis}}">{{.Dur .Status.Remaining}}</dd>{{end}}
-  <dt>{{.T "Time zone"}}</dt><dd>{{.TZ}}</dd>
-</dl>
-{{if .Status.CanStart}}
-<form method="post" action="{{.Base}}start">
-  <input type="hidden" name="csrf" value="{{.CSRF}}">
-  <p>{{.T "Your time starts when you press the button."}}</p>
-  <button>{{.T "Start the contest"}}</button>
-</form>
-{{end}}
-{{if $d.Certificate}}<p><a class="button" href="{{.Base}}certificate.pdf">{{.T "Download your certificate"}}</a></p>{{end}}
-</section>
+{{template "banner" .}}
+
 {{if .Tasks}}
-<h2>{{.T "Tasks"}}</h2>
-{{if $d.Hidden}}<p class="muted">{{if eq .Contest.ScoreVisibility "after"}}{{.T "Scores will be shown when the contest is over."}}{{else}}{{.T "Scores are not shown in this contest."}}{{end}}</p>{{end}}
-<table>
-<tr><th>{{.T "Task"}}</th><th>{{.T "Title"}}</th>{{if not $d.Hidden}}<th class="num">{{if .Contest.ICPC}}{{.T "Result"}}{{else}}{{.T "Score"}}{{end}}</th>{{end}}</tr>
-{{range $d.Rows}}<tr>
-  <td><a href="{{$.Base}}tasks/{{.Name}}">{{.Name}}</a></td><td>{{.Title}}</td>
-  {{if $d.Hidden}}{{else if $.Contest.ICPC}}<td class="num">{{if .Solved}}<span class="ok">{{$.T "Accepted"}}</span>{{if .Attempts}} <small class="muted">({{$.T "%d rejected" .Attempts}})</small>{{end}}{{else if .Attempts}}<span class="bad">{{$.T "%d rejected" .Attempts}}</span>{{else}}<span class="muted">—</span>{{end}}{{if .Pending}} <span class="muted" title="{{$.T "being evaluated"}}">…</span>{{end}}</td>
-  {{else}}<td class="num">{{if .Adjustment}}<small class="muted" title="{{.Reasons}}">{{$.T "adjusted by the organizers: %s" (signed .Adjustment)}}</small> {{end}}{{if .HasScore}}{{$.Score .Score .Precision}} / {{$.Score .Max .Precision}}{{else}}<span class="muted">—</span>{{end}}{{if .Pending}} <span class="muted" title="{{$.T "being evaluated"}}">…</span>{{end}}</td>{{end}}
-</tr>{{end}}
-{{if $d.ShowTotal}}<tr><th colspan="2">{{.T "Total"}}</th><th class="num">{{.Score $d.Total 2}} / {{.Score $d.MaxTotal 2}}</th></tr>{{end}}
-</table>
+<div class="tiles">
+  {{with index .Tasks 0}}<a class="tile blue" href="{{$.Base}}tasks/{{.Name}}">{{icon "file"}}<span><b>{{$.T "Tasks"}}</b><small>{{$.T "Open task %s: %s" "A" .Name}}</small></span></a>{{end}}
+  {{if .Contest.AllowUserTests}}<a class="tile green" href="{{.Base}}testing">{{icon "flask"}}<span><b>{{.T "Testing"}}</b><small>{{.T "Run your program on your own input"}}</small></span></a>
+  {{else}}<a class="tile green" href="{{.Base}}documentation">{{icon "book"}}<span><b>{{.T "Documentation"}}</b><small>{{.T "Languages, compilers and libraries"}}</small></span></a>{{end}}
+  <a class="tile purple" href="{{.Base}}communication">{{icon "help"}}<span><b>{{.T "Ask a question"}}</b><small>{{.T "Clarifications and announcements"}}</small></span></a>
+  {{if .Ranking}}<a class="tile orange" href="{{.Base}}ranking">{{icon "trophy"}}<span><b>{{.T "Ranking"}}</b><small>{{.T "See the scoreboard"}}</small></span></a>
+  {{else}}<a class="tile orange" href="{{.Base}}documentation">{{icon "book"}}<span><b>{{.T "Documentation"}}</b><small>{{.T "Languages, compilers and libraries"}}</small></span></a>{{end}}
+</div>
 {{end}}
-<p><button id="enable-notifications" hidden>{{.T "Enable desktop notifications"}}</button></p>
+
+<div class="dash">
+<div class="dash-main">
+{{if .Tasks}}
+<section class="card">
+  <div class="card-head"><h2>{{icon "file"}} {{.T "Tasks"}}</h2>
+    {{if $d.ShowTotal}}<span class="tag info">{{.T "Total"}} {{.Score $d.Total 2}} / {{.Score $d.MaxTotal 2}}</span>{{end}}</div>
+  {{if $d.Hidden}}<p class="muted">{{if eq .Contest.ScoreVisibility "after"}}{{.T "Scores will be shown when the contest is over."}}{{else}}{{.T "Scores are not shown in this contest."}}{{end}}</p>{{end}}
+  <table>
+  <thead><tr><th>#</th><th>{{.T "Task"}}</th>{{if not $d.Hidden}}<th class="c">{{.T "Status"}}</th><th class="num">{{if .Contest.ICPC}}{{.T "Result"}}{{else}}{{.T "Score"}}{{end}}</th>{{end}}<th class="num">{{.T "Submissions"}}</th></tr></thead>
+  <tbody>
+  {{range $d.Rows}}<tr>
+    <td><span class="letter {{lclass .Index}}">{{letter .Index}}</span></td>
+    <td><a href="{{$.Base}}tasks/{{.Name}}"><b>{{.Name}}</b></a> <span class="muted">{{.Title}}</span></td>
+    {{if not $d.Hidden}}<td class="c">{{$st := .State}}{{if eq $st "solved"}}<span class="st-ic ok" title="{{$.T "Solved"}}">{{icon "check-circle"}}</span>{{else if eq $st "partial"}}<span class="st-ic warn" title="{{$.T "Partial"}}">{{icon "half-circle"}}</span>{{else if eq $st "tried"}}<span class="st-ic bad" title="{{$.T "Unsolved"}}">{{icon "x-circle"}}</span>{{else}}<span class="st-ic none" title="{{$.T "Not attempted"}}">{{icon "minus-circle"}}</span>{{end}}</td>{{end}}
+    {{if $d.Hidden}}{{else if $.Contest.ICPC}}<td class="num">{{if .Solved}}<span class="ok">{{$.T "Accepted"}}</span>{{if .Attempts}} <small class="muted">({{$.T "%d rejected" .Attempts}})</small>{{end}}{{else if .Attempts}}<span class="bad">{{$.T "%d rejected" .Attempts}}</span>{{else}}<span class="muted">—</span>{{end}}{{if .Pending}} <span class="muted" title="{{$.T "being evaluated"}}">…</span>{{end}}</td>
+    {{else}}<td class="num">{{if .Adjustment}}<small class="muted" title="{{.Reasons}}">{{$.T "adjusted by the organizers: %s" (signed .Adjustment)}}</small> {{end}}{{if .HasScore}}{{$.Score .Score .Precision}} / {{$.Score .Max .Precision}}{{else}}<span class="muted">—</span>{{end}}{{if .Pending}} <span class="muted" title="{{$.T "being evaluated"}}">…</span>{{end}}</td>{{end}}
+    <td class="num">{{.Submissions}}</td>
+  </tr>{{end}}
+  </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>{{icon "send"}} {{.T "Your latest submissions"}}</h2></div>
+  {{if $d.Recent}}
+  <ul class="feed">
+  {{range $d.Recent}}<li>
+    <span class="letter {{lclass .Index}}">{{letter .Index}}</span>
+    <div class="what"><a href="{{$.Base}}submissions/{{.ID}}">{{.Task.Name}} #{{.ID}}</a>
+      <small><span class="{{.Class}}">{{.StatusText}}</span>{{if .HasScore}} · {{$.Score .Score .Precision}} / {{$.Score .Max .Precision}}{{end}}{{if .Invalidated}} · <span class="bad">{{$.T "invalidated"}}</span>{{end}}</small></div>
+    <span class="when">{{$.Time .Time}}</span>
+  </li>{{end}}
+  </ul>
+  {{else}}<p class="empty">{{.T "No submissions yet."}}</p>{{end}}
+</section>
+{{end}}
+</div>
+
+<div class="dash-side">
+<section class="card">
+  <div class="card-head"><h2>{{icon "clock"}} {{.T "Schedule"}}</h2><span class="pill {{.PhaseClass}}">{{.PhaseLabel}}</span></div>
+  <p>{{.PhaseText}}</p>
+  <dl class="meta">
+    {{if $d.PerUserTime}}<dt>{{.T "Time available"}}</dt><dd>{{.Dur $d.PerUserTime}}</dd>{{end}}
+    {{if not .Status.Begin.IsZero}}<dt>{{.T "Start"}}</dt><dd>{{.DateTime .Status.Begin}}</dd>{{end}}
+    {{if not .Status.End.IsZero}}<dt>{{.T "End"}}</dt><dd>{{.DateTime .Status.End}}</dd>{{end}}
+    {{if .Status.Running}}<dt>{{.T "Remaining time"}}</dt><dd class="clock" data-countdown="{{.EndMillis}}">{{.Dur .Status.Remaining}}</dd>{{end}}
+    <dt>{{.T "Time zone"}}</dt><dd>{{.TZ}}</dd>
+  </dl>
+  {{if .Status.CanStart}}
+  <form method="post" action="{{.Base}}start">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <p>{{.T "Your time starts when you press the button."}}</p>
+    <button>{{icon "play"}} {{.T "Start the contest"}}</button>
+  </form>
+  {{end}}
+  {{if $d.Certificate}}<p><a class="button" href="{{.Base}}certificate.pdf">{{icon "award"}} {{.T "Download your certificate"}}</a></p>{{end}}
+  <p><button id="enable-notifications" class="secondary" hidden>{{icon "bell"}} {{.T "Enable desktop notifications"}}</button></p>
+</section>
+
+{{if and .Tasks (not $d.Hidden)}}
+<section class="card">
+  <div class="card-head"><h2>{{icon "activity"}} {{.T "Your progress"}}</h2></div>
+  <div class="donut">
+    {{donut (printf "%d/%d" $d.Solved (len $d.Rows)) (.T "solved") $d.Solved $d.Partial $d.Unsolved}}
+    <ul class="kv">
+      <li><span><i class="dot ok"></i>{{.T "Solved"}}</span><b>{{$d.Solved}}</b></li>
+      <li><span><i class="dot warn"></i>{{.T "Partial"}}</span><b>{{$d.Partial}}</b></li>
+      <li><span><i class="dot bad"></i>{{.T "Unsolved"}}</span><b>{{$d.Unsolved}}</b></li>
+    </ul>
+  </div>
+</section>
+{{end}}
+
+{{if $d.Board}}
+<section class="card">
+  <div class="card-head"><h2>{{icon "trophy"}} {{.T "Ranking"}}</h2><a class="more" href="{{.Base}}ranking">{{.T "View all"}} {{icon "arrow-right"}}</a></div>
+  <table class="compact">
+  <thead><tr><th>#</th><th>{{.T "Contestant"}}</th><th class="num">{{if $d.BoardICPC}}{{.T "Solved"}}{{else}}{{.T "Score"}}{{end}}</th></tr></thead>
+  <tbody>
+  {{range $d.Board}}<tr {{if eq .Key $d.Mine}}class="mine"{{end}}><td>{{.Rank}}</td>
+    <td><span class="name-cell"><span class="avatar sm {{avatarc .Name}}">{{initials .Name}}</span><b>{{.Name}}</b></span></td>
+    <td class="num">{{if $d.BoardICPC}}{{.Solved}}{{else}}{{fscore .Total $d.BoardPrecision}}{{end}}</td></tr>{{end}}
+  </tbody>
+  </table>
+  {{if $d.Rank}}<p class="muted small">{{.T "You are #%d of %d." $d.Rank $d.Ranked}}</p>{{end}}
+</section>
+{{end}}
+
+<section class="card">
+  <div class="card-head"><h2>{{icon "megaphone"}} {{.T "Announcements"}}</h2><a class="more" href="{{.Base}}communication">{{.T "View all"}} {{icon "arrow-right"}}</a></div>
+  {{if $d.Announcements}}
+  <ul class="feed">
+  {{range $d.Announcements}}<li><span class="ico info">{{icon "megaphone"}}</span><div class="what"><b>{{.Subject}}</b><small>{{.Text}}</small></div><span class="when">{{$.Time .CreatedAt}}</span></li>{{end}}
+  </ul>
+  {{else}}<p class="empty">{{.T "No announcements."}}</p>{{end}}
+</section>
+</div>
+</div>
 {{end}}

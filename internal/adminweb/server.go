@@ -123,7 +123,13 @@ func New(cfg config.AdminWeb, d Deps, log *slog.Logger) (*Server, error) {
 }
 
 func (s *Server) loadTemplates() error {
-	base, err := template.New("").Funcs(s.funcs()).ParseFS(web.Templates, "aws/layout.html", "aws/partials.html")
+	funcs := s.funcs()
+	for k, v := range webkit.UIFuncs() {
+		if _, ok := funcs[k]; !ok {
+			funcs[k] = v
+		}
+	}
+	base, err := template.New("").Funcs(funcs).ParseFS(web.Templates, "aws/layout.html", "aws/partials.html")
 	if err != nil {
 		return err
 	}
@@ -206,7 +212,12 @@ func (s *Server) Handler() http.Handler {
 	get("/contests/new", s.handleContestNew)
 	post("/contests", permAll, "contest.create", s.handleContestCreate)
 	post("/contests/import", permAll, "contest.import", s.handleContestImport)
-	get("/contests/{id}", s.handleContest)
+	get("/contests/{id}", s.handleContestDashboard)
+	get("/contests/{id}/live", s.handleContestLive)
+	get("/contests/{id}/settings", s.handleContestSettings)
+	get("/contests/{id}/tasks", s.handleContestTasks)
+	get("/contests/{id}/banner", s.handleContestBanner)
+	post("/contests/{id}/banner", permAll, "contest.banner", s.handleContestBannerUpload)
 	post("/contests/{id}", permAll, "contest.update", s.handleContestUpdate)
 	post("/contests/{id}/delete", permAll, "contest.delete", s.handleContestDelete)
 	post("/contests/{id}/clone", permAll, "contest.clone", s.handleContestClone)
@@ -379,6 +390,10 @@ type reqCtx struct {
 	admin sqlc.Admin
 	sess  *webkit.Session
 	audit *auditEntry
+	// contest is the contest the page is about (the sidebar and the top
+	// bar follow it); contestID names it when the handler did not load it.
+	contest   *sqlc.Contest
+	contestID *int64
 }
 
 func (s *Server) cookie() *webkit.CookieCodec {

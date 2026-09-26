@@ -9,7 +9,12 @@
 {{if .Live}}<meta name="rws-events" content="/{{.Name}}/events" data-seq="{{.Seq}}"><script src="{{static "rws.js"}}" defer></script>{{end}}
 </head>
 <body class="rws">
-<main class="wide">
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">{{icon "logo"}}</span><span><b>CMS</b><small>{{.T "Ranking"}}</small></span></a>
+  <div class="crumbs">{{if .Board}}<a href="/{{.Name}}/">{{icon "trophy"}}</a><b>{{.Board.Title}}</b>{{end}}</div>
+  {{if .Live}}<div class="top-right"><span id="live" class="pill ok live">{{.T "live"}}</span></div>{{end}}
+</header>
+<main id="main" class="content">
 {{template "content" .}}
 </main>
 </body>

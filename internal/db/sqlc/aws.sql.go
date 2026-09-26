@@ -12,6 +12,60 @@ import (
 	"time"
 )
 
+const adminContestActivity = `-- name: AdminContestActivity :many
+SELECT floor(extract(epoch FROM s.submitted_at - $1::timestamptz) / $2::float8)::int AS bucket,
+       count(*)::bigint AS submissions,
+       count(*) FILTER (WHERE sr.verdict = 'AC')::bigint AS accepted,
+       count(*) FILTER (WHERE sr.scored_at IS NOT NULL AND sr.verdict IS DISTINCT FROM 'AC')::bigint AS rejected
+FROM tasks t
+JOIN submissions s ON s.task_id = t.id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE t.contest_id = $3::bigint AND s.official AND NOT s.tester AND s.invalidated_at IS NULL
+  AND s.submitted_at >= $1::timestamptz
+GROUP BY 1
+ORDER BY 1
+`
+
+type AdminContestActivityParams struct {
+	Since     time.Time `json:"since"`
+	BucketS   float64   `json:"bucket_s"`
+	ContestID int64     `json:"contest_id"`
+}
+
+type AdminContestActivityRow struct {
+	Bucket      int32 `json:"bucket"`
+	Submissions int64 `json:"submissions"`
+	Accepted    int64 `json:"accepted"`
+	Rejected    int64 `json:"rejected"`
+}
+
+// Official submissions of a contest per time bucket since @since, with the
+// accepted ones (the dashboard chart; submissions_task_idx per task).
+func (q *Queries) AdminContestActivity(ctx context.Context, arg AdminContestActivityParams) ([]AdminContestActivityRow, error) {
+	rows, err := q.db.Query(ctx, adminContestActivity, arg.Since, arg.BucketS, arg.ContestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminContestActivityRow{}
+	for rows.Next() {
+		var i AdminContestActivityRow
+		if err := rows.Scan(
+			&i.Bucket,
+			&i.Submissions,
+			&i.Accepted,
+			&i.Rejected,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminContestCounts = `-- name: AdminContestCounts :many
 SELECT c.id,
        (SELECT count(*) FROM participations p WHERE p.contest_id = c.id) AS participations,
@@ -52,6 +106,144 @@ func (q *Queries) AdminContestCounts(ctx context.Context) ([]AdminContestCountsR
 		return nil, err
 	}
 	return items, nil
+}
+
+const adminContestRecentQuestions = `-- name: AdminContestRecentQuestions :many
+SELECT q.id, q.asked_at, q.subject, q.reply_at, q.ignored, u.username, t.name AS task_name
+FROM questions q
+JOIN participations p ON p.id = q.participation_id
+JOIN users u ON u.id = p.user_id
+LEFT JOIN tasks t ON t.id = q.task_id
+WHERE q.contest_id = $1::bigint
+ORDER BY q.asked_at DESC, q.id DESC
+LIMIT $2::int
+`
+
+type AdminContestRecentQuestionsParams struct {
+	ContestID int64 `json:"contest_id"`
+	Lim       int32 `json:"lim"`
+}
+
+type AdminContestRecentQuestionsRow struct {
+	ID       int64      `json:"id"`
+	AskedAt  time.Time  `json:"asked_at"`
+	Subject  string     `json:"subject"`
+	ReplyAt  *time.Time `json:"reply_at"`
+	Ignored  bool       `json:"ignored"`
+	Username string     `json:"username"`
+	TaskName *string    `json:"task_name"`
+}
+
+// The latest questions of a contest (the dashboard's events; a contest has
+// a few hundred questions at most, no index needed).
+func (q *Queries) AdminContestRecentQuestions(ctx context.Context, arg AdminContestRecentQuestionsParams) ([]AdminContestRecentQuestionsRow, error) {
+	rows, err := q.db.Query(ctx, adminContestRecentQuestions, arg.ContestID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminContestRecentQuestionsRow{}
+	for rows.Next() {
+		var i AdminContestRecentQuestionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AskedAt,
+			&i.Subject,
+			&i.ReplyAt,
+			&i.Ignored,
+			&i.Username,
+			&i.TaskName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminContestRecentSubmissions = `-- name: AdminContestRecentSubmissions :many
+SELECT s.id, s.submitted_at, s.task_id, t.name AS task_name, u.username, sr.compilation_outcome, sr.score,
+       sr.scored_at, sr.verdict, sr.system_error, sr.testcases_done, sr.testcases_total
+FROM submissions s
+JOIN participations p ON p.id = s.participation_id
+JOIN users u ON u.id = p.user_id
+JOIN tasks t ON t.id = s.task_id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE p.contest_id = $1::bigint AND NOT s.tester
+ORDER BY s.id DESC
+LIMIT $2::int
+`
+
+type AdminContestRecentSubmissionsParams struct {
+	ContestID int64 `json:"contest_id"`
+	Lim       int32 `json:"lim"`
+}
+
+type AdminContestRecentSubmissionsRow struct {
+	ID                 int64      `json:"id"`
+	SubmittedAt        time.Time  `json:"submitted_at"`
+	TaskID             int64      `json:"task_id"`
+	TaskName           string     `json:"task_name"`
+	Username           string     `json:"username"`
+	CompilationOutcome *string    `json:"compilation_outcome"`
+	Score              *float64   `json:"score"`
+	ScoredAt           *time.Time `json:"scored_at"`
+	Verdict            *string    `json:"verdict"`
+	SystemError        *string    `json:"system_error"`
+	TestcasesDone      *int32     `json:"testcases_done"`
+	TestcasesTotal     *int32     `json:"testcases_total"`
+}
+
+// The latest submissions of a contest with their result on the live
+// dataset (the dashboard's events; newest first through the primary key,
+// stopping at the limit).
+func (q *Queries) AdminContestRecentSubmissions(ctx context.Context, arg AdminContestRecentSubmissionsParams) ([]AdminContestRecentSubmissionsRow, error) {
+	rows, err := q.db.Query(ctx, adminContestRecentSubmissions, arg.ContestID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminContestRecentSubmissionsRow{}
+	for rows.Next() {
+		var i AdminContestRecentSubmissionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SubmittedAt,
+			&i.TaskID,
+			&i.TaskName,
+			&i.Username,
+			&i.CompilationOutcome,
+			&i.Score,
+			&i.ScoredAt,
+			&i.Verdict,
+			&i.SystemError,
+			&i.TestcasesDone,
+			&i.TestcasesTotal,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminContestTeams = `-- name: AdminContestTeams :one
+SELECT count(DISTINCT team_id)::bigint FROM participations WHERE contest_id = $1 AND team_id IS NOT NULL
+`
+
+// Teams taking part in a contest (the dashboard banner; participations of
+// one contest through the (contest_id, user_id) unique index).
+func (q *Queries) AdminContestTeams(ctx context.Context, contestID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, adminContestTeams, contestID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const adminCountUsers = `-- name: AdminCountUsers :one

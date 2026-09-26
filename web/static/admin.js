@@ -90,7 +90,31 @@
     });
   }
 
+  // Time left in the contest of the page (top bar).
+  function countdowns() {
+    var els = document.querySelectorAll("[data-countdown]");
+    if (!els.length) return;
+    var offset = Date.now() - Number(meta("server-time") || Date.now());
+    function tick() {
+      var now = Date.now() - offset;
+      els.forEach(function (el) {
+        var left = Math.max(0, Math.floor((Number(el.dataset.countdown) - now) / 1000));
+        var h = Math.floor(left / 3600), m = Math.floor(left / 60) % 60, s = left % 60;
+        el.textContent = h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+      });
+    }
+    tick();
+    setInterval(tick, 1000);
+  }
+
+  // The user menu closes when clicking elsewhere.
+  document.addEventListener("click", function (e) {
+    document.querySelectorAll("details.userbox[open]").forEach(function (d) {
+      if (!d.contains(e.target)) d.removeAttribute("open");
+    });
+  });
+
   function init() { switches(); dropzones(); }
-  document.addEventListener("DOMContentLoaded", function () { connect(); init(); });
+  document.addEventListener("DOMContentLoaded", function () { connect(); init(); countdowns(); });
   document.addEventListener("htmx:afterSettle", init);
 })();

@@ -1,18 +1,27 @@
 {{define "content"}}{{$b := .Board}}
-<header class="board-head">
-  <h1>{{$b.Title}}</h1>
-  <p class="muted">{{when $b.Start $b.Timezone}} – {{when $b.Stop $b.Timezone}} ({{$b.Timezone}})
-  {{if $b.Frozen}} · <span class="frozen">{{.T "Frozen since %s: later submissions show as ?." (when (deref $b.FreezeAt) $b.Timezone)}}</span>{{end}}
-  · <span id="live" class="live">{{.T "live"}}</span></p>
-</header>
+<section class="banner board-head">
+  <div class="inner"><div>
+    <h1>{{$b.Title}}</h1>
+    <p class="when"><span>{{icon "calendar"}} {{when $b.Start $b.Timezone}} – {{when $b.Stop $b.Timezone}} ({{$b.Timezone}})</span>
+    {{if $b.Frozen}}<span class="frozen">{{icon "eye"}} {{.T "Frozen since %s: later submissions show as ?." (when (deref $b.FreezeAt) $b.Timezone)}}</span>{{end}}</p>
+  </div></div>
+  <div class="figures">
+    <div class="figure">{{icon "users"}}<div><b>{{len $b.Rows}}</b><small>{{if $b.Teams}}{{.T "Teams"}}{{else}}{{.T "Participants"}}{{end}}</small></div></div>
+    <div class="figure">{{icon "file"}}<div><b>{{len $b.Tasks}}</b><small>{{.T "Tasks"}}</small></div></div>
+  </div>
+</section>
+<section class="card">
+<div class="table-wrap">
 <table class="ranking board">
 <thead><tr><th class="num">#</th><th>{{if $b.Teams}}{{.T "Team"}}{{else}}{{.T "Participant"}}{{end}}</th>
-{{range $b.Tasks}}<th class="num" title="{{.Title}}">{{.Name}}<br><small class="muted">{{score .MaxScore .Precision}}</small></th>{{end}}
+{{range $i, $t := $b.Tasks}}<th class="num" title="{{$t.Title}}"><span class="letter {{lclass $i}}">{{letter $i}}</span> {{$t.Name}}<br><small class="muted">{{score $t.MaxScore $t.Precision}}</small></th>{{end}}
 <th class="num">{{if $b.ICPC}}{{.T "Solved"}}{{else}}{{.T "Total"}}{{end}}</th>{{if $b.ICPC}}<th class="num">{{.T "Penalty"}}</th>{{end}}</tr></thead>
 <tbody id="rows">
 {{range $b.Rows}}{{template "row" (row $b .)}}{{end}}
 </tbody>
 </table>
-{{if not $b.Rows}}<p class="muted">{{.T "Nobody takes part yet."}}</p>{{end}}
+</div>
+{{if not $b.Rows}}<p class="empty">{{.T "Nobody takes part yet."}}</p>{{end}}
+</section>
 <p class="muted small"><a href="ranking.json">JSON</a></p>
 {{end}}

@@ -1,7 +1,8 @@
 # Configuración del concurso
 
-Todo lo que sigue está en la página del concurso del sitio de administración
-(**Concursos → el concurso**). Los cambios se aplican al instante: las
+Todo lo que sigue está en la página **Configuración** del concurso del sitio de
+administración (**Concursos → el concurso → Configuración**, también en el menú
+de la izquierda). Los cambios se aplican al instante: las
 páginas de los concursantes los toman en menos de un segundo, sin reiniciar
 nada.
 
@@ -44,7 +45,7 @@ Con un modo de registro propio, la página de inicio de sesión muestra
 menos la longitud mínima, con letras y dígitos, distinta del usuario.
 
 - **Con aprobación**: la cuenta se crea pero no puede entrar hasta que un
-  administrador la apruebe. La página del concurso muestra cuántos registros
+  administrador la apruebe. El panel y la configuración del concurso muestran cuántos registros
   esperan; **Participaciones** los marca como *esperando aprobación* con los
   botones **aprobar** / **rechazar**. Rechazar borra la participación (la
   cuenta queda, sin este concurso). Los registros pendientes no aparecen en el
@@ -84,7 +85,7 @@ Con el modo de puntuación **ICPC (resueltos + penalización)**:
   minutos desde el inicio hasta cada envío aceptado más la *penalización
   ICPC por intento rechazado* (los errores de compilación no cuentan).
   Congelamiento y descongelamiento como en [rankings](ranking.md).
-- **Globos** (enlace en la página del concurso): la lista para el staff de
+- **Globos** (en el menú del concurso): la lista para el staff de
   cada problema resuelto por un equipo, del más antiguo al más reciente, con
   la sede y quién lo resolvió; se marca la primera solución de cada
   problema. Se actualiza sola; el botón *entregado* pasa el globo a la lista
@@ -108,7 +109,7 @@ instante:
 | Máx. páginas por trabajo | Los documentos más largos se rechazan. |
 | Máx. páginas por concursante | Páginas en total (vacío: sin límite). |
 
-Las participaciones sin restricciones no tienen límites. La página del
+Las participaciones sin restricciones no tienen límites. El menú del
 concurso enlaza a la cola de **Impresión** del staff: *impresos, por
 entregar* (con **entregado** y **reimprimir** para una copia perdida),
 *esperando a la impresora* (con **cancelar**), *no impresos* (con el motivo e
@@ -127,7 +128,7 @@ Configurar la impresora: [despliegue](despliegue.md#impresión).
 
 ## Certificados
 
-**Certificados**, en la página del concurso, diseña un certificado por
+**Certificados**, en el menú del concurso, diseña un certificado por
 concursante (A4 horizontal) a partir del ranking final, sin congelar:
 
 - un **título**, un **texto** y un **pie** con variables: `{name}`,

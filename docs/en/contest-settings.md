@@ -1,7 +1,7 @@
 # Contest settings
 
-Everything below is on the contest page of the admin web server (**Contests →
-the contest**). Changes apply at once: contestant pages pick them up within a
+Everything below is on the contest's **Settings** page of the admin web server
+(**Contests → the contest → Settings**, also in the left menu). Changes apply at once: contestant pages pick them up within a
 second, without restarting anything.
 
 ## Lifecycle
@@ -42,7 +42,7 @@ institution, and a password with at least the minimum length, letters and
 digits, different from the username.
 
 - **With approval**: the account is created but cannot log in until an
-  administrator approves it. The contest page shows how many registrations
+  administrator approves it. The contest's dashboard and Settings page show how many registrations
   wait; **Participations** marks them *waiting for approval* with
   **approve** / **reject** buttons. Rejecting deletes the participation (the
   account stays, without this contest). Pending registrations are not in the
@@ -79,7 +79,7 @@ With the scoring mode **ICPC (solved + penalty)**:
   each accepted submission plus the *ICPC penalty per rejected attempt*
   (compilation errors do not count). Freeze and unfreeze as in
   [rankings](ranking.md).
-- **Balloons** (link on the contest page): the staff list of every task
+- **Balloons** (in the contest menu): the staff list of every task
   solved by a team, oldest first, with the site and the solver, the first
   solve of each task marked. It updates by itself; the *delivered* button
   moves a balloon to the delivered list (with who and when; *undo* brings it
@@ -102,7 +102,7 @@ limits apply at once:
 | Max. pages per job | Longer documents are refused. |
 | Max. pages per contestant | Pages in all (empty: no limit). |
 
-Unrestricted participations have no limits. The contest page links to the
+Unrestricted participations have no limits. The contest menu links to the
 staff **Printing** queue: *printed, to deliver* (with **delivered**, and
 **reprint** for a lost copy), *waiting for the printer* (with **cancel**),
 *not printed* (with the reason and **print again**) and *delivered* (with who
@@ -120,7 +120,7 @@ job live. Setting up the printer: [deployment](deployment.md#printing).
 
 ## Certificates
 
-**Certificates** on the contest page designs one certificate per
+**Certificates** in the contest menu designs one certificate per
 contestant (A4 landscape) from the final, unfrozen ranking:
 
 - a **title**, a **text** and a **footer** with placeholders: `{name}`,

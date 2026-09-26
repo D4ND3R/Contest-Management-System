@@ -10,6 +10,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/contest"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
+	"github.com/D4ND3R/Contest-Management-System/internal/version"
 )
 
 // langOption is an entry of the UI language selector.
@@ -181,4 +182,114 @@ func translateOutcome(lang, text string) string {
 		return i18n.T(lang, "Evaluation didn't produce file %s", strings.TrimPrefix(text, "Evaluation didn't produce file "))
 	}
 	return i18n.T(lang, text)
+}
+
+// Heading is the contest's display title: its title, else its description,
+// else its name.
+func (c *contestView) Heading() string {
+	switch {
+	case c.Title != "":
+		return c.Title
+	case c.Description != "":
+		return c.Description
+	}
+	return c.Name
+}
+
+// Subheading is the line under the heading (the description, unless it is
+// the heading already).
+func (c *contestView) Subheading() string {
+	if c.Title != "" {
+		return c.Description
+	}
+	return ""
+}
+
+// BannerURL is the versioned address of the banner image ("" = none).
+func (p *page) BannerURL() string {
+	if p.Contest == nil || p.Contest.BannerDigest == nil || len(*p.Contest.BannerDigest) < 20 {
+		return ""
+	}
+	return "/" + p.Contest.Name + "/banner?v=" + (*p.Contest.BannerDigest)[:20]
+}
+
+// PhaseClass and PhaseLabel describe the contest phase in a pill.
+func (p *page) PhaseClass() string {
+	switch p.Status.Phase {
+	case contest.Running:
+		return "ok live"
+	case contest.NotStarted, contest.WaitingStart:
+		return "info"
+	case contest.Analysis, contest.Practice:
+		return "warn"
+	}
+	return ""
+}
+
+func (p *page) PhaseLabel() string {
+	if p.Contest != nil && p.Contest.Status == "archived" {
+		return p.T("Archived")
+	}
+	switch p.Status.Phase {
+	case contest.Running:
+		return p.T("Contest in progress")
+	case contest.NotStarted:
+		return p.T("Not started")
+	case contest.WaitingStart:
+		return p.T("Ready to start")
+	case contest.Analysis:
+		return p.T("Analysis mode")
+	case contest.Practice:
+		return p.T("Practice mode")
+	}
+	return p.T("Finished")
+}
+
+// Version is the CMS version (sidebar footer).
+func (p *page) Version() string { return version.Version }
+
+// FullName is the contestant's name for the user menu.
+func (p *page) FullName() string {
+	if p.Part == nil {
+		return ""
+	}
+	if n := strings.TrimSpace(p.Part.FirstName + " " + p.Part.LastName); n != "" {
+		return n
+	}
+	return p.Part.Username
+}
+
+// DateRange formats the contest window compactly ("May 12, 09:00 – 14:00"
+// or across days).
+func (p *page) DateRange(a, b time.Time) string {
+	if a.IsZero() {
+		return ""
+	}
+	a, b = a.In(p.loc), b.In(p.loc)
+	if a.Year() == b.Year() && a.YearDay() == b.YearDay() {
+		return a.Format("2006-01-02 15:04") + " – " + b.Format("15:04")
+	}
+	return a.Format("2006-01-02 15:04") + " – " + b.Format("2006-01-02 15:04")
+}
+
+// Hours formats a duration as "5h" or "4h 30m".
+func (p *page) Hours(d time.Duration) string {
+	m := int64(d.Round(time.Minute) / time.Minute)
+	if m%60 == 0 {
+		return strconv.FormatInt(m/60, 10) + "h"
+	}
+	if m < 60 {
+		return strconv.FormatInt(m, 10) + "m"
+	}
+	return strconv.FormatInt(m/60, 10) + "h " + strconv.FormatInt(m%60, 10) + "m"
+}
+
+// TaskIndex is the position of a task in the contest (its letter).
+func (p *page) TaskIndex(name string) int {
+	for i, t := range p.Tasks {
+		if t.Name == name {
+			return i
+		}
+	}
+	return 0
 }

@@ -143,52 +143,6 @@ func (s *Server) handleJobRequeue(w http.ResponseWriter, r *http.Request, rc *re
 	s.done(w, r, "/system", "Job queued again.")
 }
 
-type dashboard struct {
-	Contests []contestListItem
-	Status   *systemStatus
-	Errors   []sqlc.AdminListSystemErrorsRow
-}
-
-func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	list, err := s.q.ListContests(r.Context())
-	if err != nil {
-		s.internalError(w, r, rc, err)
-		return
-	}
-	counts, err := s.q.AdminContestCounts(r.Context())
-	if err != nil {
-		s.internalError(w, r, rc, err)
-		return
-	}
-	byID := map[int64]sqlc.AdminContestCountsRow{}
-	for _, c := range counts {
-		byID[c.ID] = c
-	}
-	d := &dashboard{Status: s.systemStatus(r, rc)}
-	now := s.now()
-	for _, c := range list {
-		// Current and upcoming contests first; old ones are on /contests.
-		if c.StopTime.Before(now.Add(-7 * 24 * time.Hour)) {
-			continue
-		}
-		it := contestListItem{Contest: c, Participations: byID[c.ID].Participations, Tasks: byID[c.ID].Tasks, Submissions: byID[c.ID].Submissions}
-		switch {
-		case now.Before(c.StartTime):
-			it.Phase = "upcoming"
-		case now.Before(c.StopTime):
-			it.Phase = "running"
-		default:
-			it.Phase = "finished"
-		}
-		d.Contests = append(d.Contests, it)
-	}
-	if d.Errors, err = s.q.AdminListSystemErrors(r.Context()); err != nil {
-		s.internalError(w, r, rc, err)
-		return
-	}
-	s.render(w, "dashboard", http.StatusOK, s.newPage(w, r, rc, "Overview", "home", d))
-}
-
 type systemPage struct {
 	Status *systemStatus
 	Errors []sqlc.AdminListSystemErrorsRow

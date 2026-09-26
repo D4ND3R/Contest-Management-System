@@ -1,0 +1,44 @@
+{{define "content"}}
+{{$c := .Data.C}}
+<div class="page-head"><div><h1>{{.T "Problems"}}</h1><p>{{.T "Contest %s" $c.Name}}</p></div>
+{{if .CanWrite}}<div class="card-actions"><a class="button" href="/tasks/import">{{icon "upload"}} {{.T "Import a problem package"}}</a></div>{{end}}</div>
+<section class="card">
+<table>
+<thead><tr><th>#</th><th>{{.T "Name"}}</th><th>{{.T "Title"}}</th><th></th></tr></thead>
+<tbody>
+{{range $i, $t := .Data.Tasks}}
+<tr>
+  <td><span class="letter {{lclass $i}}">{{letter $i}}</span></td><td><a href="/tasks/{{$t.ID}}"><b>{{$t.Name}}</b></a></td><td>{{$t.Title}}</td>
+  <td class="num">{{if $.CanWrite}}
+    <form method="post" action="/contests/{{$c.ID}}/tasks/{{$t.ID}}/move" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="dir" value="up"><button class="link" title="{{$.T "Move up"}}">↑</button></form>
+    <form method="post" action="/contests/{{$c.ID}}/tasks/{{$t.ID}}/move" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="dir" value="down"><button class="link" title="{{$.T "Move down"}}">↓</button></form>
+    <form method="post" action="/contests/{{$c.ID}}/tasks/{{$t.ID}}/remove" class="inline" data-confirm="{{$.T "Remove %s from the contest? (The task and its submissions are kept.)" $t.Name}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "remove"}}</button></form>
+  {{end}}</td>
+</tr>
+{{else}}
+<tr><td colspan="4" class="muted">{{.T "No tasks yet."}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</section>
+{{if .CanWrite}}
+<div class="grid-2">
+<form method="post" action="/tasks" class="card">
+  {{template "csrf" .CSRF}}
+  <input type="hidden" name="contest_id" value="{{$c.ID}}">
+  <h2>{{icon "plus-circle"}} {{.T "New task"}}</h2>
+  <label>{{.T "Name (short, used in URLs)"}} <input name="name" required pattern="[A-Za-z0-9_.\-]+"></label>
+  <label>{{.T "Title"}} <input name="title"></label>
+  <button>{{.T "Create task"}}</button>
+</form>
+<form method="post" action="/contests/{{$c.ID}}/tasks" class="card">
+  {{template "csrf" .CSRF}}
+  <h2>{{icon "database"}} {{.T "Add an existing task"}}</h2>
+  {{if .Data.Unassigned}}
+  <label>{{.T "Task"}} <select name="task_id">{{range .Data.Unassigned}}<option value="{{.ID}}">{{.Name}} — {{.Title}}</option>{{end}}</select></label>
+  <button>{{.T "Add"}}</button>
+  {{else}}<p class="muted">{{.T "Every task of the library already belongs to a contest."}}</p>{{end}}
+</form>
+</div>
+{{end}}
+{{end}}

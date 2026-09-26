@@ -63,6 +63,39 @@ func (q *Queries) BestPreviousOutputs(ctx context.Context, arg BestPreviousOutpu
 	return items, nil
 }
 
+const countSubmissionsByTask = `-- name: CountSubmissionsByTask :many
+SELECT task_id, count(*)::bigint AS n FROM submissions
+WHERE participation_id = ANY($1::bigint[])
+GROUP BY task_id
+`
+
+type CountSubmissionsByTaskRow struct {
+	TaskID int64 `json:"task_id"`
+	N      int64 `json:"n"`
+}
+
+// A contestant's (or a team's) submissions per task, for the overview
+// (submissions_participation_task_idx).
+func (q *Queries) CountSubmissionsByTask(ctx context.Context, participationIds []int64) ([]CountSubmissionsByTaskRow, error) {
+	rows, err := q.db.Query(ctx, countSubmissionsByTask, participationIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountSubmissionsByTaskRow{}
+	for rows.Next() {
+		var i CountSubmissionsByTaskRow
+		if err := rows.Scan(&i.TaskID, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getParticipationView = `-- name: GetParticipationView :one
 SELECT p.id, p.contest_id, p.user_id, p.team_id, p.approved, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted,
        p.login_nonce, p.ip, u.username, u.first_name, u.last_name, u.timezone, u.preferred_languages,
@@ -213,7 +246,7 @@ func (q *Queries) GetSubmissionWithResult(ctx context.Context, arg GetSubmission
 }
 
 const listActiveContests = `-- name: ListActiveContests :many
-SELECT id, name, description, start_time, stop_time FROM contests
+SELECT id, name, description, title, start_time, stop_time FROM contests
 WHERE status = 'published' AND (stop_time > now() - interval '30 days' OR analysis_stop > now() OR practice_enabled)
 ORDER BY start_time DESC
 `
@@ -222,6 +255,7 @@ type ListActiveContestsRow struct {
 	ID          int64     `json:"id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
+	Title       string    `json:"title"`
 	StartTime   time.Time `json:"start_time"`
 	StopTime    time.Time `json:"stop_time"`
 }
@@ -240,8 +274,86 @@ func (q *Queries) ListActiveContests(ctx context.Context) ([]ListActiveContestsR
 			&i.ID,
 			&i.Name,
 			&i.Description,
+			&i.Title,
 			&i.StartTime,
 			&i.StopTime,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecentSubmissions = `-- name: ListRecentSubmissions :many
+SELECT s.id, s.task_id, s.submitted_at, s.language, s.official, (k.submission_id IS NOT NULL)::boolean AS tokened,
+       s.invalidated_at, sr.compilation_outcome, sr.evaluation_outcome, sr.testcases_done, sr.testcases_total,
+       sr.score, sr.public_score, sr.scored_at, sr.system_error, sr.verdict
+FROM submissions s
+JOIN tasks t ON t.id = s.task_id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+LEFT JOIN tokens k ON k.submission_id = s.id
+WHERE s.participation_id = ANY($1::bigint[])
+ORDER BY s.submitted_at DESC, s.id DESC
+LIMIT $2::int
+`
+
+type ListRecentSubmissionsParams struct {
+	ParticipationIds []int64 `json:"participation_ids"`
+	Lim              int32   `json:"lim"`
+}
+
+type ListRecentSubmissionsRow struct {
+	ID                 int64      `json:"id"`
+	TaskID             int64      `json:"task_id"`
+	SubmittedAt        time.Time  `json:"submitted_at"`
+	Language           *string    `json:"language"`
+	Official           bool       `json:"official"`
+	Tokened            bool       `json:"tokened"`
+	InvalidatedAt      *time.Time `json:"invalidated_at"`
+	CompilationOutcome *string    `json:"compilation_outcome"`
+	EvaluationOutcome  *string    `json:"evaluation_outcome"`
+	TestcasesDone      *int32     `json:"testcases_done"`
+	TestcasesTotal     *int32     `json:"testcases_total"`
+	Score              *float64   `json:"score"`
+	PublicScore        *float64   `json:"public_score"`
+	ScoredAt           *time.Time `json:"scored_at"`
+	SystemError        *string    `json:"system_error"`
+	Verdict            *string    `json:"verdict"`
+}
+
+// A contestant's (or a team's) latest submissions to any task with their
+// result on the task's live dataset, for the overview
+// (submissions_participation_task_idx per member; a few hundred at most).
+func (q *Queries) ListRecentSubmissions(ctx context.Context, arg ListRecentSubmissionsParams) ([]ListRecentSubmissionsRow, error) {
+	rows, err := q.db.Query(ctx, listRecentSubmissions, arg.ParticipationIds, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecentSubmissionsRow{}
+	for rows.Next() {
+		var i ListRecentSubmissionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskID,
+			&i.SubmittedAt,
+			&i.Language,
+			&i.Official,
+			&i.Tokened,
+			&i.InvalidatedAt,
+			&i.CompilationOutcome,
+			&i.EvaluationOutcome,
+			&i.TestcasesDone,
+			&i.TestcasesTotal,
+			&i.Score,
+			&i.PublicScore,
+			&i.ScoredAt,
+			&i.SystemError,
+			&i.Verdict,
 		); err != nil {
 			return nil, err
 		}

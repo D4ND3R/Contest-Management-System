@@ -1,33 +1,78 @@
 {{define "content"}}
-<h1>{{.T "Overview"}}</h1>
-{{template "system-status" .Data.Status}}
-<h2>{{.T "Current and upcoming contests"}}</h2>
-<table>
-<thead><tr><th>{{.T "Contest"}}</th><th>{{.T "Phase"}}</th><th>{{.T "Start (UTC)"}}</th><th>{{.T "End (UTC)"}}</th><th class="num">{{.T "Tasks"}}</th><th class="num">{{.T "Participants"}}</th><th class="num">{{.T "Submissions"}}</th><th></th></tr></thead>
-<tbody>
-{{range .Data.Contests}}
-<tr>
-  <td><a href="/contests/{{.ID}}">{{.Name}}</a> <span class="muted">{{.Description}}</span></td>
-  <td><span class="phase {{.Phase}}">{{$.T .Phase}}</span></td>
-  <td>{{dt .StartTime}}</td><td>{{dt .StopTime}}</td>
-  <td class="num">{{.Tasks}}</td><td class="num">{{.Participations}}</td><td class="num">{{.Submissions}}</td>
-  <td><a href="/contests/{{.ID}}/submissions">{{$.T "submissions"}}</a> · <a href="/contests/{{.ID}}/ranking">{{$.T "ranking"}}</a></td>
-</tr>
+{{$d := .Data}}
+{{if $d.C.ID}}{{$cid := $d.C.ID}}
+<section class="banner">
+  {{with $d.BannerURL}}<img class="bg" src="{{.}}" alt="">{{end}}
+  <div class="inner">
+    <div>
+      {{if $d.Home}}<div class="eyebrow">{{.T "Contest"}} · {{$d.C.Name}}</div>{{end}}
+      <h1>{{.ContestHeading}}</h1>
+      {{if $d.C.Title}}{{with $d.C.Description}}<p class="sub">{{.}}</p>{{end}}{{end}}
+      <p class="when"><span>{{icon "calendar"}} {{.ContestWhen $d.C}}</span>{{with $d.C.Location}}<span>{{icon "map-pin"}} {{.}}</span>{{end}}</p>
+    </div>
+    {{with $d.C.Tagline}}<p class="quote">“{{.}}”</p>{{end}}
+  </div>
+  <div class="figures">
+    <div class="figure">{{icon "users"}}<div><b>{{$d.Counts.Participations}}</b><small>{{.T "Participants"}}</small></div></div>
+    {{if $d.Teams}}<div class="figure">{{icon "flag"}}<div><b>{{$d.Teams}}</b><small>{{.T "Teams"}}</small></div></div>{{end}}
+    <div class="figure">{{icon "file"}}<div><b>{{$d.Counts.Tasks}}</b><small>{{.T "Problems"}}</small></div></div>
+    <div class="figure">{{icon "clock"}}<div><b>{{.Hours $d.Duration}}</b><small>{{if $d.C.PerUserTimeS}}{{.T "Per contestant"}}{{else}}{{.T "Contest duration"}}{{end}}</small></div></div>
+    <div class="figure">{{icon "send"}}<div><b>{{$d.Counts.Submissions}}</b><small>{{.T "Submissions"}}</small></div></div>
+  </div>
+</section>
+
+{{if .CanWrite}}
+<div class="tiles">
+  <a class="tile blue" href="/contests/{{$cid}}/settings">{{icon "sliders"}}<span><b>{{.T "Manage contest"}}</b><small>{{.T "Times, rules, access and banner"}}</small></span></a>
+  <a class="tile green" href="/contests/{{$cid}}/tasks">{{icon "plus-circle"}}<span><b>{{.T "Add a problem"}}</b><small>{{.T "Create a task or import a package"}}</small></span></a>
+  <a class="tile purple" href="/contests/{{$cid}}/participations">{{icon "users"}}<span><b>{{.T "Participants"}}</b><small>{{.T "Add, import or approve contestants"}}</small></span></a>
+  <a class="tile orange" href="/contests/{{$cid}}/ranking">{{icon "bar-chart"}}<span><b>{{.T "Results"}}</b><small>{{.T "Scoreboard, exports and certificates"}}</small></span></a>
+</div>
+{{end}}
+
+{{template "dash-live" (part $ $d.Live)}}
 {{else}}
-<tr><td colspan="8" class="muted">{{.T "No current contest."}} <a href="/contests/new">{{.T "Create one"}}</a>.</td></tr>
+<section class="card">
+  <h1>{{.T "Welcome"}}</h1>
+  <p>{{.T "There is no contest yet."}}</p>
+  {{if .CanWrite}}<p class="actions"><a class="button" href="/contests/new">{{icon "plus"}} {{.T "Create a contest"}}</a> <a class="button secondary" href="/contests">{{icon "upload"}} {{.T "Import a contest"}}</a></p>{{end}}
+</section>
 {{end}}
-</tbody>
-</table>
-<h2>{{.T "System errors"}}</h2>
-{{if .Data.Errors}}
-<table>
-<thead><tr><th>{{.T "Submission"}}</th><th>{{.T "User"}}</th><th>{{.T "Task"}}</th><th>{{.T "Error"}}</th><th></th></tr></thead>
-<tbody>
-{{range .Data.Errors}}
-<tr><td><a href="/submissions/{{.SubmissionID}}">#{{.SubmissionID}}</a></td><td>{{.Username}}</td><td>{{.TaskName}}</td><td class="bad">{{deref .SystemError}}</td>
-<td>{{if $.CanWrite}}{{template "reevaluate" (reeval $ "submission_id" .SubmissionID "/")}}{{end}}</td></tr>
+
+{{if $d.Home}}
+<div class="grid-2">
+<section class="card">
+  <div class="card-head"><h2>{{icon "calendar"}} {{.T "Current and upcoming contests"}}</h2><a class="more" href="/contests">{{.T "View all"}} {{icon "arrow-right"}}</a></div>
+  <table>
+  <thead><tr><th>{{.T "Contest"}}</th><th>{{.T "Phase"}}</th><th>{{.T "Start (UTC)"}}</th><th class="num">{{.T "Participants"}}</th><th class="num">{{.T "Submissions"}}</th></tr></thead>
+  <tbody>
+  {{range $d.Contests}}
+  <tr>
+    <td><a href="/contests/{{.ID}}"><b>{{.Name}}</b></a> <span class="muted">{{.Description}}</span></td>
+    <td><span class="phase {{.Phase}}">{{$.T .Phase}}</span></td>
+    <td>{{dt .StartTime}}</td>
+    <td class="num">{{.Participations}}</td><td class="num">{{.Submissions}}</td>
+  </tr>
+  {{else}}
+  <tr><td colspan="5" class="muted">{{.T "No current contest."}} <a href="/contests/new">{{.T "Create one"}}</a>.</td></tr>
+  {{end}}
+  </tbody>
+  </table>
+</section>
+<section class="card">
+  <div class="card-head"><h2>{{icon "alert"}} {{.T "System errors"}}</h2><a class="more" href="/system">{{.T "Judges"}} {{icon "arrow-right"}}</a></div>
+  {{if $d.Errors}}
+  <table>
+  <thead><tr><th>{{.T "Submission"}}</th><th>{{.T "User"}}</th><th>{{.T "Task"}}</th><th>{{.T "Error"}}</th><th></th></tr></thead>
+  <tbody>
+  {{range $d.Errors}}
+  <tr><td><a href="/submissions/{{.SubmissionID}}">#{{.SubmissionID}}</a></td><td>{{.Username}}</td><td>{{.TaskName}}</td><td class="bad">{{deref .SystemError}}</td>
+  <td>{{if $.CanWrite}}{{template "reevaluate" (reeval $ "submission_id" .SubmissionID "/")}}{{end}}</td></tr>
+  {{end}}
+  </tbody>
+  </table>
+  {{else}}<p class="empty">{{.T "None."}}</p>{{end}}
+</section>
+</div>
 {{end}}
-</tbody>
-</table>
-{{else}}<p class="muted">{{.T "None."}}</p>{{end}}
 {{end}}

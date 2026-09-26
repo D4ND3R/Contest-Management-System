@@ -24,14 +24,26 @@ another's lost device. Every change is in the **Audit log**.
    (read-only, off the lists).
 3. The rest, section by section — languages, per-contestant time windows,
    practice, IOI or ICPC, teams, tokens, feedback, score visibility, access
-   and registration, submission limits, questions, printing — is described
-   in [contest settings](contest-settings.md). Every field shows its
-   meaning next to it.
-4. **Sites** (optional): venues with their own start time, used to filter
+   and registration, submission limits, questions, printing — is on the
+   contest's **Settings** page and described in
+   [contest settings](contest-settings.md). Every field shows its meaning
+   next to it.
+4. **Presentation** (Settings): a title shown to everybody, the description
+   as its subtitle, the place and a motto make the **banner** at the top of
+   the contestants' and the administrators' dashboards (and of the login
+   page). **Banner image**: a wide PNG, JPEG, GIF or WebP (about 1600×400,
+   at most 4 MiB); SVG is refused because it can carry scripts. Without an
+   image the banner uses a plain background.
+5. **Sites** (optional): venues with their own start time, used to filter
    the ranking and the balloons.
-5. Reusing last year's contest: **Copy this contest** at the bottom of its
-   page (tasks and settings, optionally the participants), or import its
-   [archive](backups.md#contest-archives).
+6. Reusing last year's contest: **Copy this contest** at the bottom of its
+   Settings page (tasks and settings, optionally the participants), or
+   import its [archive](backups.md#contest-archives).
+
+The left menu follows the contest you are looking at (the home page shows
+the running one, else the next one): its **dashboard**, problems,
+submissions, scoreboard, statistics, announcements, participants and
+settings; the top bar shows its phase and the time remaining.
 
 ## 3. Contestants
 
@@ -88,7 +100,7 @@ By hand, **Tasks → Create task** and then, on the task page:
 4. **Task tester**: submit any source as an administrator and see the
    verdict per testcase without it counting anywhere; **Validation report**
    judges the reference solutions on every dataset.
-5. Add the task to the contest (the contest page lists its tasks in order).
+5. Add the task to the contest (the contest's **Problems** page lists its tasks in order).
 
 ### Each problem type, step by step
 
@@ -115,6 +127,15 @@ backup and restore it, rehearse with a short contest
 
 ## 6. During the contest
 
+- The contest **dashboard** (its page, and the home page while it runs)
+  refreshes by itself every 20 seconds: the top of the scoreboard, the
+  state of each problem (solved by somebody, only partial points, unsolved;
+  submissions and who solved it first), the latest events (submissions,
+  first solves, questions, announcements), a chart of submissions and
+  accepted ones over time, the verdict counts, the health of judges, queue,
+  database, disks and backups, and what needs someone (unanswered
+  questions, submissions that could not be judged, stuck jobs,
+  registrations to approve, the end approaching, a frozen ranking).
 - **Workers & queues**: queues, jobs in flight, stuck jobs (requeue),
   system errors, CPU/memory/disk.
 - **Questions** and **Communication** (announcements, private messages);
@@ -126,7 +147,7 @@ backup and restore it, rehearse with a short contest
   (restorable).
 - **Participation** page: extra time, manual score adjustment with a reason
   (audited), sessions, "view as the contestant".
-- **Extend the contest** for everybody from the contest page; **Balloons**
+- **Extend the contest** for everybody from its Settings page; **Balloons**
   and **Printing** for ICPC and on-site contests.
 
 ## 7. After the contest

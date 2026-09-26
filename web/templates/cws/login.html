@@ -1,14 +1,13 @@
 {{define "content"}}
-<section class="card narrow">
+{{with .BannerURL}}<img class="login-banner" src="{{.}}" alt="">{{end}}
 <h1>{{.T "Log in"}}</h1>
-{{with .Contest.Description}}<p class="muted">{{.}}</p>{{end}}
+{{with .Contest.Subheading}}<p class="muted">{{.}}</p>{{end}}
 {{with .Error}}<p class="alert">{{.}}</p>{{end}}
 <form method="post" action="{{.Base}}login">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
   <label>{{.T "Username"}} <input name="username" autocomplete="username" required autofocus></label>
   <label>{{.T "Password"}} <input type="password" name="password" autocomplete="current-password" required></label>
-  <button>{{.T "Log in"}}</button>
+  <p><button>{{icon "arrow-right"}} {{.T "Log in"}}</button></p>
 </form>
-{{if .RegisterOpen}}<p>{{.T "No account yet?"}} <a href="{{.Base}}register">{{.T "Register"}}</a></p>{{end}}
-</section>
+{{if .RegisterOpen}}<p class="muted">{{.T "No account yet?"}} <a href="{{.Base}}register">{{.T "Register"}}</a></p>{{end}}
 {{end}}

@@ -132,7 +132,7 @@ on purpose: compiled executables (a reevaluation compiles again), user
 tests, print jobs, balloons, the audit log and the administrators
 (references to them are emptied).
 
-- **Admin panel**: *Archive* on the contest page downloads it (with or
+- **Admin panel**: *Archive* on the contest's Settings page downloads it (with or
   without submissions); *Import a contest archive* at the bottom of the
   contests page creates the new contest.
 - **Command line**:

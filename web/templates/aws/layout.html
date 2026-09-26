@@ -5,48 +5,107 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} · {{.T "CMS admin"}}</title>
 <link rel="stylesheet" href="{{static "style.css"}}">
-<link rel="stylesheet" href="{{static "admin.css"}}">
 <meta name="csrf-token" content="{{.CSRF}}">
+<meta name="server-time" content="{{.ServerMillis}}">
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0}'>
 {{if .Admin}}<meta name="cms-events" content="/events">{{end}}
 <script src="{{static "htmx.min.js"}}" defer></script>
 <script src="{{static "admin.js"}}" defer></script>
 </head>
 <body class="admin">
-<header class="top">
-  <a class="brand" href="/">{{.T "CMS admin"}}</a>
-  {{if .Admin}}
-  <nav>
-    <a href="/" {{if eq .Active "home"}}class="active"{{end}}>{{.T "Overview"}}</a>
-    <a href="/contests" {{if eq .Active "contests"}}class="active"{{end}}>{{.T "Contests"}}</a>
-    <a href="/tasks" {{if eq .Active "tasks"}}class="active"{{end}}>{{.T "Tasks"}}</a>
-    <a href="/users" {{if eq .Active "users"}}class="active"{{end}}>{{.T "Users"}}</a>
-    <a href="/teams" {{if eq .Active "teams"}}class="active"{{end}}>{{.T "Teams"}}</a>
-    <a href="/questions" {{if eq .Active "questions"}}class="active"{{end}}>{{.T "Questions"}} {{template "question-count" .}}</a>
-    {{template "nav-extra" .}}
-    <a href="/system" {{if eq .Active "system"}}class="active"{{end}}>{{.T "Workers & queues"}}</a>
-    <a href="/backups" {{if eq .Active "backups"}}class="active"{{end}}>{{.T "Backups"}}</a>
-    <a href="/admins" {{if eq .Active "admins"}}class="active"{{end}}>{{.T "Admins"}}</a>
-    <a href="/audit">{{.T "Audit log"}}</a>
-  </nav>
-  <div class="user">
-    <a href="/account">{{.Admin.Username}}</a> <small class="muted">({{.Admin.Role}})</small>
-    <form method="post" action="/logout" class="inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link">{{.T "Log out"}}</button></form>
+<a class="skip" href="#main">{{.T "Skip to content"}}</a>
+{{if .Admin}}{{$c := .Contest}}{{$cid := .CID}}
+<input type="checkbox" id="nav" class="navtoggle" aria-hidden="true" tabindex="-1">
+<div class="app">
+<header class="topbar">
+  <label for="nav" class="iconbtn burger" title="{{.T "Menu"}}">{{icon "menu"}}</label>
+  <a class="brand" href="/">
+    <span class="logo">{{icon "logo"}}</span>
+    <span><b>CMS</b><small>{{.T "Contest Management System"}}</small></span>
+  </a>
+  <div class="crumbs">
+    {{if .Crumbs}}<a class="back" href="{{.BackURL}}" title="{{.T "Back"}}">{{icon "chevron-left"}}</a>
+    {{range .Crumbs}}<a href="{{.URL}}">{{.Name}}</a><span class="sep">›</span>{{end}}<b>{{.Title}}</b>
+    {{else if $c}}<a href="/contests/{{$cid}}">{{icon "flag"}}</a><a href="/contests/{{$cid}}"><b>{{.ContestHeading}}</b></a>{{with $c.Description}}{{if $c.Title}}<span class="sep">·</span><span>{{.}}</span>{{end}}{{end}}
+    {{else}}<b>{{.Title}}</b>{{end}}
+    {{if $c}}<span class="pill {{.PhaseClass}}" title="{{$c.Name}}">{{.PhaseLabel}}</span>{{end}}
   </div>
-  {{end}}
-  <form method="post" action="/lang" class="inline">
-    <select name="lang" aria-label="{{.T "Language"}}" hx-post="/lang" hx-trigger="change">
-      {{range .Languages}}<option value="{{.Code}}" {{if eq .Code $.Lang}}selected{{end}}>{{.Name}}</option>{{end}}
-    </select>
-  </form>
+  <div class="top-right">
+    {{if eq .Phase "running"}}<div class="timer" title="{{$c.Name}}"><small>{{.T "Time remaining"}}</small><span class="clock" data-countdown="{{.EndMillis}}">{{.Remaining}}</span></div>{{end}}
+    <a class="iconbtn" href="/questions" title="{{.T "Questions"}}">{{icon "bell"}}{{template "question-count" .}}</a>
+    <details class="userbox">
+      <summary><span class="avatar {{avatarc .Admin.Username}}">{{initials .Admin.Username}}</span><span class="who"><b>{{.Admin.Username}}</b><small>{{.RoleLabel}}</small></span>{{icon "chevron-down"}}</summary>
+      <div class="menu">
+        <a href="/account">{{icon "user"}} {{.T "My account"}}</a>
+        <form method="post" action="/lang">
+          <label for="ui-lang">{{.T "Language"}}</label>
+          <select id="ui-lang" name="lang" hx-post="/lang" hx-trigger="change">
+            {{range .Languages}}<option value="{{.Code}}" {{if eq .Code $.Lang}}selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+        </form>
+        <hr>
+        <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="item">{{icon "logout"}} {{.T "Log out"}}</button></form>
+      </div>
+    </details>
+  </div>
 </header>
-<main class="wide">
-{{if .Crumbs}}<p class="crumbs">{{range .Crumbs}}<a href="{{.URL}}">{{.Name}}</a> › {{end}}</p>{{end}}
+<nav class="sidebar" aria-label="{{.T "Administration"}}">
+  <a class="nav {{if eq .Path "/"}}active{{end}}" href="/">{{icon "dashboard"}}<span class="t">{{.T "Dashboard"}}</span></a>
+  {{if $c}}
+  <div class="group">{{.T "Contest"}}</div>
+  <a class="nav {{if .OnC ""}}active{{end}}" href="/contests/{{$cid}}" title="{{.ContestHeading}}">{{icon "flag"}}<span class="t">{{$c.Name}}</span></a>
+  <a class="nav {{if .OnC "tasks"}}active{{end}}" href="/contests/{{$cid}}/tasks">{{icon "file"}}<span class="t">{{.T "Problems"}}</span></a>
+  <a class="nav {{if .OnC "submissions"}}active{{end}}" href="/contests/{{$cid}}/submissions">{{icon "send"}}<span class="t">{{.T "Submissions"}}</span></a>
+  <a class="nav {{if .OnC "ranking"}}active{{end}}" href="/contests/{{$cid}}/ranking">{{icon "trophy"}}<span class="t">{{.T "Scoreboard"}}</span></a>
+  <a class="nav {{if .OnC "stats"}}active{{end}}" href="/contests/{{$cid}}/stats">{{icon "bar-chart"}}<span class="t">{{.T "Statistics"}}</span></a>
+  <a class="nav {{if .OnC "communication"}}active{{end}}" href="/contests/{{$cid}}/communication">{{icon "megaphone"}}<span class="t">{{.T "Announcements"}}</span></a>
+  {{if $c.AllowPrinting}}<a class="nav {{if .OnC "printing"}}active{{end}}" href="/contests/{{$cid}}/printing">{{icon "printer"}}<span class="t">{{.T "Printing"}}</span></a>{{end}}
+  {{if eq $c.ScoringMode "icpc"}}<a class="nav {{if .OnC "balloons"}}active{{end}}" href="/contests/{{$cid}}/balloons">{{icon "balloon"}}<span class="t">{{.T "Balloons"}}</span></a>{{end}}
+  <a class="nav {{if .OnC "plagiarism"}}active{{end}}" href="/contests/{{$cid}}/plagiarism">{{icon "copy"}}<span class="t">{{.T "Plagiarism"}}</span></a>
+  <a class="nav {{if .OnC "certificates"}}active{{end}}" href="/contests/{{$cid}}/certificates">{{icon "award"}}<span class="t">{{.T "Certificates"}}</span></a>
+  <a class="nav {{if .OnC "sites"}}active{{end}}" href="/contests/{{$cid}}/sites">{{icon "map-pin"}}<span class="t">{{.T "Sites"}}</span></a>
+  <a class="nav {{if .OnC "settings"}}active{{end}}" href="/contests/{{$cid}}/settings">{{icon "sliders"}}<span class="t">{{.T "Settings"}}</span></a>
+  {{end}}
+  <div class="group">{{.T "Users"}}</div>
+  {{if $c}}<a class="nav {{if .OnC "participations"}}active{{end}}" href="/contests/{{$cid}}/participations">{{icon "users"}}<span class="t">{{.T "Participants"}}</span></a>{{end}}
+  <a class="nav {{if .On "/users"}}active{{end}}" href="/users">{{icon "user"}}<span class="t">{{.T "Users"}}</span></a>
+  <a class="nav {{if .On "/teams"}}active{{end}}" href="/teams">{{icon "flag"}}<span class="t">{{.T "Teams"}}</span></a>
+  <a class="nav {{if .On "/questions"}}active{{end}}" href="/questions">{{icon "help"}}<span class="t">{{.T "Clarifications"}}</span>{{if .Pending}}<span class="count">{{.Pending}}</span>{{end}}</a>
+  <div class="group">{{.T "Data"}}</div>
+  <a class="nav {{if or (eq .Path "/contests") (eq .Path "/contests/new")}}active{{end}}" href="/contests">{{icon "calendar"}}<span class="t">{{.T "Contests"}}</span></a>
+  <a class="nav {{if or (.On "/tasks") (.On "/datasets")}}active{{end}}" href="/tasks">{{icon "database"}}<span class="t">{{.T "Task library"}}</span></a>
+  <a class="nav {{if .On "/backups"}}active{{end}}" href="/backups">{{icon "cloud"}}<span class="t">{{.T "Backups"}}</span></a>
+  <div class="group">{{.T "System"}}</div>
+  <a class="nav {{if .On "/system"}}active{{end}}" href="/system">{{icon "cpu"}}<span class="t">{{.T "Judges"}}</span></a>
+  <a class="nav {{if .On "/languages"}}active{{end}}" href="/languages">{{icon "code"}}<span class="t">{{.T "Languages"}}</span></a>
+  <a class="nav {{if .On "/admins"}}active{{end}}" href="/admins">{{icon "shield"}}<span class="t">{{.T "Admins"}}</span></a>
+  <a class="nav {{if .On "/audit"}}active{{end}}" href="/audit">{{icon "list"}}<span class="t">{{.T "Audit log"}}</span></a>
+  <div class="foot">CMS {{.Version}}<br>{{.T "Times in UTC unless noted."}}</div>
+</nav>
+<main id="main" class="content">
 {{with .Flash}}<p class="info" role="status">{{.}}</p>{{end}}
 {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
 {{template "content" .}}
 </main>
+</div>
+{{else}}
+<div class="auth">
+  <a class="brand" href="/"><span class="logo">{{icon "logo"}}</span><span><b>CMS</b><small>{{.T "Administration"}}</small></span></a>
+  <main id="main" class="card">
+  {{with .Flash}}<p class="info" role="status">{{.}}</p>{{end}}
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  {{template "content" .}}
+  </main>
+  <div class="foot">
+    <form method="post" action="/lang" class="inline">
+      <select name="lang" aria-label="{{.T "Language"}}" hx-post="/lang" hx-trigger="change">
+        {{range .Languages}}<option value="{{.Code}}" {{if eq .Code $.Lang}}selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </form>
+    <span>CMS {{.Version}}</span>
+  </div>
+</div>
+{{end}}
 <div id="notifications" aria-live="polite" data-alert="{{.T "System error:"}}" data-question="{{.T "New question:"}}" data-overview="{{.T "see the overview"}}"></div>
 </body>
 </html>{{end}}
-{{define "nav-extra"}}{{end}}

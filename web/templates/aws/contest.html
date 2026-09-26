@@ -1,63 +1,6 @@
 {{define "content"}}
 {{$c := .Data.C}}
-<h1>{{if .Data.New}}{{.T "New contest"}}{{else}}{{.T "Contest %s" $c.Name}}{{end}}</h1>
-{{if not .Data.New}}
-<p class="actions">
-  <a href="/contests/{{$c.ID}}/participations">{{.T "Participations"}}{{with .Data.Counts}} ({{.Participations}}){{end}}</a>{{with .Data.Pending}} <span class="tag bad">{{$.T "%d waiting for approval" .}}</span>{{end}} ·
-  <a href="/contests/{{$c.ID}}/submissions">{{.T "Submissions"}}{{with .Data.Counts}} ({{.Submissions}}){{end}}</a> ·
-  <a href="/contests/{{$c.ID}}/ranking">{{.T "Ranking"}}</a> ·
-  <a href="/contests/{{$c.ID}}/stats">{{.T "Statistics"}}</a> ·
-  <a href="/contests/{{$c.ID}}/plagiarism">{{.T "Plagiarism"}}</a> ·
-  <a href="/contests/{{$c.ID}}/certificates">{{.T "Certificates"}}</a> ·
-  {{if eq $c.ScoringMode "icpc"}}<a href="/contests/{{$c.ID}}/balloons">{{.T "Balloons"}}</a> ·{{end}}
-  {{if $c.AllowPrinting}}<a href="/contests/{{$c.ID}}/printing">{{.T "Printing"}}</a> ·{{end}}
-  <a href="/contests/{{$c.ID}}/sites">{{.T "Sites"}}</a> ·
-  <a href="/contests/{{$c.ID}}/communication">{{.T "Communication"}}</a> ·
-  <a href="/questions?contest={{$c.ID}}">{{.T "Questions"}}</a>
-  {{template "extra-contest-links" .}}
-</p>
-<section class="card">
-<h2>{{.T "Tasks"}}</h2>
-<table>
-<thead><tr><th>#</th><th>{{.T "Name"}}</th><th>{{.T "Title"}}</th><th></th></tr></thead>
-<tbody>
-{{range $i, $t := .Data.Tasks}}
-<tr>
-  <td>{{add $i 1}}</td><td><a href="/tasks/{{$t.ID}}">{{$t.Name}}</a></td><td>{{$t.Title}}</td>
-  <td>{{if $.CanWrite}}
-    <form method="post" action="/contests/{{$c.ID}}/tasks/{{$t.ID}}/move" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="dir" value="up"><button class="link" title="{{$.T "Move up"}}">↑</button></form>
-    <form method="post" action="/contests/{{$c.ID}}/tasks/{{$t.ID}}/move" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="dir" value="down"><button class="link" title="{{$.T "Move down"}}">↓</button></form>
-    <form method="post" action="/contests/{{$c.ID}}/tasks/{{$t.ID}}/remove" class="inline" data-confirm="{{$.T "Remove %s from the contest? (The task and its submissions are kept.)" $t.Name}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "remove"}}</button></form>
-  {{end}}</td>
-</tr>
-{{else}}
-<tr><td colspan="4" class="muted">{{.T "No tasks yet."}}</td></tr>
-{{end}}
-</tbody>
-</table>
-{{if .CanWrite}}
-<div class="row">
-<form method="post" action="/tasks" class="card">
-  {{template "csrf" .CSRF}}
-  <input type="hidden" name="contest_id" value="{{$c.ID}}">
-  <h3>{{.T "New task"}}</h3>
-  <label>{{.T "Name (short, used in URLs)"}} <input name="name" required pattern="[A-Za-z0-9_.\-]+"></label>
-  <label>{{.T "Title"}} <input name="title"></label>
-  <button>{{.T "Create task"}}</button>
-</form>
-{{if .Data.Unassigned}}
-<form method="post" action="/contests/{{$c.ID}}/tasks" class="card">
-  {{template "csrf" .CSRF}}
-  <h3>{{.T "Add an existing task"}}</h3>
-  <label>{{.T "Task"}} <select name="task_id">{{range .Data.Unassigned}}<option value="{{.ID}}">{{.Name}} — {{.Title}}</option>{{end}}</select></label>
-  <button>{{.T "Add"}}</button>
-</form>
-{{end}}
-</div>
-{{end}}
-</section>
-{{end}}
-
+<div class="page-head"><div><h1>{{if .Data.New}}{{.T "New contest"}}{{else}}{{.T "Settings"}}{{end}}</h1>{{if not .Data.New}}<p>{{.T "Contest %s" $c.Name}}{{with .Data.Pending}} · <a href="/contests/{{$c.ID}}/participations"><span class="tag bad">{{$.T "%d waiting for approval" .}}</span></a>{{end}}</p>{{end}}</div></div>
 <form method="post" action="{{if .Data.New}}/contests{{else}}/contests/{{$c.ID}}{{end}}" class="card">
 {{template "csrf" .CSRF}}
 <fieldset {{if not .CanWrite}}disabled{{end}}>
@@ -80,6 +23,14 @@
   <label>{{.T "to"}} <input type="datetime-local" step="1" name="analysis_stop" value="{{local $c.AnalysisStop $c.Timezone}}"></label>
   <label><input type="checkbox" name="practice_enabled" {{if $c.PracticeEnabled}}checked{{end}}> {{.T "Practice after the contest (unofficial submissions, no end)"}}</label>
 </p>
+</fieldset>
+<fieldset><legend>{{.T "Presentation"}}</legend>
+<div class="grid">
+  <label>{{.T "Title shown to everybody"}} <input name="title" value="{{$c.Title}}" maxlength="120" placeholder="{{$c.Name}}"></label>
+  <label>{{.T "Location"}} <input name="location" value="{{$c.Location}}" maxlength="120" placeholder="{{.T "City, country or online"}}"></label>
+  <label>{{.T "Motto"}} <input name="tagline" value="{{$c.Tagline}}" maxlength="200"></label>
+</div>
+<p class="muted small">{{.T "The title, the description (as a subtitle), the dates, the location and the motto make the banner at the top of the contestants' and the administrators' dashboards; the banner image is set below."}}</p>
 </fieldset>
 <fieldset><legend>{{.T "Languages"}}</legend>
 <p class="checks">{{range .Data.Languages}}<label><input type="checkbox" name="languages" value="{{.ID}}" {{if has $c.Languages .ID}}checked{{end}}> {{.Name}}</label>{{end}}</p>
@@ -182,6 +133,21 @@
 </fieldset>
 </form>
 
+{{if not .Data.New}}
+<section class="card" id="banner">
+<h2>{{.T "Banner image"}}</h2>
+{{with .Data.BannerURL}}<p><img class="banner-preview" src="{{.}}" alt="{{$.T "Banner image"}}"></p>{{else}}<p class="muted">{{.T "No image: the banner uses a plain background."}}</p>{{end}}
+{{if .CanWrite}}
+<form method="post" action="/contests/{{$c.ID}}/banner" enctype="multipart/form-data" class="inline-form">
+  {{template "csrf" .CSRF}}
+  <label>{{.T "PNG, JPEG, GIF or WebP, at most 4 MiB; wide images (about 1600×400) look best"}} <input type="file" name="banner" accept="image/png,image/jpeg,image/gif,image/webp" required></label>
+  <button>{{icon "upload"}} {{.T "Upload"}}</button>
+</form>
+{{if .Data.BannerURL}}<form method="post" action="/contests/{{$c.ID}}/banner" class="inline">{{template "csrf" .CSRF}}<input type="hidden" name="remove" value="1"><p><button class="secondary">{{icon "trash"}} {{.T "Remove the image"}}</button></p></form>{{end}}
+{{end}}
+</section>
+{{end}}
+
 {{if and (not .Data.New) .CanWrite}}
 <section class="card">
 <h2>{{.T "Extend the contest"}}</h2>
@@ -223,4 +189,3 @@
 </section>
 {{end}}
 {{end}}
-{{define "extra-contest-links"}}{{end}}

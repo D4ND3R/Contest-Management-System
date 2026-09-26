@@ -1186,3 +1186,55 @@ test form and every task's tests; a test run from it comes back to it. A
 test (`TestLoginAndPages` and the new ones) now fetches every page linked
 from the menus.
 
+
+## D85. One design system, dashboards and the contest banner (SPEC_IOI H2)
+The owner asked for a total redesign after a reference dashboard (dark,
+sidebar grouped as CONTEST / USERS / DATA / SYSTEM, a top bar with the
+contest, its phase and the time left, a banner with the contest's image,
+dates, place and figures, coloured action tiles, live scoreboard, problem
+status donut, events, quick tools, system health, notifications, an
+activity chart and quick stats), without copying its placeholder brand and
+keeping the banner.
+
+- **One stylesheet** (`web/static/style.css`) for the three sites: colour
+  tokens as custom properties (dark by default; a `data-theme="light"` set
+  exists for H7's preference), system fonts, no web fonts or images. The
+  admin-only stylesheet is gone (one request less); the ranking site keeps a
+  small `rws.css`. Still no inline JavaScript or style attributes: the CSP
+  is unchanged.
+- **Icons** are 24×24 strokes drawn for this project and emitted inline by
+  a template function (`webkit.Icon`): no icon font, no sprite request,
+  nothing for the CSP to allow; `TestIconsExist` checks every name a
+  template or handler uses. Charts (the donut, the activity lines) are SVG
+  drawn on the server (`webkit.Donut`, `webkit.LineChart`): no chart
+  library, the JS budget untouched.
+- **Mobile**: the sidebar becomes an off-canvas panel opened by a checkbox
+  label (no JavaScript); grid tracks are `minmax(0, 1fr)` so a wide
+  statement or table scrolls inside its card instead of widening the page.
+- **Admin pages follow a contest.** The sidebar and the top bar show the
+  contest of the page, or the one the pages default to (running, else the
+  next, else the latest; never an archived one while another exists): one
+  indexed query on a tiny table per page. The contest page became its
+  **dashboard**; the long form moved to `/contests/{id}/settings` and the
+  task list to `/contests/{id}/tasks` (the POST addresses did not change).
+  The home page shows the running contest's dashboard above the contest
+  list and the system errors.
+- **The dashboard's live part** (`/contests/{id}/live`) refreshes every
+  20 s with htmx. It costs one ranking computation and a few aggregates
+  over indexed columns (per-task counters, verdict counts, first solves,
+  the latest 10 submissions through the primary key, the latest questions
+  and announcements, one bucketed activity query) — for the handful of
+  administrators looking, never for contestants. The contestant overview
+  stays cheap: its scores and per-task counts (two indexed queries), the
+  latest 6 submissions, and the ranking top from the board cache every
+  contestant already shares.
+- **The banner** is data of the contest: `title` (display name; the
+  description becomes its subtitle), `location`, `tagline`, and an image in
+  the blob store (`banner_digest`, `banner_type`, migration 0018). Uploads
+  are sniffed from their bytes and accepted only as PNG, JPEG, GIF or WebP
+  up to 4 MiB — SVG never, since it can carry scripts — and served with
+  their stored type, `nosniff`, and a digest version (immutable). The
+  contest site serves it without a session so the login page can show it.
+  Archives and clones carry it (they copy every `sha256_digest` column),
+  and the blob garbage collector knows it; `TestBlobGCKnowsEveryDigest` now
+  fails if a future digest column is forgotten there.

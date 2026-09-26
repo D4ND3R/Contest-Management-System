@@ -368,3 +368,113 @@
 {{end}}
 </div>
 {{end}}
+
+{{define "dash-live"}}{{$l := .V}}{{$p := .P}}{{$cid := $l.C.ID}}
+<div id="dash-live" class="dash" hx-get="/contests/{{$cid}}/live" hx-trigger="every 20s" hx-swap="outerHTML">
+<div class="dash-main">
+  <div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>{{icon "trophy"}} {{$p.T "Live scoreboard"}}</h2>
+      <div class="card-actions"><span class="pill ok live">{{$p.T "Live"}}</span><a class="more" href="/contests/{{$cid}}/ranking">{{$p.T "View all"}} {{icon "arrow-right"}}</a></div></div>
+    {{if $l.Board}}
+    <table class="compact">
+    <thead><tr><th>#</th><th>{{$p.T "Contestant"}}</th>{{if $l.ICPC}}<th class="num">{{$p.T "Solved"}}</th><th class="num">{{$p.T "Penalty"}}</th>{{else}}<th class="num">{{$p.T "Score"}}</th>{{end}}</tr></thead>
+    <tbody>
+    {{range $l.Board}}<tr>
+      <td>{{.Rank}}</td>
+      <td><a class="name-cell" href="/participations/{{.ParticipationID}}"><span class="avatar sm {{avatarc .Username}}">{{initials .Name}}</span><span><b>{{.Name}}</b><small>{{.Sub}}{{if .Hidden}} · {{$p.T "hidden"}}{{end}}</small></span></a></td>
+      {{if $l.ICPC}}<td class="num">{{.Solved}}</td><td class="num">{{.Penalty}}</td>{{else}}<td class="num"><b>{{score .Total $l.Precision}}</b></td>{{end}}
+    </tr>{{end}}
+    </tbody>
+    </table>
+    {{if gt $l.Ranked (len $l.Board)}}<p class="muted small">{{$p.T "Top %d of %d." (len $l.Board) $l.Ranked}}</p>{{end}}
+    {{else}}<p class="empty">{{$p.T "No participants yet."}}</p>{{end}}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>{{icon "activity"}} {{$p.T "Problem status"}}</h2><a class="more" href="/contests/{{$cid}}/stats">{{$p.T "Statistics"}} {{icon "arrow-right"}}</a></div>
+    {{if $l.Tasks}}
+    <div class="donut">
+      {{donut (printf "%d/%d" $l.Solved (len $l.Tasks)) ($p.T "solved") $l.Solved $l.Partial $l.Unsolved}}
+      <ul class="kv">
+        <li><span><i class="dot ok"></i>{{$p.T "Solved"}}</span><b>{{$l.Solved}}</b></li>
+        <li><span><i class="dot warn"></i>{{$p.T "Partial"}}</span><b>{{$l.Partial}}</b></li>
+        <li><span><i class="dot bad"></i>{{$p.T "Unsolved"}}</span><b>{{$l.Unsolved}}</b></li>
+      </ul>
+    </div>
+    <table class="compact">
+    <thead><tr><th>#</th><th>{{$p.T "Problem"}}</th><th class="c">{{$p.T "Solved"}}</th><th class="num">{{$p.T "Submissions"}}</th></tr></thead>
+    <tbody>
+    {{range $l.Tasks}}<tr>
+      <td><span class="letter {{lclass .Index}}">{{letter .Index}}</span></td>
+      <td><a href="/tasks/{{.ID}}">{{.Name}}</a> <span class="muted small">{{.Title}}</span></td>
+      <td class="c">{{if .Solvers}}<span class="st-ic ok" title="{{$p.T "%d solved it" .Solvers}}{{with .FirstSolver}} · {{$p.T "first: %s" .}}{{end}}">{{icon "check-circle"}}</span> <small>{{.Solvers}}</small>{{else if .Partial}}<span class="st-ic warn" title="{{$p.T "%d with points" .Partial}}">{{icon "half-circle"}}</span> <small>{{.Partial}}</small>{{else}}<span class="st-ic bad" title="{{$p.T "Unsolved"}}">{{icon "x-circle"}}</span>{{end}}</td>
+      <td class="num">{{.Submissions}}{{if .Pending}} <small class="muted" title="{{$p.T "being evaluated"}}">(+{{.Pending}})</small>{{end}}</td>
+    </tr>{{end}}
+    </tbody>
+    </table>
+    {{else}}<p class="empty">{{$p.T "No tasks yet."}} <a href="/contests/{{$cid}}/tasks">{{$p.T "Add one"}}</a></p>{{end}}
+  </section>
+  </div>
+
+  <div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>{{icon "activity"}} {{$p.T "Contest analytics"}}</h2>
+      <div class="legend"><span><i class="l1"></i>{{$p.T "Accepted"}}</span><span><i class="l2"></i>{{$p.T "Submissions"}}</span><span><i class="l3"></i>{{$p.T "Rejected"}}</span></div></div>
+    {{if $l.ChartSubs}}{{$l.Chart}}{{else}}<p class="empty">{{$p.T "The chart fills in as submissions arrive."}}</p>{{end}}
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>{{icon "bar-chart"}} {{$p.T "Quick stats"}}</h2></div>
+    {{$s := $l.Stats}}
+    <div class="qstats">
+      <div class="qstat blue">{{icon "file"}}<div><small>{{$p.T "Total submissions"}}</small><b>{{$s.Total}}</b>{{if $s.Pending}} <small>{{$p.T "%d being evaluated" $s.Pending}}</small>{{end}}</div></div>
+      <div class="qstat ok">{{icon "check-circle"}}<div><small>{{$p.T "Accepted"}}</small><b>{{$s.Accepted}}</b> <span class="muted small">({{share $s.Accepted $s.Total}}%)</span></div></div>
+      <div class="qstat bad">{{icon "x-circle"}}<div><small>{{$p.T "Wrong answer"}}</small><b>{{$s.Wrong}}</b> <span class="muted small">({{share $s.Wrong $s.Total}}%)</span></div></div>
+      <div class="qstat warn">{{icon "clock"}}<div><small>{{$p.T "Time limit exceeded"}}</small><b>{{$s.Time}}</b> <span class="muted small">({{share $s.Time $s.Total}}%)</span></div></div>
+      <div class="qstat bad">{{icon "alert"}}<div><small>{{$p.T "Runtime error"}}</small><b>{{$s.Runtime}}</b> <span class="muted small">({{share $s.Runtime $s.Total}}%)</span></div></div>
+      <div class="qstat warn">{{icon "database"}}<div><small>{{$p.T "Memory limit exceeded"}}</small><b>{{$s.Memory}}</b> <span class="muted small">({{share $s.Memory $s.Total}}%)</span></div></div>
+      <div class="qstat">{{icon "code"}}<div><small>{{$p.T "Compilation error"}}</small><b>{{$s.Compile}}</b></div></div>
+    </div>
+  </section>
+  </div>
+</div>
+
+<div class="dash-side">
+  <section class="card">
+    <div class="card-head"><h2>{{icon "list"}} {{$p.T "Recent events"}}</h2><span class="pill ok live">{{$p.T "Live"}}</span></div>
+    {{if $l.Events}}
+    <ul class="feed">
+    {{range $l.Events}}<li><span class="ico {{.Class}}">{{icon .Icon}}</span><time>{{$l.Time .At}}</time><div class="what">{{if .URL}}<a href="{{.URL}}">{{.Text}}</a>{{else}}{{.Text}}{{end}}{{with .Sub}}<small>{{.}}</small>{{end}}</div></li>{{end}}
+    </ul>
+    {{else}}<p class="empty">{{$p.T "Nothing has happened yet."}}</p>{{end}}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>{{icon "zap"}} {{$p.T "Quick tools"}}</h2></div>
+    <div class="tools">
+      <a class="tool" href="/contests/{{$cid}}/tasks">{{icon "edit"}} {{$p.T "Edit problems"}}</a>
+      <a class="tool" href="/contests/{{$cid}}/communication">{{icon "megaphone"}} {{$p.T "Announce"}}</a>
+      <a class="tool" href="/system">{{icon "cpu"}} {{$p.T "Judges"}}</a>
+      <a class="tool" href="/audit">{{icon "list"}} {{$p.T "View logs"}}</a>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>{{icon "heart-pulse"}} {{$p.T "System health"}}</h2><a class="more" href="/system">{{$p.T "Details"}} {{icon "arrow-right"}}</a></div>
+    <ul class="kv">
+    {{range $l.Health}}<li><span><i class="dot {{.Class}}"></i>{{.Name}}</span><span class="{{.Class}}">{{.Value}}</span></li>{{end}}
+    </ul>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>{{icon "bell"}} {{$p.T "Notifications"}}</h2><a class="more" href="/questions">{{$p.T "View all"}} {{icon "arrow-right"}}</a></div>
+    {{if $l.Notes}}
+    <ul class="feed">
+    {{range $l.Notes}}<li><span class="ico {{.Class}}">{{icon .Icon}}</span><div class="what">{{if .URL}}<a href="{{.URL}}">{{.Text}}</a>{{else}}{{.Text}}{{end}}{{with .Sub}}<small>{{.}}</small>{{end}}</div></li>{{end}}
+    </ul>
+    {{else}}<p class="empty">{{$p.T "All clear."}}</p>{{end}}
+  </section>
+  <p class="muted small">{{$p.T "Updated %s." ($l.Time $l.Updated)}}</p>
+</div>
+</div>
+{{end}}

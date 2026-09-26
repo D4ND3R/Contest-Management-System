@@ -51,9 +51,9 @@ principal salvo que se indique otra cosa.
 - Alertas del sistema (avisos rojos en el admin): errores de evaluación
   después de los reintentos, respaldos fallidos.
 - `journalctl -u 'cms-*' -p warning -f` en el servidor principal.
-- Concursos ICPC: la página de **Globos** (en la página del concurso)
+- Concursos ICPC: la página de **Globos** (en el menú del concurso)
   abierta para quienes los reparten; se actualiza sola.
-- Con impresión: la cola de **Impresión** (en la página del concurso)
+- Con impresión: la cola de **Impresión** (en el menú del concurso)
   abierta para el staff que entrega las hojas.
 
 **Extender el tiempo**
@@ -106,18 +106,18 @@ principal salvo que se indique otra cosa.
       eligió una).
 - [ ] Respaldo final (**Respaldar ahora**), descárgalo y guárdalo fuera del
       servidor.
-- [ ] Revisa el reporte de similitud de cada tarea (página del concurso →
+- [ ] Revisa el reporte de similitud de cada tarea (menú del concurso →
       **Plagio**, o *reporte de similitud* en las estadísticas): pares de
       concursantes cuyos últimos (o mejores) envíos comparten la mayor parte
       del código después de quitar formato, comentarios y nombres, con una
       vista lado a lado de las líneas en común. Se ignora el código
       entregado a los concursantes (adjuntos, graders, stubs). Es una pista
       para revisar, no un veredicto.
-- [ ] Certificados (página del concurso → **Certificados**): revisa la
+- [ ] Certificados (menú del concurso → **Certificados**): revisa la
       vista previa, descárgalos todos para imprimir y activa la descarga para
       los concursantes después de la ceremonia
       ([certificados](configuracion-del-concurso.md#certificados)).
-- [ ] Archiva el concurso (página del concurso → **Archivo**, con los
+- [ ] Archiva el concurso (**Configuración** del concurso → **Archivo**, con los
       envíos): un zip que cualquier instalación posterior importa
       ([archivos de un concurso](respaldos.md#archivos-de-un-concurso)).
 - [ ] Opcional: activa el modo análisis o permite que los concursantes

@@ -14,6 +14,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/statement"
+	"github.com/D4ND3R/Contest-Management-System/internal/version"
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 )
 
@@ -33,6 +34,12 @@ type page struct {
 	Pending    int64
 	Data       any
 	ServerTime time.Time
+	// Contest is the contest the page is about, or the one the admin pages
+	// default to (see focusContest); Phase is its phase.
+	Contest *sqlc.Contest
+	Phase   string
+	// Path is the request path (the sidebar marks where the admin is).
+	Path string
 }
 
 type crumb struct{ Name, URL string }
@@ -50,8 +57,148 @@ func (s *Server) newPage(w http.ResponseWriter, r *http.Request, rc *reqCtx, tit
 		}
 	}
 	p.Flash = s.takeFlash(w, r)
+	p.Path = r.URL.Path
+	if rc != nil {
+		p.Contest = s.pageContest(r, rc)
+		if p.Contest != nil {
+			p.Phase = contestPhase(*p.Contest, p.ServerTime)
+		}
+	}
 	return p
 }
+
+// pageContest is the contest of the page: the one the handler loaded or
+// named, else the default one.
+func (s *Server) pageContest(r *http.Request, rc *reqCtx) *sqlc.Contest {
+	if rc.contest != nil {
+		return rc.contest
+	}
+	if rc.contestID != nil {
+		if c, err := s.q.GetContest(r.Context(), *rc.contestID); err == nil {
+			return &c
+		}
+	}
+	list, err := s.q.ListContests(r.Context())
+	if err != nil {
+		return nil
+	}
+	return focusContest(list, s.now())
+}
+
+// CID is the page contest's id as a string ("" without one).
+func (p *page) CID() string {
+	if p.Contest == nil {
+		return ""
+	}
+	return strconv.FormatInt(p.Contest.ID, 10)
+}
+
+// On reports whether the page is at path (or below it, with a trailing
+// "/..."); OnC does the same under the page contest's address.
+func (p *page) On(path string) bool {
+	return p.Path == path || strings.HasPrefix(p.Path, path+"/")
+}
+
+func (p *page) OnC(sub string) bool {
+	if p.Contest == nil {
+		return false
+	}
+	base := "/contests/" + p.CID()
+	if sub == "" {
+		return p.Path == base
+	}
+	return p.On(base + "/" + sub)
+}
+
+// ContestHeading is the display title of the page contest.
+func (p *page) ContestHeading() string {
+	if p.Contest == nil {
+		return ""
+	}
+	return contestHeading(*p.Contest)
+}
+
+func contestHeading(c sqlc.Contest) string {
+	switch {
+	case c.Title != "":
+		return c.Title
+	case c.Description != "":
+		return c.Description
+	}
+	return c.Name
+}
+
+// PhaseClass and PhaseLabel describe the page contest's phase in a pill.
+func (p *page) PhaseClass() string {
+	switch p.Phase {
+	case "running":
+		return "ok live"
+	case "upcoming":
+		return "info"
+	}
+	return ""
+}
+
+func (p *page) PhaseLabel() string {
+	switch p.Phase {
+	case "running":
+		return p.T("Contest in progress")
+	case "upcoming":
+		return p.T("Not started")
+	}
+	return p.T("Finished")
+}
+
+// EndMillis is the end of the page contest in Unix milliseconds.
+func (p *page) EndMillis() int64 {
+	if p.Contest == nil {
+		return 0
+	}
+	return p.Contest.StopTime.UnixMilli()
+}
+
+// Remaining is the time left in the page contest ("h:mm:ss").
+func (p *page) Remaining() string {
+	if p.Contest == nil {
+		return ""
+	}
+	d := p.Contest.StopTime.Sub(p.ServerTime)
+	if d < 0 {
+		d = 0
+	}
+	sec := int64(d / time.Second)
+	return fmt.Sprintf("%d:%02d:%02d", sec/3600, sec/60%60, sec%60)
+}
+
+// BackURL is the address of the last breadcrumb.
+func (p *page) BackURL() string {
+	if len(p.Crumbs) == 0 {
+		return "/"
+	}
+	return p.Crumbs[len(p.Crumbs)-1].URL
+}
+
+// RoleLabel names the administrator's role.
+func (p *page) RoleLabel() string {
+	if p.Admin == nil {
+		return ""
+	}
+	switch p.Admin.Role {
+	case "all":
+		return p.T("Full access")
+	case "messaging":
+		return p.T("Messaging")
+	case "read_only":
+		return p.T("Read-only")
+	}
+	return p.Admin.Role
+}
+
+// ServerMillis is the page's time in Unix milliseconds (countdowns).
+func (p *page) ServerMillis() int64 { return p.ServerTime.UnixMilli() }
+
+// Version is the CMS version (sidebar footer).
+func (p *page) Version() string { return version.Version }
 
 func (p *page) crumb(name, url string) *page {
 	p.Crumbs = append(p.Crumbs, crumb{i18n.T(p.Lang, name), url})
@@ -446,3 +593,31 @@ type reevalForm struct {
 }
 
 func (r reevalForm) T(msg string, args ...any) string { return r.P.T(msg, args...) }
+
+// Hours formats a duration as "5h" or "4h 30m".
+func (p *page) Hours(d time.Duration) string {
+	m := int64(d.Round(time.Minute) / time.Minute)
+	switch {
+	case m%60 == 0:
+		return strconv.FormatInt(m/60, 10) + "h"
+	case m < 60:
+		return strconv.FormatInt(m, 10) + "m"
+	}
+	return strconv.FormatInt(m/60, 10) + "h " + strconv.FormatInt(m%60, 10) + "m"
+}
+
+// ContestWhen writes a contest's window compactly in its time zone.
+func (p *page) ContestWhen(c sqlc.Contest) string {
+	loc, err := time.LoadLocation(c.Timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	a, b := c.StartTime.In(loc), c.StopTime.In(loc)
+	s := a.Format("2006-01-02 15:04") + " – "
+	if a.YearDay() == b.YearDay() && a.Year() == b.Year() {
+		s += b.Format("15:04")
+	} else {
+		s += b.Format("2006-01-02 15:04")
+	}
+	return s + " (" + loc.String() + ")"
+}

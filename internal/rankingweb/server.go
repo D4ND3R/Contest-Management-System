@@ -97,6 +97,11 @@ func (s *Server) loadTemplates() error {
 			return *t
 		},
 	}
+	for k, v := range webkit.UIFuncs() {
+		if _, ok := funcs[k]; !ok {
+			funcs[k] = v
+		}
+	}
 	base, err := template.New("").Funcs(funcs).ParseFS(web.Templates, "rws/layout.html", "rws/partials.html")
 	if err != nil {
 		return err

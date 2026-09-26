@@ -48,9 +48,9 @@ web site; commands run on the main server unless noted.
 - System alerts (red notices in the admin): evaluation errors after the
   retries, failed backups.
 - `journalctl -u 'cms-*' -p warning -f` on the main server.
-- ICPC contests: the **Balloons** page (contest page) open for the runners;
+- ICPC contests: the **Balloons** page (contest menu) open for the runners;
   it updates by itself.
-- With printing: the **Printing** queue (contest page) open for the staff
+- With printing: the **Printing** queue (contest menu) open for the staff
   who hand out the pages.
 
 **Extending time**
@@ -101,16 +101,16 @@ web site; commands run on the main server unless noted.
       landscape, header on every page, filtered by site if one is chosen).
 - [ ] Final backup (**Back up now**), download it and store it off the
       server.
-- [ ] Review the similarity report of each task (contest page →
+- [ ] Review the similarity report of each task (contest menu →
       **Plagiarism**, or *similarity report* on the statistics): pairs of
       contestants whose latest (or best) submissions share most of their
       code after removing layout, comments and names, with a side-by-side
       view of the shared lines. Code given to contestants (attachments,
       graders, stubs) is ignored. It is a lead to review, not a verdict.
-- [ ] Certificates (contest page → **Certificates**): check the preview,
+- [ ] Certificates (contest menu → **Certificates**): check the preview,
       download them all for printing, and turn on the contestants'
       download after the ceremony ([certificates](contest-settings.md#certificates)).
-- [ ] Archive the contest (contest page → **Archive**, with the
+- [ ] Archive the contest (contest **Settings** → **Archive**, with the
       submissions): one zip that any later installation imports
       ([contest archives](backups.md#contest-archives)).
 - [ ] Optional: turn on analysis mode or let contestants download their

@@ -1,4 +1,6 @@
 {{define "content"}}
 <h1>{{.Title}}</h1>
-<ul>{{range .Data}}<li><a href="/{{.Name}}/">{{.Title}}</a></li>{{else}}<li class="muted">{{$.T "No public rankings."}}</li>{{end}}</ul>
+<section class="card">
+<ul class="feed">{{range .Data}}<li><span class="ico info">{{icon "trophy"}}</span><div class="what"><a href="/{{.Name}}/"><b>{{.Title}}</b></a></div></li>{{else}}<li class="muted">{{$.T "No public rankings."}}</li>{{end}}</ul>
+</section>
 {{end}}

@@ -135,6 +135,11 @@ func (s *Server) loadTemplates() error {
 			return strconv.FormatFloat(v, 'f', -1, 64)
 		},
 	}
+	for k, v := range webkit.UIFuncs() {
+		if _, ok := funcs[k]; !ok {
+			funcs[k] = v
+		}
+	}
 	base, err := template.New("").Funcs(funcs).ParseFS(web.Templates, "cws/layout.html", "cws/partials.html")
 	if err != nil {
 		return err
@@ -180,6 +185,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{contest}/register", s.withContest(s.handleRegisterForm))
 	mux.HandleFunc("POST /{contest}/register", s.withContest(s.handleRegister))
 	mux.HandleFunc("POST /{contest}/lang", s.withContest(s.handleLang))
+	mux.HandleFunc("GET /{contest}/banner", s.withContest(s.handleBanner))
 	mux.HandleFunc("POST /{contest}/logout", s.withContest(s.handleLogout))
 	mux.HandleFunc("GET /{contest}/impersonate", s.withContest(s.handleImpersonate))
 

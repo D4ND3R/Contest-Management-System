@@ -143,6 +143,11 @@ type Contest struct {
 	PasswordMinLength           int32      `json:"password_min_length"`
 	SessionMinutes              *int32     `json:"session_minutes"`
 	MaxPrintTotalPages          *int32     `json:"max_print_total_pages"`
+	Title                       string     `json:"title"`
+	Location                    string     `json:"location"`
+	Tagline                     string     `json:"tagline"`
+	BannerDigest                *string    `json:"banner_digest"`
+	BannerType                  string     `json:"banner_type"`
 }
 
 type Dataset struct {

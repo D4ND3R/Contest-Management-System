@@ -139,3 +139,24 @@
 {{end}}
 {{end}}
 
+
+{{define "banner"}}
+<section class="banner">
+  {{with .BannerURL}}<img class="bg" src="{{.}}" alt="">{{end}}
+  <div class="inner">
+    <div>
+      <h1>{{.Contest.Heading}}</h1>
+      {{with .Contest.Subheading}}<p class="sub">{{.}}</p>{{end}}
+      <p class="when"><span>{{icon "calendar"}} {{.DateRange .Contest.StartTime .Contest.StopTime}}</span>{{with .Contest.Location}}<span>{{icon "map-pin"}} {{.}}</span>{{end}}</p>
+    </div>
+    {{with .Contest.Tagline}}<p class="quote">“{{.}}”</p>{{end}}
+  </div>
+  <div class="figures">
+    <div class="figure">{{icon "file"}}<div><b>{{len .Contest.Tasks}}</b><small>{{.T "Tasks"}}</small></div></div>
+    {{with .Data.Duration}}<div class="figure">{{icon "clock"}}<div><b>{{$.Hours .}}</b><small>{{$.T "Duration"}}</small></div></div>{{end}}
+    {{if and .Tasks (not .Data.Hidden)}}{{if .Contest.ICPC}}<div class="figure">{{icon "check-circle"}}<div><b>{{.Data.Solved}} / {{len .Data.Rows}}</b><small>{{.T "Solved"}}</small></div></div>
+    {{else}}<div class="figure">{{icon "zap"}}<div><b>{{.Score .Data.Total 2}}</b><small>{{.T "of %s points" (.Score .Data.MaxTotal 2)}}</small></div></div>{{end}}{{end}}
+    {{with .Data.Rank}}<div class="figure">{{icon "trophy"}}<div><b>#{{.}}</b><small>{{$.T "of %d" $.Data.Ranked}}</small></div></div>{{end}}
+  </div>
+</section>
+{{end}}

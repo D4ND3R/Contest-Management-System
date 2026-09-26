@@ -2,8 +2,10 @@
 <h1>{{.T "Contests"}}</h1>
 {{if .Data}}
 <table>
-<tr><th>{{.T "Contest"}}</th><th>{{.T "Start"}}</th><th>{{.T "End"}}</th></tr>
-{{range .Data}}<tr><td><a href="/{{.Name}}/">{{.Name}}</a> <span class="muted">{{.Description}}</span></td><td>{{$.DateTime .StartTime}}</td><td>{{$.DateTime .StopTime}}</td></tr>{{end}}
+<thead><tr><th>{{.T "Contest"}}</th><th>{{.T "Start"}}</th><th>{{.T "End"}}</th></tr></thead>
+<tbody>
+{{range .Data}}<tr><td><a href="/{{.Name}}/"><b>{{if .Title}}{{.Title}}{{else}}{{.Name}}{{end}}</b></a>{{with .Description}} <span class="muted">{{.}}</span>{{end}}</td><td>{{$.DateTime .StartTime}}</td><td>{{$.DateTime .StopTime}}</td></tr>{{end}}
+</tbody>
 </table>
 {{else}}<p class="muted">{{.T "There are no contests."}}</p>{{end}}
 {{end}}

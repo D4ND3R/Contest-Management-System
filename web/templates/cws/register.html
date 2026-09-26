@@ -1,11 +1,10 @@
 {{define "content"}}{{$d := .Data}}
-<section class="card narrow">
 <h1>{{.T "Register"}}</h1>
 {{if $d.Done}}
 <p class="info">{{.T "Registration received. You can log in once the organizers approve it."}}</p>
 <p><a href="{{.Base}}login">{{.T "Log in"}}</a></p>
 {{else}}
-{{with .Contest.Description}}<p class="muted">{{.}}</p>{{end}}
+{{with .Contest.Subheading}}<p class="muted">{{.}}</p>{{end}}
 {{with .Error}}<p class="alert">{{.}}</p>{{end}}
 <form method="post" action="{{.Base}}register">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
@@ -22,5 +21,4 @@
 </form>
 <p><a href="{{.Base}}login">{{.T "I already have an account"}}</a></p>
 {{end}}
-</section>
 {{end}}

@@ -10,7 +10,7 @@ Hay tres lugares que muestran un ranking:
   vivo, con historial de puntaje por participante, banderas y
   actualizaciones en vivo.
 
-## Configuración (página del concurso → Ranking)
+## Configuración (Configuración del concurso → Ranking)
 
 | opción | valores |
 |--------|---------|

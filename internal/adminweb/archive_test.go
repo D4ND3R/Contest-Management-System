@@ -21,7 +21,7 @@ func TestContestArchiveFromAdmin(t *testing.T) {
 		t.Fatalf("read-only archive = %d", code)
 	}
 	a := f.login("all")
-	_, page := a.Get(fmt.Sprintf("/contests/%d", f.contest.ID))
+	_, page := a.Get(fmt.Sprintf("/contests/%d/settings", f.contest.ID))
 	if !strings.Contains(page, fmt.Sprintf(`action="/contests/%d/archive.zip"`, f.contest.ID)) {
 		t.Fatal("no archive form on the contest page")
 	}

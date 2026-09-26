@@ -1064,3 +1064,24 @@ localization, H8 audit (`AUDIT.md` §10) and summary.
 - Fixed on the way: the blob garbage collector did not know certificate
   logos.
 
+### H2 — the redesign (done)
+- One dark design system for the contest, admin and ranking sites (D85):
+  top bar (contest, phase pill, time remaining, notifications, user menu),
+  grouped sidebar, cards, tables, forms, tiles; off-canvas menu on phones;
+  inline SVG icons and server-drawn charts (`internal/webkit/icons.go`,
+  `ui.go`; `TestIconsExist`, `TestLettersAndInitials`,
+  `TestDonutAndLineChart`).
+- **Contest banner**: title, subtitle, dates, place, motto and an image
+  (migration 0018; upload rules and serving in `TestContestBanner`,
+  `TestContestantDashboard`); on both dashboards and the login page.
+- **Contestant dashboard**: banner with score and rank, shortcuts, tasks
+  with their state and submission counts, latest submissions, progress
+  donut, ranking top, announcements, schedule.
+- **Admin contest dashboard**, refreshed live: scoreboard, problem status,
+  events, activity chart, quick stats, quick tools, system health,
+  notifications (`TestContestDashboard`); settings and problems on their own
+  pages; the home page follows the running contest.
+- Public ranking restyled; admin guide, contest settings, contest day,
+  ranking and backups docs follow the new menus (es/en).
+- `TestBlobGCKnowsEveryDigest` guards the blob garbage collector.
+
