@@ -90,8 +90,10 @@ y no cambia nada), `--web nginx` (nginx + certbot en lugar de Caddy),
 full` (las doce herramientas en lugar de C, C++, Python y Java),
 `--private-ip 10.8.0.1` (para que los [workers externos](worker-externo.md)
 lleguen a este servidor), `--http-ports 8000,8001,8002` (puertos del
-concurso, el ranking y el admin en una LAN), `--no-firewall`,
-`--enable-cgroup-v2`. La lista completa: `--help`, o el comienzo de
+concurso, el ranking y el admin en una LAN), `--tune-host` (gobernador en
+performance, sin turbo ni transparent huge pages, para tiempos estables:
+ver [verificar-host](verificar-host.md)), `--judge-all-threads`,
+`--no-firewall`, `--enable-cgroup-v2`. La lista completa: `--help`, o el comienzo de
 [scripts/install.sh](../../scripts/install.sh).
 
 **En una máquina que ya sirve otras cosas** (un servidor casero con
@@ -262,11 +264,17 @@ Cada unidad se reinicia sola (`Restart=always`, 2 s). Los servicios web
 están aislados por systemd (sistema de solo lectura, /tmp privado, sin
 nuevos privilegios, solo escriben en `/var/lib/cms`).
 
-**Fijación de CPUs.** Unos drop-ins (`/etc/systemd/system/<unidad>.d/cpu.conf`)
-ponen `CPUAffinity=0` a todos los servicios del CMS salvo el worker, y a
-PostgreSQL, Valkey y el proxy. El worker no se restringe: fija cada sandbox
-a sus núcleos de evaluación (`worker.cores: [1]` en `cms.yaml`) y sus
-propios hilos a las demás CPUs.
+**Fijación de CPUs.** El primer núcleo físico (los dos primeros desde seis
+núcleos) atiende la web: unos drop-ins
+(`/etc/systemd/system/<unidad>.d/cpu.conf`) fijan `CPUAffinity` a sus CPUs
+en todos los servicios del CMS salvo el worker, y en PostgreSQL, Valkey y el
+proxy. Cada uno de los demás núcleos físicos evalúa con una CPU
+(`worker.cores` en `cms.yaml`); con hyperthreading sus hermanas quedan
+libres, porque una hermana ocupada hace más lenta a la CPU que evalúa
+(`--judge-all-threads` las usa también). El worker no se restringe: fija
+cada sandbox a una CPU de evaluación y sus propios hilos a las demás. El
+instalador muestra la distribución: "judging cores: [1, 2, 3]; web CPUs: 0
+4; idle hyperthreads: 5 6 7".
 
 ### HTTPS
 

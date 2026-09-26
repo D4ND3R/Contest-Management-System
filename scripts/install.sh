@@ -41,6 +41,12 @@
 #   --blob-token T           (worker) idem
 #   --worker-name NAME       (worker) default: the hostname
 #   --no-firewall            leave the firewall alone
+#   --tune-host              performance governor, no turbo, no transparent
+#                            huge pages, now and at every boot (cms-host-tuning;
+#                            best on dedicated judging machines)
+#   --judge-all-threads      judge on every hyperthread (by default one CPU per
+#                            physical core judges and its siblings stay idle:
+#                            fewer judging CPUs, stabler times)
 #   --enable-cgroup-v2       on a cgroup v1 system, turn v2 on for the next boot
 #                            (then reboot and run the installer again)
 #   --skip-verify            do not run cms-verify-host at the end
@@ -63,10 +69,10 @@ OPT=${CMS_INSTALL_ROOT:-/opt/cms}   # overridable for tests
 
 ROLE=main VERSION=latest DOMAIN="" ADMIN_DOMAIN="" RANKING_DOMAIN="" EMAIL="" LAN=0 WEB=caddy ADMIN_ALLOW=""
 PRIVATE_IP="" LANGS=minimal MAIN="" REDIS_PASSWORD_ARG="" BLOB_TOKEN_ARG="" WORKER_NAME=""
-REDIS_PORT=6379 REDIS_PORT_GIVEN=0 HTTP_PORTS=80,8080,8081 HTTP_PORTS_GIVEN=0
+REDIS_PORT=6379 REDIS_PORT_GIVEN=0 HTTP_PORTS=80,8080,8081 HTTP_PORTS_GIVEN=0 JUDGE_ALL_THREADS=0 TUNE_HOST=0
 C_PORT=80 R_PORT=8080 A_PORT=8081
 FIREWALL=1 ENABLE_CGROUP_V2=0 SKIP_VERIFY=0 DRY=0 UNINSTALL=0 PURGE=0 ARCHIVE="" FROM_SOURCE=0
-RENDER="" CPUS="" RAM_MB="" VERSION_GIVEN=0
+RENDER="" CPUS="" RAM_MB="" VERSION_GIVEN=0 IDLE_CPUS=""
 
 # The directory this script came from, when it is a file (not a pipe): a
 # checkout, or an unpacked release.
@@ -133,6 +139,8 @@ parse_args() {
       --blob-token) BLOB_TOKEN_ARG=$2; shift 2 ;;
       --worker-name) WORKER_NAME=$2; shift 2 ;;
       --no-firewall) FIREWALL=0; shift ;;
+      --judge-all-threads) JUDGE_ALL_THREADS=1; shift ;;
+      --tune-host) TUNE_HOST=1; shift ;;
       --enable-cgroup-v2) ENABLE_CGROUP_V2=1; shift ;;
       --skip-verify) SKIP_VERIFY=1; shift ;;
       --dry-run) DRY=1; shift ;;
@@ -219,12 +227,69 @@ detect() {
   say "  $NCPU CPUs, $RAM_MB MiB of RAM"
   [ "$RAM_MB" -lt 1800 ] && warn "less than 2 GiB of RAM: expect trouble with compilers and PostgreSQL"
   [ "$NCPU" -lt 2 ] && warn "one CPU: judging will share it with the web servers (timings will vary)"
-  # CPU 0 (0-1 from 6 CPUs up) runs the web servers, PostgreSQL, Valkey and the
-  # proxy; every other CPU judges. A single CPU is shared (not recommended).
-  if [ "$NCPU" -ge 6 ]; then WEB_CPUS="0 1"; FIRST_JUDGE=2; elif [ "$NCPU" -ge 2 ]; then WEB_CPUS="0"; FIRST_JUDGE=1; else WEB_CPUS="0"; FIRST_JUDGE=0; fi
-  JUDGE_CORES=$(seq -s ', ' "$FIRST_JUDGE" $((NCPU - 1)))
-  [ "$ROLE" = worker ] && JUDGE_CORES=$(seq -s ', ' $((NCPU >= 2 ? 1 : 0)) $((NCPU - 1)))
+  cpu_layout
+  if [ -n "$IDLE_CPUS" ]; then
+    say "  hyperthreading: one judging CPU per physical core; siblings left idle: $IDLE_CPUS"
+  fi
   return 0
+}
+
+# physical_cores prints one line per physical core with its logical CPUs
+# ("0 4"), in the order of their first CPU. Without topology information
+# (or with --cpus) every CPU is its own core.
+physical_cores() {
+  local sys=${CMS_INSTALL_SYSFS:-/sys/devices/system/cpu} f
+  if [ -z "$CPUS" ] && [ -r "$sys/cpu0/topology/thread_siblings_list" ]; then
+    for f in "$sys"/cpu[0-9]*/topology/thread_siblings_list; do
+      [ -r "$f" ] && cat "$f"
+    done | awk -F, '{
+        out = ""
+        for (i = 1; i <= NF; i++) {
+          n = split($i, r, "-"); lo = r[1]; hi = (n > 1) ? r[2] : r[1]
+          for (c = lo; c <= hi; c++) out = out (out == "" ? "" : " ") c
+        }
+        print out
+      }' | sort -u | sort -n -k1,1 || true
+  else
+    seq 0 $((NCPU - 1))
+  fi
+}
+
+# cpu_layout sets WEB_CPUS (web servers, PostgreSQL, Valkey, the proxy),
+# JUDGE_CORES (worker.cores) and IDLE_CPUS. Judging takes the first CPU of
+# each physical core: a busy hyperthread sibling slows a judging CPU down
+# and makes times unstable, so siblings stay idle (--judge-all-threads
+# judges on them too). The main server keeps its first core (two from six
+# cores up) for the web; a worker keeps its first core for itself.
+cpu_layout() {
+  local -a cores
+  local n i web first line c
+  mapfile -t cores < <(physical_cores)
+  n=${#cores[@]}
+  if [ "$ROLE" = main ]; then
+    if [ "$n" -ge 6 ]; then web=2; elif [ "$n" -ge 2 ]; then web=1; else web=1; fi
+  else
+    web=1
+  fi
+  first=$web
+  [ "$n" -le "$web" ] && first=$((n - 1))
+  WEB_CPUS="" JUDGE_CORES="" IDLE_CPUS=""
+  for ((i = 0; i < n; i++)); do
+    line=${cores[$i]}
+    if [ "$i" -lt "$web" ]; then WEB_CPUS="$WEB_CPUS $line"; fi
+    if [ "$i" -ge "$first" ]; then
+      if [ "$JUDGE_ALL_THREADS" = 1 ]; then
+        for c in $line; do JUDGE_CORES="$JUDGE_CORES, $c"; done
+      else
+        JUDGE_CORES="$JUDGE_CORES, ${line%% *}"
+        [ "$line" != "${line%% *}" ] && [ "$i" -ge "$web" ] && IDLE_CPUS="$IDLE_CPUS ${line#* }"
+      fi
+    fi
+  done
+  WEB_CPUS=${WEB_CPUS# } JUDGE_CORES=${JUDGE_CORES#, } IDLE_CPUS=${IDLE_CPUS# }
+  WEB_CPUS=$(tr ' ' '\n' <<<"$WEB_CPUS" | sort -n | tr '\n' ' ')
+  WEB_CPUS=${WEB_CPUS% }
+  JUDGE_CORES=$(tr -d ' ' <<<"$JUDGE_CORES" | tr ',' '\n' | sort -n | paste -sd, | sed 's/,/, /g')
 }
 
 # isolate measures and limits memory and time with control groups v2.
@@ -413,6 +478,9 @@ files() {
   ln -sfn "$OPT/current/cms" /usr/local/bin/cms
   ln -sfn "$OPT/current/cmsctl" /usr/local/bin/cmsctl
   ln -sfn "$OPT/current/scripts/verify-host.sh" /usr/local/sbin/cms-verify-host
+  if [ -f "$OPT/current/scripts/host-tuning.sh" ]; then
+    ln -sfn "$OPT/current/scripts/host-tuning.sh" /usr/local/sbin/cms-host-tuning
+  fi
   # Earlier installs copied the documentation into a directory.
   [ -d /usr/local/share/doc/cms ] && [ ! -L /usr/local/share/doc/cms ] && rm -rf /usr/local/share/doc/cms
   ln -sfn "$OPT/current/docs" /usr/local/share/doc/cms
@@ -542,6 +610,7 @@ EOF
   fi
   if [ -f "$P/etc/cms/cms.yaml" ]; then
     say "  kept the existing /etc/cms/cms.yaml"
+    if real || [ "$DRY" = 1 ]; then sync_cores; fi
     real && sync_ports
   else
     echo "$yaml" | write /etc/cms/cms.yaml 640 || true
@@ -707,6 +776,32 @@ kv_port() {
 # sync_ports points an existing cms.yaml at the local PostgreSQL and Valkey
 # when their ports changed since it was written (the file is otherwise
 # never touched).
+# sync_cores moves an existing cms.yaml to this machine's CPU layout when
+# its worker.cores is still what an earlier installer wrote (every CPU after
+# the web ones, hyperthread siblings included); cores chosen by hand are
+# kept, with a note when they differ from the recommended layout.
+sync_cores() {
+  local f=$P/etc/cms/cms.yaml cur old first
+  cur=$(sed -n 's/^  cores: \[\(.*\)\]$/\1/p' "$f" | head -1)
+  [ -n "$cur" ] && [ "$cur" != "$JUDGE_CORES" ] || return 0
+  if [ "$ROLE" = main ]; then
+    if [ "$NCPU" -ge 6 ]; then first=2; elif [ "$NCPU" -ge 2 ]; then first=1; else first=0; fi
+  else
+    first=$((NCPU >= 2 ? 1 : 0))
+  fi
+  old=$(seq -s ', ' "$first" $((NCPU - 1)))
+  if [ "$cur" = "$old" ]; then
+    if real; then
+      sed -i "s/^  cores: \[$cur\]$/  cores: [$JUDGE_CORES]/" "$f"
+      say "  worker.cores in /etc/cms/cms.yaml: [$cur] -> [$JUDGE_CORES] (one CPU per physical core)"
+    else
+      say "(dry-run) would set worker.cores in /etc/cms/cms.yaml: [$cur] -> [$JUDGE_CORES]"
+    fi
+  else
+    say "  note: worker.cores in /etc/cms/cms.yaml is [$cur]; the recommended layout for this machine is [$JUDGE_CORES]"
+  fi
+}
+
 sync_ports() {
   [ "$ROLE" = main ] || return 0
   local f=$P/etc/cms/cms.yaml tmp
@@ -985,15 +1080,37 @@ services() {
   run systemctl restart cms.target
 }
 
+# tuning: stable running times (cms-host-tuning), with --tune-host.
+tuning() {
+  [ "$TUNE_HOST" = 1 ] || return 0
+  step "host tuning for stable running times (cms-host-tuning)"
+  run /usr/local/sbin/cms-host-tuning enable
+}
+
 verify() {
   VERIFY_OK=1
   [ "$SKIP_VERIFY" = 1 ] && return 0
   step "verifying this machine judges correctly (cms-verify-host)"
   if real; then
+    # The worker's jobs would disturb the self-test's timings: it pauses
+    # while the machine is checked (queued jobs wait for it).
+    local paused=0
+    if systemctl is-active --quiet cms-worker 2>/dev/null; then
+      systemctl stop cms-worker && paused=1
+    fi
     /usr/local/sbin/cms-verify-host --config /etc/cms/cms.yaml || VERIFY_OK=0
+    if [ "$paused" = 1 ]; then systemctl start cms-worker; fi
   else
     run /usr/local/sbin/cms-verify-host --config /etc/cms/cms.yaml
   fi
+}
+
+# cpu_summary: how the CPUs are used.
+cpu_summary() {
+  local out="judging cores: [$JUDGE_CORES]"
+  [ "$ROLE" = main ] && out="$out; web CPUs: $WEB_CPUS"
+  [ -n "$IDLE_CPUS" ] && out="$out; idle hyperthreads: $IDLE_CPUS"
+  echo "$out"
 }
 
 # sites: where the web sites are served.
@@ -1011,7 +1128,7 @@ sites() {
 summary() {
   echo
   if [ -n "$RENDER" ]; then
-    say "Rendered into $RENDER; judging cores: [$JUDGE_CORES]; web CPUs: $WEB_CPUS"
+    say "Rendered into $RENDER; $(cpu_summary)"
     return 0
   fi
   if [ "$DRY" = 1 ]; then
@@ -1024,7 +1141,7 @@ summary() {
   fi
   say "CMS $VER installed."
   sites
-  say "  judging cores: [$JUDGE_CORES]; web CPUs: $WEB_CPUS"
+  say "  $(cpu_summary)"
   if [ -n "${ADMIN_PASSWORD_NEW:-}" ]; then
     echo
     line() { printf '  |  %-60s|\n' "$1"; }
@@ -1103,9 +1220,7 @@ main() {
     # Only the generated files: no machine checks, no downloads.
     NCPU=${CPUS:-$(nproc --all)}
     RAM_MB=${RAM_MB:-$(awk '/MemTotal/ {print int($2 / 1024)}' /proc/meminfo)}
-    if [ "$NCPU" -ge 6 ]; then WEB_CPUS="0 1"; FIRST_JUDGE=2; elif [ "$NCPU" -ge 2 ]; then WEB_CPUS="0"; FIRST_JUDGE=1; else WEB_CPUS="0"; FIRST_JUDGE=0; fi
-    JUDGE_CORES=$(seq -s ', ' "$FIRST_JUDGE" $((NCPU - 1)))
-    [ "$ROLE" = worker ] && JUDGE_CORES=$(seq -s ', ' $((NCPU >= 2 ? 1 : 0)) $((NCPU - 1)))
+    cpu_layout
   else
     detect
     # No release to plan with on an unsupported architecture.
@@ -1122,6 +1237,7 @@ main() {
   proxy
   firewall
   services
+  tuning
   verify
   summary
 }

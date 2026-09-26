@@ -588,3 +588,75 @@ func TestInstallWebPorts(t *testing.T) {
 		t.Fatalf("WireGuard: %v\n%s", err, out)
 	}
 }
+
+// TestInstallCPULayout: on a machine with hyperthreading, judging takes one
+// CPU per physical core and leaves the siblings idle; the web keeps whole
+// cores; --judge-all-threads judges on the siblings too; an existing
+// cms.yaml still on the old layout (every CPU after the web ones) follows,
+// and cores chosen by hand are kept.
+func TestInstallCPULayout(t *testing.T) {
+	sysfs := func(n int, list func(i int) string) string {
+		dir := t.TempDir()
+		for i := 0; i < n; i++ {
+			d := filepath.Join(dir, fmt.Sprintf("cpu%d", i), "topology")
+			os.MkdirAll(d, 0o755)
+			os.WriteFile(filepath.Join(d, "thread_siblings_list"), []byte(list(i)+"\n"), 0o644)
+		}
+		return dir
+	}
+	intel8 := sysfs(8, func(i int) string { return fmt.Sprintf("%d,%d", i%4, i%4+4) }) // 4 cores × 2
+	amd16 := sysfs(16, func(i int) string { return fmt.Sprintf("%d-%d", i/2*2, i/2*2+1) })
+	plain8 := sysfs(8, func(i int) string { return fmt.Sprint(i) }) // a VM: no siblings
+	for _, c := range []struct {
+		name, sys, args, want, affinity string
+	}{
+		{"intel SMT", intel8, "--lan", "judging cores: [1, 2, 3]; web CPUs: 0 4; idle hyperthreads: 5 6 7", "CPUAffinity=0 4"},
+		{"all threads", intel8, "--lan --judge-all-threads", "judging cores: [1, 2, 3, 5, 6, 7]; web CPUs: 0 4", "CPUAffinity=0 4"},
+		{"amd SMT", amd16, "--lan", "judging cores: [4, 6, 8, 10, 12, 14]; web CPUs: 0 1 2 3; idle hyperthreads: 5 7 9 11 13 15", "CPUAffinity=0 1 2 3"},
+		{"no SMT", plain8, "--lan", "judging cores: [2, 3, 4, 5, 6, 7]; web CPUs: 0 1", "CPUAffinity=0 1"},
+		{"worker", intel8, "--role worker --main 10.0.0.1 --redis-password p --blob-token b", "judging cores: [1, 2, 3]; idle hyperthreads: 5 6 7", ""},
+	} {
+		dir := t.TempDir()
+		cmd := exec.Command("bash", append([]string{filepath.Join("..", "..", "scripts", "install.sh"), "--render-only", dir, "--ram-mb", "8192"}, strings.Fields(c.args)...)...)
+		cmd.Env = append(os.Environ(), "CMS_INSTALL_SYSFS="+c.sys)
+		out, err := cmd.CombinedOutput()
+		if err != nil || !strings.Contains(string(out), c.want) {
+			t.Errorf("%s: %v\n%s", c.name, err, out)
+			continue
+		}
+		files := readTree(t, dir)
+		cores := c.want[strings.Index(c.want, "[") : strings.Index(c.want, "]")+1]
+		if !strings.Contains(files["etc/cms/cms.yaml"], "cores: "+cores) {
+			t.Errorf("%s: cms.yaml lacks cores %s:\n%s", c.name, cores, files["etc/cms/cms.yaml"])
+		}
+		if c.affinity != "" && !strings.Contains(files["etc/systemd/system/cms-contest-web.service.d/cpu.conf"], c.affinity) {
+			t.Errorf("%s: web pinning: %q", c.name, files["etc/systemd/system/cms-contest-web.service.d/cpu.conf"])
+		}
+	}
+
+	// An existing cms.yaml: the old default moves, a hand-picked list stays.
+	script, _ := os.ReadFile(filepath.Join("..", "..", "scripts", "install.sh"))
+	src := string(script)
+	funcs := filepath.Join(t.TempDir(), "functions.sh")
+	os.WriteFile(funcs, []byte(src[:strings.LastIndex(src, "main \"$@\"")]), 0o644)
+	sync := func(cores string) (string, string) {
+		root := t.TempDir()
+		os.MkdirAll(filepath.Join(root, "etc", "cms"), 0o755)
+		f := filepath.Join(root, "etc", "cms", "cms.yaml")
+		os.WriteFile(f, []byte("worker:\n  cores: ["+cores+"]\n"), 0o640)
+		cmd := exec.Command("bash", "-c", `source "$1"; parse_args --dry-run --lan >/dev/null; DRY=0 P=`+root+` NCPU=8; cpu_layout; sync_cores; sync_cores`, "_", funcs)
+		cmd.Env = append(os.Environ(), "CMS_INSTALL_SYSFS="+intel8)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("sync_cores: %v\n%s", err, out)
+		}
+		got, _ := os.ReadFile(f)
+		return string(out), string(got)
+	}
+	if out, got := sync("2, 3, 4, 5, 6, 7"); !strings.Contains(got, "cores: [1, 2, 3]") || strings.Count(out, "-> [1, 2, 3]") != 1 {
+		t.Errorf("old default not moved:\n%s\n%s", out, got)
+	}
+	if out, got := sync("3, 4"); !strings.Contains(got, "cores: [3, 4]") || !strings.Contains(out, "the recommended layout for this machine is [1, 2, 3]") {
+		t.Errorf("hand-picked cores:\n%s\n%s", out, got)
+	}
+}

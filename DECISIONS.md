@@ -1078,3 +1078,44 @@ re-run is clean. A custom Caddyfile is kept and restored by
 validation, the rendered Caddy/nginx configuration and both firewall
 paths: TCP, UDP, kernel and `systemd` listeners, SSH on 2222 and a
 WireGuard tunnel.
+
+## D82. The host check on a hyperthreaded server (SPEC_IOI, H0)
+The first real installation (Ubuntu 26.04, 8 CPUs) failed `cms-verify-host`:
+in the second run `fork_bomb_64_procs` was stopped by the memory limit
+instead of a time limit, so it both "failed" and "changed between runs".
+
+- **Fork bombs.** Every fork refused by the process limit still allocates
+  the child's task structure and kernel stack, charged to the box's memory
+  control group and freed after an RCU grace period. 64 processes forking in
+  a loop can pile those up to the 256 MiB limit before the second of CPU
+  runs out; whether they do depends on the kernel's timing. Both outcomes
+  kill the whole box and leave no process behind (checked), so both are
+  "contained". Security cases are compared between runs by that question
+  (did the sandbox hold), not by which limit fired; samples are still
+  compared by verdict, where a TLE/MLE flip is real instability.
+- **One judging CPU per physical core.** The installer judged on every CPU
+  after the web ones. On that machine (4 cores × 2 threads, siblings 0/4,
+  1/5, ...) CPUs 2–7 include pairs of siblings and siblings of the web CPUs,
+  so each judging box ran next to another box or the web server on the
+  same core: unstable times, the very thing the second run measures. The
+  layout now comes from `thread_siblings_list`: the web keeps whole cores
+  (the first; the first two from six cores up), and every other core judges
+  on its first CPU with the siblings idle. Machines without SMT get the
+  same layout as before. An existing `cms.yaml` whose `worker.cores` is
+  exactly the old default is moved (cores chosen by hand are kept, with a
+  note); the self-test warns about sibling judging CPUs.
+  `--judge-all-threads` keeps the old behaviour for those who prefer
+  throughput. Leaving siblings idle halves the judging CPUs on SMT
+  machines; SPEC_IOI §2.2 asks exactly for that, and a medal decided by
+  timing noise costs more than a longer queue.
+- **The worker pauses during the check.** The installer starts the services
+  and then runs the check, so the worker could be judging at the same time
+  (one of the six warnings). It is stopped for the check and started again.
+- **Host tuning is opt-in.** `cms-host-tuning` (and `--tune-host`) sets the
+  performance governor and turns turbo boost and transparent huge pages
+  off, persistently through a oneshot unit. ASLR and SMT only change when
+  set to `off` in `/etc/cms/host-tuning.conf`. It is not the default
+  because the installer also runs on shared servers (the owner's runs
+  Nextcloud): turbo and huge pages are machine-wide, and turning ASLR off
+  weakens every internet-facing program on the machine.
+

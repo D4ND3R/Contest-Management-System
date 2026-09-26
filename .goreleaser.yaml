@@ -54,6 +54,7 @@ archives:
       - scripts/install.sh
       - scripts/install-isolate.sh
       - scripts/verify-host.sh
+      - scripts/host-tuning.sh
       - docs/**/*
 
 checksum:

@@ -36,6 +36,24 @@ del espacio de direcciones, transparent huge pages); en una máquina de
 evaluación dedicada corrígelas todas. En un VPS la mayoría no se ve desde
 dentro de la máquina virtual.
 
+`sudo cms-host-tuning enable` (o la opción `--tune-host` del instalador)
+fija el gobernador en performance y apaga el turbo y las transparent huge
+pages, ahora y en cada arranque; `sudo cms-host-tuning status` muestra el
+estado. La aleatorización del espacio de direcciones (ASLR) y el SMT solo
+se cambian si se ponen en `off` en `/etc/cms/host-tuning.conf`: apagar ASLR
+debilita todos los programas de la máquina, así que hazlo solo en una
+máquina de evaluación dedicada. Estos ajustes también afectan a los demás
+servicios de la máquina.
+
+**Hyperthreading.** Dos hilos (hyperthreads) de un mismo núcleo físico
+comparten sus unidades de ejecución: un programa en uno hace más lento lo
+que corre en el otro. Desde la 0.3 el instalador evalúa en una CPU por
+núcleo físico y deja libres sus hermanas (las muestra: "idle hyperthreads:
+5 6 7"), y un `cms.yaml` existente con la distribución anterior pasa a la
+nueva. La autoprueba muestra un `WARNING` si dos CPUs de evaluación
+configuradas son hermanas. `--judge-all-threads` evalúa en todos los hilos
+(más capacidad, tiempos menos estables).
+
 ## La autoprueba del juez
 
 `cms ctl judge-selftest` (también se puede usar sola) evalúa, con el mismo
@@ -57,3 +75,15 @@ mismo en todas las corridas (ambos límites de tiempo cuentan como TLE). Un
 caso de seguridad que falla significa que la sandbox no es segura; un
 veredicto que cambia entre corridas significa que los tiempos no son lo
 bastante estables para evaluar con justicia.
+
+Un caso de seguridad pasa con cualquier resultado que muestre que la
+sandbox resistió, y las corridas se comparan con ese criterio. Las fork
+bombs, por ejemplo, pueden detenerse por el límite de tiempo o por el de
+memoria: cada fork que el límite de procesos rechaza igual reserva las
+estructuras del kernel del hijo, se cargan a la caja y se liberan recién
+después de un periodo de gracia de RCU, así que con 64 procesos haciendo
+fork en un ciclo pueden llegar antes al límite de memoria. En ambos casos
+se mata la caja entera y no sobrevive ningún proceso, lo que se comprueba.
+
+El instalador pausa `cms-worker` mientras ejecuta la verificación, para que
+los trabajos en cola no alteren los tiempos.

@@ -1014,3 +1014,29 @@ Skipping skills: immersive-web-design, master skill.
   needs instead), and it keeps SSH on any port and WireGuard open. A Caddyfile it did
   not write is kept aside and restored on uninstall. Verified in a 26.04
   container that mimics that server.
+
+## SPEC_IOI — the perfect CMS for IOI-level workloads (in progress)
+Skipping skills: immersive-web-design, master skill.
+
+`SPEC_IOI.md` records the owner's third specification, the problems found
+on the first real installation and the redesign request (reference image in
+`docs/design/`). Phases: H0 host check, H1 reported bugs, H2 UI redesign,
+H3 sandbox defense in depth, H4 evaluation, H5 admin and contest
+operations, H6 reliability and operations, H7 accessibility and
+localization, H8 audit (`AUDIT.md` §10) and summary.
+
+### H0 — the host check on the owner's server (done)
+- `fork_bomb_64_procs` stopped by the memory limit is contained, like a
+  time limit; security cases are compared between runs by "contained"
+  (D82). `selftest.TestCompare`.
+- The installer judges on one CPU per physical core, with hyperthread
+  siblings idle; an existing `cms.yaml` on the old default layout is moved.
+  `--judge-all-threads` restores the old behaviour. `TestInstallCPULayout`
+  (Intel and AMD sibling numbering, no SMT, worker, sync).
+- The worker is paused while the installer verifies the host; the
+  self-test warns when two judging CPUs are siblings
+  (`selftest.TestSharedCores`).
+- `cms-host-tuning` (status/apply/enable/disable) and `--tune-host` for the
+  governor, turbo and transparent huge pages; ASLR and SMT only on request.
+  The verify-host fixes point to it.
+
