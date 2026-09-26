@@ -68,6 +68,10 @@ curl -fsSL https://raw.githubusercontent.com/D4ND3R/Contest-Management-System/ma
      --redis-password <REDIS_PASSWORD> --blob-token <BLOB_TOKEN> --worker-name juez-2
 ```
 
+Si el Valkey del servidor principal no está en el 6379 (su instalador lo
+avisa cuando otro programa ocupaba ese puerto; `redis.url` en su
+`/etc/cms/cms.yaml` lo muestra), agrega `--redis-port <ese puerto>`.
+
 El instalador termina corriendo `cms-verify-host`, que debe pasar. Mantén
 cada worker en la versión del servidor principal: después de `sudo cmsctl
 upgrade` en el servidor principal, corre `sudo cmsctl upgrade -version <la

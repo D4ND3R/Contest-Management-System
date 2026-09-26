@@ -409,3 +409,69 @@ func TestInstallPostgresCluster(t *testing.T) {
 		t.Errorf("nothing installed: %v\n%s", err, out)
 	}
 }
+
+// TestInstallValkeyPort: Valkey keeps 6379 when it is free or already
+// Valkey's, and moves to the next free port when another program has it (a
+// Redis left by another installation, another application's store), leaving
+// that program alone; an existing cms.yaml follows the ports.
+func TestInstallValkeyPort(t *testing.T) {
+	script, err := os.ReadFile(filepath.Join("..", "..", "scripts", "install.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(script)
+	funcs := filepath.Join(t.TempDir(), "functions.sh")
+	os.WriteFile(funcs, []byte(src[:strings.LastIndex(src, "main \"$@\"")]), 0o644)
+	run := func(holders map[int]string, args, call string) (string, error) {
+		dir := t.TempDir()
+		bin := filepath.Join(dir, "bin")
+		os.MkdirAll(filepath.Join(dir, "ports"), 0o755)
+		os.MkdirAll(bin, 0o755)
+		for port, name := range holders {
+			os.WriteFile(filepath.Join(dir, "ports", fmt.Sprint(port)), []byte(name), 0o644)
+		}
+		// ss -ltnpH "sport = :PORT" prints the listener of PORT, if any.
+		os.WriteFile(filepath.Join(bin, "ss"), []byte("#!/bin/sh\nport=${2##*:}\nf="+dir+"/ports/$port\n"+
+			"[ -f \"$f\" ] && echo \"LISTEN 0 511 127.0.0.1:$port 0.0.0.0:* users:((\\\"$(cat \"$f\")\\\",pid=7,fd=8))\"\nexit 0\n"), 0o755)
+		os.WriteFile(filepath.Join(bin, "valkey-server"), []byte("#!/bin/sh\n"), 0o755)
+		cmd := exec.Command("bash", "-c", `source "$1"; shift; parse_args "$@" >/dev/null; `+call, "_", funcs)
+		cmd.Args = append(cmd.Args, strings.Fields(args)...)
+		cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"))
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	port := `kv_port; echo "port=$REDIS_PORT"`
+	for _, c := range []struct {
+		name    string
+		holders map[int]string
+		args    string
+		want    string
+	}{
+		{"free", nil, "--lan", "port=6379"},
+		{"already Valkey's", map[int]string{6379: "valkey-server"}, "--lan", "port=6379"},
+		{"another Redis", map[int]string{6379: "redis-server"}, "--lan", "port 6379 is used by redis-server: CMS's valkey-server listens on 6380"},
+		{"several taken", map[int]string{6379: "redis-server", 6380: "docker-proxy"}, "--lan", "port=6381"},
+		{"moved before", map[int]string{6379: "redis-server", 6380: "valkey-server"}, "--lan", "port=6380"},
+		{"given", map[int]string{6379: "redis-server"}, "--lan --redis-port 7000", "port=7000"},
+	} {
+		if out, err := run(c.holders, c.args, port); err != nil || !strings.Contains(out, c.want) {
+			t.Errorf("%s: %v\n%s", c.name, err, out)
+		}
+	}
+	if out, err := run(nil, "--lan --redis-port six", port); err == nil || !strings.Contains(out, "--redis-port must be a port number") {
+		t.Errorf("bad --redis-port: %v\n%s", err, out)
+	}
+
+	// A cms.yaml written for 5432 and 6379 follows the ports found now.
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "etc", "cms"), 0o755)
+	yaml := "database:\n  url: postgres://cms:pw@127.0.0.1:5432/cms?sslmode=disable\nredis:\n  url: redis://:pw@127.0.0.1:6379/0\n"
+	os.WriteFile(filepath.Join(root, "etc", "cms", "cms.yaml"), []byte(yaml), 0o640)
+	sync := `P=` + root + ` PGPORT=5433 REDIS_PORT=6380; sync_ports; sync_ports`
+	out, err := run(nil, "--lan", sync)
+	got, _ := os.ReadFile(filepath.Join(root, "etc", "cms", "cms.yaml"))
+	if err != nil || strings.Count(out, "updated the PostgreSQL (5433) and Valkey (6380) ports") != 1 ||
+		!strings.Contains(string(got), "@127.0.0.1:5433/cms") || !strings.Contains(string(got), "@127.0.0.1:6380/0") {
+		t.Errorf("sync_ports: %v\n%s\n%s", err, out, got)
+	}
+}

@@ -998,3 +998,11 @@ Skipping skills: immersive-web-design, master skill.
   stops silently: on minimal systems (`/usr/local/share/doc` missing)
   and in the dry run on a machine without PostgreSQL. Ubuntu 26.04 is
   now a supported system.
+- **Valkey on the same server (D80).** The next run on that server stopped
+  at Valkey: a `redis-server` (most likely left by an earlier installer
+  run) already had port 6379. The installer now gives CMS's Valkey the
+  next free port when another program holds 6379, and leaves that program
+  alone. It updates an existing `cms.yaml`, adds `--redis-port`, and
+  shows Valkey's own error if it still fails. Reproduced with that exact
+  state in a 26.04 container: before, the same failure; now it finishes
+  on 6380.

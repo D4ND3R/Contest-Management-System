@@ -211,6 +211,14 @@ only (plus `--private-ip`), password required, `appendonly yes` with
 queues live there and must survive a restart. From 6 CPUs up it uses two
 I/O threads.
 
+It listens on port 6379 unless another program already has that port (a
+Redis left by another installation, another application's store): then it
+takes the next free one and says so ("port 6379 is used by redis-server:
+CMS's valkey-server listens on 6380"), writes it into `/etc/cms/cms.yaml`,
+and leaves the other program alone. External workers then need
+`--redis-port` with that port. If Valkey does not start, the installer
+shows Valkey's own messages and what holds the port.
+
 ### systemd
 
 `deploy/systemd/` has one unit per service (`cms-contest-web`,

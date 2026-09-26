@@ -218,6 +218,14 @@ localhost (más `--private-ip`), exige contraseña, `appendonly yes` con
 de evaluación y deben sobrevivir a un reinicio. Desde 6 CPUs usa dos hilos
 de E/S.
 
+Escucha en el puerto 6379, salvo que otro programa ya lo use (un Redis que
+dejó otra instalación, el almacén de otra aplicación): entonces toma el
+siguiente libre y lo dice ("port 6379 is used by redis-server: CMS's
+valkey-server listens on 6380"), lo escribe en `/etc/cms/cms.yaml` y deja
+el otro programa en paz. Los workers externos necesitan entonces
+`--redis-port` con ese puerto. Si Valkey no arranca, el instalador muestra
+los mensajes del propio Valkey y qué programa ocupa el puerto.
+
 ### systemd
 
 `deploy/systemd/` tiene una unidad por servicio (`cms-contest-web`,

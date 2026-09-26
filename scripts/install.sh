@@ -645,7 +645,7 @@ EOF
   fi
   systemctl enable "postgresql@$pgver-main" >/dev/null 2>&1 || true
   if [ "$started" = 0 ] || ! as_postgres psql -p "$PGPORT" -qtAc "SELECT 1" >/dev/null 2>&1; then
-    tail -n 20 "/var/log/postgresql/postgresql-$pgver-main.log" 2>/dev/null >&2
+    tail -n 20 "/var/log/postgresql/postgresql-$pgver-main.log" >&2 2>/dev/null || true
     die "PostgreSQL $pgver/main does not start (its log is above; journalctl -u postgresql@$pgver-main has more)"
   fi
   as_postgres psql -p "$PGPORT" -qtAc "SELECT 1 FROM pg_roles WHERE rolname = 'cms'" | grep -q 1 ||
@@ -693,7 +693,7 @@ kv_port() {
 # never touched).
 sync_ports() {
   [ "$ROLE" = main ] || return 0
-  local f=/etc/cms/cms.yaml tmp
+  local f=$P/etc/cms/cms.yaml tmp
   tmp=$(mktemp)
   sed -E "s#(postgres://[^@]*@127\.0\.0\.1:)[0-9]+/#\1$PGPORT/#; s#(redis://[^@]*@127\.0\.0\.1:)[0-9]+/#\1$REDIS_PORT/#" "$f" > "$tmp"
   if ! cmp -s "$tmp" "$f"; then
@@ -706,8 +706,8 @@ sync_ports() {
 # kv_failed shows why the store does not start, then stops.
 kv_failed() {
   local h
-  journalctl -u "$KV_SVC" -n 25 --no-pager -o cat 2>/dev/null >&2 || true
-  tail -n 15 "/var/log/${KV_SVC%-server}/$KV_SVC.log" 2>/dev/null >&2 || true
+  journalctl -u "$KV_SVC" -n 25 --no-pager -o cat >&2 2>/dev/null || true
+  tail -n 15 "/var/log/${KV_SVC%-server}/$KV_SVC.log" >&2 2>/dev/null || true
   h=$(port_holder "$REDIS_PORT")
   [ -n "$h" ] && [ "$h" != "$KV_SVC" ] && warn "port $REDIS_PORT is used by $h"
   die "$KV_SVC does not start (its messages are above; systemctl status $KV_SVC)"
@@ -747,6 +747,8 @@ EOF
   chgrp "$(stat -c %G "$KV_DIR/$KV_MAIN")" "$KV_DIR/cms.conf"
   grep -q "^include $KV_DIR/cms.conf" "$KV_DIR/$KV_MAIN" || { echo "include $KV_DIR/cms.conf" >> "$KV_DIR/$KV_MAIN"; changed=1; }
   systemctl enable "$KV_SVC" >/dev/null 2>&1 || true
+  # Earlier failed starts may have tripped systemd's restart limit.
+  systemctl reset-failed "$KV_SVC" >/dev/null 2>&1 || true
   if [ "$changed" = 1 ]; then
     systemctl restart "$KV_SVC" || kv_failed
   else

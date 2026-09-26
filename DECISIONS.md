@@ -1001,3 +1001,31 @@ locale forwarded by SSH but missing on the server floods apt and
 PostgreSQL's scripts with warnings that read like errors. Each state was
 run in a 26.04 container: fresh, no cluster, SQL_ASCII, upgraded.
 `TestInstallPostgresCluster` covers the choice of cluster.
+
+## D80. Valkey on a free port when 6379 is taken
+Reported from an Ubuntu 26.04 server: valkey-server failed to start
+("bind: Address already in use") because `redis-server`, most likely left
+by an earlier installer run that fell back to Redis, already listened on
+127.0.0.1:6379. A personal or shared server can also have another
+application's Redis, or a container, there. The installer must not stop
+or remove a program it did not configure, so it moves instead:
+`kv_port` keeps 6379 when it is free or already held by the store it
+configures, and otherwise takes the next free port up to 6399. It says
+so, writes `port` into the store's `cms.conf` and the URL into
+`cms.yaml`, and opens it in the firewall with `--private-ip`. An
+existing `cms.yaml` is pointed at the current PostgreSQL and Valkey
+ports (`sync_ports`). The file is otherwise never rewritten, but a
+wrong port there would break every service. `--redis-port` sets the
+port explicitly; workers pass the main server's.
+
+When the store still does not start, the installer prints its journal,
+its log and the program holding the port, instead of systemd's generic
+line. It first clears systemd's restart limit, which earlier failures
+trip. Testing this showed that the PostgreSQL and Valkey log output
+(`… 2>/dev/null >&2`) sent everything to /dev/null: redirections apply
+left to right, so it is now `>&2 2>/dev/null`. The user's exact state
+was reproduced in an Ubuntu 26.04 container, with the archive's
+redis-server on 6379 and a cms.yaml from the failed run. The published
+installer fails the same way; the fixed one finishes on 6380, with Redis
+untouched. `TestInstallValkeyPort` covers the port choice and
+`sync_ports`.
