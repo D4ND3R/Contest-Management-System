@@ -927,3 +927,38 @@ the production compose stack with local images (all services healthy,
 backup and restore, re-run). Pending on real infrastructure: the first
 tag's release and GHCR push, the arm64 images on arm64 hardware, and a
 one-line install on a fresh VPS of each supported distribution.
+
+## Final check (done)
+Skipping skills: immersive-web-design, master skill.
+
+- **CI was red since the problem packages were added.** `.gitignore`
+  ignored `*.out`, so the expected outputs of the example packages were
+  never committed. It is green again on every job, and the fix also
+  revealed two bugs: an HTTP 500 in the package preview and a
+  core-count-dependent test.
+- **Static analysis.** staticcheck is clean except for user-facing
+  message strings, which are capitalized on purpose; dead code was
+  removed. govulncheck reports no reachable vulnerability, and
+  x/crypto was bumped past the two it listed. sqlc and go.mod show no
+  drift.
+- **Bad input.** A new test sends every admin and contestant GET route
+  (1,000+ requests) and every POST route (a one-off run) real, missing
+  and malformed ids and junk parameters: no 5xx. The contestant route
+  tests also read `extra.go` now, whose `POST /questions` the CSRF test
+  had missed (it was protected).
+- **The published v0.1.0.** Checksums and contents check out. The
+  one-line installer's dry run and `cmsctl upgrade` work against the real
+  GitHub release. The GHCR images pull anonymously for both
+  architectures.
+- **Installer on Ubuntu 22.04.** Its archive has no Caddy, so the
+  installer now adds Caddy's repository there and reads the package lists
+  before choosing (D78). Every package was resolved on Ubuntu 22.04/24.04
+  and Debian 12/13.
+- **A test racing itself.** TestLivePageInBrowser simulated a dropped
+  connection by closing every client connection, including the test
+  script's own polling connection, so it failed whenever a poll was in
+  flight (most runs under load). It now closes only the browser's
+  connections (15 of 15 runs pass).
+- **Not fixable from here.** The repository has no `main` branch yet,
+  so the documented one-liner (`…/main/scripts/install.sh`) answers 404
+  until one exists.

@@ -99,10 +99,10 @@ tools to check them are ready.
    compare the times.
 3. **Installation**: the one-line installer on a clean Debian/Ubuntu with
    the real domain (Let's Encrypt certificates, firewall, systemd restart
-   after a reboot), after the first tag has published a release and its
-   images (GitHub Actions, GHCR; the arm64 images on arm64 hardware). The
-   installer is tested piped from a fake release server and by rendering
-   every file it writes, not on a real host.
+   after a reboot), and the arm64 images on arm64 hardware. The release
+   and its images are published and checked (v0.1.0); the installer is
+   tested piped from a fake release server, by rendering every file it
+   writes and in dry runs against the real release, not on a real host.
 4. **Load**: repeat `make loadtest` on the target VPS (2 vCPU / 4 GB) — or
    with the web on the VPS and k6 on another machine — to confirm the
    figures above on its CPUs, disks and network; SPEC.md's 3,000-contestant
