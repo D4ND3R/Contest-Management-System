@@ -228,7 +228,7 @@ func TestLoginAndPages(t *testing.T) {
 		t.Fatalf("overview after login: %d\n%s", code, body)
 	}
 	code, body = f.get(c, "/ioi/tasks/sum")
-	if code != 200 || !strings.Contains(body, "Suma") || !strings.Contains(body, "/ioi/tasks/sum/statement/es") || !strings.Contains(body, "(official)") {
+	if code != 200 || !strings.Contains(body, "Suma") || !strings.Contains(body, `<iframe class="pdf-frame" src="/ioi/tasks/sum/statement/es.pdf?v=`) {
 		t.Fatalf("task page: %d\n%s", code, body)
 	}
 	code, body = f.get(c, "/ioi/tasks/sum/statement/es")

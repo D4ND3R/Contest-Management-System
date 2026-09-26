@@ -65,8 +65,10 @@ tipo están en [paquetes de problema](paquete-de-problema.md).
 A mano, **Problemas → Crear problema** y después, en la página del
 problema:
 
-1. **General**: título, enunciados (PDF o HTML por idioma, uno marcado como
-   principal), adjuntos (archivos que descargan los concursantes), archivos
+1. **General**: título, enunciados (escritos en Markdown o LaTeX en el
+   editor, o subidos; uno o más marcados como principales, ver
+   [enunciados](enunciados.md)), ejemplos, adjuntos (archivos que descargan
+   los concursantes), archivos
    del envío (`sol.%l`: `%l` se reemplaza por la extensión del lenguaje),
    lenguajes (ninguno marcado = los del concurso).
 2. **Puntuación y retroalimentación**: modo de puntuación (mejor por

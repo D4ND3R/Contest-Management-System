@@ -1,13 +1,51 @@
 {{define "content"}}
 {{$d := .Data}}{{$t := $d.Task}}
 <h1>{{$t.Name}} — {{$t.Title}}</h1>
-<div class="row">
-<section class="card">
-  <h2>{{.T "Statement"}}</h2>
-  {{if $t.Statements}}<ul>{{range $t.Statements}}<li><a href="{{$.Base}}tasks/{{$t.Name}}/statement/{{.Lang}}">{{.Name}}</a>{{if .Primary}} <strong>({{$.T "official"}})</strong>{{end}}</li>{{end}}</ul>
+<div class="task-layout">
+<div class="task-main">
+<section class="card statement-card" id="statement">
+  <div class="card-head">
+    <h2>{{.T "Statement"}}</h2>
+    {{with $d.Statement}}<div class="card-actions">
+      {{if gt (len .Languages) 1}}<nav class="tabs" aria-label="{{$.T "Statement language"}}">{{range .Languages}}<a href="?lang={{.Lang}}#statement" {{if eq .Lang $d.Statement.Current.Lang}}class="active" aria-current="true"{{end}}>{{.Name}}{{if .Primary}} ★{{end}}</a>{{end}}</nav>{{end}}
+      {{with .PDFURL}}<a class="button" href="{{.}}" target="_blank" rel="noopener">{{$.T "PDF"}}</a>{{end}}
+    </div>{{end}}
+  </div>
+  {{with $d.Statement}}
+    {{if .HTML}}{{.HTML}}
+    {{else if .Embedded}}<iframe class="pdf-frame" src="{{.PDFURL}}" title="{{$.T "Statement"}}"></iframe>{{.Examples}}
+    {{else}}{{.Examples}}{{end}}
   {{else}}<p class="muted">{{.T "No statement available."}}</p>{{end}}
-  {{if $t.Attachments}}<h2>{{.T "Attachments"}}</h2><ul>{{range $t.Attachments}}<li><a href="{{$.Base}}tasks/{{$t.Name}}/attachments/{{.}}">{{.}}</a></li>{{end}}</ul>{{end}}
+  {{if $t.Attachments}}<h3>{{.T "Attachments"}}</h3><ul class="files">{{range $t.Attachments}}<li><a href="{{$.Base}}tasks/{{$t.Name}}/attachments/{{.}}?v={{attv $t .}}" download>{{.}}</a></li>{{end}}</ul>{{end}}
 </section>
+{{if or $d.TestsEnabled $d.Tests}}
+<section class="card" id="tests">
+  <h2>{{.T "Test your solution"}}</h2>
+  {{template "testsform" (tests $ $d $t "")}}
+</section>
+{{end}}
+<h2>{{.T "Submissions"}}</h2>
+{{with $d.Tokens}}<p class="muted" id="tokens">{{if .Unlimited}}{{$.T "Tokens: unlimited."}}{{else}}{{$.T "Tokens available: %d." .Available}}{{end}}
+  {{if .Wait}}{{$.T "The next one can be played in %s." ($.Dur .Wait)}}{{else if not .Next.IsZero}}{{$.T "Next token at %s." ($.Time .Next)}}{{end}}
+  {{$.T "A token shows the full result of a submission."}}</p>{{end}}
+{{template "submissions" .}}
+</div>
+<aside class="task-side">
+<section class="card" id="submit">
+  <h2>{{.T "Submit a solution"}}</h2>
+  {{if $d.CanSubmit}}
+  <form method="post" action="{{.Base}}tasks/{{$t.Name}}/submit" enctype="multipart/form-data"
+        hx-post="{{.Base}}tasks/{{$t.Name}}/submit" hx-encoding="multipart/form-data" hx-target="#latest" hx-swap="outerHTML">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" {{if $t.NeedsLanguage}}required{{end}}></label>{{end}}
+    {{if eq $t.TaskType "OutputOnly"}}<label>{{.T "Or all the outputs in a zip archive"}} <input type="file" name="zip" accept=".zip,application/zip"></label>{{end}}
+    {{if $t.NeedsLanguage}}<label>{{.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
+    <button>{{.T "Submit"}}</button>
+    <span id="submit-result" role="status"></span>
+  </form>
+  {{else}}<p class="muted">{{$d.CannotSubmit}}</p>{{end}}
+</section>
+{{template "resultcard" (card $ $d.Latest $t)}}
 <section class="card">
   <h2>{{.T "Limits"}}</h2>
   <dl class="meta">
@@ -17,46 +55,6 @@
     {{with $d.Limits}}{{range .}}<dt>{{index . 0}}</dt><dd>{{index . 1}}</dd>{{end}}{{end}}
   </dl>
 </section>
+</aside>
 </div>
-<section class="card">
-  <h2>{{.T "Submit a solution"}}</h2>
-  {{if $d.CanSubmit}}
-  <form method="post" action="{{.Base}}tasks/{{$t.Name}}/submit" enctype="multipart/form-data"
-        hx-post="{{.Base}}tasks/{{$t.Name}}/submit" hx-encoding="multipart/form-data" hx-target="#submit-result" hx-swap="innerHTML">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" {{if $t.NeedsLanguage}}required{{end}}></label>{{end}}
-    {{if eq $t.TaskType "OutputOnly"}}<label>{{.T "Or all the outputs in a zip archive"}} <input type="file" name="zip" accept=".zip,application/zip"></label>{{end}}
-    {{if $t.NeedsLanguage}}<label>{{.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
-    <button>{{.T "Submit"}}</button>
-    <span id="submit-result"></span>
-  </form>
-  {{else}}<p class="muted">{{$d.CannotSubmit}}</p>{{end}}
-</section>
-{{if or $d.TestsEnabled $d.Tests}}
-<section class="card" id="tests">
-  <h2>{{.T "Test your solution"}}</h2>
-  <p class="muted">{{.T "Runs your program on an input you choose, with the task's limits, and shows its output. Tests are not graded."}}{{range $d.TestLimits}} {{index . 0}}: {{index . 1}}.{{end}}</p>
-  {{if $d.TestsEnabled}}
-  <form method="post" action="{{.Base}}tasks/{{$t.Name}}/test" enctype="multipart/form-data">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" required></label>{{end}}
-    {{if $t.NeedsLanguage}}<label>{{.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
-    <label>{{.T "Input file"}} <input type="file" name="input"></label>
-    <label>{{.T "or type the input"}} <textarea name="input_text" rows="3"></textarea></label>
-    <button>{{.T "Run test"}}</button>
-  </form>
-  {{end}}
-  {{if $d.Tests}}
-  <table>
-  <tr><th>{{.T "Time"}}</th><th>{{.T "Language"}}</th><th>{{.T "Status"}}</th><th>{{.T "Output"}}</th></tr>
-  {{range $d.Tests}}{{template "testrow" (testrow $ .)}}{{end}}
-  </table>
-  {{end}}
-</section>
-{{end}}
-<h2>{{.T "Submissions"}}</h2>
-{{with $d.Tokens}}<p class="muted" id="tokens">{{if .Unlimited}}{{$.T "Tokens: unlimited."}}{{else}}{{$.T "Tokens available: %d." .Available}}{{end}}
-  {{if .Wait}}{{$.T "The next one can be played in %s." ($.Dur .Wait)}}{{else if not .Next.IsZero}}{{$.T "Next token at %s." ($.Time .Next)}}{{end}}
-  {{$.T "A token shows the full result of a submission."}}</p>{{end}}
-{{template "submissions" .}}
 {{end}}

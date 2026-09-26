@@ -229,6 +229,7 @@ type detailRow struct {
 
 type detailGroup struct {
 	Title      string
+	Index      int // subtask number (group score types)
 	Score, Max float64
 	Class      string
 	Rows       []detailRow
@@ -313,7 +314,7 @@ func (s *Server) detailData(r *http.Request, p *page, rc *reqCtx, t *taskView, r
 	switch det.Type {
 	case "group":
 		for _, st := range det.Subtasks {
-			g := detailGroup{Title: p.T("Subtask %d", st.Index), Score: st.Score, Max: st.MaxScore, Class: classOf(st.Fraction)}
+			g := detailGroup{Title: p.T("Subtask %d", st.Index), Index: st.Index, Score: st.Score, Max: st.MaxScore, Class: classOf(st.Fraction)}
 			for _, tc := range st.Testcases {
 				if restricted {
 					// Only the first testcase that did not pass is shown.

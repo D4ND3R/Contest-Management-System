@@ -135,6 +135,11 @@ type taskData struct {
 	Languages    []langChoice
 	LastLanguage string
 	Limits       [][2]string
+	// Statement is the statement shown on the page.
+	Statement *statementPage
+	// Latest is the result of the newest submission, shown next to the
+	// submit button and updated live.
+	Latest *resultCard
 }
 
 func (s *Server) taskData(r *http.Request, rc *reqCtx, p *page, t *taskView) (*taskData, error) {
@@ -157,6 +162,11 @@ func (s *Server) taskData(r *http.Request, rc *reqCtx, p *page, t *taskView) (*t
 	}
 	d.Subs = subs
 	d.Limits = s.limitsText(p, rc, t)
+	if len(subs) > 0 {
+		if d.Latest, err = s.resultCardByID(r, p, rc, t, subs[0].ID); err != nil {
+			return nil, err
+		}
+	}
 	if d.Tokens, err = s.tokenView(r, rc, t); err != nil {
 		return nil, err
 	}
@@ -212,6 +222,10 @@ func (s *Server) handleTask(w http.ResponseWriter, r *http.Request, rc *reqCtx) 
 		s.fail(w, err)
 		return
 	}
+	if d.Statement, err = s.statementPage(r, rc, p, t); err != nil {
+		s.fail(w, err)
+		return
+	}
 	p.Data = d
 	s.render(w, "task", http.StatusOK, p)
 }
@@ -246,7 +260,14 @@ func (s *Server) serveBlob(w http.ResponseWriter, r *http.Request, digest, name,
 	}
 	h := w.Header()
 	h.Set("Content-Type", ctype)
-	h.Set("Cache-Control", "private, max-age=3600")
+	// Linked with ?v=<digest prefix> the content never changes at that
+	// address; without it (an attachment replaced under the same name) the
+	// browser revalidates, so the new file shows at once.
+	if v := r.URL.Query().Get("v"); len(v) >= 12 && strings.HasPrefix(digest, v) {
+		h.Set("Cache-Control", "private, max-age=31536000, immutable")
+	} else {
+		h.Set("Cache-Control", "private, no-cache")
+	}
 	h.Set("ETag", `"`+digest+`"`)
 	disp := "inline"
 	if attachment {
@@ -258,26 +279,6 @@ func (s *Server) serveBlob(w http.ResponseWriter, r *http.Request, digest, name,
 		return
 	}
 	io.Copy(w, rc)
-}
-
-func (s *Server) handleStatement(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	t := s.visibleTask(w, r, rc)
-	if t == nil {
-		return
-	}
-	for _, st := range t.Statements {
-		if st.Lang == r.PathValue("lang") {
-			ext := ".pdf"
-			if strings.Contains(st.ContentType, "html") {
-				ext = ".html"
-				// HTML statements are rendered sandboxed: no scripts, no forms.
-				w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'")
-			}
-			s.serveBlob(w, r, st.Digest, t.Name+"-"+st.Lang+ext, st.ContentType, false)
-			return
-		}
-	}
-	http.NotFound(w, r)
 }
 
 func (s *Server) handleAttachment(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -299,6 +300,8 @@ func (s *Server) handleAttachment(w http.ResponseWriter, r *http.Request, rc *re
 func (s *Server) submitError(w http.ResponseWriter, r *http.Request, rc *reqCtx, status int, msg string) {
 	p := s.newPage(rc, "", "")
 	if webkit.IsHTMX(r) {
+		w.Header().Set("HX-Retarget", "#submit-result")
+		w.Header().Set("HX-Reswap", "innerHTML")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(status)
 		fmt.Fprintf(w, `<span class="bad">%s</span>`, templateEscape(i18n.TDetail(p.Lang, msg)))
@@ -361,10 +364,12 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request, rc *reqCtx
 			return
 		}
 		p.Data = d
-		// Replace the list and confirm next to the button.
-		w.Header().Set("HX-Retarget", "#submissions")
+		// The new submission's result card replaces the previous one next
+		// to the button; the list below is updated out of band.
+		w.Header().Set("HX-Retarget", "#latest")
 		w.Header().Set("HX-Reswap", "outerHTML")
-		s.renderPartial(w, "submissions", p)
+		p.OOB = true
+		s.renderPartial(w, "submitted", submittedCtx{Card: cardCtx{P: p, C: d.Latest, Task: t}, Page: p})
 		return
 	}
 	http.Redirect(w, r, "/"+rc.contest.Name+"/tasks/"+t.Name, http.StatusSeeOther)

@@ -68,3 +68,19 @@ table.subtasks input.code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,m
 .dropzone.over{border-color:var(--accent);background:#e8f0fd}
 .dropzone input[type=file]{display:block;margin:.6rem auto 0}
 .report td.expected{white-space:nowrap}
+.editor{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;align-items:start}
+@media (max-width:1000px){.editor{grid-template-columns:1fr}}
+.preview-pane{position:sticky;top:1rem;max-height:calc(100vh - 2rem);overflow:auto}
+textarea.mono,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem}
+ul.syntax code{font-size:.8rem}
+.pdf-frame{width:100%;height:80vh;border:1px solid #dfe3e8;border-radius:4px}
+.statement{line-height:1.6}
+.statement .display{overflow-x:auto;margin:.8rem 0}
+.statement math[display=block]{display:block math}
+.statement .table-wrap{overflow-x:auto}.statement table{width:auto}
+.statement td.c,.statement th.c{text-align:center}.statement td.r,.statement th.r{text-align:right}
+.statement figure img{max-width:100%}
+.m-bf{font-weight:bold}.m-tt{font-family:ui-monospace,monospace}.m-it{font-style:italic}
+.example .io,.example-admin .io{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.io-label{font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#5f6b7a}
+.example-admin{border-top:1px solid #dfe3e8;padding-top:.4rem;margin-top:.6rem}

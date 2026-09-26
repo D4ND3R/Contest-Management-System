@@ -14,7 +14,9 @@ func TestCompare(t *testing.T) {
 	sec := func(name, got string, want ...string) Result {
 		return Result{Group: "security", Name: name, Got: got, Want: want}
 	}
-	smp := func(name, got string) Result { return Result{Group: "samples", Name: name, Got: got, Want: []string{"TLE"}} }
+	smp := func(name, got string) Result {
+		return Result{Group: "samples", Name: name, Got: got, Want: []string{"TLE"}}
+	}
 	first := []Result{
 		sec("fork_bomb_64_procs", "timeout", contained...),
 		sec("stack_overflow", "signal", "signal", "memory"),

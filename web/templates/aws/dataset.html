@@ -133,7 +133,7 @@
 <tr><td>{{.Codename}}</td>
 <td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/public" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="public" value="{{if .Public}}0{{else}}1{{end}}"><button class="link">{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}</button></form>{{else}}{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}{{end}}</td>
 <td><a href="/testcases/{{.ID}}/input">{{$.T "input"}}</a></td><td><a href="/testcases/{{.ID}}/output">{{$.T "output"}}</a></td>
-<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/delete" class="inline" data-confirm="{{$.T "Delete testcase %s?" .Codename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
+<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/example" class="inline">{{template "csrf" $.CSRF}}<button class="link" title="{{$.T "Show it in the statement, on the page and in the PDF"}}">{{$.T "use as example"}}</button></form> · <form method="post" action="/testcases/{{.ID}}/delete" class="inline" data-confirm="{{$.T "Delete testcase %s?" .Codename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
 {{else}}
 <tr><td colspan="5" class="muted">{{.T "No testcases."}}</td></tr>
 {{end}}

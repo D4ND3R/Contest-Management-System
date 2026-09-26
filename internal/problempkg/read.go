@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"github.com/D4ND3R/Contest-Management-System/internal/statement"
 	"io"
 	"path"
 	"regexp"
@@ -54,6 +55,14 @@ type Statement struct {
 	ContentType string
 }
 
+// Example is an example shown in the statements (statement/examples/NN.in,
+// NN.out and an optional NN.md explanation).
+type Example struct {
+	Name          string
+	Input, Output File
+	Note          *File
+}
+
 // Test is a testcase.
 type Test struct {
 	Codename      string
@@ -90,6 +99,7 @@ type Package struct {
 	Format      string
 	Config      *Config
 	Statements  []Statement
+	Examples    []Example
 	Tests       []Test
 	Managers    []File
 	Attachments []File
@@ -134,9 +144,6 @@ var (
 	langRe     = regexp.MustCompile(`^[a-z]{2,3}([_-][A-Za-z0-9]{2,8})?$`)
 	codenameRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 )
-
-var statementTypes = map[string]string{".pdf": "application/pdf", ".html": "text/html; charset=utf-8",
-	".htm": "text/html; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".txt": "text/plain; charset=utf-8"}
 
 // managerRoots are the executables a package may carry at its root (binary
 // or a .c/.cpp source); headers such as testlib.h are managers too.
@@ -188,6 +195,7 @@ func readEntries(entries []entry, o Options) *Package {
 	inputs, outputs := map[string]File{}, map[string]File{}
 	solutionDirs := map[string]*Solution{}
 	seenManager, seenAttachment, seenStatement := map[string]string{}, map[string]string{}, map[string]string{}
+	examples := map[string]*Example{}
 	for i := range entries {
 		e := &entries[i]
 		name := e.name
@@ -219,10 +227,14 @@ func readEntries(entries []entry, o Options) *Package {
 				p.warn(rel, "not part of the format; ignored")
 			}
 		case "statement", "statements":
-			ct := statementTypes[ext]
+			if sub := strings.TrimPrefix(rel, dir+"/"); strings.HasPrefix(sub, "examples/") {
+				p.example(examples, rel, f, stem, ext)
+				continue
+			}
+			ct := statement.TypeForName(f.Name)
 			switch {
 			case ct == "":
-				p.fail(rel, "statements must be PDF, HTML, Markdown or text")
+				p.fail(rel, "statements must be PDF, Markdown, LaTeX, HTML or text")
 			case !langRe.MatchString(stem):
 				p.fail(rel, "name the statement after its language (es.pdf, en.html, pt_BR.pdf)")
 			case seenStatement[stem] != "":
@@ -277,6 +289,17 @@ func readEntries(entries []entry, o Options) *Package {
 	for _, s := range solutionDirs {
 		p.Solutions = append(p.Solutions, *s)
 	}
+	for name, e := range examples {
+		switch {
+		case e.Input.Path == "":
+			p.fail("statement/examples/"+name, "example %q has no input (%s.in)", name, name)
+		case e.Output.Path == "":
+			p.fail("statement/examples/"+name, "example %q has no output (%s.out)", name, name)
+		default:
+			p.Examples = append(p.Examples, *e)
+		}
+	}
+	sort.Slice(p.Examples, func(i, j int) bool { return p.Examples[i].Name < p.Examples[j].Name })
 	sort.Slice(p.Solutions, func(i, j int) bool { return p.Solutions[i].Name < p.Solutions[j].Name })
 
 	if config == nil {
@@ -514,4 +537,28 @@ func OptionsFor(reg *langs.Registry) Options {
 		}
 	}
 	return o
+}
+
+// example files one part of an example.
+func (p *Package) example(examples map[string]*Example, rel string, f File, stem, ext string) {
+	if strings.Count(rel, "/") != 2 || !codenameRe.MatchString(stem) {
+		p.fail(rel, "examples are statement/examples/NAME.in, NAME.out and an optional NAME.md")
+		return
+	}
+	e := examples[stem]
+	if e == nil {
+		e = &Example{Name: stem}
+		examples[stem] = e
+	}
+	switch ext {
+	case ".in":
+		e.Input = f
+	case ".out", ".ans":
+		e.Output = f
+	case ".md":
+		note := f
+		e.Note = &note
+	default:
+		p.fail(rel, "examples are statement/examples/NAME.in, NAME.out and an optional NAME.md")
+	}
 }

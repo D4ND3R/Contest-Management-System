@@ -76,6 +76,7 @@ var tables = []table{
 	{"tasks", "contest_id = $1", "id", false},
 	{"statements", inTasks, "id", false},
 	{"attachments", inTasks, "id", false},
+	{"task_examples", inTasks, "id", false},
 	{"datasets", inTasks, "id", false},
 	{"managers", inDatasets, "id", false},
 	{"testcases", inDatasets, "id", false},

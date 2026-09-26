@@ -2,8 +2,10 @@ package contestweb
 
 import (
 	"errors"
+	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -208,6 +210,9 @@ func (s *Server) handleUserTest(w http.ResponseWriter, r *http.Request, rc *reqC
 		return
 	}
 	back := "/" + rc.contest.Name + "/tasks/" + t.Name + "#tests"
+	if r.URL.Query().Get("from") == "testing" {
+		back = "/" + rc.contest.Name + "/testing?task=" + url.QueryEscape(t.Name)
+	}
 	if !testsEnabled(rc, t) || !rc.status.CanSubmit {
 		s.errorPage(w, r, rc.contest, http.StatusForbidden, "Test rejected", "Tests are not available now.")
 		return
@@ -329,4 +334,59 @@ func (s *Server) storeUserTest(r *http.Request, rc *reqCtx, t *taskView, files [
 		s.log.Warn("notify dispatcher", "user_test", id, "error", err)
 	}
 	return id, nil
+}
+
+// testingData is the Testing page: a task's test form and the tests of
+// every task.
+type testingData struct {
+	Tasks   []*taskView // tasks that accept tests
+	Task    *taskView   // the chosen one
+	Form    *taskData
+	ByTask  []taskTests
+	Enabled bool
+}
+
+type taskTests struct {
+	Task  *taskView
+	Tests []testView
+}
+
+// handleTesting shows every task's tests and a form for one of them
+// (?task=NAME, the first by default).
+func (s *Server) handleTesting(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	p := s.newPage(rc, i18n.T(rc.lang, "Testing"), "testing")
+	d := &testingData{}
+	for _, t := range p.Tasks { // only once the tasks are visible
+		if !testsEnabled(rc, t) {
+			continue
+		}
+		d.Tasks = append(d.Tasks, t)
+		if r.URL.Query().Get("task") == t.Name {
+			d.Task = t
+		}
+	}
+	if d.Task == nil && len(d.Tasks) > 0 {
+		d.Task = d.Tasks[0]
+	}
+	if d.Task != nil {
+		td, err := s.taskData(r, rc, p, d.Task)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		d.Form = td
+		d.Enabled = td.TestsEnabled
+	}
+	for _, t := range d.Tasks {
+		tests, err := s.listTests(r, rc, p, t)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		if len(tests) > 0 {
+			d.ByTask = append(d.ByTask, taskTests{Task: t, Tests: tests})
+		}
+	}
+	p.Data = d
+	s.render(w, "testing", http.StatusOK, p)
 }

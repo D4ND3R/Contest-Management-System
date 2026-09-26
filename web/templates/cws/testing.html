@@ -1,0 +1,19 @@
+{{define "content"}}{{$d := .Data}}
+<h1>{{.T "Testing"}}</h1>
+{{if $d.Tasks}}
+<nav class="tabs" aria-label="{{.T "Task"}}">{{range $d.Tasks}}<a href="{{$.Base}}testing?task={{.Name}}" {{if eq .Name $d.Task.Name}}class="active" aria-current="true"{{end}}>{{.Name}}</a>{{end}}</nav>
+<section class="card" id="tests">
+  <h2>{{$d.Task.Name}} — {{$d.Task.Title}}</h2>
+  {{template "testsform" (tests $ $d.Form $d.Task "testing")}}
+</section>
+{{range $d.ByTask}}{{if ne .Task.Name $d.Task.Name}}
+<section class="card">
+  <h2>{{.Task.Name}} — {{.Task.Title}}</h2>
+  <table>
+  <tr><th>{{$.T "Time"}}</th><th>{{$.T "Language"}}</th><th>{{$.T "Status"}}</th><th>{{$.T "Output"}}</th></tr>
+  {{range .Tests}}{{template "testrow" (testrow $ .)}}{{end}}
+  </table>
+</section>
+{{end}}{{end}}
+{{else}}<p class="muted">{{.T "Tests are not available now."}}</p>{{end}}
+{{end}}

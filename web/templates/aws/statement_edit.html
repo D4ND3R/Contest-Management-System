@@ -1,0 +1,38 @@
+{{define "content"}}{{$d := .Data}}{{$t := $d.Task}}
+<h1>{{if $d.New}}{{.T "New statement"}}{{else}}{{.T "Statement"}} ({{$d.Lang}}){{end}} — {{$t.Name}}</h1>
+{{if $d.IsPDF}}
+<section class="card">
+  <p>{{.T "This statement is an uploaded PDF: it is shown as it is. Write a Markdown or LaTeX statement instead to get the page, the PDF and the examples from one source."}}</p>
+  <iframe class="pdf-frame" src="/tasks/{{$t.ID}}/statements/{{$d.Lang}}/pdf" title="{{$d.Lang}}"></iframe>
+</section>
+{{else}}
+<div class="editor">
+<form method="post" action="/tasks/{{$t.ID}}/statements/{{if $d.New}}new{{else}}{{$d.Lang}}{{end}}/source" class="card editor-form" id="statement-form">
+  {{template "csrf" .CSRF}}
+  <div class="grid">
+    <label>{{.T "Language"}} <input name="language" value="{{$d.Lang}}" placeholder="es" required {{if not $d.New}}readonly{{end}} size="6"></label>
+    <label>{{.T "Format"}} <select name="format">{{range $d.Formats}}<option value="{{.ID}}" {{if eq .ID $d.Format}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+  </div>
+  <label>{{.T "Text"}}
+  <textarea name="source" rows="28" class="mono" spellcheck="false"
+            hx-post="/tasks/{{$t.ID}}/statement-preview" hx-trigger="keyup changed delay:600ms, load" hx-target="#preview" hx-include="#statement-form">{{$d.Source}}</textarea></label>
+  <p class="checks"><label><input type="checkbox" name="primary" {{if $d.Primary}}checked{{end}}> {{.T "Primary"}}</label></p>
+  {{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}
+  <button formaction="/tasks/{{$t.ID}}/statement-preview.pdf" formtarget="_blank" class="secondary">{{.T "PDF preview"}}</button>
+  <a href="/tasks/{{$t.ID}}#statements">{{.T "Back to the task"}}</a>
+  <details class="help"><summary>{{.T "Syntax"}}</summary>
+  <ul class="syntax">
+  <li><b>Markdown</b>: <code># Title</code>, <code>## Section</code>, <code>**bold**</code>, <code>*italic*</code>, <code>`code`</code>, <code>- item</code>, <code>1. item</code>, <code>| a | b |</code>, <code>![text](figure.png)</code></li>
+  <li>{{.T "Formulas (TeX)"}}: <code>$x_i \le 10^9$</code>, <code>$$\sum_{i=1}^{n} a_i$$</code>, <code>\frac{a}{b}</code>, <code>\lfloor x \rfloor</code>, <code>\begin{cases}...\end{cases}</code></li>
+  <li>{{.T "Examples"}}: <code>{{"{{examples}}"}}</code> — {{.T "where the examples go (by default, at the end)"}}</li>
+  <li><b>LaTeX</b>: <code>\section{...}</code>, <code>\textbf</code>, <code>\emph</code>, <code>\texttt</code>, <code>itemize</code>, <code>tabular</code>, <code>verbatim</code>, <code>\includegraphics{file}</code>, <code>\begin{problem}</code>, <code>\InputFile</code>, <code>\exmp{input}{output}</code></li>
+  </ul>
+  </details>
+</form>
+<section class="card preview-pane">
+  <h2>{{.T "Preview"}}{{if $d.Examples}} <small class="muted">{{.T "with %d examples" $d.Examples}}</small>{{end}}</h2>
+  <div id="preview">{{with $d.Warnings}}<div class="alert"><b>{{$.T "Not understood (shown as written):"}}</b><ul>{{range .}}<li>{{.}}</li>{{end}}</ul></div>{{end}}{{$d.Preview}}</div>
+</section>
+</div>
+{{end}}
+{{end}}

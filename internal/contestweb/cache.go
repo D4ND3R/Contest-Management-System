@@ -2,6 +2,7 @@ package contestweb
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sort"
 	"sync"
@@ -53,6 +54,11 @@ type taskView struct {
 	// Languages accepted by the task: the contest's, narrowed by the task's
 	// own list when it has one.
 	Languages []*langs.Language
+	// Examples shown in the statement.
+	Examples []sqlc.TaskExample
+	// InputFile / OutputFile are the files a Batch program reads and
+	// writes ("" = standard input and output).
+	InputFile, OutputFile string
 }
 
 var errNotFound = errors.New("not found")
@@ -213,6 +219,10 @@ func (c *cache) load(ctx context.Context, name string) (*contestView, error) {
 	if err != nil {
 		return nil, err
 	}
+	examples, err := c.q.ListTaskExamplesByContest(ctx, &ct.ID)
+	if err != nil {
+		return nil, err
+	}
 	for _, t := range tasks {
 		tv := &taskView{Task: t, AttachDigest: map[string]string{}, Precision: int(t.ScorePrecision), Formats: t.SubmissionFormat}
 		for _, l := range cv.Languages {
@@ -245,6 +255,12 @@ func (c *cache) load(ctx context.Context, name string) (*contestView, error) {
 			if ds.SourceSizeLimitBytes != nil {
 				tv.SourceLimit = *ds.SourceSizeLimitBytes
 			}
+			if ds.TaskType == "Batch" || ds.TaskType == "TwoSteps" {
+				var bp tasktypes.BatchParams
+				if json.Unmarshal(ds.TaskTypeParams, &bp) == nil {
+					tv.InputFile, tv.OutputFile = bp.InputFile, bp.OutputFile
+				}
+			}
 			var codes []string
 			var pub []bool
 			for _, tc := range tcByDS[ds.ID] {
@@ -263,6 +279,11 @@ func (c *cache) load(ctx context.Context, name string) (*contestView, error) {
 		if tv := cv.TaskByID[s.TaskID]; tv != nil {
 			tv.Statements = append(tv.Statements, statementView{Lang: s.Language, Name: langName(s.Language),
 				Digest: s.Digest, ContentType: s.ContentType, Primary: contains(tv.PrimaryStatements, s.Language)})
+		}
+	}
+	for _, e := range examples {
+		if tv := cv.TaskByID[e.TaskID]; tv != nil {
+			tv.Examples = append(tv.Examples, e)
 		}
 	}
 	for _, a := range atts {

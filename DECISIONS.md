@@ -1119,3 +1119,70 @@ instead of a time limit, so it both "failed" and "changed between runs".
   Nextcloud): turbo and huge pages are machine-wide, and turning ASLR off
   weakens every internet-facing program on the machine.
 
+## D83. Statements: one source, rendered on the server (SPEC_IOI H1)
+The owner reported LaTeX errors, statements not in PDF, samples offered as
+downloads, and statements that did not change after an upload. Causes:
+statements were files linked from the task page; Markdown/text files were
+offered raw; Polygon's HTML statements rely on MathJax, which the strict
+CSP (no inline or foreign scripts) blocks, so every formula showed as TeX;
+the samples of converted packages were attachments; and statements were
+served from a fixed address with `max-age=3600`.
+
+- **One document model, two renderers.** `internal/statement` reads
+  Markdown (CommonMark basics, GFM tables), LaTeX (documents, fragments,
+  olymp.sty problems, Polygon sections) and HTML (Polygon's layout; active
+  content dropped) into blocks and inlines, with TeX formulas parsed into a
+  math tree. The task page gets HTML with **MathML**, which current
+  browsers lay out natively: no JavaScript, nothing to load, and the CSP
+  stays strict. KaTeX/MathJax were rejected: 75 KB+ of JavaScript and fonts
+  against the SPEC's 30 KB budget, and client-side rendering on 400
+  machines at the start of a contest.
+- **PDF typeset by the CMS.** The same tree is typeset into A4 pages by the
+  existing PDF writer, extended with the standard Times, Helvetica, Courier
+  and Symbol fonts (widths from Adobe's core-14 metrics): title, a box with
+  the limits and I/O files, justified text with inline formulas, TeX-style
+  math boxes (fractions, radicals, scripts, limits, stretchy delimiters
+  drawn as curves, matrices), lists, tables, code, images and the examples
+  as Input/Output columns, with page numbers. Nothing is embedded, so a
+  statement is a few KiB. Limitation: the standard fonts cover Western
+  European text; other scripts show fully on the page and need an uploaded
+  PDF for print. Shelling out to LaTeX or a browser was rejected: hundreds
+  of MB on every server, and one more thing to break on contest day.
+- **Examples belong to the task** (`task_examples`: input and output
+  digests and an optional Markdown note), shown in every statement, on the
+  page and in the PDF. They come from the admin (typed, files, or any
+  testcase), from packages (`statement/examples/`), from italy_yaml sample
+  pairs in `att/` (no longer attachments) and from Polygon (`example.NN`,
+  else sample tests). Polygon's LaTeX sections become the statement (a
+  generated `.tex`), preferred over its PDF/HTML.
+- **Always the current version.** Renderings are cached (HTML at first
+  view, PDF at first download) under a key hashing everything they depend
+  on: the source digest, examples, limits, task and contest names,
+  attachments. The key is the `?v=` of the links, served `immutable`; any
+  unversioned address (bookmarks, the old URL) is `no-cache` with an ETag.
+  Attachments follow the same scheme with their digest.
+- **An editor.** Statements are written in the admin with a live preview
+  (htmx, 600 ms after typing stops) listing what was not understood, and a
+  PDF preview. Uploads accept `.tex` too.
+
+While adding the examples table, the blob garbage collector turned out to
+miss `certificate_templates.logo_digest`: `cmsctl blobs-gc` would have
+deleted certificate logos. Both are now referenced.
+
+## D84. Results next to the button; the Testing page (SPEC_IOI H1)
+"You cannot easily see the result of your submission": the submit form
+swapped the submissions table at the bottom of the page and said nothing
+next to the button. The task page now has a side column with the form, a
+**latest result** card (status, progress, score, one chip per subtask,
+the first lines of a compilation error, a link to the details) and the
+limits. Submitting replaces the card with the new submission's (the list
+below updates out of band) and the card follows the live events of its
+task's newest submission. The chips come from the public score details
+already stored, so the card costs one query more per task page.
+
+The "Testing" menu entry pointed to `/testing`, which did not exist (tests
+lived only on the task pages). The page now exists: a tab per task with its
+test form and every task's tests; a test run from it comes back to it. A
+test (`TestLoginAndPages` and the new ones) now fetches every page linked
+from the menus.
+

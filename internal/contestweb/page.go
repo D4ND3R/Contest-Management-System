@@ -42,7 +42,9 @@ type page struct {
 	Ranking bool
 	// RegisterOpen: the login page offers self-registration.
 	RegisterOpen bool
-	loc          *time.Location
+	// OOB marks a fragment swapped out of band (htmx).
+	OOB bool
+	loc *time.Location
 }
 
 // statusView adds template-friendly accessors to contest.Status.

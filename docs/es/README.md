@@ -9,6 +9,7 @@
 - [Configuración del concurso: estado, práctica, acceso, registro, retroalimentación, certificados](configuracion-del-concurso.md)
 - [Tipos de problema y checkers](task-types.md)
 - [Paquetes de problema: formato, importación (también italy_yaml y Polygon), validación y exportación](paquete-de-problema.md)
+- [Enunciados: Markdown y LaTeX con fórmulas, el PDF, ejemplos](enunciados.md)
 - [Rankings: configuración, congelamiento y servidor de ranking](ranking.md)
 - [Respaldos, restauración y archivos de concursos](respaldos.md)
 - [Verificar una máquina de evaluación](verificar-host.md)

@@ -376,6 +376,15 @@ type Task struct {
 	Languages              []string  `json:"languages"`
 }
 
+type TaskExample struct {
+	ID           int64  `json:"id"`
+	TaskID       int64  `json:"task_id"`
+	Position     int32  `json:"position"`
+	InputDigest  string `json:"input_digest"`
+	OutputDigest string `json:"output_digest"`
+	Note         string `json:"note"`
+}
+
 type Team struct {
 	ID          int64   `json:"id"`
 	Code        string  `json:"code"`

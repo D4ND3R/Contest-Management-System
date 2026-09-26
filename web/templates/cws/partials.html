@@ -1,5 +1,5 @@
 {{define "submissions"}}{{$d := .Data}}
-<div id="submissions" data-task="{{$d.Task.ID}}" data-src="{{.Base}}tasks/{{$d.Task.Name}}/submissions">
+<div id="submissions" data-task="{{$d.Task.ID}}" data-src="{{.Base}}tasks/{{$d.Task.Name}}/submissions"{{if .OOB}} hx-swap-oob="true"{{end}}>
 {{if $d.Subs}}
 <table>
 <tr><th>{{.T "Time"}}</th><th>{{.T "Language"}}</th><th>{{if .Contest.ICPC}}{{.T "Verdict"}}{{else}}{{.T "Status"}}{{end}}</th>{{if not .Contest.ICPC}}<th class="num">{{.T "Score"}}</th>{{end}}<th></th></tr>
@@ -97,3 +97,45 @@
 {{else}}<p class="muted">{{.T "Nothing printed yet."}}</p>{{end}}
 </div>
 {{end}}
+
+{{define "resultcard"}}{{$p := .P}}{{$t := .Task}}
+{{with .C}}{{$s := .Sub}}
+<section class="card result {{$s.Class}}" id="latest" data-task="{{$t.ID}}" data-sub="{{$s.ID}}" data-base="{{$p.Base}}" data-src="{{$p.Base}}submissions/{{$s.ID}}/card" aria-live="polite">
+  <h2>{{$p.T "Latest result"}} <small class="muted">#{{$s.ID}} · {{$p.Time $s.Time}}</small></h2>
+  <p class="verdict {{$s.Class}}">{{$s.StatusText}}</p>
+  {{if $s.Evaluating}}<progress max="{{$s.Total}}" value="{{$s.Done}}"></progress>{{end}}
+  {{if $s.HasScore}}<p class="bigscore"><b>{{$p.Score $s.Score $s.Precision}}</b> / {{$p.Score $s.Max $s.Precision}}</p>{{end}}
+  {{with .Subtasks}}<ul class="chips">{{range .}}<li class="{{.Class}}">{{$p.T "Subtask %d" .Index}} <b>{{$p.Score .Score $s.Precision}}/{{$p.Score .Max $s.Precision}}</b></li>{{end}}</ul>{{end}}
+  {{with .CompileError}}<pre class="compile-error">{{.}}</pre>{{end}}
+  <p><a href="{{$p.Base}}submissions/{{$s.ID}}">{{$p.T "Full details"}}</a></p>
+</section>
+{{else}}
+<section class="card result" id="latest" data-task="{{$t.ID}}" data-base="{{$p.Base}}" aria-live="polite">
+  <h2>{{$p.T "Latest result"}}</h2>
+  <p class="muted">{{$p.T "No submissions yet."}}</p>
+</section>
+{{end}}
+{{end}}
+
+{{define "submitted"}}{{template "resultcard" .Card}}{{template "submissions" .Page}}{{end}}
+
+{{define "testsform"}}{{$p := .P}}{{$d := .D}}{{$t := .Task}}
+<p class="muted">{{$p.T "Runs your program on an input you choose, with the task's limits, and shows its output. Tests are not graded."}}{{range $d.TestLimits}} {{index . 0}}: {{index . 1}}.{{end}}</p>
+{{if $d.TestsEnabled}}
+<form method="post" action="{{$p.Base}}tasks/{{$t.Name}}/test{{with .From}}?from={{.}}{{end}}" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{$p.CSRF}}">
+  {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" required></label>{{end}}
+  {{if $t.NeedsLanguage}}<label>{{$p.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
+  <label>{{$p.T "Input file"}} <input type="file" name="input"></label>
+  <label>{{$p.T "or type the input"}} <textarea name="input_text" rows="3"></textarea></label>
+  <button>{{$p.T "Run test"}}</button>
+</form>
+{{end}}
+{{if $d.Tests}}
+<table>
+<tr><th>{{$p.T "Time"}}</th><th>{{$p.T "Language"}}</th><th>{{$p.T "Status"}}</th><th>{{$p.T "Output"}}</th></tr>
+{{range $d.Tests}}{{template "testrow" (testrow $p .)}}{{end}}
+</table>
+{{end}}
+{{end}}
+

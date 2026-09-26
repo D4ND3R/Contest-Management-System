@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
@@ -76,7 +77,27 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 	newTask := o.TaskID == 0
 	var statements []sqlc.UpsertStatementParams
 	var attachments []sqlc.UpsertAttachmentParams
+	var examples []sqlc.InsertTaskExampleParams
 	if newTask {
+		for _, e := range p.Examples {
+			in, err := put(e.Input)
+			if err != nil {
+				return nil, err
+			}
+			out, err := put(e.Output)
+			if err != nil {
+				return nil, err
+			}
+			ex := sqlc.InsertTaskExampleParams{InputDigest: in, OutputDigest: out}
+			if e.Note != nil {
+				note, err := readAll(e.Note.src, 64<<10)
+				if err != nil {
+					return nil, fmt.Errorf("%s: %w", e.Note.Path, err)
+				}
+				ex.Note = strings.TrimSpace(string(note))
+			}
+			examples = append(examples, ex)
+		}
 		for _, s := range p.Statements {
 			d, err := put(s.File)
 			if err != nil {
@@ -204,6 +225,12 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 		for _, a := range attachments {
 			a.TaskID = task.ID
 			if _, err := q.UpsertAttachment(ctx, a); err != nil {
+				return err
+			}
+		}
+		for _, e := range examples {
+			e.TaskID = task.ID
+			if _, err := q.InsertTaskExample(ctx, e); err != nil {
 				return err
 			}
 		}

@@ -1040,3 +1040,27 @@ localization, H8 audit (`AUDIT.md` §10) and summary.
   governor, turbo and transparent huge pages; ASLR and SMT only on request.
   The verify-host fixes point to it.
 
+### H1 — the reported contest-page problems (done)
+- **Statements** (D83): written in Markdown or LaTeX (or HTML, Polygon's
+  included) and shown on the task page with MathML formulas; the PDF is
+  typeset by the CMS with the title, limits and examples; uploaded PDFs are
+  embedded. Admin editor with live and PDF previews. New `internal/statement`
+  (`TestMathML`, `TestMarkdown`, `TestLaTeX`, `TestHTMLImport`, `TestPDF`,
+  `TestMathBoxes`); the PDF writer gained the standard Times, Symbol and
+  Helvetica/Courier variants, curves and links.
+- **Examples** in the statements, not downloads: `task_examples`
+  (migration 0017), admin (typed, files, from a testcase, notes, order),
+  packages (`statement/examples/`), italy_yaml sample pairs, Polygon
+  `example.NN`; contest archive and clone carry them.
+- **Statements that did not change**: versioned links (`?v=`) served
+  immutable, unversioned addresses revalidated (`TestStatementsOnTheTaskPage`).
+- **Results**: a live "latest result" card next to the submit button with
+  per-subtask chips and compile errors (D84, `TestResultCardAndTesting`).
+- **Testing 404**: the Testing page exists.
+- Polygon statement sections become the statement; the example packages
+  show it (`TestConvertPolygon`, `TestConvertItaly`, round trip with
+  examples). Docs: `docs/{en/statements.md,es/enunciados.md}`, package
+  format, admin guide.
+- Fixed on the way: the blob garbage collector did not know certificate
+  logos.
+

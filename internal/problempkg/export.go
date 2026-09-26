@@ -3,6 +3,7 @@ package problempkg
 import (
 	"context"
 	"fmt"
+	"github.com/D4ND3R/Contest-Management-System/internal/statement"
 	"io"
 	"path"
 	"strings"
@@ -12,17 +13,7 @@ import (
 )
 
 // statementExt is the file extension of a statement content type.
-func statementExt(ct string) string {
-	switch {
-	case strings.HasPrefix(ct, "text/html"):
-		return ".html"
-	case strings.HasPrefix(ct, "text/markdown"):
-		return ".md"
-	case strings.HasPrefix(ct, "text/plain"):
-		return ".txt"
-	}
-	return ".pdf"
-}
+func statementExt(ct string) string { return statement.Extension(ct) }
 
 // managerPath places a manager: checker/interactor/manager executables and
 // sources at the root, everything else (graders, stubs, headers) in
@@ -84,6 +75,24 @@ func Export(ctx context.Context, q *sqlc.Queries, store blob.Store, taskID, data
 	for _, s := range stmts {
 		if err := copyBlob("statement/"+s.Language+statementExt(s.ContentType), s.Digest); err != nil {
 			return err
+		}
+	}
+	exs, err := q.ListTaskExamples(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+	for i, e := range exs {
+		name := fmt.Sprintf("statement/examples/%02d", i+1)
+		if err := copyBlob(name+".in", e.InputDigest); err != nil {
+			return err
+		}
+		if err := copyBlob(name+".out", e.OutputDigest); err != nil {
+			return err
+		}
+		if e.Note != "" {
+			if err := pw.Add(name+".md", strings.NewReader(e.Note+"\n")); err != nil {
+				return err
+			}
 		}
 	}
 	for _, tc := range tcs {

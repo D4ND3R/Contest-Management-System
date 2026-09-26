@@ -136,6 +136,29 @@ func (q *Queries) DeleteTask(ctx context.Context, id int64) error {
 	return err
 }
 
+const deleteTaskExample = `-- name: DeleteTaskExample :exec
+DELETE FROM task_examples WHERE id = $1 AND task_id = $2
+`
+
+type DeleteTaskExampleParams struct {
+	ID     int64 `json:"id"`
+	TaskID int64 `json:"task_id"`
+}
+
+func (q *Queries) DeleteTaskExample(ctx context.Context, arg DeleteTaskExampleParams) error {
+	_, err := q.db.Exec(ctx, deleteTaskExample, arg.ID, arg.TaskID)
+	return err
+}
+
+const deleteTaskExamples = `-- name: DeleteTaskExamples :exec
+DELETE FROM task_examples WHERE task_id = $1
+`
+
+func (q *Queries) DeleteTaskExamples(ctx context.Context, taskID int64) error {
+	_, err := q.db.Exec(ctx, deleteTaskExamples, taskID)
+	return err
+}
+
 const getTask = `-- name: GetTask :one
 SELECT id, contest_id, num, name, title, primary_statements, submission_format, token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number, token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number, min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, active_dataset_id, created_at, updated_at, languages FROM tasks WHERE id = $1
 `
@@ -206,6 +229,38 @@ func (q *Queries) GetTaskByName(ctx context.Context, name string) (Task, error) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Languages,
+	)
+	return i, err
+}
+
+const insertTaskExample = `-- name: InsertTaskExample :one
+INSERT INTO task_examples (task_id, position, input_digest, output_digest, note)
+VALUES ($1, COALESCE((SELECT max(position) + 1 FROM task_examples WHERE task_id = $1), 1), $2, $3, $4)
+RETURNING id, task_id, position, input_digest, output_digest, note
+`
+
+type InsertTaskExampleParams struct {
+	TaskID       int64  `json:"task_id"`
+	InputDigest  string `json:"input_digest"`
+	OutputDigest string `json:"output_digest"`
+	Note         string `json:"note"`
+}
+
+func (q *Queries) InsertTaskExample(ctx context.Context, arg InsertTaskExampleParams) (TaskExample, error) {
+	row := q.db.QueryRow(ctx, insertTaskExample,
+		arg.TaskID,
+		arg.InputDigest,
+		arg.OutputDigest,
+		arg.Note,
+	)
+	var i TaskExample
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.Position,
+		&i.InputDigest,
+		&i.OutputDigest,
+		&i.Note,
 	)
 	return i, err
 }
@@ -317,6 +372,68 @@ func (q *Queries) ListStatementsByContest(ctx context.Context, contestID *int64)
 			&i.Language,
 			&i.Digest,
 			&i.ContentType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaskExamples = `-- name: ListTaskExamples :many
+SELECT id, task_id, position, input_digest, output_digest, note FROM task_examples WHERE task_id = $1 ORDER BY position, id
+`
+
+func (q *Queries) ListTaskExamples(ctx context.Context, taskID int64) ([]TaskExample, error) {
+	rows, err := q.db.Query(ctx, listTaskExamples, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TaskExample{}
+	for rows.Next() {
+		var i TaskExample
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskID,
+			&i.Position,
+			&i.InputDigest,
+			&i.OutputDigest,
+			&i.Note,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaskExamplesByContest = `-- name: ListTaskExamplesByContest :many
+SELECT e.id, e.task_id, e.position, e.input_digest, e.output_digest, e.note FROM task_examples e JOIN tasks t ON t.id = e.task_id WHERE t.contest_id = $1 ORDER BY e.task_id, e.position, e.id
+`
+
+func (q *Queries) ListTaskExamplesByContest(ctx context.Context, contestID *int64) ([]TaskExample, error) {
+	rows, err := q.db.Query(ctx, listTaskExamplesByContest, contestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TaskExample{}
+	for rows.Next() {
+		var i TaskExample
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskID,
+			&i.Position,
+			&i.InputDigest,
+			&i.OutputDigest,
+			&i.Note,
 		); err != nil {
 			return nil, err
 		}
@@ -457,6 +574,21 @@ func (q *Queries) SetTaskContest(ctx context.Context, arg SetTaskContestParams) 
 	return err
 }
 
+const setTaskExamplePosition = `-- name: SetTaskExamplePosition :exec
+UPDATE task_examples SET position = $3 WHERE id = $1 AND task_id = $2
+`
+
+type SetTaskExamplePositionParams struct {
+	ID       int64 `json:"id"`
+	TaskID   int64 `json:"task_id"`
+	Position int32 `json:"position"`
+}
+
+func (q *Queries) SetTaskExamplePosition(ctx context.Context, arg SetTaskExamplePositionParams) error {
+	_, err := q.db.Exec(ctx, setTaskExamplePosition, arg.ID, arg.TaskID, arg.Position)
+	return err
+}
+
 const updateTask = `-- name: UpdateTask :one
 UPDATE tasks SET
     contest_id = $2, num = $3, name = $4, title = $5, primary_statements = $6,
@@ -548,6 +680,29 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.Languages,
 	)
 	return i, err
+}
+
+const updateTaskExample = `-- name: UpdateTaskExample :exec
+UPDATE task_examples SET input_digest = $3, output_digest = $4, note = $5 WHERE id = $1 AND task_id = $2
+`
+
+type UpdateTaskExampleParams struct {
+	ID           int64  `json:"id"`
+	TaskID       int64  `json:"task_id"`
+	InputDigest  string `json:"input_digest"`
+	OutputDigest string `json:"output_digest"`
+	Note         string `json:"note"`
+}
+
+func (q *Queries) UpdateTaskExample(ctx context.Context, arg UpdateTaskExampleParams) error {
+	_, err := q.db.Exec(ctx, updateTaskExample,
+		arg.ID,
+		arg.TaskID,
+		arg.InputDigest,
+		arg.OutputDigest,
+		arg.Note,
+	)
+	return err
 }
 
 const upsertAttachment = `-- name: UpsertAttachment :one

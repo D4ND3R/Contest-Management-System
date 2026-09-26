@@ -13,6 +13,7 @@ import (
 
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
+	"github.com/D4ND3R/Contest-Management-System/internal/statement"
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 )
 
@@ -322,8 +323,25 @@ func (s *Server) funcs() template.FuncMap {
 		},
 		"cidrs": formatPrefixes,
 		"add":   func(a, b int) int { return a + b },
-		"deref": derefStr,
-		"ptr64": func(v int64) *int64 { return &v },
+		"inc":   func(a int) int { return a + 1 },
+		// stformat names a statement's format; stsource tells a source
+		// (edited here) from an uploaded PDF.
+		"stformat": func(ct string) string {
+			switch statement.Extension(ct) {
+			case ".md":
+				return "Markdown"
+			case ".tex":
+				return "LaTeX"
+			case ".html":
+				return "HTML"
+			case ".txt":
+				return "Text"
+			}
+			return "PDF"
+		},
+		"stsource": statement.IsSource,
+		"deref":    derefStr,
+		"ptr64":    func(v int64) *int64 { return &v },
 		"deref32": func(v *int32) int32 {
 			if v == nil {
 				return 0

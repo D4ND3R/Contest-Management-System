@@ -55,6 +55,12 @@
     var es = new EventSource(url);
     es.addEventListener("submission", function (e) {
       var d = JSON.parse(e.data);
+      // The result card follows the newest submission of its task.
+      var card = document.getElementById("latest");
+      if (card && String(d.task_id) === card.dataset.task && Number(d.submission_id) >= Number(card.dataset.sub || 0)) {
+        card.dataset.src = card.dataset.base + "submissions/" + d.submission_id + "/card";
+        refresh(card);
+      }
       var row = document.getElementById("sub-" + d.submission_id);
       if (row) { refresh(row); return; }
       var list = document.getElementById("submissions");

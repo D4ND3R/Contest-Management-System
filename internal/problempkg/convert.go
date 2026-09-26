@@ -247,10 +247,22 @@ func fromItaly(entries []entry) conversion {
 			break
 		}
 	}
+	// Sample input/output pairs among the attachments become the
+	// statement's examples (typeset in the statement, not downloads).
+	att := map[string]entry{}
 	for rel, e := range files {
 		if strings.HasPrefix(rel, "att/") && !strings.HasSuffix(rel, "/") {
-			c.add("attachments/"+safeName(path.Base(rel)), e)
+			att[path.Base(rel)] = e
 		}
+	}
+	pairs, rest := examplePairs(att)
+	for i, p := range pairs {
+		name := fmt.Sprintf("statement/examples/%02d", i+1)
+		c.add(name+".in", att[p[0]])
+		c.add(name+".out", att[p[1]])
+	}
+	for _, n := range rest {
+		c.add("attachments/"+safeName(n), att[n])
 	}
 	c.warn("task.yaml", "converted from the CMS italy_yaml format: check the settings before importing")
 	c.config(cfg)
@@ -493,12 +505,52 @@ func fromPolygon(entries []entry) conversion {
 			byLang[lang] = st.Path
 		}
 	}
+	// The LaTeX sections Polygon keeps (legend, input, output, notes...)
+	// are the statement's source: they become one .tex per language, which
+	// the CMS renders on the task page and typesets to PDF with the
+	// examples. PDF or HTML statements are used for the other languages.
+	sections := polySections(files)
+	for lang, secs := range sections {
+		tex := polyStatement(lang, secs, files)
+		if tex == "" {
+			continue
+		}
+		c.entries = append(c.entries, entry{name: "statement/" + lang + ".tex", size: int64(len(tex)), src: source{data: []byte(tex)}})
+		for _, im := range secs.images {
+			c.add("attachments/"+safeName(path.Base(im)), files[im])
+		}
+		delete(byLang, lang)
+	}
 	for lang, sp := range byLang {
 		ext := strings.ToLower(path.Ext(sp))
 		c.add("statement/"+lang+ext, files[sp])
 		if ext != ".pdf" {
 			c.warn(sp, "HTML statement imported without its images; export PDF statements from Polygon for the full layout")
 		}
+	}
+	// Examples: those of the statement sections, else the sample tests.
+	var exIn, exOut []entry
+	for _, lang := range sortedKeys(sections) {
+		if len(sections[lang].examples) > 0 {
+			for _, ex := range sections[lang].examples {
+				exIn, exOut = append(exIn, files[ex[0]]), append(exOut, files[ex[1]])
+			}
+			break
+		}
+	}
+	if len(exIn) == 0 {
+		for i, t := range ts.Tests {
+			in, okIn := files[polyPath(ts.InputPattern, i+1)]
+			out, okOut := files[polyPath(ts.AnswerPattern, i+1)]
+			if t.Sample && okIn && okOut {
+				exIn, exOut = append(exIn, in), append(exOut, out)
+			}
+		}
+	}
+	for i := range exIn {
+		name := fmt.Sprintf("statement/examples/%02d", i+1)
+		c.add(name+".in", exIn[i])
+		c.add(name+".out", exOut[i])
 	}
 	c.warn("problem.xml", "converted from a Polygon package: check the settings before importing")
 	c.config(cfg)
@@ -582,4 +634,171 @@ func polyScoring(cfg *Config, ts *polyTestset, code func(int) string) {
 			cfg.Subtasks = append(cfg.Subtasks, Subtask{Points: pts(i), Tests: Tests{List: []string{code(i)}}})
 		}
 	}
+}
+
+// examplePairs finds sample inputs and outputs among files: NAME.in with
+// NAME.out (.ans, .sol), or names that differ only in "input"/"output"
+// (input0.txt, output0.txt). It returns the pairs, in name order, and the
+// other files.
+func examplePairs(files map[string]entry) (pairs [][2]string, rest []string) {
+	type roles struct{ in, out string }
+	keys := map[string]*roles{}
+	role := func(n string) (key string, out, ok bool) {
+		ext := strings.ToLower(path.Ext(n))
+		stem := strings.TrimSuffix(n, path.Ext(n))
+		switch ext {
+		case ".in":
+			return stem, false, true
+		case ".out", ".ans", ".sol":
+			return stem, true, true
+		case ".c", ".cpp", ".h", ".hpp", ".java", ".py", ".pas", ".sh", ".zip", ".pdf":
+			return "", false, false
+		}
+		l := strings.ToLower(n)
+		if i := strings.Index(l, "input"); i >= 0 {
+			return l[:i] + "*" + l[i+5:], false, true
+		}
+		if i := strings.Index(l, "output"); i >= 0 {
+			return l[:i] + "*" + l[i+6:], true, true
+		}
+		return "", false, false
+	}
+	for n := range files {
+		key, out, ok := role(n)
+		if !ok {
+			continue
+		}
+		r := keys[key]
+		if r == nil {
+			r = &roles{}
+			keys[key] = r
+		}
+		if out {
+			r.out = n
+		} else {
+			r.in = n
+		}
+	}
+	used := map[string]bool{}
+	for _, k := range sortedKeys(keys) {
+		r := keys[k]
+		if r.in != "" && r.out != "" {
+			pairs = append(pairs, [2]string{r.in, r.out})
+			used[r.in], used[r.out] = true, true
+		}
+	}
+	for _, n := range sortedKeys(files) {
+		if !used[n] {
+			rest = append(rest, n)
+		}
+	}
+	return pairs, rest
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// polySection is a language's statement sections in a Polygon package.
+type polySection struct {
+	files    map[string]string // section name (legend, input...) -> path
+	examples [][2]string       // example.01, example.01.a
+	images   []string          // pictures the sections include
+}
+
+// polySections finds statement-sections/<language>/ in the package.
+func polySections(files map[string]entry) map[string]*polySection {
+	out := map[string]*polySection{}
+	for rel := range files {
+		parts := strings.Split(rel, "/")
+		if len(parts) != 3 || parts[0] != "statement-sections" {
+			continue
+		}
+		lang := polyLanguages[strings.ToLower(parts[1])]
+		if lang == "" {
+			continue
+		}
+		s := out[lang]
+		if s == nil {
+			s = &polySection{files: map[string]string{}}
+			out[lang] = s
+		}
+		name := parts[2]
+		switch ext := strings.ToLower(path.Ext(name)); {
+		case ext == ".tex":
+			s.files[strings.TrimSuffix(name, ext)] = rel
+		case ext == ".png" || ext == ".jpg" || ext == ".jpeg":
+			s.images = append(s.images, rel)
+		}
+	}
+	for lang, s := range out {
+		for rel := range files {
+			dir := "statement-sections/"
+			if !strings.HasPrefix(rel, dir) || polyLanguages[strings.ToLower(strings.SplitN(strings.TrimPrefix(rel, dir), "/", 2)[0])] != lang {
+				continue
+			}
+			base := path.Base(rel)
+			if strings.HasPrefix(base, "example.") && !strings.HasSuffix(base, ".a") {
+				if _, ok := files[rel+".a"]; ok {
+					s.examples = append(s.examples, [2]string{rel, rel + ".a"})
+				}
+			}
+		}
+		sort.Slice(s.examples, func(i, j int) bool { return s.examples[i][0] < s.examples[j][0] })
+		sort.Strings(s.images)
+	}
+	for lang, s := range out {
+		if s.files["legend"] == "" {
+			delete(out, lang)
+		}
+	}
+	return out
+}
+
+// polyTitles are the section titles written into the generated LaTeX.
+var polyTitles = map[string]map[string]string{
+	"es": {"input": "Entrada", "output": "Salida", "interaction": "Interacción", "scoring": "Puntuación", "notes": "Notas"},
+	"en": {"input": "Input", "output": "Output", "interaction": "Interaction", "scoring": "Scoring", "notes": "Notes"},
+}
+
+// polyStatement assembles a language's sections into one LaTeX
+// statement: legend, input, output, interaction and scoring, the examples,
+// then the notes.
+func polyStatement(lang string, s *polySection, files map[string]entry) string {
+	titles := polyTitles[lang]
+	if titles == nil {
+		titles = polyTitles["en"]
+	}
+	part := func(name string) string {
+		rel := s.files[name]
+		if rel == "" {
+			return ""
+		}
+		b, err := readEntry(files[rel], 1<<20)
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(b))
+	}
+	legend := part("legend")
+	if legend == "" {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString(legend)
+	for _, sec := range []string{"input", "output", "interaction", "scoring"} {
+		if t := part(sec); t != "" {
+			fmt.Fprintf(&sb, "\n\n\\section*{%s}\n%s", titles[sec], t)
+		}
+	}
+	sb.WriteString("\n\n\\Examples\n")
+	if t := part("notes"); t != "" {
+		fmt.Fprintf(&sb, "\n\\section*{%s}\n%s\n", titles["notes"], t)
+	}
+	return sb.String()
 }

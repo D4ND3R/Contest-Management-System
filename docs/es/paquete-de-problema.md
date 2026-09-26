@@ -16,8 +16,10 @@ carpetas e impórtala.
 
 ```
 problem.yaml             configuración (obligatoria)
-statement/es.pdf         un enunciado por idioma: <idioma>.pdf|.html|.md|.txt
-statement/en.html
+statement/es.md          un enunciado por idioma: <idioma>.md|.tex|.pdf|.html|.txt
+statement/en.tex           (Markdown y LaTeX los dibuja y compone el CMS)
+statement/examples/01.in ejemplos que se muestran en los enunciados: NOMBRE.in,
+statement/examples/01.out  NOMBRE.out y una explicación opcional NOMBRE.md
 tests/01.in              casos: <nombre>.in + <nombre>.out (o .ans)
 tests/01.out
 checker.cpp              opcionales: checker, interactor, manager
@@ -175,7 +177,7 @@ Hay ejemplos en [`docs/examples/other-formats/`](../examples/other-formats/).
 | `sol/grader.*`, `sol/stub.*`, headers | graders / stubs por lenguaje |
 | `sol/soluzione.*` (o `solution`, `sol`) | solución de referencia que debe ser aceptada; las demás fuentes de `sol/` se ejecutan sin veredicto esperado |
 | `statement/statement.pdf` o `testo/testo.pdf` | enunciado en `primary_language` (italiano por defecto) |
-| `att/*` | adjuntos |
+| `att/*` | adjuntos; los pares de ejemplo (`input0.txt`/`output0.txt`, `NOMBRE.in`/`NOMBRE.out`) pasan a ser los ejemplos del enunciado |
 
 **Polygon** (el paquete completo con `problem.xml`, descargado con los tests
 generados, o después de correr `doall.sh`):
@@ -189,7 +191,8 @@ generados, o después de correr `doall.sh`):
 | fuente del checker (testlib) | checker `testlib`; los recursos `.h` (`testlib.h`) van con él |
 | interactor | tarea Interactive |
 | soluciones con etiqueta `main`/`accepted`, `wrong-answer`, `time-limit-exceeded`, `memory-limit-exceeded`, … | soluciones de referencia con el veredicto esperado correspondiente (el resto se ejecuta sin veredicto esperado) |
-| enunciados | uno por idioma, el PDF si lo hay (los enunciados HTML llegan sin sus imágenes) |
+| `statement-sections/<idioma>/` (`legend.tex`, `input.tex`, `output.tex`, `notes.tex`, ...) | un enunciado LaTeX por idioma, que el CMS dibuja y compone; `example.NN`/`example.NN.a` (si no, los tests de ejemplo) pasan a ser los ejemplos |
+| otros enunciados | el PDF si lo hay; si no, el HTML (sin sus imágenes) |
 
 Un paquete sin sus tests generados se rechaza con un mensaje que lo
 explica: descarga el paquete **completo** desde Polygon.
@@ -197,7 +200,7 @@ explica: descarga el paquete **completo** desde Polygon.
 ## Exportación
 
 La exportación escribe `problem.yaml` a partir del problema y del dataset
-elegido (el que está en vivo, por omisión), los enunciados, casos, managers
+elegido (el que está en vivo, por omisión), los enunciados con sus ejemplos, casos, managers
 (checker, interactor y manager en la raíz, el resto en `graders/`), adjuntos
 y la versión más reciente de cada solución de referencia importada con un
 paquete. Al importarla de nuevo se obtiene un problema idéntico.

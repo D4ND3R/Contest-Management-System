@@ -15,8 +15,10 @@ and import it.
 
 ```
 problem.yaml             configuration (required)
-statement/es.pdf         one statement per language: <lang>.pdf|.html|.md|.txt
-statement/en.html
+statement/es.md          one statement per language: <lang>.md|.tex|.pdf|.html|.txt
+statement/en.tex           (Markdown and LaTeX are rendered and typeset by the CMS)
+statement/examples/01.in examples shown in the statements: NAME.in, NAME.out
+statement/examples/01.out  and an optional NAME.md explanation
 tests/01.in              testcases: <name>.in + <name>.out (or .ans)
 tests/01.out
 checker.cpp              optional: checker, interactor, manager
@@ -171,7 +173,7 @@ and lists what could not be converted as warnings. Examples are in
 | `sol/grader.*`, `sol/stub.*`, headers | graders / stubs per language |
 | `sol/soluzione.*` (or `solution`, `sol`) | reference solution expected to be accepted; other sources in `sol/` run without an expected verdict |
 | `statement/statement.pdf` or `testo/testo.pdf` | statement in `primary_language` (Italian by default) |
-| `att/*` | attachments |
+| `att/*` | attachments; sample pairs (`input0.txt`/`output0.txt`, `NAME.in`/`NAME.out`) become the statement's examples |
 
 **Polygon** (a full package with `problem.xml`, downloaded with the
 generated tests, or after running `doall.sh`):
@@ -185,7 +187,8 @@ generated tests, or after running `doall.sh`):
 | checker source (testlib) | `testlib` checker; the `.h` resources (`testlib.h`) go with it |
 | interactor | Interactive task |
 | solutions tagged `main`/`accepted`, `wrong-answer`, `time-limit-exceeded`, `memory-limit-exceeded`, … | reference solutions with the matching expected verdict (the rest run without one) |
-| statements | one per language, the PDF when there is one (HTML statements come without their images) |
+| `statement-sections/<language>/` (`legend.tex`, `input.tex`, `output.tex`, `notes.tex`, ...) | one LaTeX statement per language, rendered and typeset by the CMS; `example.NN`/`example.NN.a` (else the sample tests) become the examples |
+| other statements | the PDF when there is one, else the HTML (without its images) |
 
 A package without its generated tests is rejected with a message saying
 so: download the **full** package from Polygon.
@@ -193,7 +196,7 @@ so: download the **full** package from Polygon.
 ## Export
 
 The export writes `problem.yaml` from the task and the chosen dataset (the
-live one by default), the statements, testcases, managers (checker,
+live one by default), the statements and their examples, testcases, managers (checker,
 interactor and manager at the root, the rest in `graders/`), attachments and
 the newest version of every reference solution imported with a package.
 Importing it again gives an identical task.

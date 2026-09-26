@@ -22,6 +22,8 @@ WHERE b.created_at < @older_than::timestamptz
   AND NOT EXISTS (SELECT 1 FROM print_jobs x WHERE x.digest = b.digest)
   AND NOT EXISTS (SELECT 1 FROM teams x WHERE x.flag_digest = b.digest OR x.photo_digest = b.digest)
   AND NOT EXISTS (SELECT 1 FROM users x WHERE x.photo_digest = b.digest)
+  AND NOT EXISTS (SELECT 1 FROM certificate_templates x WHERE x.logo_digest = b.digest)
+  AND NOT EXISTS (SELECT 1 FROM task_examples x WHERE x.input_digest = b.digest OR x.output_digest = b.digest)
 LIMIT $1;
 
 -- name: DeleteBlobRecord :exec

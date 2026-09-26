@@ -58,14 +58,23 @@
 <div class="row">
 <section class="card" id="statements">
 <h2>{{.T "Statements"}}</h2>
-<ul>{{range .Data.Statements}}<li><a href="/tasks/{{$task.ID}}/statements/{{.Language}}">{{.Language}}</a> <small class="muted">{{.ContentType}}</small>{{if has $task.PrimaryStatements .Language}} <span class="tag">{{$.T "primary"}}</span>{{end}}
-  {{if $.CanWrite}}<form method="post" action="/tasks/{{$task.ID}}/statements/{{.Language}}/delete" class="inline" data-confirm="{{$.T "Delete the %s statement?" .Language}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
-{{else}}<li class="muted">{{.T "None."}}</li>{{end}}</ul>
+<p class="muted">{{.T "Write statements in Markdown or LaTeX (formulas with $...$): contestants read them on the task page and download them as PDF, with the limits and the examples typeset in. An uploaded PDF is shown as it is."}}</p>
+<table>
+<tr><th>{{.T "Language"}}</th><th>{{.T "Format"}}</th><th></th></tr>
+{{range .Data.Statements}}<tr><td>{{.Language}}{{if has $task.PrimaryStatements .Language}} <span class="tag">{{$.T "primary"}}</span>{{end}}</td>
+  <td>{{stformat .ContentType}}</td>
+  <td><a href="/tasks/{{$task.ID}}/statements/{{.Language}}/edit">{{if stsource .ContentType}}{{$.T "edit"}}{{else}}{{$.T "view"}}{{end}}</a> ·
+  <a href="/tasks/{{$task.ID}}/statements/{{.Language}}/pdf" target="_blank" rel="noopener">PDF</a> ·
+  <a href="/tasks/{{$task.ID}}/statements/{{.Language}}">{{$.T "file"}}</a>
+  {{if $.CanWrite}} · <form method="post" action="/tasks/{{$task.ID}}/statements/{{.Language}}/delete" class="inline" data-confirm="{{$.T "Delete the %s statement?" .Language}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
+{{else}}<tr><td colspan="3" class="muted">{{.T "None."}}</td></tr>{{end}}
+</table>
 {{if .CanWrite}}
+<p><a class="button" href="/tasks/{{$task.ID}}/statements/new/edit">{{.T "Write a statement"}}</a></p>
 <form method="post" action="/tasks/{{$task.ID}}/statements" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
   <div class="grid"><label>{{.T "Language"}} <input name="language" placeholder="es" required size="6"></label>
-  <label>{{.T "File (PDF or HTML)"}} <input type="file" name="file" accept=".pdf,.html,.htm,.txt,.md" required></label></div>
+  <label>{{.T "File (PDF, Markdown, LaTeX or HTML)"}} <input type="file" name="file" accept=".pdf,.md,.markdown,.tex,.html,.htm,.txt" required></label></div>
   <p class="checks"><label><input type="checkbox" name="primary"> {{.T "Primary"}}</label></p>
   <button>{{.T "Upload statement"}}</button>
 </form>
@@ -84,6 +93,41 @@
 {{end}}
 </section>
 </div>
+
+<section class="card" id="examples">
+<h2>{{.T "Examples"}}</h2>
+<p class="muted">{{.T "Shown in every statement of the task, on the page and in the PDF (not as downloads). A testcase can be added from its dataset page."}}</p>
+{{range $i, $e := .Data.Examples}}
+<div class="example-admin">
+  <h3>{{$.T "Example %d" (inc $i)}}</h3>
+  <div class="io"><div><div class="io-label">{{$.T "Input"}}</div><pre>{{$e.Input}}</pre></div><div><div class="io-label">{{$.T "Output"}}</div><pre>{{$e.Output}}</pre></div></div>
+  {{if $e.Truncated}}<p class="muted">{{$.T "Long example: only the beginning is shown here."}}</p>{{end}}
+  {{if $.CanWrite}}
+  <form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/note">{{template "csrf" $.CSRF}}
+    <label>{{$.T "Explanation (Markdown, optional)"}} <textarea name="note" rows="2">{{$e.Note}}</textarea></label>
+    <button>{{$.T "Save"}}</button></form>
+  <p>{{if $i}}<form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/up" class="inline">{{template "csrf" $.CSRF}}<button class="link">↑ {{$.T "up"}}</button></form> · {{end}}
+  <form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/down" class="inline">{{template "csrf" $.CSRF}}<button class="link">↓ {{$.T "down"}}</button></form> ·
+  <form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/delete" class="inline" data-confirm="{{$.T "Delete this example?"}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form></p>
+  {{else}}{{with $e.Note}}<p class="pre">{{.}}</p>{{end}}{{end}}
+</div>
+{{else}}<p class="muted">{{.T "None."}}</p>{{end}}
+{{if .CanWrite}}
+<details><summary>{{.T "Add an example"}}</summary>
+<form method="post" action="/tasks/{{$task.ID}}/examples" enctype="multipart/form-data">
+  {{template "csrf" .CSRF}}
+  <div class="grid">
+  <label>{{.T "Input"}} <textarea name="input" rows="5" class="mono"></textarea></label>
+  <label>{{.T "Output"}} <textarea name="output" rows="5" class="mono"></textarea></label>
+  </div>
+  <div class="grid"><label>{{.T "or an input file"}} <input type="file" name="input_file"></label>
+  <label>{{.T "or an output file"}} <input type="file" name="output_file"></label></div>
+  <label>{{.T "Explanation (Markdown, optional)"}} <textarea name="note" rows="2"></textarea></label>
+  <button>{{.T "Add example"}}</button>
+</form>
+</details>
+{{end}}
+</section>
 
 <form method="post" action="/tasks/{{$task.ID}}" class="card">
 {{template "csrf" .CSRF}}

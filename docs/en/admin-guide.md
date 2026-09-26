@@ -60,8 +60,10 @@ converted. The format and one example per type are in
 
 By hand, **Tasks → Create task** and then, on the task page:
 
-1. **General**: title, statements (PDF or HTML per language, one marked
-   primary), attachments (files contestants download), submission files
+1. **General**: title, statements (written in Markdown or LaTeX in the
+   editor, or uploaded; one or more marked primary, see
+   [statements](statements.md)), examples, attachments (files contestants
+   download), submission files
    (`sol.%l` — `%l` becomes the language extension), languages (none
    ticked = the contest's).
 2. **Scoring and feedback**: score mode (best per subtask as at the IOI
