@@ -965,6 +965,13 @@ Skipping skills: immersive-web-design, master skill.
   so a minute boundary in between split the count (about one CI run in
   ten). The limiter takes a clock (`Limiter.Now`, also passed to the
   contest server through `Deps.Limiter`), which those tests freeze.
+- **Open: one unexplained CI failure.** TestReevaluationLevels failed
+  once (CI run 46, isolate 2.7 on cgroup v2): a correct C solution was
+  judged 0 on its first judging. It passed in the runs before and after
+  and in every local run (the failure could not be reproduced on this
+  machine's cgroup v1). The test now checks the first score and logs
+  the compilation and every evaluation on failure, so the next
+  occurrence will show the cause.
 - **Not fixable from here.** The repository has no `main` branch yet,
   so the documented one-liner (`…/main/scripts/install.sh`) answers 404
   until one exists.
