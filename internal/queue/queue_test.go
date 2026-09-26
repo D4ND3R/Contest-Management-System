@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -291,5 +292,108 @@ func TestInFlightAndManualRequeue(t *testing.T) {
 	d, _ = q.Next(ctx, "w2/0", 100*time.Millisecond, nil)
 	if d == nil || d.Job.ID != "e1" || d.Job.Attempt != 3 {
 		t.Fatalf("requeued job %+v", d)
+	}
+}
+
+// TestDeferredJobs (SPEC_IOI §11): a superseded submission's job moves to
+// the deferred queue, which is served after compilations and before user
+// tests; the move is atomic (the job is acked on its old stream).
+func TestDeferredJobs(t *testing.T) {
+	q := newQueue(t)
+	ctx := context.Background()
+	if q.Superseded(ctx, 5) {
+		t.Fatal("superseded before Supersede")
+	}
+	if err := q.Supersede(ctx, 5, 6); err != nil || !q.Superseded(ctx, 5) || !q.Superseded(ctx, 6) || q.Superseded(ctx, 7) {
+		t.Fatalf("supersede: %v", err)
+	}
+	q.Enqueue(ctx, PriorityEvaluate, &jobs.Job{ID: "old", SubmissionID: 5})
+	q.Enqueue(ctx, PriorityUserTest, &jobs.Job{ID: "ut"})
+	d, _ := q.Next(ctx, "w/0", 100*time.Millisecond, nil)
+	if d == nil || d.Job.ID != "old" {
+		t.Fatalf("first = %+v", d)
+	}
+	if err := q.Defer(ctx, d); err != nil {
+		t.Fatal(err)
+	}
+	q.Enqueue(ctx, PriorityCompile, &jobs.Job{ID: "new", SubmissionID: 8})
+	var got []string
+	for {
+		d, err := q.Next(ctx, "w/0", 50*time.Millisecond, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d == nil {
+			break
+		}
+		got = append(got, d.Job.ID+"@"+d.Priority.String())
+		q.Ack(ctx, d)
+	}
+	if want := "new@compile old@deferred ut@usertest"; strings.Join(got, " ") != want {
+		t.Fatalf("order = %v, want %s", got, want)
+	}
+	if st, _ := q.Stats(ctx); st.Pending[PriorityEvaluate.String()] != 0 || st.Waiting[PriorityEvaluate.String()] != 0 {
+		t.Fatalf("the deferred job stayed on its stream: %+v", st)
+	}
+}
+
+// TestSkips: the skip sets are per submission, dataset and generation.
+func TestSkips(t *testing.T) {
+	q := newQueue(t)
+	ctx := context.Background()
+	if err := q.AddSkips(ctx, Skip{SubmissionID: 1, DatasetID: 2, Generation: 3, Testcases: []int64{10, 11}}); err != nil {
+		t.Fatal(err)
+	}
+	q.AddSkips(ctx, Skip{SubmissionID: 1, DatasetID: 2, Generation: 3}) // nothing to add
+	for _, c := range []struct {
+		sub, ds int64
+		gen     int32
+		tc      int64
+		want    bool
+	}{{1, 2, 3, 10, true}, {1, 2, 3, 11, true}, {1, 2, 3, 12, false}, {1, 2, 4, 10, false}, {1, 9, 3, 10, false}, {9, 2, 3, 10, false}} {
+		if got := q.Skipped(ctx, c.sub, c.ds, c.gen, c.tc); got != c.want {
+			t.Errorf("Skipped(%v) = %v", c, got)
+		}
+	}
+}
+
+// TestCalibrations: the latest calibration of each worker is kept.
+func TestCalibrations(t *testing.T) {
+	q := newQueue(t)
+	ctx := context.Background()
+	for _, c := range []Calibration{{Worker: "a", Median: 1}, {Worker: "b", Median: 2}, {Worker: "a", Median: 1.5, Slots: []float64{1.4, 1.6}, Cores: []int{2, 4}}} {
+		if err := q.SaveCalibration(ctx, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	all, err := q.Calibrations(ctx)
+	if err != nil || len(all) != 2 || all["a"].Median != 1.5 || all["b"].Median != 2 || all["a"].Cores[1] != 4 {
+		t.Fatalf("calibrations = %+v %v", all, err)
+	}
+}
+
+// TestWarmSet: the pre-warm set is replaced as a whole and versioned.
+func TestWarmSet(t *testing.T) {
+	q := newQueue(t)
+	ctx := context.Background()
+	if v, err := q.WarmVersion(ctx); v != "" || err != nil {
+		t.Fatalf("version %q %v", v, err)
+	}
+	if ch, err := q.SetWarm(ctx, []string{"b", "a", "b"}); !ch || err != nil {
+		t.Fatalf("set: %v %v", ch, err)
+	}
+	v1, _ := q.WarmVersion(ctx)
+	if ch, _ := q.SetWarm(ctx, []string{"a", "b"}); ch {
+		t.Fatal("same set changed the version")
+	}
+	q.SetWarm(ctx, []string{"c"})
+	v2, _ := q.WarmVersion(ctx)
+	ds, _ := q.WarmDigests(ctx)
+	if v1 == "" || v1 == v2 || len(ds) != 1 || ds[0] != "c" {
+		t.Fatalf("versions %q %q, digests %v", v1, v2, ds)
+	}
+	q.SetWarm(ctx, nil)
+	if v, _ := q.WarmVersion(ctx); v != "" {
+		t.Fatalf("empty set has version %q", v)
 	}
 }

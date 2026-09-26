@@ -93,3 +93,22 @@ LIMIT @lim::int;
 SELECT task_id, count(*)::bigint AS n FROM submissions
 WHERE participation_id = ANY(@participation_ids::bigint[])
 GROUP BY task_id;
+
+-- name: CountSubmissionsAhead :one
+-- Submissions to live datasets still being judged that arrived before
+-- @before_id: the queue position shown while waiting (read through
+-- submission_results_pending_idx, the unfinished results only).
+SELECT count(*)::bigint
+FROM submission_results sr
+JOIN submissions s ON s.id = sr.submission_id
+JOIN tasks t ON t.id = s.task_id AND t.active_dataset_id = sr.dataset_id
+WHERE sr.scored_at IS NULL AND sr.system_error IS NULL AND sr.submission_id < @before_id::bigint AND NOT s.tester;
+
+-- name: RecentJudgingLatency :one
+-- The median time from arrival to score of the latest judged submissions
+-- (the newest 200 through the primary key), in seconds; 0 when none.
+SELECT COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM sr.scored_at - s.submitted_at)), 0)::float8
+FROM (SELECT id, submitted_at, task_id FROM submissions WHERE NOT tester ORDER BY id DESC LIMIT 200) s
+JOIN tasks t ON t.id = s.task_id
+JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE sr.scored_at IS NOT NULL;

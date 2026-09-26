@@ -89,6 +89,9 @@ By hand, **Tasks → Create task** and then, on the task page:
      scores only if all its testcases pass), *GroupMul*, *GroupThreshold*;
      the subtask editor asks for the points and the testcases of each
      subtask (a regular expression over the codenames, a count or a list).
+     With GroupMin/GroupMul, **Short-circuit** skips the rest of a subtask
+     once a testcase scores 0 (same score, less judging time; see
+     [evaluation](evaluation.md)).
    - **Testcases**: one by one (input, output, public) or **From a zip
      archive** with name patterns (`*.in`/`*.out`, `input*`/`output*`).
    - **Managers**: checker, graders, stubs, headers, interactor — the page

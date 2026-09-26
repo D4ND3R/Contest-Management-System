@@ -87,7 +87,8 @@
 <tr class="{{if not .Alive}}pending{{end}}">
   <td>{{.Name}}</td><td>{{.Hostname}}</td><td>{{.Version}}</td>
   <td>{{if .Alive}}<span class="ok">{{$.T "alive"}}</span>{{else}}<span class="bad">{{$.T "dead"}}</span> ({{$.T "last seen %s" (dt .LastSeen)}}){{end}}
-    {{if .Seccomp}}<span class="tag ok" title="{{$.T "forbidden system calls end in a security violation"}}">seccomp</span>{{else}}<span class="tag warn" title="{{$.T "the worker could not build its seccomp filter (no C compiler?)"}}">{{$.T "no seccomp"}}</span>{{end}}</td>
+    {{if .Seccomp}}<span class="tag ok" title="{{$.T "forbidden system calls end in a security violation"}}">seccomp</span>{{else}}<span class="tag warn" title="{{$.T "the worker could not build its seccomp filter (no C compiler?)"}}">{{$.T "no seccomp"}}</span>{{end}}
+    {{if .WarmTotal}}<span class="tag{{if eq .Warmed .WarmTotal}} ok{{end}}" title="{{$.T "testcases and graders of the running and upcoming contests already in the worker's cache"}}">{{$.T "cache %d/%d" .Warmed .WarmTotal}}</span>{{end}}</td>
   <td class="small">{{with .Host}}{{$.T "CPU %s, load %.2f" (percent .CPUPercent) .Load1}} · {{$.T "memory %s" (percent .MemPercent)}}{{range .Disks}} · <span class="{{if gt .UsedPercent 90.0}}bad{{end}}">{{$.T "%s free for %s" (bytes .Free) ($.T .Name)}}</span>{{end}}{{end}}</td>
   <td class="num">{{.JobsDone}}</td><td class="num">{{.Errors}}</td>
   <td>{{range .Slots}}<span class="slot {{if .JobID}}busy{{end}}" title="{{$.T "core %d" .Core}}">{{if .JobID}}{{.Kind}}{{if .SubmissionID}} <a href="/submissions/{{.SubmissionID}}">#{{.SubmissionID}}</a>{{end}}{{if .UserTestID}} {{$.T "test %d" .UserTestID}}{{end}} · {{since .Since}}{{else}}{{$.T "idle"}}{{end}}</span>{{end}}</td>

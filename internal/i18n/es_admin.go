@@ -513,7 +513,6 @@ var esAdmin = map[string]string{
 	"New site": "Nueva sede",
 
 	// System
-	"Queues are served in priority order: compile, evaluate, user tests, background (rejudges and non-live datasets). A job running longer than the monitor's job timeout, or on a worker whose heartbeat stopped, is requeued automatically.": "Las colas se atienden por prioridad: compilación, evaluación, pruebas de usuario y segundo plano (reevaluaciones y datasets que no están en vivo). Un trabajo que excede el tiempo máximo del monitor, o que corre en un worker que dejó de reportarse, se reencola automáticamente.",
 	"workers alive":               "workers activos",
 	"slots busy":                  "slots ocupados",
 	"%s waiting (%d running)":     "%s en espera (%d en ejecución)",

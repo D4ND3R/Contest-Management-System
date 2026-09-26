@@ -11,6 +11,17 @@ import (
 	"time"
 )
 
+const clearCompilationCache = `-- name: ClearCompilationCache :exec
+DELETE FROM compilation_cache
+`
+
+// An explicit recompilation must run the compilers (they may have been
+// upgraded, which the cache key cannot see).
+func (q *Queries) ClearCompilationCache(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, clearCompilationCache)
+	return err
+}
+
 const createSubmission = `-- name: CreateSubmission :one
 INSERT INTO submissions (participation_id, task_id, submitted_at, language, comment, official)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -127,6 +138,29 @@ func (q *Queries) EnsureSubmissionResult(ctx context.Context, arg EnsureSubmissi
 	return err
 }
 
+const getCompilationCache = `-- name: GetCompilationCache :one
+SELECT key, text, stdout, stderr, time, wall_time, memory, hits, created_at, used_at FROM compilation_cache WHERE key = $1
+`
+
+// A remembered compilation (SPEC_IOI H4), by the hash of its inputs.
+func (q *Queries) GetCompilationCache(ctx context.Context, key string) (CompilationCache, error) {
+	row := q.db.QueryRow(ctx, getCompilationCache, key)
+	var i CompilationCache
+	err := row.Scan(
+		&i.Key,
+		&i.Text,
+		&i.Stdout,
+		&i.Stderr,
+		&i.Time,
+		&i.WallTime,
+		&i.Memory,
+		&i.Hits,
+		&i.CreatedAt,
+		&i.UsedAt,
+	)
+	return i, err
+}
+
 const getSubmission = `-- name: GetSubmission :one
 SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id, invalidated_at, invalidated_reason, invalidated_by FROM submissions WHERE id = $1
 `
@@ -205,6 +239,60 @@ func (q *Queries) GetToken(ctx context.Context, submissionID int64) (Token, erro
 	return i, err
 }
 
+const insertCompilationCache = `-- name: InsertCompilationCache :execrows
+INSERT INTO compilation_cache (key, text, stdout, stderr, time, wall_time, memory)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (key) DO NOTHING
+`
+
+type InsertCompilationCacheParams struct {
+	Key      string  `json:"key"`
+	Text     string  `json:"text"`
+	Stdout   string  `json:"stdout"`
+	Stderr   string  `json:"stderr"`
+	Time     float64 `json:"time"`
+	WallTime float64 `json:"wall_time"`
+	Memory   int64   `json:"memory"`
+}
+
+func (q *Queries) InsertCompilationCache(ctx context.Context, arg InsertCompilationCacheParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertCompilationCache,
+		arg.Key,
+		arg.Text,
+		arg.Stdout,
+		arg.Stderr,
+		arg.Time,
+		arg.WallTime,
+		arg.Memory,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const insertCompilationCacheFile = `-- name: InsertCompilationCacheFile :exec
+INSERT INTO compilation_cache_files (key, filename, digest, size) VALUES ($1, $2, $3, $4)
+ON CONFLICT DO NOTHING
+`
+
+type InsertCompilationCacheFileParams struct {
+	Key      string `json:"key"`
+	Filename string `json:"filename"`
+	Digest   string `json:"digest"`
+	Size     int64  `json:"size"`
+}
+
+func (q *Queries) InsertCompilationCacheFile(ctx context.Context, arg InsertCompilationCacheFileParams) error {
+	_, err := q.db.Exec(ctx, insertCompilationCacheFile,
+		arg.Key,
+		arg.Filename,
+		arg.Digest,
+		arg.Size,
+	)
+	return err
+}
+
 const insertExecutable = `-- name: InsertExecutable :exec
 INSERT INTO executables (submission_id, dataset_id, filename, digest) VALUES ($1, $2, $3, $4)
 ON CONFLICT (submission_id, dataset_id, filename) DO UPDATE SET digest = EXCLUDED.digest
@@ -279,6 +367,35 @@ func (q *Queries) InvalidateSubmissionResult(ctx context.Context, arg Invalidate
 	var generation int32
 	err := row.Scan(&generation)
 	return generation, err
+}
+
+const listCompilationCacheFiles = `-- name: ListCompilationCacheFiles :many
+SELECT key, filename, digest, size FROM compilation_cache_files WHERE key = $1 ORDER BY filename
+`
+
+func (q *Queries) ListCompilationCacheFiles(ctx context.Context, key string) ([]CompilationCacheFile, error) {
+	rows, err := q.db.Query(ctx, listCompilationCacheFiles, key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CompilationCacheFile{}
+	for rows.Next() {
+		var i CompilationCacheFile
+		if err := rows.Scan(
+			&i.Key,
+			&i.Filename,
+			&i.Digest,
+			&i.Size,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listEvaluations = `-- name: ListEvaluations :many
@@ -732,6 +849,42 @@ func (q *Queries) ListTokenTimesByParticipation(ctx context.Context, participati
 	return items, nil
 }
 
+const listUnfinishedOlderSubmissions = `-- name: ListUnfinishedOlderSubmissions :many
+SELECT DISTINCT s.id
+FROM submissions s
+JOIN submission_results sr ON sr.submission_id = s.id
+WHERE s.participation_id = $1::bigint AND s.task_id = $2::bigint AND s.id < $3::bigint
+  AND sr.scored_at IS NULL AND sr.system_error IS NULL
+`
+
+type ListUnfinishedOlderSubmissionsParams struct {
+	ParticipationID int64 `json:"participation_id"`
+	TaskID          int64 `json:"task_id"`
+	BeforeID        int64 `json:"before_id"`
+}
+
+// A contestant's earlier submissions to a task still being judged
+// (submissions_participation_task_idx; a handful at most).
+func (q *Queries) ListUnfinishedOlderSubmissions(ctx context.Context, arg ListUnfinishedOlderSubmissionsParams) ([]int64, error) {
+	rows, err := q.db.Query(ctx, listUnfinishedOlderSubmissions, arg.ParticipationID, arg.TaskID, arg.BeforeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const plagiarismCandidates = `-- name: PlagiarismCandidates :many
 SELECT DISTINCT ON (s.participation_id)
     s.id, s.participation_id, s.submitted_at, s.language, u.username, p.team_id, r.score
@@ -792,6 +945,19 @@ func (q *Queries) PlagiarismCandidates(ctx context.Context, arg PlagiarismCandid
 		return nil, err
 	}
 	return items, nil
+}
+
+const pruneCompilationCache = `-- name: PruneCompilationCache :execrows
+DELETE FROM compilation_cache WHERE used_at < $1::timestamptz
+`
+
+// Entries not used since before @before (compilation_cache_used_idx).
+func (q *Queries) PruneCompilationCache(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, pruneCompilationCache, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const refreshTestcasesDone = `-- name: RefreshTestcasesDone :one
@@ -1002,5 +1168,14 @@ func (q *Queries) UpsertEvaluation(ctx context.Context, arg UpsertEvaluationPara
 		arg.Signal,
 		arg.Worker,
 	)
+	return err
+}
+
+const useCompilationCache = `-- name: UseCompilationCache :exec
+UPDATE compilation_cache SET hits = hits + 1, used_at = now() WHERE key = $1
+`
+
+func (q *Queries) UseCompilationCache(ctx context.Context, key string) error {
+	_, err := q.db.Exec(ctx, useCompilationCache, key)
 	return err
 }

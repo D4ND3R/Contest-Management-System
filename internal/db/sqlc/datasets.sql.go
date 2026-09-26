@@ -8,6 +8,7 @@ package sqlc
 import (
 	"context"
 	"encoding/json"
+	"time"
 )
 
 const cloneDatasetContents = `-- name: CloneDatasetContents :exec
@@ -47,7 +48,7 @@ INSERT INTO datasets (
     output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params,
     score_type, score_type_params
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes, output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params, score_type, score_type_params, created_at
+RETURNING id, task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes, output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params, score_type, score_type_params, created_at, short_circuit
 `
 
 type CreateDatasetParams struct {
@@ -99,6 +100,7 @@ func (q *Queries) CreateDataset(ctx context.Context, arg CreateDatasetParams) (D
 		&i.ScoreType,
 		&i.ScoreTypeParams,
 		&i.CreatedAt,
+		&i.ShortCircuit,
 	)
 	return i, err
 }
@@ -150,7 +152,7 @@ func (q *Queries) DeleteTestcase(ctx context.Context, id int64) error {
 }
 
 const getDataset = `-- name: GetDataset :one
-SELECT id, task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes, output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params, score_type, score_type_params, created_at FROM datasets WHERE id = $1
+SELECT id, task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes, output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params, score_type, score_type_params, created_at, short_circuit FROM datasets WHERE id = $1
 `
 
 func (q *Queries) GetDataset(ctx context.Context, id int64) (Dataset, error) {
@@ -172,6 +174,7 @@ func (q *Queries) GetDataset(ctx context.Context, id int64) (Dataset, error) {
 		&i.ScoreType,
 		&i.ScoreTypeParams,
 		&i.CreatedAt,
+		&i.ShortCircuit,
 	)
 	return i, err
 }
@@ -195,7 +198,7 @@ func (q *Queries) GetTestcase(ctx context.Context, id int64) (Testcase, error) {
 }
 
 const listDatasetsByIDs = `-- name: ListDatasetsByIDs :many
-SELECT id, task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes, output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params, score_type, score_type_params, created_at FROM datasets WHERE id = ANY($1::bigint[])
+SELECT id, task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes, output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params, score_type, score_type_params, created_at, short_circuit FROM datasets WHERE id = ANY($1::bigint[])
 `
 
 func (q *Queries) ListDatasetsByIDs(ctx context.Context, ids []int64) ([]Dataset, error) {
@@ -223,6 +226,7 @@ func (q *Queries) ListDatasetsByIDs(ctx context.Context, ids []int64) ([]Dataset
 			&i.ScoreType,
 			&i.ScoreTypeParams,
 			&i.CreatedAt,
+			&i.ShortCircuit,
 		); err != nil {
 			return nil, err
 		}
@@ -235,7 +239,7 @@ func (q *Queries) ListDatasetsByIDs(ctx context.Context, ids []int64) ([]Dataset
 }
 
 const listDatasetsByTask = `-- name: ListDatasetsByTask :many
-SELECT id, task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes, output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params, score_type, score_type_params, created_at FROM datasets WHERE task_id = $1 ORDER BY id
+SELECT id, task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes, output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params, score_type, score_type_params, created_at, short_circuit FROM datasets WHERE task_id = $1 ORDER BY id
 `
 
 func (q *Queries) ListDatasetsByTask(ctx context.Context, taskID int64) ([]Dataset, error) {
@@ -263,6 +267,7 @@ func (q *Queries) ListDatasetsByTask(ctx context.Context, taskID int64) ([]Datas
 			&i.ScoreType,
 			&i.ScoreTypeParams,
 			&i.CreatedAt,
+			&i.ShortCircuit,
 		); err != nil {
 			return nil, err
 		}
@@ -275,7 +280,7 @@ func (q *Queries) ListDatasetsByTask(ctx context.Context, taskID int64) ([]Datas
 }
 
 const listJudgedDatasetsByTask = `-- name: ListJudgedDatasetsByTask :many
-SELECT d.id, d.task_id, d.description, d.autojudge, d.time_limit_ms, d.wall_time_limit_ms, d.memory_limit_bytes, d.output_limit_bytes, d.process_limit, d.source_size_limit_bytes, d.task_type, d.task_type_params, d.score_type, d.score_type_params, d.created_at FROM datasets d JOIN tasks t ON t.id = d.task_id
+SELECT d.id, d.task_id, d.description, d.autojudge, d.time_limit_ms, d.wall_time_limit_ms, d.memory_limit_bytes, d.output_limit_bytes, d.process_limit, d.source_size_limit_bytes, d.task_type, d.task_type_params, d.score_type, d.score_type_params, d.created_at, d.short_circuit FROM datasets d JOIN tasks t ON t.id = d.task_id
 WHERE d.task_id = $1 AND (d.id = t.active_dataset_id OR d.autojudge)
 ORDER BY (d.id = t.active_dataset_id) DESC, d.id
 `
@@ -307,6 +312,7 @@ func (q *Queries) ListJudgedDatasetsByTask(ctx context.Context, taskID int64) ([
 			&i.ScoreType,
 			&i.ScoreTypeParams,
 			&i.CreatedAt,
+			&i.ShortCircuit,
 		); err != nil {
 			return nil, err
 		}
@@ -319,7 +325,7 @@ func (q *Queries) ListJudgedDatasetsByTask(ctx context.Context, taskID int64) ([
 }
 
 const listLiveDatasetsByContest = `-- name: ListLiveDatasetsByContest :many
-SELECT d.id, d.task_id, d.description, d.autojudge, d.time_limit_ms, d.wall_time_limit_ms, d.memory_limit_bytes, d.output_limit_bytes, d.process_limit, d.source_size_limit_bytes, d.task_type, d.task_type_params, d.score_type, d.score_type_params, d.created_at FROM datasets d JOIN tasks t ON t.active_dataset_id = d.id WHERE t.contest_id = $1
+SELECT d.id, d.task_id, d.description, d.autojudge, d.time_limit_ms, d.wall_time_limit_ms, d.memory_limit_bytes, d.output_limit_bytes, d.process_limit, d.source_size_limit_bytes, d.task_type, d.task_type_params, d.score_type, d.score_type_params, d.created_at, d.short_circuit FROM datasets d JOIN tasks t ON t.active_dataset_id = d.id WHERE t.contest_id = $1
 `
 
 func (q *Queries) ListLiveDatasetsByContest(ctx context.Context, contestID *int64) ([]Dataset, error) {
@@ -347,6 +353,7 @@ func (q *Queries) ListLiveDatasetsByContest(ctx context.Context, contestID *int6
 			&i.ScoreType,
 			&i.ScoreTypeParams,
 			&i.CreatedAt,
+			&i.ShortCircuit,
 		); err != nil {
 			return nil, err
 		}
@@ -478,6 +485,46 @@ func (q *Queries) ListTestcasesByDatasets(ctx context.Context, ids []int64) ([]T
 	return items, nil
 }
 
+const listWarmDigests = `-- name: ListWarmDigests :many
+SELECT DISTINCT x.digest::text AS digest FROM (
+    SELECT tc.input_digest AS digest
+    FROM contests c JOIN tasks t ON t.contest_id = c.id JOIN testcases tc ON tc.dataset_id = t.active_dataset_id
+    WHERE c.start_time < $1::timestamptz AND c.stop_time > now()
+  UNION ALL
+    SELECT tc.output_digest
+    FROM contests c JOIN tasks t ON t.contest_id = c.id JOIN testcases tc ON tc.dataset_id = t.active_dataset_id
+    WHERE c.start_time < $1::timestamptz AND c.stop_time > now()
+  UNION ALL
+    SELECT m.digest
+    FROM contests c JOIN tasks t ON t.contest_id = c.id JOIN managers m ON m.dataset_id = t.active_dataset_id
+    WHERE c.start_time < $1::timestamptz AND c.stop_time > now()
+) x
+`
+
+// What the workers download ahead of time (SPEC_IOI §11): the testcases
+// and managers of the live datasets of the contests running now or
+// starting before @until. A handful of contests; testcases and managers
+// are read through their (dataset_id, ...) unique indexes.
+func (q *Queries) ListWarmDigests(ctx context.Context, until time.Time) ([]string, error) {
+	rows, err := q.db.Query(ctx, listWarmDigests, until)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var digest string
+		if err := rows.Scan(&digest); err != nil {
+			return nil, err
+		}
+		items = append(items, digest)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setTestcasePublic = `-- name: SetTestcasePublic :exec
 UPDATE testcases SET public = $2 WHERE id = $1
 `
@@ -497,9 +544,9 @@ UPDATE datasets SET
     description = $2, autojudge = $3, time_limit_ms = $4, wall_time_limit_ms = $5,
     memory_limit_bytes = $6, output_limit_bytes = $7, process_limit = $8,
     source_size_limit_bytes = $9, task_type = $10, task_type_params = $11,
-    score_type = $12, score_type_params = $13
+    score_type = $12, score_type_params = $13, short_circuit = $14
 WHERE id = $1
-RETURNING id, task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes, output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params, score_type, score_type_params, created_at
+RETURNING id, task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes, output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params, score_type, score_type_params, created_at, short_circuit
 `
 
 type UpdateDatasetParams struct {
@@ -516,6 +563,7 @@ type UpdateDatasetParams struct {
 	TaskTypeParams       json.RawMessage `json:"task_type_params"`
 	ScoreType            string          `json:"score_type"`
 	ScoreTypeParams      json.RawMessage `json:"score_type_params"`
+	ShortCircuit         bool            `json:"short_circuit"`
 }
 
 func (q *Queries) UpdateDataset(ctx context.Context, arg UpdateDatasetParams) (Dataset, error) {
@@ -533,6 +581,7 @@ func (q *Queries) UpdateDataset(ctx context.Context, arg UpdateDatasetParams) (D
 		arg.TaskTypeParams,
 		arg.ScoreType,
 		arg.ScoreTypeParams,
+		arg.ShortCircuit,
 	)
 	var i Dataset
 	err := row.Scan(
@@ -551,6 +600,7 @@ func (q *Queries) UpdateDataset(ctx context.Context, arg UpdateDatasetParams) (D
 		&i.ScoreType,
 		&i.ScoreTypeParams,
 		&i.CreatedAt,
+		&i.ShortCircuit,
 	)
 	return i, err
 }

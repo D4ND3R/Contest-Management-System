@@ -1286,3 +1286,70 @@ wall and a **Security Violation** verdict.
   beginner and could be dodged by any attacker; the sandbox is what stops
   attacks, the flags point the staff at intent. The scan is a few regular
   expressions (RE2, linear time) over at most the submission size limit.
+
+## D87. Judging faster and fairer: deferred queue, short-circuit, compilation cache, pre-warming, calibration (SPEC_IOI H4)
+SPEC_IOI §2.2, §3, §6, §7 and §11 ask for evaluation that is fast and
+fair under load. What was built, and the choices behind it:
+
+- **Priorities stay evaluate → compile** (D67 measured why: compilations
+  first starved the evaluation of already compiled submissions). §11's
+  "compilations first" is read as "live work first", which both are. The
+  spec's fairness items are met by a new **deferred** queue, served after
+  compile and before user tests: when a contestant submits to a task, their
+  earlier submissions to it still unfinished are marked *superseded* in
+  Redis (6 h TTL), and a worker taking one of their evaluate/compile jobs
+  moves it to the deferred stream (XADD + XACK + XDEL in one MULTI) instead
+  of running it. Everybody's latest submission goes first; one contestant's
+  burst cannot delay the others; nothing is dropped (the IOI score takes the
+  best, so older submissions must still be judged). Marking in Redis rather
+  than rewriting queued jobs keeps the arrival path O(1) and the queues
+  append-only; the check costs one EXISTS per job.
+- **Short-circuit** (§6) is a per-dataset option (`datasets.short_circuit`,
+  migration 0020, off by default: feedback shows every testcase unless the
+  organisers opt out). Only score types that can prove a testcase no longer
+  matters implement `scoring.Skipper` — GroupMin and GroupMul, where a zero
+  fixes the subtask; a testcase in several subtasks is skipped only when all
+  of them are zero. The dispatcher writes the skipped evaluations itself
+  (outcome 0, status `skipped`, "Skipped: another testcase of the subtask
+  failed") so the result completes without waiting, and publishes a skip set
+  per (submission, dataset, generation) that workers check before each
+  testcase. A worker that already started one still reports it; the real
+  result replaces the mark and the score cannot change. Reevaluation bumps
+  the generation, so old skips never leak.
+- **Compilation cache** (§3): keyed by SHA-256 over the language
+  definition (its commands), task type and parameters, and the submitted
+  and manager files by name and digest — everything the executables depend
+  on that the system knows. Only successes are cached (failures are cheap
+  and their messages may depend on timing). Rows in PostgreSQL
+  (`compilation_cache`, `compilation_cache_files`), executables stay in the
+  blob store (digests only), and the blob GC keeps them alive while cached
+  and prunes entries unused for 7 days. The compiler binary's version is
+  not in the key, so an explicit **recompile** reevaluation clears the
+  whole cache: after upgrading a toolchain, that is the documented step.
+- **Queue position / ETA** (§7): the card counts unfinished live results
+  with a smaller submission id (partial index `submission_results_pending_idx`)
+  and shows the median arrival-to-score time of the newest 200 judged
+  submissions, cached 10 s per server; the card polls every 10 s only
+  while queued. Submission order approximates queue order (the deferred
+  queue can reorder), which is the honest precision for a number shown to
+  contestants.
+- **Time multipliers** (§3): `time_multiplier` in a language file (0–10,
+  none by default) scales the dataset's time and wall limits when the
+  dispatcher builds the job, so workers, results and the task page agree;
+  ceil to the millisecond with an epsilon (1.1 × 1000 is 1100, not 1101).
+- **Pre-warming** (§11): the dispatcher publishes, each minute, the
+  digests of testcases and managers of live datasets of contests running or
+  starting within 3 h as one versioned Redis set; workers compare the
+  version every ≤30 s and download what they lack, sequentially, up to 80%
+  of their cache. Workers have no database access by design, so the
+  dispatcher (which has) decides; a version avoids re-listing thousands of
+  digests every poll.
+- **Calibration** (§2.2): `cms ctl calibrate` times a CPU-bound C
+  benchmark (xorshift integer work with scattered accesses to a 4 MiB
+  array, like contest solutions; ~0.5 s, no I/O) through the
+  real sandbox on every judging core, 5 runs each, median per core, and
+  flags cores more than 3% from the machine's median and noisy cores (run
+  spread over twice the tolerance). Results go to Redis (30 days) and the
+  Judges page compares machines against the median of all machines. The
+  benchmark measures CPU time, as the verdicts do; turbo, the governor and
+  SMT siblings are what it is meant to catch, and they show in it.

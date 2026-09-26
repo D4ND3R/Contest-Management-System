@@ -91,3 +91,10 @@ se mata la caja entera y no sobrevive ningún proceso, lo que se comprueba.
 
 El instalador pausa `cms-worker` mientras ejecuta la verificación, para que
 los trabajos en cola no alteren los tiempos.
+
+## Calibración
+
+La autoprueba comprueba los veredictos; `cms ctl calibrate` comprueba que
+cada núcleo de evaluación, y cada máquina de evaluación, corre el mismo
+programa en el mismo tiempo. Ver
+[calibrar las máquinas de evaluación](evaluacion.md#calibrar-las-máquinas-de-evaluación).

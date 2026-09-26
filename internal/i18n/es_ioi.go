@@ -84,6 +84,28 @@ var esIOI = map[string]string{
 	"no seccomp":                               "sin seccomp",
 	"%d suspicious submissions":                "%d envíos sospechosos",
 	"%d judges run without the seccomp filter": "%d jueces funcionan sin el filtro seccomp",
+	// H4: evaluation speed and fairness.
+	"deferred": "diferidas",
+	"Queues are served in priority order: evaluate, compile, deferred (older submissions of a contestant who already sent a newer one to the task), user tests, background (rejudges and non-live datasets). A job running longer than the monitor's job timeout, or on a worker whose heartbeat stopped, is requeued automatically.": "Las colas se atienden por prioridad: evaluación, compilación, diferidas (envíos anteriores de un concursante que ya mandó uno más nuevo al mismo problema), pruebas de usuario y segundo plano (reevaluaciones y datasets que no están en vivo). Un trabajo que excede el tiempo máximo del monitor, o que corre en un worker que dejó de reportarse, se reencola automáticamente.",
+	"Skipped: another testcase of the subtask failed":                                                                  "Omitido: otro caso de la subtarea ya falló",
+	"Short-circuit: skip the rest of a subtask once one of its testcases scores 0":                                     "Cortocircuito: omitir el resto de una subtarea en cuanto uno de sus casos obtiene 0",
+	"It saves judging time (the score cannot change); skipped testcases are shown as skipped instead of their result.": "Ahorra tiempo de evaluación (el puntaje no puede cambiar); los casos omitidos se muestran como omitidos en lugar de su resultado.",
+	"Submissions ahead of yours in the queue: %d.":                                                                     "Envíos antes que el tuyo en la cola: %d.",
+	"Next in the queue.":               "El siguiente en la cola.",
+	"Results take about %s right now.": "Ahora los resultados tardan unos %s.",
+	"Calibration":                      "Calibración",
+	"Measured":                         "Medida",
+	"Median":                           "Mediana",
+	"vs. others":                       "vs. las demás",
+	"Cores":                            "Núcleos",
+	"No calibration yet.":              "Todavía no hay calibraciones.",
+	"The machines are not equally fast: the slowest takes %s%% longer than the fastest. Contestants would get different times depending on where they are judged.": "Las máquinas no son igual de rápidas: la más lenta tarda un %s%% más que la más rápida. Los concursantes obtendrían tiempos distintos según dónde se evalúe su envío.",
+	"%d cores differ by more than %s%% from the machine's median":                                                                                     "%d núcleos difieren más de un %s%% de la mediana de la máquina",
+	"Run cms ctl calibrate on each worker machine (with its worker stopped) to time the same program on every judging core and compare the machines.": "Ejecuta cms ctl calibrate en cada máquina de evaluación (con su worker detenido) para medir el mismo programa en cada núcleo de evaluación y comparar las máquinas.",
+	"Time limit in %s": "Límite de tiempo en %s",
+	"time_multiplier in a language's file scales the tasks' time limits for it (contestants see the resulting limit on each task).": "time_multiplier en el archivo de un lenguaje escala los límites de tiempo de los problemas para ese lenguaje (los concursantes ven el límite resultante en cada problema).",
+	"testcases and graders of the running and upcoming contests already in the worker's cache":                                      "casos y graders de los concursos en curso y próximos que ya están en la caché del worker",
+	"cache %d/%d": "caché %d/%d",
 }
 
 func init() {

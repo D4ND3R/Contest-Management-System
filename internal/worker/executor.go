@@ -18,6 +18,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/jobs"
 	"github.com/D4ND3R/Contest-Management-System/internal/metrics"
 	"github.com/D4ND3R/Contest-Management-System/internal/sandbox"
+	"github.com/D4ND3R/Contest-Management-System/internal/scoring"
 	"github.com/D4ND3R/Contest-Management-System/internal/tasktypes"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -32,11 +33,15 @@ var (
 
 // Executor runs jobs on sandbox slots.
 type Executor struct {
-	Name     string
-	Slots    []*sandbox.Slot
+	Name  string
+	Slots []*sandbox.Slot
+	// Skip, when set, tells whether a queued testcase was settled by the
+	// short-circuit (and need not run).
+	Skip     func(ctx context.Context, job *jobs.Job, tc jobs.Testcase) bool
 	stages   []*sandbox.Stage
 	workDir  string
 	cache    *blob.Cache
+	cacheMax int64
 	store    blob.Store
 	checkers *tasktypes.CheckerCache
 	seeds    *tasktypes.SeedCache
@@ -86,7 +91,7 @@ func NewExecutor(cfg config.Worker, store blob.Store, log *slog.Logger) (*Execut
 		return nil, err
 	}
 	e := &Executor{
-		Name: name, Slots: sandbox.NewSlots(iso, cores, cfg.BoxIDOffset, sandbox.Complement(cores)), cache: cache, store: cache,
+		Name: name, Slots: sandbox.NewSlots(iso, cores, cfg.BoxIDOffset, sandbox.Complement(cores)), cache: cache, store: cache, cacheMax: cacheMax,
 		checkers: checkers, seeds: seeds, cg: cfg.IsolateCG, workDir: cfg.WorkDir, dirs: cfg.SandboxDirs, log: log,
 	}
 	for i := range e.Slots {
@@ -157,6 +162,12 @@ func (e *Executor) execute(ctx context.Context, slot int, job *jobs.Job, res *jo
 		res.Compilation = c
 	case jobs.KindEvaluate:
 		for _, tc := range job.Testcases {
+			if e.Skip != nil && e.Skip(ctx, job, tc) {
+				// Settled by the short-circuit while queued.
+				res.Evaluations = append(res.Evaluations, jobs.Evaluation{TestcaseID: tc.ID, Codename: tc.Codename,
+					Text: scoring.MsgSkipped, ExitStatus: scoring.StatusSkipped})
+				continue
+			}
 			ev, err := tt.Evaluate(ctx, env, job, tc)
 			if err != nil {
 				return fmt.Errorf("testcase %s: %w", tc.Codename, err)

@@ -1,7 +1,23 @@
 {{define "content"}}
 <h1>{{.T "Workers and queues"}} <small class="muted">{{.T "live"}}</small></h1>
 {{template "system-status" .Data.Status}}
-<p class="muted small">{{.T "Queues are served in priority order: compile, evaluate, user tests, background (rejudges and non-live datasets). A job running longer than the monitor's job timeout, or on a worker whose heartbeat stopped, is requeued automatically."}} <a href="/languages">{{.T "Languages"}}</a>.</p>
+<p class="muted small">{{.T "Queues are served in priority order: evaluate, compile, deferred (older submissions of a contestant who already sent a newer one to the task), user tests, background (rejudges and non-live datasets). A job running longer than the monitor's job timeout, or on a worker whose heartbeat stopped, is requeued automatically."}} <a href="/languages">{{.T "Languages"}}</a>.</p>
+<h2>{{.T "Calibration"}}</h2>
+{{if .Data.Calibrations}}
+{{if .Data.Uneven}}<p class="alert">{{.T "The machines are not equally fast: the slowest takes %s%% longer than the fastest. Contestants would get different times depending on where they are judged." .Data.Spread}}</p>{{end}}
+<div class="card"><table>
+<thead><tr><th>{{.T "Worker"}}</th><th>{{.T "Measured"}}</th><th class="num">{{.T "Median"}}</th><th class="num">{{.T "vs. others"}}</th><th>{{.T "Cores"}}</th></tr></thead>
+<tbody>
+{{range .Data.Calibrations}}
+<tr><td>{{.Worker}}<br><small class="muted">{{.Hostname}}</small></td><td><small>{{dt .At}}</small></td>
+<td class="num">{{printf "%.3f" .Median}} s</td><td class="num{{if .Outlier}} bad{{end}}">{{.Diff}}%</td>
+<td class="cores">{{range .Cores}}<span class="tag{{if .Off}} bad{{end}}" title="{{printf "%.3f" .Sec}} s">CPU {{.CPU}} {{.Diff}}%</span> {{end}}
+{{if .Calibration.Off}}<br><small class="bad">{{$.T "%d cores differ by more than %s%% from the machine's median" .Calibration.Off .Tolerance}}</small>{{end}}</td></tr>
+{{end}}
+</tbody>
+</table></div>
+{{else}}<p class="muted">{{.T "No calibration yet."}}</p>{{end}}
+<p class="muted small">{{.T "Run cms ctl calibrate on each worker machine (with its worker stopped) to time the same program on every judging core and compare the machines."}}</p>
 <h2>{{.T "System errors"}}</h2>
 {{if .Data.Errors}}
 <table>

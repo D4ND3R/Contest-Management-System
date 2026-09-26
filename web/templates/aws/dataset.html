@@ -80,6 +80,8 @@
 <div>
 <label>{{.T "Score type"}} <select name="score_type" data-type-switch="score">{{range .Data.ScoreTypes}}<option {{if eq . $d.ScoreType}}selected{{end}}>{{.}}</option>{{end}}</select></label>
 {{template "score-editor" (part $ .Data.Editor)}}
+<p class="checks" data-group="score" data-for="GroupMin GroupMul"><label><input type="checkbox" name="short_circuit" {{if $d.ShortCircuit}}checked{{end}}> {{.T "Short-circuit: skip the rest of a subtask once one of its testcases scores 0"}}</label></p>
+<p class="muted small" data-group="score" data-for="GroupMin GroupMul">{{.T "It saves judging time (the score cannot change); skipped testcases are shown as skipped instead of their result."}}</p>
 <details {{if .Data.Editor.Raw}}open{{end}}><summary>{{.T "Advanced: raw score parameters (JSON)"}}</summary>
   <p class="checks"><label><input type="checkbox" name="raw_score" {{if .Data.Editor.Raw}}checked{{end}}> {{.T "Use this JSON instead of the editor"}}</label></p>
   <textarea name="score_type_params" id="score_type_params" rows="7" class="code">{{.Data.ScoreJSON}}</textarea>

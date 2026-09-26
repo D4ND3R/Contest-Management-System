@@ -78,6 +78,26 @@ type CertificateTemplate struct {
 	UpdatedAt              time.Time       `json:"updated_at"`
 }
 
+type CompilationCache struct {
+	Key       string    `json:"key"`
+	Text      string    `json:"text"`
+	Stdout    string    `json:"stdout"`
+	Stderr    string    `json:"stderr"`
+	Time      float64   `json:"time"`
+	WallTime  float64   `json:"wall_time"`
+	Memory    int64     `json:"memory"`
+	Hits      int64     `json:"hits"`
+	CreatedAt time.Time `json:"created_at"`
+	UsedAt    time.Time `json:"used_at"`
+}
+
+type CompilationCacheFile struct {
+	Key      string `json:"key"`
+	Filename string `json:"filename"`
+	Digest   string `json:"digest"`
+	Size     int64  `json:"size"`
+}
+
 type Contest struct {
 	ID                          int64      `json:"id"`
 	Name                        string     `json:"name"`
@@ -166,6 +186,7 @@ type Dataset struct {
 	ScoreType            string          `json:"score_type"`
 	ScoreTypeParams      json.RawMessage `json:"score_type_params"`
 	CreatedAt            time.Time       `json:"created_at"`
+	ShortCircuit         bool            `json:"short_circuit"`
 }
 
 type Evaluation struct {

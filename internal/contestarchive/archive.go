@@ -96,18 +96,20 @@ var tables = []table{
 
 // skipped are the tables an archive leaves out, and why.
 var skipped = map[string]string{
-	"schema_migrations":     "installation",
-	"blobs":                 "installation (the files themselves travel)",
-	"languages":             "installation (config/languages)",
-	"admins":                "installation: references to admins become empty",
-	"audit_log":             "installation",
-	"executables":           "compiled again when needed",
-	"user_tests":            "contestants' own test runs, not results",
-	"user_test_files":       "contestants' own test runs, not results",
-	"user_test_results":     "contestants' own test runs, not results",
-	"user_test_executables": "compiled again when needed",
-	"print_jobs":            "contest-day logistics",
-	"balloons":              "contest-day logistics",
+	"schema_migrations":       "installation",
+	"blobs":                   "installation (the files themselves travel)",
+	"languages":               "installation (config/languages)",
+	"admins":                  "installation: references to admins become empty",
+	"audit_log":               "installation",
+	"executables":             "compiled again when needed",
+	"compilation_cache":       "installation (compilations remembered for reuse)",
+	"compilation_cache_files": "installation (compilations remembered for reuse)",
+	"user_tests":              "contestants' own test runs, not results",
+	"user_test_files":         "contestants' own test runs, not results",
+	"user_test_results":       "contestants' own test runs, not results",
+	"user_test_executables":   "compiled again when needed",
+	"print_jobs":              "contest-day logistics",
+	"balloons":                "contest-day logistics",
 }
 
 // refs maps every column holding an id to the table the id belongs to.

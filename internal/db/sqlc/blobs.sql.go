@@ -84,6 +84,7 @@ WHERE b.created_at < $2::timestamptz
   AND NOT EXISTS (SELECT 1 FROM certificate_templates x WHERE x.logo_digest = b.digest)
   AND NOT EXISTS (SELECT 1 FROM task_examples x WHERE x.input_digest = b.digest OR x.output_digest = b.digest)
   AND NOT EXISTS (SELECT 1 FROM contests x WHERE x.banner_digest = b.digest)
+  AND NOT EXISTS (SELECT 1 FROM compilation_cache_files x WHERE x.digest = b.digest)
 LIMIT $1
 `
 

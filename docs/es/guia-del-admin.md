@@ -95,7 +95,9 @@ problema:
      subtarea puntúa solo si pasan todos sus casos), *GroupMul*,
      *GroupThreshold*; el editor de subtareas pide los puntos y los casos de
      cada subtarea (una expresión regular sobre los nombres, una cantidad o
-     una lista).
+     una lista). Con GroupMin/GroupMul, **Cortocircuito** omite el resto de
+     una subtarea en cuanto un caso obtiene 0 (mismo puntaje, menos tiempo
+     de evaluación; ver [evaluación](evaluacion.md)).
    - **Casos de prueba**: uno por uno (entrada, salida, público) o **Desde un
      archivo zip** con patrones de nombre (`*.in`/`*.out`,
      `input*`/`output*`).

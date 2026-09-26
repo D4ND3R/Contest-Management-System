@@ -13,6 +13,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/config"
 	"github.com/D4ND3R/Contest-Management-System/internal/hoststat"
+	"github.com/D4ND3R/Contest-Management-System/internal/jobs"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 	"github.com/D4ND3R/Contest-Management-System/internal/version"
 )
@@ -33,6 +34,8 @@ type Service struct {
 	slots    []queue.SlotStatus
 	jobsDone atomic.Int64
 	errors   atomic.Int64
+	// Pre-warming progress (warm.go).
+	warmed, warmTotal atomic.Int64
 
 	// The machine's load, reported with every heartbeat.
 	host hoststat.Sampler
@@ -47,13 +50,23 @@ func NewService(cfg config.Worker, store blob.Store, q *queue.Queue, log *slog.L
 	}
 	s := &Service{exec: exec, q: q, log: log, interval: cfg.HeartbeatInterval.D(), started: time.Now().UTC(),
 		dirs: [][2]string{{"work", cfg.WorkDir}, {"cache", cfg.CacheDir}}}
+	exec.Skip = func(ctx context.Context, job *jobs.Job, tc jobs.Testcase) bool {
+		return job.SubmissionID != 0 && q.Skipped(ctx, job.SubmissionID, job.DatasetID, job.Generation, tc.ID)
+	}
 	if s.interval <= 0 {
 		s.interval = 2 * time.Second
 	}
+	live, deferred := false, false
 	for _, name := range cfg.Queues {
 		if p, ok := queue.ParsePriority(name); ok {
 			s.prios = append(s.prios, p)
+			live = live || p == queue.PriorityEvaluate || p == queue.PriorityCompile
+			deferred = deferred || p == queue.PriorityDeferred
 		}
+	}
+	if live && !deferred {
+		// Who judges submissions also judges the deferred ones.
+		s.prios = append(s.prios, queue.PriorityDeferred)
 	}
 	for i, sl := range exec.Slots {
 		s.slots = append(s.slots, queue.SlotStatus{Slot: i, Core: sl.Core})
@@ -76,6 +89,7 @@ func (s *Service) Run(ctx context.Context) error {
 	hbCtx, stopHB := context.WithCancel(context.WithoutCancel(ctx))
 	defer stopHB()
 	go s.heartbeat(hbCtx)
+	go s.warmLoop(ctx, min(30*time.Second, 15*s.interval))
 
 	g, gctx := app.NewGroup(ctx)
 	for i := range s.exec.Slots {
@@ -116,6 +130,16 @@ func (s *Service) loop(ctx context.Context, slot int) error {
 			_ = s.q.Ack(context.WithoutCancel(ctx), d)
 			continue
 		}
+		if (d.Priority == queue.PriorityEvaluate || d.Priority == queue.PriorityCompile) && d.Job.SubmissionID != 0 &&
+			s.q.Superseded(ctx, d.Job.SubmissionID) {
+			// A newer submission of the same contestant and task is waiting:
+			// this one goes behind everybody's latest.
+			if err := s.q.Defer(context.WithoutCancel(ctx), d); err != nil {
+				s.log.Warn("defer job", "job", d.Job.ID, "error", err)
+			} else {
+				continue
+			}
+		}
 		s.setSlot(slot, d)
 		// Jobs run to completion even during shutdown.
 		res := s.exec.Execute(context.WithoutCancel(ctx), slot, d.Job)
@@ -151,7 +175,7 @@ func (s *Service) heartbeat(ctx context.Context) {
 		s.mu.Lock()
 		st := &queue.WorkerStatus{Name: s.exec.Name, Hostname: host, Version: version.String(), StartedAt: s.started,
 			Slots: append([]queue.SlotStatus(nil), s.slots...), JobsDone: s.jobsDone.Load(), Errors: s.errors.Load(), Host: &hs,
-			Seccomp: s.exec.Seccomp()}
+			Seccomp: s.exec.Seccomp(), Warmed: int(s.warmed.Load()), WarmTotal: int(s.warmTotal.Load())}
 		s.mu.Unlock()
 		if err := s.q.Heartbeat(ctx, st, 4*s.interval); err != nil && ctx.Err() == nil {
 			s.log.Warn("heartbeat", "error", err)

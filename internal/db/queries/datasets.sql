@@ -30,7 +30,7 @@ UPDATE datasets SET
     description = $2, autojudge = $3, time_limit_ms = $4, wall_time_limit_ms = $5,
     memory_limit_bytes = $6, output_limit_bytes = $7, process_limit = $8,
     source_size_limit_bytes = $9, task_type = $10, task_type_params = $11,
-    score_type = $12, score_type_params = $13
+    score_type = $12, score_type_params = $13, short_circuit = $14
 WHERE id = $1
 RETURNING *;
 
@@ -90,3 +90,22 @@ DELETE FROM testcases WHERE id = $1;
 
 -- name: CountTestcases :one
 SELECT count(*) FROM testcases WHERE dataset_id = $1;
+
+-- name: ListWarmDigests :many
+-- What the workers download ahead of time (SPEC_IOI §11): the testcases
+-- and managers of the live datasets of the contests running now or
+-- starting before @until. A handful of contests; testcases and managers
+-- are read through their (dataset_id, ...) unique indexes.
+SELECT DISTINCT x.digest::text AS digest FROM (
+    SELECT tc.input_digest AS digest
+    FROM contests c JOIN tasks t ON t.contest_id = c.id JOIN testcases tc ON tc.dataset_id = t.active_dataset_id
+    WHERE c.start_time < @until::timestamptz AND c.stop_time > now()
+  UNION ALL
+    SELECT tc.output_digest
+    FROM contests c JOIN tasks t ON t.contest_id = c.id JOIN testcases tc ON tc.dataset_id = t.active_dataset_id
+    WHERE c.start_time < @until::timestamptz AND c.stop_time > now()
+  UNION ALL
+    SELECT m.digest
+    FROM contests c JOIN tasks t ON t.contest_id = c.id JOIN managers m ON m.dataset_id = t.active_dataset_id
+    WHERE c.start_time < @until::timestamptz AND c.stop_time > now()
+) x;

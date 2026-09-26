@@ -44,6 +44,7 @@ run_processes: 1               # minimum processes/threads at run time
 env: {KEY: value}              # added to PATH, HOME=/tmp, LANG=C.UTF-8
 dirs: ["/etc/java-*"]          # extra read-only host dirs (globs allowed)
 no_address_space_limit: false  # true for managed runtimes (JVM, Go, .NET)
+time_multiplier: 1             # optional: scales the tasks' time limits (0-10)
 compile_seed:                  # optional: warmed compiler cache (see Go)
   dir: ".gocache"
   warmup_file: "warmup.go"
@@ -62,6 +63,11 @@ Placeholders: `{sources}` (all sources, grader first), `{main_source}`
 - The time limit is CPU time summed over every thread and process (cgroup
   accounting); the wall-clock limit is `max(2×TL, TL+1s)` unless the dataset
   sets one.
+- `time_multiplier` (none by default) gives a language more time: with 2,
+  a task of 1 s allows 2 s in that language (the dataset's wall-clock limit
+  is scaled too). Contestants see each language's limit on the task page;
+  administrators on **Languages**. Most contests, the IOI included, use the
+  same limit for every language: set it only when the contest rules say so.
 - With cgroups the memory limit is the peak of the whole control group. The
   JVM gets `-Xmx` equal to the limit, so JVM overhead counts against it.
 - Standard error of the contestant's program is discarded.

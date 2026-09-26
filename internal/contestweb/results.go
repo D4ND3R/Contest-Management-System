@@ -1,8 +1,11 @@
 package contestweb
 
 import (
+	"math"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 )
@@ -14,6 +17,10 @@ type resultCard struct {
 	Sub          subView
 	Subtasks     []detailGroup
 	CompileError string
+	// Queued: waiting for a worker, with Ahead submissions before it and
+	// results currently taking about Typical seconds (0: unknown).
+	Queued         bool
+	Ahead, Typical int64
 }
 
 // cardCtx gives the card template the page, the card (nil: nothing
@@ -57,6 +64,13 @@ func (s *Server) resultCard(r *http.Request, p *page, rc *reqCtx, t *taskView, r
 		return nil, err
 	}
 	c := &resultCard{Sub: d.Sub}
+	if d.Sub.Pending && !d.Sub.Evaluating && d.Sub.Invalidated == nil {
+		c.Queued = true
+		if c.Ahead, err = s.q.CountSubmissionsAhead(r.Context(), row.ID); err != nil {
+			return nil, err
+		}
+		c.Typical = s.typicalLatency(r)
+	}
 	if d.Details != nil {
 		for _, g := range d.Details.Groups {
 			if g.Title != "" {
@@ -92,4 +106,26 @@ func (s *Server) handleSubmissionCard(w http.ResponseWriter, r *http.Request, rc
 		return
 	}
 	s.renderPartial(w, "resultcard", cardCtx{P: p, C: c, Task: t})
+}
+
+// latencyCache keeps the typical judging time for a few seconds: every
+// waiting contestant asks for it.
+type latencyCache struct {
+	mu  sync.Mutex
+	at  time.Time
+	sec int64
+}
+
+// typicalLatency is the median arrival-to-score time of the latest judged
+// submissions, in whole seconds (0 when unknown).
+func (s *Server) typicalLatency(r *http.Request) int64 {
+	c := &s.latency
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if now := time.Now(); now.Sub(c.at) > 10*time.Second {
+		if v, err := s.q.RecentJudgingLatency(r.Context()); err == nil {
+			c.sec, c.at = int64(math.Ceil(v)), now
+		}
+	}
+	return c.sec
 }

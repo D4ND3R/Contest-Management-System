@@ -94,6 +94,13 @@ func Invalidate(ctx context.Context, pool *pgxpool.Pool, q *queue.Queue, scope S
 	if err != nil {
 		return 0, err
 	}
+	if level == Recompile && len(keys) > 0 {
+		// A recompilation really compiles: the cached executables may come
+		// from a compiler since upgraded (D87).
+		if err := sqlc.New(pool).ClearCompilationCache(ctx); err != nil {
+			return 0, err
+		}
+	}
 	const batch = 200
 	for i := 0; i < len(keys); i += batch {
 		part := keys[i:min(i+batch, len(keys))]

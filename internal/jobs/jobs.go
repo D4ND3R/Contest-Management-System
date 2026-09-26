@@ -5,7 +5,12 @@
 package jobs
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"sort"
+	"strconv"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 )
@@ -37,6 +42,13 @@ type Limits struct {
 	MemoryBytes int64 `json:"memory_bytes,omitempty"`
 	OutputBytes int64 `json:"output_bytes,omitempty"`
 	Processes   int   `json:"processes,omitempty"`
+}
+
+// ForLanguage returns the limits with the language's time multiplier
+// applied (SPEC_IOI §3).
+func (l Limits) ForLanguage(lang *langs.Language) Limits {
+	l.TimeMs, l.WallTimeMs = lang.ScaleMs(l.TimeMs), lang.ScaleMs(l.WallTimeMs)
+	return l
 }
 
 // Testcase to evaluate.
@@ -147,4 +159,32 @@ func ForJob(j *Job, worker string) *Result {
 		r.Testcases = append(r.Testcases, tc.ID)
 	}
 	return r
+}
+
+// CompileKey identifies what a compilation depends on: the language and
+// its commands, the task type and its parameters, the submitted files and
+// the dataset's managers (graders, headers), by content. Two jobs with the
+// same key produce the same executables, so a compilation can be reused
+// (SPEC_IOI §3: compilation caching). "" for jobs without a language.
+func CompileKey(j *Job) string {
+	if j.Language == nil {
+		return ""
+	}
+	h := sha256.New()
+	w := func(parts ...string) {
+		for _, p := range parts {
+			fmt.Fprintf(h, "%d:%s;", len(p), p)
+		}
+	}
+	lang, _ := json.Marshal(j.Language)
+	w("v1", string(lang), j.TaskType, string(j.TaskTypeParams))
+	for _, group := range [][]File{j.Files, j.Managers} {
+		fs := append([]File(nil), group...)
+		sort.Slice(fs, func(a, b int) bool { return fs[a].Name < fs[b].Name })
+		w(strconv.Itoa(len(fs)))
+		for _, f := range fs {
+			w(f.Name, f.Digest)
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }

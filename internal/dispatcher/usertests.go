@@ -55,6 +55,7 @@ func (d *Dispatcher) userTestJob(ctx context.Context, q *sqlc.Queries, id, dsID 
 			return nil, meta, fmt.Errorf("language %q is not configured", *meta.Language)
 		}
 		j.Language, ext = l, l.SourceExtension()
+		j.Limits = j.Limits.ForLanguage(l)
 	}
 	sf := make([]sqlc.SubmissionFile, len(files))
 	for i, f := range files {

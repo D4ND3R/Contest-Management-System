@@ -229,3 +229,48 @@ func TestSubtaskEditorRoundTrip(t *testing.T) {
 		t.Fatalf("encoded %s", raw)
 	}
 }
+
+// TestSkippable: a testcase is skipped only when every subtask holding it
+// already has a zero; partial outcomes and other score types skip nothing.
+func TestSkippable(t *testing.T) {
+	codes := []string{"a1", "a2", "a3", "b1", "b2", "s"}
+	st, err := New("GroupMin", json.RawMessage(`[[30, "a.*"], [50, "b.*|s"], [20, "a3|s"]]`), codes, make([]bool, len(codes)), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sk := st.(Skipper)
+	got := func(known map[string]float64) string { return strings.Join(sk.Skippable(known), ",") }
+	if g := got(map[string]float64{"a1": 1}); g != "" {
+		t.Fatalf("nothing failed: %s", g)
+	}
+	if g := got(map[string]float64{"a1": 0.5}); g != "" {
+		t.Fatalf("partial settles nothing: %s", g)
+	}
+	// a1 = 0 kills subtask 1: a2 goes; a3 is also in subtask 3, alive.
+	if g := got(map[string]float64{"a1": 0}); g != "a2" {
+		t.Fatalf("a1 failed: %s", g)
+	}
+	// b1 = 0 kills subtask 2; s is also in subtask 3: kill it through a3.
+	if g := got(map[string]float64{"b1": 0, "a3": 0}); g != "a1,a2,b2,s" {
+		t.Fatalf("b1 and a3 failed: %s", g)
+	}
+	mul, _ := New("GroupMul", json.RawMessage(`[[100, 2]]`), []string{"x", "y"}, []bool{false, false}, 0)
+	if g := strings.Join(mul.(Skipper).Skippable(map[string]float64{"x": 0}), ","); g != "y" {
+		t.Fatalf("GroupMul: %s", g)
+	}
+	th, _ := New("GroupThreshold", json.RawMessage(`[[100, 2, 0.5]]`), []string{"x", "y"}, []bool{false, false}, 0)
+	if g := th.(Skipper).Skippable(map[string]float64{"x": 0}); g != nil {
+		t.Fatalf("GroupThreshold skips %v", g)
+	}
+	if _, ok := any(mustSum(t)).(Skipper); ok {
+		t.Fatal("Sum must not skip")
+	}
+}
+
+func mustSum(t *testing.T) ScoreType {
+	st, err := New("Sum", json.RawMessage(`10`), []string{"x"}, []bool{false}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st
+}

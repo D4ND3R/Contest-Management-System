@@ -61,6 +61,26 @@ type taskView struct {
 	InputFile, OutputFile string
 }
 
+// languageTime is a language's own time limit (time_multiplier).
+type languageTime struct {
+	Name  string
+	Limit time.Duration
+}
+
+// LanguageTimes are the time limits of the task's languages that scale it.
+func (t *taskView) LanguageTimes() []languageTime {
+	var out []languageTime
+	if t.TimeLimit == 0 {
+		return nil
+	}
+	for _, l := range t.Languages {
+		if l.Multiplied() {
+			out = append(out, languageTime{l.Name, time.Duration(l.ScaleMs(t.TimeLimit.Milliseconds())) * time.Millisecond})
+		}
+	}
+	return out
+}
+
 var errNotFound = errors.New("not found")
 
 // cache holds contest views (by name) and participations (by id).

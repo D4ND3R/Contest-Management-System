@@ -100,9 +100,11 @@
 
 {{define "resultcard"}}{{$p := .P}}{{$t := .Task}}
 {{with .C}}{{$s := .Sub}}
-<section class="card result {{$s.Class}}" id="latest" data-task="{{$t.ID}}" data-sub="{{$s.ID}}" data-base="{{$p.Base}}" data-src="{{$p.Base}}submissions/{{$s.ID}}/card" aria-live="polite">
+<section class="card result {{$s.Class}}" id="latest" data-task="{{$t.ID}}" data-sub="{{$s.ID}}" data-base="{{$p.Base}}" data-src="{{$p.Base}}submissions/{{$s.ID}}/card" aria-live="polite"
+  {{if .Queued}}hx-get="{{$p.Base}}submissions/{{$s.ID}}/card" hx-trigger="every 10s" hx-swap="outerHTML"{{end}}>
   <h2>{{$p.T "Latest result"}} <small class="muted">#{{$s.ID}} · {{$p.Time $s.Time}}</small></h2>
   <p class="verdict {{$s.Class}}">{{$s.StatusText}}</p>
+  {{if .Queued}}<p class="muted small queue-pos">{{if .Ahead}}{{$p.T "Submissions ahead of yours in the queue: %d." .Ahead}}{{else}}{{$p.T "Next in the queue."}}{{end}}{{with .Typical}} {{$p.T "Results take about %s right now." ($p.Approx .)}}{{end}}</p>{{end}}
   {{if $s.Evaluating}}<progress max="{{$s.Total}}" value="{{$s.Done}}"></progress>{{end}}
   {{if $s.HasScore}}<p class="bigscore"><b>{{$p.Score $s.Score $s.Precision}}</b> / {{$p.Score $s.Max $s.Precision}}</p>{{end}}
   {{with .Subtasks}}<ul class="chips">{{range .}}<li class="{{.Class}}">{{$p.T "Subtask %d" .Index}} <b>{{$p.Score .Score $s.Precision}}/{{$p.Score .Max $s.Precision}}</b></li>{{end}}</ul>{{end}}

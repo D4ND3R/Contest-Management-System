@@ -13,6 +13,7 @@
 - [Rankings: configuración, congelamiento y servidor de ranking](ranking.md)
 - [Respaldos, restauración y archivos de concursos](respaldos.md)
 - [Verificar una máquina de evaluación](verificar-host.md)
+- [Evaluar rápido y con justicia: colas, cortocircuito, caché de compilación, precarga, multiplicadores de tiempo, calibración](evaluacion.md)
 - [Cómo se defiende el juez: sandbox, filtro seccomp, envíos sospechosos](seguridad.md)
 - [Lenguajes de programación](languages.md)
 - [Paquetes de ejemplo](../examples/packages/README.md)

@@ -6,9 +6,11 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/events"
+	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/statement"
 )
 
@@ -176,5 +178,53 @@ func TestResultCardAndTesting(t *testing.T) {
 	code, body = f.get(c, "/ioi/testing")
 	if code != 200 || !strings.Contains(body, `action="/ioi/tasks/sum/test?from=testing"`) {
 		t.Fatalf("testing page: %d\n%s", code, body)
+	}
+}
+
+// TestQueuePosition (SPEC_IOI H4): while a submission waits for a worker
+// its card says how many submissions are ahead and how long results take
+// now, and refreshes itself; once judged it stops polling.
+func TestQueuePosition(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	c := f.client()
+	_, page := f.login(c, "ana", "secret")
+	csrf := csrfOf(t, page)
+	f.submit(c, csrf, "c11", "int main(){}", true)
+	f.submit(c, csrf, "c11", "int main(){return 0;}", true)
+	subs, _ := f.q.ListSubmissionsByParticipation(bg, f.part.ID)
+	if len(subs) != 2 {
+		t.Fatalf("%d submissions", len(subs))
+	}
+	older, newer := subs[0].ID, subs[1].ID
+	for _, id := range []int64{older, newer} {
+		f.q.EnsureSubmissionResult(bg, sqlc.EnsureSubmissionResultParams{SubmissionID: id, DatasetID: f.ds.ID})
+	}
+	card := func(id int64) string { _, b := f.get(c, "/ioi/submissions/"+itoa(id)+"/card"); return b }
+	if b := card(older); !strings.Contains(b, "Next in the queue.") || !strings.Contains(b, `hx-trigger="every 10s"`) {
+		t.Fatalf("older:\n%s", b)
+	}
+	if b := card(newer); !strings.Contains(b, "Submissions ahead of yours in the queue: 1.") || strings.Contains(b, "Results take about") {
+		t.Fatalf("newer:\n%s", b)
+	}
+	f.scoreSubmission(t, older)
+	f.srv.latency = latencyCache{} // the typical time is cached for 10 s
+	if b := card(older); strings.Contains(b, "queue") || strings.Contains(b, "hx-trigger") {
+		t.Fatalf("judged card still polls:\n%s", b)
+	}
+	if b := card(newer); !strings.Contains(b, "Next in the queue.") || !strings.Contains(b, "Results take about 1 s right now.") {
+		t.Fatalf("newer after the older was judged:\n%s", b)
+	}
+}
+
+// TestLanguageTimes (SPEC_IOI §3): the task page lists the time limit of
+// every language with a time multiplier.
+func TestLanguageTimes(t *testing.T) {
+	tv := &taskView{TimeLimit: 1500 * time.Millisecond, Languages: []*langs.Language{{Name: "C"}, {Name: "Java", TimeMultiplier: 2}, {Name: "Py", TimeMultiplier: 1}}}
+	got := tv.LanguageTimes()
+	if len(got) != 1 || got[0].Name != "Java" || got[0].Limit != 3*time.Second {
+		t.Fatalf("%+v", got)
+	}
+	if (&taskView{Languages: tv.Languages}).LanguageTimes() != nil {
+		t.Fatal("no time limit, yet language limits")
 	}
 }

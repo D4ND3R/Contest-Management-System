@@ -63,6 +63,24 @@ func (q *Queries) BestPreviousOutputs(ctx context.Context, arg BestPreviousOutpu
 	return items, nil
 }
 
+const countSubmissionsAhead = `-- name: CountSubmissionsAhead :one
+SELECT count(*)::bigint
+FROM submission_results sr
+JOIN submissions s ON s.id = sr.submission_id
+JOIN tasks t ON t.id = s.task_id AND t.active_dataset_id = sr.dataset_id
+WHERE sr.scored_at IS NULL AND sr.system_error IS NULL AND sr.submission_id < $1::bigint AND NOT s.tester
+`
+
+// Submissions to live datasets still being judged that arrived before
+// @before_id: the queue position shown while waiting (read through
+// submission_results_pending_idx, the unfinished results only).
+func (q *Queries) CountSubmissionsAhead(ctx context.Context, beforeID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, countSubmissionsAhead, beforeID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countSubmissionsByTask = `-- name: CountSubmissionsByTask :many
 SELECT task_id, count(*)::bigint AS n FROM submissions
 WHERE participation_id = ANY($1::bigint[])
@@ -547,4 +565,21 @@ SELECT id FROM participations WHERE id = $1 FOR UPDATE
 func (q *Queries) LockParticipation(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, lockParticipation, id)
 	return err
+}
+
+const recentJudgingLatency = `-- name: RecentJudgingLatency :one
+SELECT COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM sr.scored_at - s.submitted_at)), 0)::float8
+FROM (SELECT id, submitted_at, task_id FROM submissions WHERE NOT tester ORDER BY id DESC LIMIT 200) s
+JOIN tasks t ON t.id = s.task_id
+JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE sr.scored_at IS NOT NULL
+`
+
+// The median time from arrival to score of the latest judged submissions
+// (the newest 200 through the primary key), in seconds; 0 when none.
+func (q *Queries) RecentJudgingLatency(ctx context.Context) (float64, error) {
+	row := q.db.QueryRow(ctx, recentJudgingLatency)
+	var column_1 float64
+	err := row.Scan(&column_1)
+	return column_1, err
 }

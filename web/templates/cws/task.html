@@ -50,6 +50,7 @@
   <h2>{{.T "Limits"}}</h2>
   <dl class="meta">
     {{if $t.TimeLimit}}<dt>{{.T "Time limit"}}</dt><dd>{{.Seconds $t.TimeLimit}}</dd>{{end}}
+    {{range $t.LanguageTimes}}<dt>{{$.T "Time limit in %s" .Name}}</dt><dd>{{$.Seconds .Limit}}</dd>{{end}}
     {{if $t.MemoryLimit}}<dt>{{.T "Memory limit"}}</dt><dd>{{.Bytes $t.MemoryLimit}}</dd>{{end}}
     <dt>{{.T "Task type"}}</dt><dd>{{$t.TaskType}}</dd>
     {{with $d.Limits}}{{range .}}<dt>{{index . 0}}</dt><dd>{{index . 1}}</dd>{{end}}{{end}}

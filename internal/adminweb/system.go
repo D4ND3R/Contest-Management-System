@@ -2,6 +2,7 @@ package adminweb
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"net/url"
 	"sort"
@@ -144,8 +145,85 @@ func (s *Server) handleJobRequeue(w http.ResponseWriter, r *http.Request, rc *re
 }
 
 type systemPage struct {
-	Status *systemStatus
-	Errors []sqlc.AdminListSystemErrorsRow
+	Status       *systemStatus
+	Errors       []sqlc.AdminListSystemErrorsRow
+	Calibrations []calibrationView
+	// Spread is how far apart the machines are (slowest over fastest
+	// median, as "12.5"); Uneven when above the tolerance.
+	Spread string
+	Uneven bool
+}
+
+// calibrationView is a worker's calibration as the Judges page shows it.
+type calibrationView struct {
+	queue.Calibration
+	Cores []calibrationCore
+	// Diff is this machine against the median of all machines ("+1.2");
+	// Outlier when beyond the tolerance. Tolerance is as "3".
+	Diff      string
+	Outlier   bool
+	Tolerance string
+}
+
+type calibrationCore struct {
+	CPU  int
+	Sec  float64
+	Diff string
+	Off  bool
+}
+
+// signed writes a fraction as a percentage with its sign ("+1.2").
+func signed(f float64) string {
+	v := strconv.FormatFloat(100*f, 'f', 1, 64)
+	if v[0] != '-' {
+		v = "+" + v
+	}
+	return v
+}
+
+// calibrations compares the stored worker calibrations: each core with
+// its machine and each machine with the others (SPEC_IOI §11: the same
+// program must take the same time on every core).
+func calibrations(all map[string]queue.Calibration) ([]calibrationView, string, bool) {
+	var out []calibrationView
+	var medians []float64
+	tol := 0.0
+	for _, c := range all {
+		v := calibrationView{Calibration: c, Tolerance: strconv.FormatFloat(100*c.Tolerance, 'f', -1, 64)}
+		for i, sec := range c.Slots {
+			cc := calibrationCore{CPU: i, Sec: sec}
+			if i < len(c.Cores) {
+				cc.CPU = c.Cores[i]
+			}
+			if c.Median > 0 {
+				d := (sec - c.Median) / c.Median
+				cc.Diff, cc.Off = signed(d), math.Abs(d) > c.Tolerance
+			}
+			v.Cores = append(v.Cores, cc)
+		}
+		out = append(out, v)
+		if c.Median > 0 {
+			medians = append(medians, c.Median)
+		}
+		tol = math.Max(tol, c.Tolerance)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Worker < out[j].Worker })
+	if len(medians) == 0 {
+		return out, "", false
+	}
+	sort.Float64s(medians)
+	mid := medians[len(medians)/2]
+	if len(medians)%2 == 0 {
+		mid = (medians[len(medians)/2-1] + mid) / 2
+	}
+	for i := range out {
+		if c := out[i].Calibration; c.Median > 0 {
+			d := (c.Median - mid) / mid
+			out[i].Diff, out[i].Outlier = signed(d), math.Abs(d) > c.Tolerance
+		}
+	}
+	spread := medians[len(medians)-1]/medians[0] - 1
+	return out, strconv.FormatFloat(100*spread, 'f', 1, 64), spread > tol
 }
 
 func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -154,6 +232,9 @@ func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request, rc *reqCtx
 	if d.Errors, err = s.q.AdminListSystemErrors(r.Context()); err != nil {
 		s.internalError(w, r, rc, err)
 		return
+	}
+	if all, err := s.queue.Calibrations(r.Context()); err == nil {
+		d.Calibrations, d.Spread, d.Uneven = calibrations(all)
 	}
 	s.render(w, "system", http.StatusOK, s.newPage(w, r, rc, "Workers and queues", "system", d))
 }

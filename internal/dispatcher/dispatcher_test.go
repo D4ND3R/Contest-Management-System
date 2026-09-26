@@ -82,6 +82,13 @@ func newEnv(t *testing.T, withWorker bool) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// C with twice the time (time_multiplier).
+	c11, _ := reg.Get("c11")
+	slow := *c11
+	slow.ID, slow.Name, slow.TimeMultiplier = "c11x2", "C11 (x2)", 2
+	if err := reg.Add(&slow); err != nil {
+		t.Fatal(err)
+	}
 	e.disp = dispatcher.New(pool, rdb, reg, logging.Discard(), dispatcher.Options{
 		Namespace: ns, SweepInterval: 500 * time.Millisecond, MaxAttempts: 3, Consumer: "test",
 	})
@@ -202,9 +209,11 @@ const (
 )
 
 // submit stores a submission and notifies the dispatcher.
-func (e *env) submit(src string, notify bool) int64 {
+func (e *env) submit(src string, notify bool) int64 { return e.submitIn("c11", src, notify) }
+
+// submitIn stores a submission in a language and notifies the dispatcher.
+func (e *env) submitIn(lang, src string, notify bool) int64 {
 	q := sqlc.New(e.pool)
-	lang := "c11"
 	s, err := q.CreateSubmission(ctx, sqlc.CreateSubmissionParams{ParticipationID: &e.part.ID, TaskID: e.task.ID,
 		SubmittedAt: time.Now(), Language: &lang, Official: true})
 	if err != nil {

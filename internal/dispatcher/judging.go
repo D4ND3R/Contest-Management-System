@@ -25,6 +25,8 @@ type effects struct {
 	jobs    []queue.Item
 	events  []events.Event
 	ranking []queue.RankingUpdate
+	// skips tell the workers which queued testcases not to run.
+	skips []queue.Skip
 }
 
 func (d *Dispatcher) apply(ctx context.Context, e *effects) {
@@ -39,6 +41,12 @@ func (d *Dispatcher) apply(ctx context.Context, e *effects) {
 	}
 	if err := d.q.PushRanking(ctx, e.ranking...); err != nil {
 		d.log.Error("push ranking updates", "error", err)
+	}
+	for _, s := range e.skips {
+		// Lost, the workers only run what would have been ignored anyway.
+		if err := d.q.AddSkips(ctx, s); err != nil {
+			d.log.Warn("publish skipped testcases", "error", err)
+		}
 	}
 }
 
@@ -95,7 +103,7 @@ func (d *Dispatcher) loadSubmission(ctx context.Context, q *sqlc.Queries, subID,
 	sc.files = resolveFiles(files, ext)
 	sc.job = jobs.Job{
 		SubmissionID: subID, DatasetID: dsID, TaskType: di.ds.TaskType, TaskTypeParams: di.ds.TaskTypeParams,
-		Language: sc.job.Language, Files: sc.files, Managers: di.managers, Limits: di.limits(),
+		Language: sc.job.Language, Files: sc.files, Managers: di.managers, Limits: di.limits().ForLanguage(sc.job.Language),
 	}
 	return sc, nil
 }
@@ -167,6 +175,18 @@ func (d *Dispatcher) newSubmission(ctx context.Context, subID int64) error {
 			return err
 		}
 	}
+	if !meta.Tester {
+		// The contestant's earlier submissions to the task still being
+		// judged wait behind everybody's latest (D87).
+		older, err := q.ListUnfinishedOlderSubmissions(ctx, sqlc.ListUnfinishedOlderSubmissionsParams{
+			ParticipationID: meta.ParticipationID, TaskID: meta.TaskID, BeforeID: subID})
+		if err != nil {
+			return err
+		}
+		if err := d.q.Supersede(ctx, older...); err != nil {
+			d.log.Warn("supersede submissions", "error", err)
+		}
+	}
 	return nil
 }
 
@@ -192,6 +212,22 @@ func (d *Dispatcher) advance(ctx context.Context, subID, dsID int64, rejudge boo
 		}
 		switch {
 		case st.CompilationOutcome == nil:
+			// The same inputs compiled before: take the executables.
+			if c, err := cachedCompilation(ctx, q, &sc.job); err != nil {
+				return err
+			} else if c != nil {
+				r := &resultT{Kind: jobs.KindCompile, Worker: cacheWorker, SubmissionID: subID, DatasetID: dsID,
+					Generation: st.Generation, Compilation: c}
+				if rejudge {
+					r.Priority = int(queue.PriorityBackground)
+				} else {
+					r.Priority = int(sc.priority(queue.PriorityCompile, false))
+				}
+				if err := d.applyCompilation(ctx, q, &eff, sc, st.Generation, r); err != nil {
+					return err
+				}
+				break
+			}
 			eff.jobs = append(eff.jobs, sc.compileJob(st.Generation, 0, sc.priority(queue.PriorityCompile, rejudge)))
 			eff.events = append(eff.events, sc.event("compiling"))
 			// Pending from now on in the task score, as the full ranking
@@ -323,6 +359,11 @@ func (d *Dispatcher) applyCompilation(ctx context.Context, q *sqlc.Queries, eff 
 	if !c.Success {
 		return d.scoreCompilationFailure(ctx, q, eff, sc)
 	}
+	if r.Worker != cacheWorker {
+		if err := rememberCompilation(ctx, q, &sc.job, c); err != nil {
+			return wrap("remember compilation", err)
+		}
+	}
 	for _, e := range c.Executables {
 		if err := q.RegisterBlob(ctx, sqlc.RegisterBlobParams{Digest: e.Digest, Size: e.Size, Description: "executable"}); err != nil {
 			return wrap("register executable", err)
@@ -379,6 +420,11 @@ func (d *Dispatcher) applyEvaluations(ctx context.Context, q *sqlc.Queries, eff 
 				Reason: suspicious.Forbidden, Detail: "testcase " + sc.di.byID[e.TestcaseID].Codename}); err != nil {
 				return wrap("flag submission", err)
 			}
+		}
+	}
+	if sc.di.ds.ShortCircuit {
+		if err := d.shortCircuit(ctx, q, eff, sc, gen); err != nil {
+			return wrap("short-circuit", err)
 		}
 	}
 	prog, err := q.RefreshTestcasesDone(ctx, sqlc.RefreshTestcasesDoneParams{SubmissionID: sc.meta.ID, DatasetID: sc.di.ds.ID})

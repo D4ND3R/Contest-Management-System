@@ -85,3 +85,9 @@ process survives, which is checked.
 
 The installer pauses `cms-worker` while it runs the verification, so that
 queued jobs do not disturb the timings.
+
+## Calibration
+
+The self-test checks verdicts; `cms ctl calibrate` checks that every
+judging core, and every worker machine, runs the same program in the same
+time. See [calibrating the judging machines](evaluation.md#calibrating-the-judging-machines).

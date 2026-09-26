@@ -44,6 +44,7 @@ run_processes: 1               # procesos/hilos mínimos en ejecución
 env: {CLAVE: valor}            # se suma a PATH, HOME=/tmp, LANG=C.UTF-8
 dirs: ["/etc/java-*"]          # directorios del host de solo lectura (globs)
 no_address_space_limit: false  # true para runtimes gestionados (JVM, Go, .NET)
+time_multiplier: 1             # opcional: escala los límites de tiempo (0-10)
 compile_seed:                  # opcional: caché del compilador precalentada (ver Go)
   dir: ".gocache"
   warmup_file: "warmup.go"
@@ -62,6 +63,12 @@ Marcadores: `{sources}` (todas las fuentes, grader primero), `{main_source}`
 - El límite de tiempo es tiempo de CPU sumado de todos los hilos y procesos
   (cgroups); el límite de tiempo real es `max(2×TL, TL+1s)` salvo que el
   dataset defina otro.
+- `time_multiplier` (ninguno por defecto) da más tiempo a un lenguaje: con
+  2, un problema de 1 s permite 2 s en ese lenguaje (también se escala el
+  límite de tiempo real del dataset). Los concursantes ven el límite de cada
+  lenguaje en la página del problema; los administradores, en
+  **Lenguajes**. La mayoría de los concursos, la IOI incluida, usa el mismo
+  límite para todos los lenguajes: defínelo solo si el reglamento lo dice.
 - Con cgroups el límite de memoria es el pico de todo el grupo. La JVM recibe
   `-Xmx` igual al límite, así que su sobrecarga cuenta.
 - La salida de error estándar del programa del concursante se descarta.

@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -66,4 +67,23 @@ func TestMaliciousBattery(t *testing.T) {
 	}
 	report(t, second)
 	compareRuns(t, first, second, "CMS_BATTERY_REPORT")
+}
+
+// TestCalibrate (SPEC_IOI H4): the calibration benchmark runs on every
+// slot and reports its CPU time (drift is only meaningful on a tuned
+// host, so it is not asserted here).
+func TestCalibrate(t *testing.T) {
+	h := newHarnessSlots(t, 2)
+	ts, err := h.judge(len(h.exec.Slots)).Calibrate(context.Background(), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ts) != len(h.exec.Slots) {
+		t.Fatalf("%d slots timed", len(ts))
+	}
+	for _, c := range ts {
+		if len(c.Times) != 2 || c.Median < 0.05 || c.Median > 5 {
+			t.Fatalf("slot %d: %+v", c.Slot, c)
+		}
+	}
 }

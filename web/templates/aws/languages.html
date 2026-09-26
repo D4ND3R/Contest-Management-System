@@ -1,14 +1,14 @@
 {{define "content"}}
 <h1>{{.T "Languages"}}</h1>
 <table>
-<thead><tr><th>Id</th><th>{{.T "Name"}}</th><th>{{.T "Extensions"}}</th><th>{{.T "Compilation"}}</th><th>{{.T "Execution"}}</th></tr></thead>
+<thead><tr><th>Id</th><th>{{.T "Name"}}</th><th>{{.T "Extensions"}}</th><th>{{.T "Compilation"}}</th><th>{{.T "Execution"}}</th><th class="num">{{.T "Time limit"}}</th></tr></thead>
 <tbody>
 {{range .Data.Languages}}
 <tr><td><code>{{.ID}}</code></td><td>{{.Name}}</td><td>{{join .SourceExtensions " "}}</td>
 <td>{{if .Compile}}<pre class="small">{{cmds .Compile}}</pre>{{else}}<span class="muted">{{$.T "interpreted"}}</span>{{end}}</td>
-<td><pre class="small">{{args .Run}}</pre></td></tr>
+<td><pre class="small">{{args .Run}}</pre></td><td class="num">{{if .Multiplied}}×{{.TimeMultiplier}}{{else}}<span class="muted">×1</span>{{end}}</td></tr>
 {{end}}
 </tbody>
 </table>
-<p class="muted small">{{.T "Languages are defined by the YAML files in config/languages/; adding one needs no code change."}}</p>
+<p class="muted small">{{.T "Languages are defined by the YAML files in config/languages/; adding one needs no code change."}} {{.T "time_multiplier in a language's file scales the tasks' time limits for it (contestants see the resulting limit on each task)."}}</p>
 {{end}}

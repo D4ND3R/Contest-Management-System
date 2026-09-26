@@ -1103,3 +1103,24 @@ localization, H8 audit (`AUDIT.md` §10) and summary.
 - Docs: `docs/en/security.md`, `docs/es/seguridad.md`, verify-host and
   the admin guide.
 
+### H4 — judging faster and fairer (done)
+- **Deferred queue** (D87): a contestant's older unfinished submissions to
+  a task are superseded by a newer one and wait behind everybody's latest
+  (`TestDeferredJobs`, `TestNewerSubmissionSupersedes`).
+- **Short-circuit** for GroupMin/GroupMul, per dataset (migration 0020):
+  skipped testcases shown as skipped, same score (`TestSkippable`,
+  `TestSkips`, `TestShortCircuit`, `TestSkippedTestcases`,
+  `TestShortCircuitOption`).
+- **Compilation cache** by content hash; explicit recompilation clears it
+  (`TestCompilationCache`).
+- **Queue position and waiting time** on the contestant's result card
+  (`TestQueuePosition`).
+- **Per-language time multipliers** (`time_multiplier`; `TestTimeMultiplier`
+  in langs and dispatcher, `TestLanguageTimes`).
+- **Pre-warmed worker caches** for running and upcoming contests, progress
+  on the Judges page (`TestWarmSet`, `TestPublishWarm`, `TestWarm`).
+- **Calibration**: `cms ctl calibrate`, stored per worker and compared on
+  the Judges page (`TestDrift`, `TestCalibrate`, `TestCalibrations`,
+  `TestCalibrationsOnSystemPage`).
+- Docs: `docs/en/evaluation.md`, `docs/es/evaluacion.md`, languages,
+  verify-host and the admin guide.

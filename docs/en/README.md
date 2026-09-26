@@ -13,6 +13,7 @@
 - [Rankings: settings, freeze and the ranking web server](ranking.md)
 - [Backups, restore and contest archives](backups.md)
 - [Verifying a judging host](verify-host.md)
+- [Judging quickly and fairly: queues, short-circuit, compilation cache, pre-warming, time multipliers, calibration](evaluation.md)
 - [How the judge defends itself: sandbox, seccomp filter, suspicious submissions](security.md)
 - [Programming languages](languages.md)
 - [Example problem packages](../examples/packages/README.md)

@@ -68,3 +68,17 @@ func TestSharedCores(t *testing.T) {
 }
 
 func itoa(i int) string { return string(rune('0' + i)) }
+
+func TestDrift(t *testing.T) {
+	ts := []CoreTime{{Slot: 0, Median: 0.50}, {Slot: 1, Median: 0.505}, {Slot: 2, Median: 0.56}, {Slot: 3, Median: 0.498}}
+	m, off := Drift(ts, 0.03)
+	if m < 0.50 || m > 0.505 || len(off) != 1 || off[0].Slot != 2 {
+		t.Fatalf("median %v off %+v", m, off)
+	}
+	if s := Spread(CoreTime{Times: []float64{0.5, 0.52, 0.51}, Median: 0.51}); s < 0.039 || s > 0.04 {
+		t.Fatalf("spread %v", s)
+	}
+	if median([]float64{3, 1, 2, 4}) != 2.5 || median(nil) != 0 {
+		t.Fatal("median")
+	}
+}

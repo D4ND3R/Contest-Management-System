@@ -64,6 +64,7 @@ type Server struct {
 	sessions  *webkit.SessionTracker
 	boards    boardCache
 	stmts     stmtCache
+	latency   latencyCache
 	checks    []httpx.Check
 	now       func() time.Time
 }

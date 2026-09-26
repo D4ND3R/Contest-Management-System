@@ -167,3 +167,40 @@ ON CONFLICT DO NOTHING;
 
 -- name: ListSubmissionFlags :many
 SELECT * FROM submission_flags WHERE submission_id = $1 ORDER BY created_at, kind, reason;
+
+-- name: GetCompilationCache :one
+-- A remembered compilation (SPEC_IOI H4), by the hash of its inputs.
+SELECT * FROM compilation_cache WHERE key = $1;
+
+-- name: ListCompilationCacheFiles :many
+SELECT * FROM compilation_cache_files WHERE key = $1 ORDER BY filename;
+
+-- name: UseCompilationCache :exec
+UPDATE compilation_cache SET hits = hits + 1, used_at = now() WHERE key = $1;
+
+-- name: InsertCompilationCache :execrows
+INSERT INTO compilation_cache (key, text, stdout, stderr, time, wall_time, memory)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (key) DO NOTHING;
+
+-- name: InsertCompilationCacheFile :exec
+INSERT INTO compilation_cache_files (key, filename, digest, size) VALUES ($1, $2, $3, $4)
+ON CONFLICT DO NOTHING;
+
+-- name: PruneCompilationCache :execrows
+-- Entries not used since before @before (compilation_cache_used_idx).
+DELETE FROM compilation_cache WHERE used_at < @before::timestamptz;
+
+-- name: ClearCompilationCache :exec
+-- An explicit recompilation must run the compilers (they may have been
+-- upgraded, which the cache key cannot see).
+DELETE FROM compilation_cache;
+
+-- name: ListUnfinishedOlderSubmissions :many
+-- A contestant's earlier submissions to a task still being judged
+-- (submissions_participation_task_idx; a handful at most).
+SELECT DISTINCT s.id
+FROM submissions s
+JOIN submission_results sr ON sr.submission_id = s.id
+WHERE s.participation_id = @participation_id::bigint AND s.task_id = @task_id::bigint AND s.id < @before_id::bigint
+  AND sr.scored_at IS NULL AND sr.system_error IS NULL;

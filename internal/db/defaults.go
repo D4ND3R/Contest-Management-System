@@ -107,6 +107,7 @@ func DatasetToUpdate(d sqlc.Dataset) sqlc.UpdateDatasetParams {
 		WallTimeLimitMs: d.WallTimeLimitMs, MemoryLimitBytes: d.MemoryLimitBytes, OutputLimitBytes: d.OutputLimitBytes,
 		ProcessLimit: d.ProcessLimit, SourceSizeLimitBytes: d.SourceSizeLimitBytes, TaskType: d.TaskType,
 		TaskTypeParams: d.TaskTypeParams, ScoreType: d.ScoreType, ScoreTypeParams: d.ScoreTypeParams,
+		ShortCircuit: d.ShortCircuit,
 	}
 }
 

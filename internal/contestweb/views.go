@@ -310,7 +310,11 @@ func (s *Server) detailData(r *http.Request, p *page, rc *reqCtx, t *taskView, r
 		return "warn"
 	}
 	mkRow := func(tc scoring.TestcaseDetail) detailRow {
-		return detailRow{Codename: tc.Codename, Text: translateOutcome(p.Lang, tc.Text), Class: classOf(tc.Outcome), Time: tc.Time, Memory: tc.Memory}
+		r := detailRow{Codename: tc.Codename, Text: translateOutcome(p.Lang, tc.Text), Class: classOf(tc.Outcome), Time: tc.Time, Memory: tc.Memory}
+		if tc.Text == scoring.MsgSkipped {
+			r.Class = "muted" // not run: the subtask had failed already
+		}
+		return r
 	}
 	switch det.Type {
 	case "group":

@@ -293,3 +293,11 @@ func (p *page) TaskIndex(name string) int {
 	}
 	return 0
 }
+
+// Approx writes a number of seconds roughly ("12 s", "3 min").
+func (p *page) Approx(sec int64) string {
+	if sec < 90 {
+		return strconv.FormatInt(max(sec, 1), 10) + " s"
+	}
+	return strconv.FormatInt((sec+30)/60, 10) + " min"
+}

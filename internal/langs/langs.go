@@ -16,6 +16,7 @@ package langs
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -63,6 +64,25 @@ type Language struct {
 	NoAddressSpaceLimit bool `yaml:"no_address_space_limit" json:"no_address_space_limit,omitempty"`
 	// CompileSeed pre-populates a compiler cache (e.g. Go's build cache).
 	CompileSeed *CompileSeed `yaml:"compile_seed" json:"compile_seed,omitempty"`
+	// TimeMultiplier scales the task's time limits for this language (2 =
+	// twice the time; SPEC_IOI §3). 0 or 1: the task's limits as they are.
+	TimeMultiplier float64 `yaml:"time_multiplier" json:"time_multiplier,omitempty"`
+}
+
+// MaxTimeMultiplier bounds time_multiplier (a typo must not give hours).
+const MaxTimeMultiplier = 10
+
+// Multiplied reports whether the language changes the time limits.
+func (l *Language) Multiplied() bool { return l.TimeMultiplier > 0 && l.TimeMultiplier != 1 }
+
+// ScaleMs applies the time multiplier to a limit in milliseconds (rounded
+// up; 0 stays 0, meaning no limit).
+func (l *Language) ScaleMs(ms int64) int64 {
+	if l == nil || !l.Multiplied() || ms <= 0 {
+		return ms
+	}
+	// The epsilon absorbs binary rounding (1.1 × 1000 is 1100.0000000000002).
+	return int64(math.Ceil(float64(ms)*l.TimeMultiplier - 1e-6))
 }
 
 // CompileSeed describes a box directory that each worker fills once by
@@ -196,6 +216,9 @@ func (l *Language) Validate() error {
 		if len(c) == 0 {
 			errs = append(errs, fmt.Errorf("compile[%d] is empty", i))
 		}
+	}
+	if l.TimeMultiplier < 0 || l.TimeMultiplier > MaxTimeMultiplier || math.IsNaN(l.TimeMultiplier) {
+		errs = append(errs, fmt.Errorf("time_multiplier must be between 0 and %d", MaxTimeMultiplier))
 	}
 	if cs := l.CompileSeed; cs != nil {
 		if cs.Dir == "" || strings.Contains(cs.Dir, "..") || strings.HasPrefix(cs.Dir, "/") || cs.WarmupFile == "" || cs.Warmup == "" {
