@@ -434,7 +434,8 @@ func TestInstallValkeyPort(t *testing.T) {
 		os.WriteFile(filepath.Join(bin, "ss"), []byte("#!/bin/sh\nport=${2##*:}\nf="+dir+"/ports/$port\n"+
 			"[ -f \"$f\" ] && echo \"LISTEN 0 511 127.0.0.1:$port 0.0.0.0:* users:((\\\"$(cat \"$f\")\\\",pid=7,fd=8))\"\nexit 0\n"), 0o755)
 		os.WriteFile(filepath.Join(bin, "valkey-server"), []byte("#!/bin/sh\n"), 0o755)
-		cmd := exec.Command("bash", "-c", `source "$1"; shift; parse_args "$@" >/dev/null; `+call, "_", funcs)
+		// --dry-run: the functions under test do not need root, the argument check would.
+		cmd := exec.Command("bash", "-c", `source "$1"; shift; parse_args --dry-run "$@" >/dev/null; `+call, "_", funcs)
 		cmd.Args = append(cmd.Args, strings.Fields(args)...)
 		cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"))
 		out, err := cmd.CombinedOutput()
