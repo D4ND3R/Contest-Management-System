@@ -39,10 +39,12 @@ import (
 
 // Server is the admin web server.
 type Server struct {
-	cfg      config.AdminWeb
-	log      *slog.Logger
-	pool     *pgxpool.Pool
-	q        *sqlc.Queries
+	cfg  config.AdminWeb
+	log  *slog.Logger
+	pool *pgxpool.Pool
+	q    *sqlc.Queries
+	// rq reads from the replica, when there is one (reports only).
+	rq       *sqlc.Queries
 	rdb      *redis.Client
 	queue    *queue.Queue
 	ns       string
@@ -77,13 +79,16 @@ type Server struct {
 
 // Deps are the dependencies of the server.
 type Deps struct {
-	Pool   *pgxpool.Pool
-	Redis  *redis.Client
-	Blobs  blob.Store
-	Langs  *langs.Registry
-	Secret []byte
-	NS     string
-	Checks []httpx.Check
+	Pool *pgxpool.Pool
+	// ReadPool, when set, is a read replica for the heavy reports
+	// (statistics, exports, plagiarism).
+	ReadPool *pgxpool.Pool
+	Redis    *redis.Client
+	Blobs    blob.Store
+	Langs    *langs.Registry
+	Secret   []byte
+	NS       string
+	Checks   []httpx.Check
 	// ContestListen is the contest web server's listen address, used to
 	// build links when admin_web.contest_url is not set.
 	ContestListen string
@@ -107,8 +112,12 @@ func New(cfg config.AdminWeb, d Deps, log *slog.Logger) (*Server, error) {
 		return nil, err
 	}
 	q := sqlc.New(d.Pool)
+	rq := q
+	if d.ReadPool != nil {
+		rq = sqlc.New(d.ReadPool)
+	}
 	s := &Server{
-		cfg: cfg, log: log, pool: d.Pool, q: q, rdb: d.Redis, queue: queue.New(d.Redis, d.NS), ns: d.NS,
+		cfg: cfg, log: log, pool: d.Pool, q: q, rq: rq, rdb: d.Redis, queue: queue.New(d.Redis, d.NS), ns: d.NS,
 		blobs: d.Blobs, langs: d.Langs, static: static, csrf: webkit.NewCSRF(d.Secret),
 		signer: webkit.NewSigner(d.Secret, "aws-session"), flash: webkit.NewSigner(d.Secret, "aws-flash"),
 		ips: ips, limiter: webkit.NewLimiter(d.Redis, d.NS), admins: &adminCache{q: q, m: map[int64]adminEntry{}},

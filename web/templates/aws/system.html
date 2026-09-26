@@ -1,5 +1,9 @@
 {{define "content"}}
 <h1>{{.T "Workers and queues"}} <small class="muted">{{.T "live"}}</small></h1>
+{{with .Data.Alerts}}<section class="card danger" id="alerts">
+<h2>{{icon "alert"}} {{$.T "Alerts"}}</h2>
+<ul class="feed">{{range .}}<li><span class="ico {{if .Fired}}bad{{else}}warn{{end}}">{{icon "alert"}}</span><div class="what">{{.Detail}}<small>{{if .Fired}}{{$.T "since %s UTC" (dt .Since)}}{{else}}{{$.T "watching since %s UTC (not announced yet)" (dt .Since)}}{{end}}</small></div></li>{{end}}</ul>
+</section>{{end}}
 {{template "system-status" .Data.Status}}
 <p class="muted small">{{.T "Queues are served in priority order: evaluate, compile, deferred (older submissions of a contestant who already sent a newer one to the task), user tests, background (rejudges and non-live datasets). A job running longer than the monitor's job timeout, or on a worker whose heartbeat stopped, is requeued automatically."}} <a href="/languages">{{.T "Languages"}}</a>.</p>
 <h2>{{.T "Calibration"}}</h2>

@@ -92,7 +92,15 @@ cmsctl restore -force ARCHIVO    # reemplaza una base que ya tiene datos
      foráneas y recién entonces confirma;
    - aplica las migraciones más nuevas que el respaldo (un respaldo tomado
      con una versión anterior del CMS se restaura en una más nueva).
-4. Vuelve a iniciar los servicios.
+4. Vuelve a iniciar los servicios. La restauración también vacía las
+   colas de trabajos (la base restaurada vuelve a entregar los ids de envío
+   creados después del respaldo; los trabajos encolados para los viejos no
+   deben llegar a los nuevos); si no puede conectarse a Valkey lo avisa:
+   ejecuta `cmsctl queue-drain` antes de iniciar los servicios.
+
+Para llevar la base de datos a cualquier instante (no solo al último
+respaldo), ver archivado continuo y recuperación a un instante en
+[operación](operaciones.md).
 
 Un archivo dañado o truncado se rechaza antes de confirmar nada. Restaurar
 sobre un esquema más nuevo que el del respaldo requiere `-force`; un

@@ -18,7 +18,7 @@ func (s *Server) handleRanking(w http.ResponseWriter, r *http.Request, rc *reqCt
 		return
 	}
 	site, _ := strconv.ParseInt(r.URL.Query().Get("site"), 10, 64)
-	rk, err := ranking.Compute(r.Context(), s.q, c.ID, ranking.Options{IncludeHidden: r.URL.Query().Get("hidden") == "1", SiteID: site})
+	rk, err := ranking.Compute(r.Context(), s.rq, c.ID, ranking.Options{IncludeHidden: r.URL.Query().Get("hidden") == "1", SiteID: site})
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
@@ -78,7 +78,7 @@ func (s *Server) exportRanking(w http.ResponseWriter, r *http.Request, rc *reqCt
 		return
 	}
 	site, _ := strconv.ParseInt(r.URL.Query().Get("site"), 10, 64)
-	rk, err := ranking.Compute(r.Context(), s.q, c.ID, ranking.Options{IncludeHidden: r.URL.Query().Get("hidden") == "1", SiteID: site})
+	rk, err := ranking.Compute(r.Context(), s.rq, c.ID, ranking.Options{IncludeHidden: r.URL.Query().Get("hidden") == "1", SiteID: site})
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
@@ -110,7 +110,7 @@ func (s *Server) handleRankingPDF(w http.ResponseWriter, r *http.Request, rc *re
 		return
 	}
 	site, _ := strconv.ParseInt(r.URL.Query().Get("site"), 10, 64)
-	rk, err := ranking.Compute(r.Context(), s.q, c.ID, ranking.Options{IncludeHidden: r.URL.Query().Get("hidden") == "1", SiteID: site})
+	rk, err := ranking.Compute(r.Context(), s.rq, c.ID, ranking.Options{IncludeHidden: r.URL.Query().Get("hidden") == "1", SiteID: site})
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
@@ -194,17 +194,17 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 	if !ok {
 		return
 	}
-	rk, err := ranking.Compute(r.Context(), s.q, c.ID, ranking.Options{})
+	rk, err := ranking.Compute(r.Context(), s.rq, c.ID, ranking.Options{})
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
 	}
-	counters, err := s.q.AdminTaskSubmissionStats(r.Context(), &c.ID)
+	counters, err := s.rq.AdminTaskSubmissionStats(r.Context(), &c.ID)
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
 	}
-	verdicts, err := s.q.AdminTaskVerdictStats(r.Context(), &c.ID)
+	verdicts, err := s.rq.AdminTaskVerdictStats(r.Context(), &c.ID)
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
@@ -259,7 +259,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 			ts.VerdictTotal += v.N
 		}
 	}
-	subVerdicts, err := s.q.AdminTaskSubmissionVerdicts(r.Context(), &c.ID)
+	subVerdicts, err := s.rq.AdminTaskSubmissionVerdicts(r.Context(), &c.ID)
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
@@ -270,7 +270,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 			ts.SubTotal += v.N
 		}
 	}
-	firsts, err := s.q.AdminTaskFirstAccepted(r.Context(), &c.ID)
+	firsts, err := s.rq.AdminTaskFirstAccepted(r.Context(), &c.ID)
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return

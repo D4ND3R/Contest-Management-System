@@ -11,12 +11,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/alerts"
 	"github.com/D4ND3R/Contest-Management-System/internal/auditlog"
 	"github.com/D4ND3R/Contest-Management-System/internal/auth"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/hoststat"
 	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
+	"github.com/D4ND3R/Contest-Management-System/internal/monitor"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 )
 
@@ -146,6 +148,8 @@ func (s *Server) handleJobRequeue(w http.ResponseWriter, r *http.Request, rc *re
 }
 
 type systemPage struct {
+	// Alerts are the health rules failing now (SPEC_IOI §12).
+	Alerts       []alerts.Alert
 	Status       *systemStatus
 	Errors       []sqlc.AdminListSystemErrorsRow
 	Calibrations []calibrationView
@@ -233,6 +237,9 @@ func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request, rc *reqCtx
 	if d.Errors, err = s.q.AdminListSystemErrors(r.Context()); err != nil {
 		s.internalError(w, r, rc, err)
 		return
+	}
+	if a, err := alerts.Active(r.Context(), s.rdb, monitor.AlertsKey(s.queue)); err == nil {
+		d.Alerts = a
 	}
 	if all, err := s.queue.Calibrations(r.Context()); err == nil {
 		d.Calibrations, d.Spread, d.Uneven = calibrations(all)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/D4ND3R/Contest-Management-System/internal/alerts"
+	"github.com/D4ND3R/Contest-Management-System/internal/hoststat"
 	"log/slog"
 	"os"
 	"time"
@@ -113,7 +115,7 @@ func runAdminWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) erro
 		_ = events.Publish(ctx, d.Redis, cfg.Redis.Namespace, events.Event{Type: events.TypeAlert, Text: msg})
 	}
 	srv, err := adminweb.New(cfg.AdminWeb, adminweb.Deps{
-		Pool: d.DB, Redis: d.Redis, Blobs: d.Blobs, Langs: reg, Secret: cfg.Secret(), NS: cfg.Redis.Namespace, Checks: d.Checks(),
+		Pool: d.DB, ReadPool: d.ReadDB, Redis: d.Redis, Blobs: d.Blobs, Langs: reg, Secret: cfg.Secret(), NS: cfg.Redis.Namespace, Checks: d.Checks(),
 		ContestListen: cfg.ContestWeb.Listen, RankingURL: cfg.RankingWeb.PublicURL, Backups: backups,
 		Dirs: [][2]string{{"blobs", localBlobDir(cfg)}, {"backups", cfg.Backup.Dir}, {"temporary files", os.TempDir()}},
 	}, log)
@@ -143,7 +145,8 @@ func runDispatcher(ctx context.Context, cfg *config.Config, log *slog.Logger) er
 	g, _ := app.NewGroup(ctx)
 	g.Go(disp.Run)
 	// The ranking pusher feeds the ranking web servers (when configured).
-	pusher := rankingpush.New(d.DB, d.Redis, d.Blobs, log, rankingpush.Options{URLs: cfg.Dispatcher.RankingURLs,
+	// The scoreboards read from the replica when there is one.
+	pusher := rankingpush.New(d.ReadDB, d.Redis, d.Blobs, log, rankingpush.Options{URLs: cfg.Dispatcher.RankingURLs,
 		Token: cfg.RankingWeb.PushToken, Secret: cfg.Secret(), Namespace: cfg.Redis.Namespace})
 	g.Go(pusher.Run)
 	g.Go(func(ctx context.Context) error {
@@ -172,14 +175,23 @@ func runWorker(ctx context.Context, cfg *config.Config, log *slog.Logger) error 
 }
 
 func runMonitor(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
-	d, err := deps.Open(ctx, cfg, log, deps.Need{Redis: true})
+	d, err := deps.Open(ctx, cfg, log, deps.Need{Redis: true, DB: true})
 	if err != nil {
 		return err
 	}
 	defer d.Close()
-	m := monitor.New(queue.New(d.Redis, cfg.Redis.Namespace), log, monitor.Options{
+	q := queue.New(d.Redis, cfg.Redis.Namespace)
+	// Health rules (SPEC_IOI §12): the disks of this machine are those of
+	// the main server's data.
+	rules := alerts.Standard(alerts.Sources{Queue: q, Pool: d.DB, Host: &hoststat.Sampler{},
+		Dirs: [][2]string{{"blobs", localBlobDir(cfg)}, {"backups", cfg.Backup.Dir}}}, cfg.Monitor.Alerts)
+	notify := func(ctx context.Context, text string) {
+		_ = events.Publish(ctx, d.Redis, cfg.Redis.Namespace, events.Event{Type: events.TypeAlert, Text: text})
+	}
+	m := monitor.New(q, log, monitor.Options{
 		CheckInterval: cfg.Monitor.CheckInterval.D(), JobTimeout: cfg.Monitor.JobTimeout.D(),
 		DeadGrace: time.Second, MaxAttempts: cfg.Dispatcher.MaxAttempts,
+		Alerts: alerts.New(d.Redis, monitor.AlertsKey(q), rules, notify, cfg.Monitor.Alerts.WebhookURL, log),
 	})
 	g, _ := app.NewGroup(ctx)
 	g.Go(m.Run)

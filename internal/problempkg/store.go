@@ -24,6 +24,16 @@ type ImportOptions struct {
 	// ContestID appends a new task to a contest; nil leaves it outside any
 	// contest (unpublished) until an administrator adds it.
 	ContestID *int64
+	// Description names the new dataset instead of the package's dataset
+	// field (made unique among the task's datasets either way).
+	Description string
+	// Sync, with TaskID, makes the task match the package (the contest
+	// configuration kept in Git is the source of truth): its settings from
+	// problem.yaml, and exactly the package's statements, attachments and
+	// examples.
+	Sync bool
+	// Live, with TaskID, makes the new dataset the live one.
+	Live bool
 }
 
 // ImportResult is what an import created.
@@ -75,10 +85,11 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 		managers[i] = sqlc.CreateManagersParams{Filename: m.Name, Digest: d}
 	}
 	newTask := o.TaskID == 0
+	withContent := newTask || o.Sync
 	var statements []sqlc.UpsertStatementParams
 	var attachments []sqlc.UpsertAttachmentParams
 	var examples []sqlc.InsertTaskExampleParams
-	if newTask {
+	if withContent {
 		for _, e := range p.Examples {
 			in, err := put(e.Input)
 			if err != nil {
@@ -169,7 +180,11 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 		if err != nil {
 			return err
 		}
-		res.Dataset = uniqueDescription(c.Dataset, existing)
+		desc := c.Dataset
+		if o.Description != "" {
+			desc = o.Description
+		}
+		res.Dataset = uniqueDescription(desc, existing)
 		dp := db.NewDatasetParams(task.ID, res.Dataset)
 		tl := int32(ms(c.TimeLimit))
 		dp.TimeLimitMs = &tl
@@ -213,8 +228,16 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 		if _, err := q.CreateManagers(ctx, managers); err != nil {
 			return err
 		}
-		if !newTask {
+		if !withContent {
+			if o.Live {
+				return q.SetActiveDataset(ctx, sqlc.SetActiveDatasetParams{ID: task.ID, ActiveDatasetID: &ds.ID})
+			}
 			return nil
+		}
+		if !newTask {
+			if err := syncTask(ctx, q, task, c, statements, attachments); err != nil {
+				return err
+			}
 		}
 		for _, s := range statements {
 			s.TaskID = task.ID
@@ -234,12 +257,72 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 				return err
 			}
 		}
+		if !newTask && !o.Live {
+			return nil
+		}
 		return q.SetActiveDataset(ctx, sqlc.SetActiveDatasetParams{ID: task.ID, ActiveDatasetID: &ds.ID})
 	})
 	if err != nil {
 		return nil, err
 	}
 	return res, nil
+}
+
+// syncTask applies problem.yaml's task settings to an existing task and
+// removes the statements, attachments and examples the package no longer
+// has (the caller then stores the package's).
+func syncTask(ctx context.Context, q *sqlc.Queries, t sqlc.Task, c *Config, statements []sqlc.UpsertStatementParams,
+	attachments []sqlc.UpsertAttachmentParams) error {
+	up := sqlc.UpdateTaskParams{ID: t.ID, ContestID: t.ContestID, Num: t.Num, Name: t.Name, Title: c.Title,
+		PrimaryStatements: nonNil(c.PrimaryStatements), SubmissionFormat: t.SubmissionFormat, TokenMode: t.TokenMode,
+		TokenMaxNumber: t.TokenMaxNumber, TokenMinIntervalS: t.TokenMinIntervalS, TokenGenInitial: t.TokenGenInitial,
+		TokenGenNumber: t.TokenGenNumber, TokenGenIntervalS: t.TokenGenIntervalS, TokenGenMax: t.TokenGenMax,
+		MaxSubmissionNumber: t.MaxSubmissionNumber, MaxUserTestNumber: t.MaxUserTestNumber,
+		MinSubmissionIntervalS: t.MinSubmissionIntervalS, MinUserTestIntervalS: t.MinUserTestIntervalS,
+		FeedbackLevel: c.Feedback, ScorePrecision: t.ScorePrecision, ScoreMode: t.ScoreMode, Languages: nonNil(c.Languages)}
+	if c.SubmissionFormat != nil {
+		up.SubmissionFormat = c.SubmissionFormat
+	}
+	if c.ScoreMode != "" {
+		up.ScoreMode = c.ScoreMode
+	}
+	if c.ScorePrecision != nil {
+		up.ScorePrecision = int32(c.Precision())
+	}
+	if _, err := q.UpdateTask(ctx, up); err != nil {
+		return err
+	}
+	keep := map[string]bool{}
+	for _, s := range statements {
+		keep[s.Language] = true
+	}
+	old, err := q.ListStatements(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+	for _, s := range old {
+		if !keep[s.Language] {
+			if err := q.DeleteStatement(ctx, sqlc.DeleteStatementParams{TaskID: t.ID, Language: s.Language}); err != nil {
+				return err
+			}
+		}
+	}
+	keep = map[string]bool{}
+	for _, a := range attachments {
+		keep[a.Filename] = true
+	}
+	atts, err := q.ListAttachments(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+	for _, a := range atts {
+		if !keep[a.Filename] {
+			if err := q.DeleteAttachment(ctx, sqlc.DeleteAttachmentParams{TaskID: t.ID, Filename: a.Filename}); err != nil {
+				return err
+			}
+		}
+	}
+	return q.DeleteTaskExamples(ctx, t.ID)
 }
 
 func nonNil(xs []string) []string {

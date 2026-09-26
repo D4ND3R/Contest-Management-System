@@ -115,6 +115,30 @@ func (q *Queries) GetUserTestMeta(ctx context.Context, id int64) (GetUserTestMet
 	return i, err
 }
 
+const judgingLatencyWindow = `-- name: JudgingLatencyWindow :one
+SELECT COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM COALESCE(sr.scored_at, now()) - s.submitted_at)), 0)::float8 AS median,
+       count(*)::bigint AS submissions
+FROM submissions s
+JOIN tasks t ON t.id = s.task_id
+JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE s.submitted_at > now() - interval '10 minutes' AND NOT s.tester AND sr.system_error IS NULL
+`
+
+type JudgingLatencyWindowRow struct {
+	Median      float64 `json:"median"`
+	Submissions int64   `json:"submissions"`
+}
+
+// The median time from arrival to score of the submissions of the last ten
+// minutes on live datasets, the ones still waiting counting until now
+// (alerts; submissions_time_idx).
+func (q *Queries) JudgingLatencyWindow(ctx context.Context) (JudgingLatencyWindowRow, error) {
+	row := q.db.QueryRow(ctx, judgingLatencyWindow)
+	var i JudgingLatencyWindowRow
+	err := row.Scan(&i.Median, &i.Submissions)
+	return i, err
+}
+
 const listEvaluatedTestcaseIDs = `-- name: ListEvaluatedTestcaseIDs :many
 SELECT testcase_id FROM evaluations WHERE submission_id = $1 AND dataset_id = $2
 `
@@ -463,6 +487,18 @@ type MarkJobsEnqueuedParams struct {
 func (q *Queries) MarkJobsEnqueued(ctx context.Context, arg MarkJobsEnqueuedParams) error {
 	_, err := q.db.Exec(ctx, markJobsEnqueued, arg.SubmissionID, arg.DatasetID)
 	return err
+}
+
+const runningContestCount = `-- name: RunningContestCount :one
+SELECT count(*)::bigint FROM contests WHERE status = 'published' AND start_time <= now() AND stop_time > now()
+`
+
+// Published contests whose window is open now (alerts: no worker alive).
+func (q *Queries) RunningContestCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, runningContestCount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const setCompilationFailedScore = `-- name: SetCompilationFailedScore :exec

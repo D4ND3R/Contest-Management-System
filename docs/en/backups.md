@@ -90,7 +90,15 @@ cmsctl restore -force FILE       # replace a database that already has data
      commits;
    - applies the migrations that are newer than the backup (a backup taken
      with an older CMS version restores into a newer one).
-4. Start the services again.
+4. Start the services again. The restore also empties the job queues
+   (the restored database hands out again the submission ids created
+   after the backup; jobs queued for the old ones must not reach the new
+   ones); if Valkey cannot be reached it says so: run `cmsctl queue-drain`
+   before starting the services.
+
+To take the database back to any moment (not only to the last backup),
+see continuous archiving and point-in-time recovery in
+[operations](operations.md).
 
 A damaged or truncated file is rejected before anything is committed.
 Restoring into a newer schema than the backup's needs `-force`; a backup

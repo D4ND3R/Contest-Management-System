@@ -1436,3 +1436,61 @@ fair under load. What was built, and the choices behind it:
   Free text is not rewritten (it cannot be done reliably); the docs say to
   review it. The archive importer empties the new administrator
   references (question assignee, appeal handler) like the old ones.
+
+## D90. Alerts, point-in-time recovery, a read replica, rehearsals and configuration in Git (SPEC_IOI H6)
+
+- **Alerts live in the monitor**, the one service that already watches
+  everything and runs once. Rules are Go functions over the queue, the
+  database and the host samples; a rule must fail for its "for" duration
+  before it fires, and the firing state is kept in Valkey so a restarted
+  monitor does not announce the same incident twice. Delivery reuses the
+  admin notifications (no new channel to watch) plus one generic JSON
+  webhook (`text` and `content` fields cover Slack, Mattermost, Discord and
+  ntfy without per-vendor code). Prometheus rules are shipped too for
+  sites that already run Alertmanager; neither replaces the other.
+- **WAL archiving through `cms ctl`** rather than a shell `cp`: segments
+  are written through a synced temporary file and renamed (a crash never
+  leaves a partial segment under its name), a second archive of the same
+  segment is accepted and a different file under an existing name is
+  refused (PostgreSQL retries and the `wal_archiving` alert fires), and the
+  same S3 destination as the logical backups gets a copy. PostgreSQL runs
+  it as `postgres`, so the docs give it a separate, secret-free
+  configuration file instead of access to `cms.yaml`.
+- **Restoring empties the job queues.** A database taken back in time hands
+  out again the submission ids created after that moment; a job or a
+  skip hint still in Valkey for the old submission 1234 would be applied
+  to the new submission 1234 (the result generation does not tell them
+  apart). `cms ctl restore` drains automatically; point-in-time recovery
+  runs `cms ctl queue-drain`. The dispatcher's sweep rebuilds the queues
+  from the database, which is the source of truth.
+- **The replica only takes reads that tolerate lag and are heavy**:
+  scoreboard pushes, statistics, exports and plagiarism. The contest site
+  stays on the primary because a contestant must read their own writes.
+  No automatic failover: promoting a replica is one command, and an
+  automatic promotion that misjudges a network split creates two
+  primaries — two diverging contests — which is worse than minutes of
+  downtime with a human deciding.
+- **Rehearsal replay** matches contestants by username and tasks by
+  position (a cloned contest renames tasks), keeps the original gaps
+  divided by `-speed`, and writes each submission exactly as the contest
+  site does (files, receipt in the audit chain, dispatcher event), so the
+  measured latency is the real pipeline's.
+- **Contest configuration in Git** carries the settings by their column
+  names (what `export` writes), refuses secrets and operational state, and
+  leaves contestants out (credentials never go to a repository). A task
+  changes only when its content does: the dataset `apply` creates is
+  tagged with the SHA-256 of the package directory, and a directory
+  written by `export` is compared by exporting the live dataset, so
+  export → apply is a no-op. After the start a changed task's dataset is
+  imported but not made live without `-activate`, since switching the
+  live dataset rescores everybody; already imported content is activated,
+  never imported twice. Tasks missing from the file are reported, not
+  deleted.
+- **Ansible wraps the installer** instead of re-implementing it: the
+  installer is the tested, idempotent path every installation takes, and
+  a second implementation would drift. The playbook adds what a single
+  host cannot know: ordering, the main server's secrets for the workers
+  (under `no_log`), rolling worker upgrades, `cmsctl upgrade` on the main
+  server, and a pinned version (never `latest`) so reruns are
+  reproducible. The first-run administrator password is hidden and reset
+  with `cmsctl admin-password`, rather than risking it in Ansible logs.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
+	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 	"github.com/D4ND3R/Contest-Management-System/internal/testutil"
 )
 
@@ -30,6 +31,13 @@ func TestDumpVerifyRestore(t *testing.T) {
 	t.Setenv("CMS_BLOB_BACKEND", "local")
 	t.Setenv("CMS_BLOB_DIR", blobs)
 	t.Setenv("CMS_BACKUP_DIR", filepath.Join(dir, "backups"))
+	rdb, ns := testutil.Redis(t)
+	t.Setenv("CMS_REDIS_URL", testutil.RedisURL(t))
+	t.Setenv("CMS_REDIS_NAMESPACE", ns)
+	jobs := queue.New(rdb, ns)
+	if err := jobs.Supersede(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
 	run := func(args ...string) (int, string, string) {
 		var out, errb bytes.Buffer
 		code := Main(append([]string{"ctl"}, args...), &out, &errb)
@@ -67,8 +75,11 @@ func TestDumpVerifyRestore(t *testing.T) {
 	_, emptyURL := testutil.EmptyDB(t)
 	t.Setenv("CMS_DATABASE_URL", emptyURL)
 	t.Setenv("CMS_BLOB_DIR", filepath.Join(dir, "blobs2"))
-	if code, out, errs := run("restore", file); code != 0 || !strings.Contains(out, "restored the backup") {
+	if code, out, errs := run("restore", file); code != 0 || !strings.Contains(out, "restored the backup") || !strings.Contains(out, "emptied the job queues") {
 		t.Fatalf("restore: %s %s", out, errs)
+	}
+	if jobs.Superseded(ctx, 1) {
+		t.Fatal("the restore left the queues as they were")
 	}
 	if code, _, errs := run("restore", file); code == 0 || !strings.Contains(errs, "already holds data") {
 		t.Fatalf("second restore: %s", errs)

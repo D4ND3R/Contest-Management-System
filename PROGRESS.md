@@ -1149,3 +1149,31 @@ localization, H8 audit (`AUDIT.md` §10) and summary.
 - Docs: ranking, contest settings, contest day, backups and the admin
   guide (en/es).
 
+
+### H6 — reliability and operations (done)
+- **Alerts**: the monitor evaluates queue backlog, no workers during a
+  contest, judging latency, disk space, timing drift and WAL archiving,
+  with "for" durations and state in Valkey (one alert per incident across
+  restarts); admin notifications, a System page card and an optional
+  webhook; Prometheus rules in `deploy/prometheus/alerts.yml`
+  (`TestManager`, `TestStandardRules`).
+- **Continuous archiving and point-in-time recovery**: `cms ctl
+  wal-archive` / `wal-restore` / `basebackup`, local and S3 copies
+  (`TestWALArchive`); the whole procedure verified on a throwaway cluster
+  (recovery stopped just before a destructive statement).
+- **Queues after a restore**: `cms ctl queue-drain`, and `cms ctl restore`
+  drains by itself — a restored database reuses submission ids
+  (`TestDrain`, `TestDumpVerifyRestore`).
+- **Read replica** for the scoreboard push, statistics, exports and the
+  plagiarism report (`TestReportsReadTheReplica`); failover documented.
+- **Chaos test**: dispatchers and workers killed at random while judging;
+  exact scores, no lost or duplicated evaluations (`TestChaos`).
+- **Rehearsal replay** of a past contest with its rhythm and a latency
+  report, `cms ctl replay` (`TestReplay`).
+- **Contest configuration in Git**: `cms ctl contest-config export|apply`,
+  deterministic and idempotent, packages read from directories
+  (`TestApplyAndExport`, `TestApplyRejects`).
+- **Ansible**: `deploy/ansible` wraps the pinned release installer for the
+  main server and the workers (rolling), upgrades through `cmsctl
+  upgrade`, secrets under `no_log`, contest directories applied.
+- Docs: operations, contest configuration in Git, Ansible, backups (en/es).

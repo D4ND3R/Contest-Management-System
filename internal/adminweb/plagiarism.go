@@ -147,7 +147,7 @@ func (s *Server) handlePlagiarism(w http.ResponseWriter, r *http.Request, rc *re
 		return
 	}
 	d.Templates = names
-	cands, err := s.q.PlagiarismCandidates(ctx, sqlc.PlagiarismCandidatesParams{TaskID: task.ID, ContestID: c.ID, Best: d.Which == "best"})
+	cands, err := s.rq.PlagiarismCandidates(ctx, sqlc.PlagiarismCandidatesParams{TaskID: task.ID, ContestID: c.ID, Best: d.Which == "best"})
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
@@ -181,7 +181,7 @@ func (s *Server) fingerprints(ctx context.Context, cands []sqlc.PlagiarismCandid
 	for i, c := range cands {
 		ids[i] = c.ID
 	}
-	files, err := s.q.ListSubmissionFilesBySubmissions(ctx, ids)
+	files, err := s.rq.ListSubmissionFilesBySubmissions(ctx, ids)
 	if err != nil {
 		return nil, err
 	}

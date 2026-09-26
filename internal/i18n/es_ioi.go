@@ -224,6 +224,10 @@ var esIOI = map[string]string{
 	// H5: anonymized exports.
 	"anonymized (for research: names, e-mails, photos, IPs and passwords removed; users become user<id>)": "anonimizado (para investigación: sin nombres, correos, fotos, IP ni contraseñas; los usuarios pasan a ser user<id>)",
 	"anonymized": "anonimizado",
+	// H6: alerts.
+	"Alerts":       "Alertas",
+	"since %s UTC": "desde %s UTC",
+	"watching since %s UTC (not announced yet)": "en observación desde %s UTC (aún sin anunciar)",
 }
 
 func init() {
