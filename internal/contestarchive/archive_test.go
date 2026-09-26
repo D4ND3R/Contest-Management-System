@@ -145,6 +145,11 @@ func seed(t *testing.T, pool *pgxpool.Pool, store blob.Store) int64 {
 		return err
 	}())
 	must[sqlc.ScoreAdjustment](t)(q.CreateScoreAdjustment(ctx, sqlc.CreateScoreAdjustmentParams{ParticipationID: pa.ID, TaskID: tasks[1].ID, Points: 5, Reason: "appeal", AdminID: &admin.ID}))
+	// An answered appeal and a question taken by an administrator (their
+	// references to administrators are emptied on import).
+	ap := must[sqlc.Appeal](t)(q.CreateAppeal(ctx, sqlc.CreateAppealParams{ParticipationID: pa.ID, TaskID: &tasks[1].ID, Text: "Testcase 2?"}))
+	check(t, q.AnswerAppeal(ctx, sqlc.AnswerAppealParams{ID: ap.ID, Status: "accepted", Response: "Yes.", HandledBy: &admin.ID}))
+	check(t, q.AssignQuestion(ctx, sqlc.AssignQuestionParams{ID: qu.ID, AdminID: &admin.ID}))
 	must[sqlc.PrintJob](t)(q.CreatePrintJob(ctx, sqlc.CreatePrintJobParams{ParticipationID: pa.ID, CreatedAt: now, Filename: "a.txt", Digest: put("print")}))
 	must[sqlc.UserTest](t)(q.CreateUserTest(ctx, sqlc.CreateUserTestParams{ParticipationID: pa.ID, TaskID: tasks[0].ID, SubmittedAt: now, InputDigest: put("user test")}))
 	return c.ID
@@ -229,7 +234,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 	want := map[string]int64{"contests": 1, "sites": 1, "certificate_templates": 1, "users": 2, "teams": 1, "tasks": 2, "statements": 2, "attachments": 2,
 		"task_examples": 2, "datasets": 4, "managers": 4, "testcases": 8, "participations": 2, "announcements": 1, "questions": 1, "messages": 1,
 		"submissions": 3, "submission_files": 3, "tokens": 1, "submission_results": 3, "evaluations": 6, "submission_flags": 1,
-		"participation_task_scores": 3, "score_adjustments": 1}
+		"participation_task_scores": 3, "score_adjustments": 1, "appeals": 1}
 	for name, n := range want {
 		if h.Rows(name) != n {
 			t.Errorf("%s: %d rows, want %d", name, h.Rows(name), n)
@@ -458,4 +463,34 @@ WHERE c.contype = 'f' ORDER BY 1, 2`)
 		}
 	}
 	check(t, r.Err())
+}
+
+// TestAnonymizedExport (SPEC_IOI §14): names, e-mails, photos, IPs and
+// passwords leave the archive; ids, countries, teams and every result stay,
+// and the archive still imports.
+func TestAnonymizedExport(t *testing.T) {
+	src, store := testutil.DB(t), newStore(t)
+	id := seed(t, src, store)
+	h, arch := export(t, src, store, id, Options{Submissions: true, Anonymize: true})
+	if !h.Anonymized || h.Rows("users") != 2 || h.Rows("submissions") != 3 {
+		t.Fatalf("header %+v", h)
+	}
+	rows := normalized(t, arch)
+	all := strings.Join(rows["users"], "\n") + strings.Join(rows["participations"], "\n")
+	for _, gone := range []string{"alice", "Alice", "@", `"photo_digest":"`} {
+		if strings.Contains(all, gone) {
+			t.Errorf("anonymized rows still contain %q:\n%s", gone, all)
+		}
+	}
+	if !strings.Contains(all, `"username":"user`) || !strings.Contains(all, `"password_hash":"*"`) {
+		t.Fatalf("users:\n%s", all)
+	}
+	res := find(open(t, arch), resultsName)
+	rc := must[io.ReadCloser](t)(res.Open())
+	if csv := string(must[[]byte](t)(io.ReadAll(rc))); strings.Contains(csv, "alice") || !strings.Contains(csv, "user") {
+		t.Fatalf("results.csv:\n%s", csv)
+	}
+	if _, err := Import(ctx, testutil.DB(t), newStore(t), open(t, arch), ImportOptions{}); err != nil {
+		t.Fatalf("import: %v", err)
+	}
 }

@@ -230,7 +230,7 @@ func (s *Server) dashLive(r *http.Request, rc *reqCtx, c sqlc.Contest) (*dashLiv
 		if sub == "" {
 			sub = row.Username
 		}
-		l.Board = append(l.Board, dashRow{Rank: row.Rank, ParticipationID: row.ParticipationID, Name: name, Username: row.Username,
+		l.Board = append(l.Board, dashRow{Rank: row.Place, ParticipationID: row.ParticipationID, Name: name, Username: row.Username,
 			Sub: sub, Total: row.Total, Solved: row.Solved, Penalty: row.Penalty, Hidden: row.Hidden})
 	}
 
@@ -317,6 +317,12 @@ func (s *Server) dashLive(r *http.Request, rc *reqCtx, c sqlc.Contest) (*dashLiv
 	}
 	if err := s.dashEvents(r, l, c, firsts, tr); err != nil {
 		return nil, err
+	}
+	if c.AppealsUntil != nil {
+		if n, err := s.q.CountOpenAppeals(r.Context(), c.ID); err == nil && n > 0 {
+			l.Notes = append(l.Notes, dashEvent{At: now, Icon: "clipboard", Class: "warn", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/appeals?status=open",
+				Text: tr("%d appeals waiting for an answer", n)})
+		}
 	}
 	if c.SubmissionsPaused {
 		l.Notes = append([]dashEvent{{At: now, Icon: "pause", Class: "bad", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/settings#emergency",

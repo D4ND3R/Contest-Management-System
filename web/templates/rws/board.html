@@ -23,5 +23,9 @@
 </div>
 {{if not $b.Rows}}<p class="empty">{{.T "Nobody takes part yet."}}</p>{{end}}
 </section>
+{{if or $b.Unofficial $b.Cutoffs}}<section class="card legend">
+{{if $b.Cutoffs}}<p class="cutoffs">{{range $b.Cutoffs}}<span class="medal {{.Medal}}">{{icon "award"}} {{$.T .Medal}}: {{$.T "%d from %s points" .Count (score .Score $b.Precision)}}</span> {{end}}</p>{{end}}
+{{if $b.Unofficial}}<p class="muted small"><sup>*</sup> {{.T "Unofficial participant: no place and no medal."}}</p>{{end}}
+</section>{{end}}
 <p class="muted small"><a href="ranking.json">JSON</a></p>
 {{end}}

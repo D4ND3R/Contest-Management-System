@@ -479,7 +479,7 @@ func (s *Server) funcs() template.FuncMap {
 		"joinHead": joinHead,
 		"num":      fmtNum,
 		"card": func(q sqlc.AdminListQuestionsRow, d *questionsPage) questionCard {
-			return questionCard{Q: q, Quick: d.Quick, CanAnswer: d.CanAnswer}
+			return questionCard{Q: q, Quick: d.Quick, CanAnswer: d.CanAnswer, Me: d.Me}
 		},
 		"cidrs": formatPrefixes,
 		"add":   func(a, b int) int { return a + b },

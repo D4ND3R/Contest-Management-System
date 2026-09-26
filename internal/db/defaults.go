@@ -62,7 +62,7 @@ func ContestToUpdate(c sqlc.Contest) sqlc.UpdateContestParams {
 		MaxSubmissionBytes: c.MaxSubmissionBytes, Registration: c.Registration, InvitationCode: c.InvitationCode,
 		PasswordMinLength: c.PasswordMinLength, SessionMinutes: c.SessionMinutes, TeamMode: c.TeamMode,
 		MaxTeamSize: c.MaxTeamSize, MaxPrintTotalPages: c.MaxPrintTotalPages,
-		Title: c.Title, Location: c.Location, Tagline: c.Tagline,
+		Title: c.Title, Location: c.Location, Tagline: c.Tagline, Medals: c.Medals, AppealsUntil: c.AppealsUntil,
 	}
 }
 
@@ -116,5 +116,6 @@ func ParticipationToUpdate(p sqlc.Participation) sqlc.UpdateParticipationParams 
 	return sqlc.UpdateParticipationParams{
 		ID: p.ID, TeamID: p.TeamID, Ip: p.Ip, DelayTimeS: p.DelayTimeS, ExtraTimeS: p.ExtraTimeS,
 		Hidden: p.Hidden, Unrestricted: p.Unrestricted, StartingTime: p.StartingTime, SiteID: p.SiteID,
+		Unofficial: p.Unofficial,
 	}
 }

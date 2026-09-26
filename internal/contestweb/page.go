@@ -41,6 +41,8 @@ type page struct {
 	Unread int64
 	// Ranking is set when the contestant may see the ranking.
 	Ranking bool
+	// Appeals is set when the contest takes (or took) appeals.
+	Appeals bool
 	// RegisterOpen: the login page offers self-registration.
 	RegisterOpen bool
 	// OOB marks a fragment swapped out of band (htmx).

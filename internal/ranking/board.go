@@ -30,6 +30,10 @@ type Board struct {
 	Tasks        []BoardTask `json:"tasks"`
 	Rows         []BoardRow  `json:"rows"`
 	Generated    time.Time   `json:"generated"`
+	// Unofficial: some rows are unofficial (rows then carry their place);
+	// Cutoffs: the medal cutoffs, when the contest publishes them.
+	Unofficial bool     `json:"unofficial,omitempty"`
+	Cutoffs    []Cutoff `json:"cutoffs,omitempty"`
 }
 
 // BoardTask is a column of the scoreboard.
@@ -56,6 +60,23 @@ type BoardRow struct {
 	Cells       []BoardCell `json:"cells"`
 	// Members are the participations of a team row (for its history).
 	Members []int64 `json:"-"`
+	// Unofficial rows show no place; Place is set only on boards with
+	// unofficial rows (elsewhere it equals Rank, and leaving it out keeps
+	// rows that only move out of the updates' content).
+	Unofficial bool   `json:"unofficial,omitempty"`
+	Place      int    `json:"place,omitempty"`
+	Medal      string `json:"medal,omitempty"`
+}
+
+// ShownPlace is the place to display ("" for unofficial rows).
+func (r BoardRow) ShownPlace() string {
+	switch {
+	case r.Unofficial:
+		return "–"
+	case r.Place > 0:
+		return strconv.Itoa(r.Place)
+	}
+	return strconv.Itoa(r.Rank)
 }
 
 // BoardCell is a row's result on a task.
@@ -108,6 +129,12 @@ func BuildBoard(r *Ranking, c sqlc.Contest, now time.Time) *Board {
 	for _, row := range r.Rows {
 		br := BoardRow{Key: ParticipationKey(row.ParticipationID), Name: displayName(row), Team: row.TeamCode,
 			Total: row.Total, Solved: row.Solved, Penalty: row.Penalty, Members: []int64{row.ParticipationID}}
+		if !b.Teams && r.Unofficial {
+			br.Unofficial, br.Place = row.Unofficial, row.Place
+		}
+		if c.Medals == "public" && !b.Teams {
+			br.Medal = row.Medal
+		}
 		if b.Flags {
 			br.Flag = row.TeamFlag
 		}
@@ -150,6 +177,12 @@ func BuildBoard(r *Ranking, c sqlc.Contest, now time.Time) *Board {
 			if !b.Subtasks || len(r.Tasks[k].SubtaskMax) <= 1 {
 				b.Rows[i].Cells[k].Subtasks = nil
 			}
+		}
+	}
+	if !b.Teams {
+		b.Unofficial = r.Unofficial
+		if c.Medals == "public" {
+			b.Cutoffs = r.Cutoffs
 		}
 	}
 	if b.Teams {
@@ -277,7 +310,9 @@ func (b *Board) rerank(c sqlc.Contest) {
 // tasks or the freeze, which need a full refresh).
 func (b *Board) Header() Board {
 	h := *b
-	h.Rows, h.Generated = nil, time.Time{}
+	// Cutoffs move with the scores: rows carry their medal, and the
+	// summary is refreshed with the page, not by reloading every client.
+	h.Rows, h.Generated, h.Cutoffs = nil, time.Time{}, nil
 	return h
 }
 

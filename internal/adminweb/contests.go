@@ -192,6 +192,10 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 	c.AnalysisEnabled = f.check("analysis_enabled")
 	c.AnalysisStart = f.optTime("analysis_start", "Analysis start", loc)
 	c.AnalysisStop = f.optTime("analysis_stop", "Analysis end", loc)
+	c.AppealsUntil = f.optTime("appeals_until", "Appeals until", loc)
+	if c.AppealsUntil != nil && c.AppealsUntil.Before(c.StopTime) {
+		f.fail("appeals must close after the contest ends")
+	}
 	if c.AnalysisEnabled && (c.AnalysisStart == nil || c.AnalysisStop == nil) {
 		f.fail("analysis mode needs a start and an end")
 	}
@@ -285,6 +289,11 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 		c.RankingShowInstitutions = f.check("ranking_show_institutions")
 		c.RankingShowHidden = f.check("ranking_show_hidden")
 		c.RankingAnonymous = f.check("ranking_anonymous")
+	}
+	if f.str("medals") != "" {
+		c.Medals = f.oneOf("medals", "Medals", "none", "admins", "public")
+	} else if c.Medals == "" {
+		c.Medals = "none" // a new contest
 	}
 	c.MaxPrintJobs = f.int32("max_print_jobs", "Maximum print jobs", 10)
 	c.MaxPrintPages = f.int32("max_print_pages", "Maximum pages per job", 20)

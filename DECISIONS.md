@@ -1395,3 +1395,44 @@ fair under load. What was built, and the choices behind it:
   question counter and the event stream. Reusing the admin site (instead of
   logging leaders into the contest site) keeps them out of contestants'
   sessions and gives them 2FA and the audit log for free.
+
+## D89. Unofficial participants, medals, the clarification desk, dataset comparison, appeals and anonymized archives (SPEC_IOI H5)
+- **Places, not ranks, for people.** Rows keep their position rank (the
+  sort order and the ranking server's delta protocol, which moves runs of
+  rows by rank, are unchanged); a separate *place* numbers official,
+  visible participants only, so unofficial and hidden participants never
+  push anybody down and every view (admin with hidden users, public,
+  exports) agrees. The public board carries the place only when some row
+  is unofficial: elsewhere it equals the rank, and leaving it out keeps
+  rows that merely move out of the updates' content (the delta stays
+  small). Ranking-server rows are rendered once for every spectator, so
+  they carry no words (a * and a medal icon), with a translated legend.
+- **Medals** follow the IOI regulations' shape: cumulative limits of 1/12,
+  1/4 and 1/2 of the official participants, never splitting a tie (the
+  group falls to the next medal), no medal for zero. Cutoffs are not part
+  of the board header: they change with every score and the header
+  changing makes every spectator reload; rows carry their medal instead.
+  ICPC contests award medals by other rules and get none here.
+- **Clarification desk**: a question can be taken by one staff member
+  (`questions.assigned_admin_id`), shown to the others, taken over, or given
+  back; the inbox filters "mine". Taking is advisory, not a lock: an
+  urgent answer must never be blocked by an absent colleague.
+- **Dataset comparison** recomputes each contestant's task score on both
+  datasets with the same aggregation the dispatcher uses
+  (`scoring.Aggregate`, the task's score mode), from one query over the
+  task's submissions and both result rows; it reports how many
+  submissions the candidate has not judged yet, since a partial
+  comparison would otherwise look like "no change".
+- **Appeals** open when the contestant's own contest is over (their
+  per-user window counts) and close at `contests.appeals_until`.
+  Accepting records the decision only: corrections go through rejudges or
+  score adjustments, which are already audited and visible to the
+  contestant; a second path that changes scores would bypass both.
+  Contestants may name one of their own submissions (checked against the
+  whole team for team contests), 20 appeals at most.
+- **Anonymized archives** rewrite rows in the export query (`to_jsonb(r) ||`
+  an override per table) and leave out the photos' files; people become
+  `user<id>` while countries, teams and every result stay useful.
+  Free text is not rewritten (it cannot be done reliably); the docs say to
+  review it. The archive importer empties the new administrator
+  references (question assignee, appeal handler) like the old ones.

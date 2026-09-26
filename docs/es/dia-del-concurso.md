@@ -48,6 +48,9 @@ principal salvo que se indique otra cosa.
   externos](worker-externo.md)) o un worker trabado.
 - **Preguntas** (contador del menú): responde en privado o para todos; las
   respuestas rápidas ahorran tiempo.
+  Con varias personas atendiendo, **toma** una pregunta antes de
+  responderla (los demás ven quién la tiene; *solo las que tomé* filtra la
+  bandeja).
 - Alertas del sistema (avisos rojos en el admin): errores de evaluación
   después de los reintentos, respaldos fallidos.
 - `journalctl -u 'cms-*' -p warning -f` en el servidor principal.

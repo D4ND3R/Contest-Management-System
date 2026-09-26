@@ -212,7 +212,7 @@
 {{define "question"}}{{$c := .V}}{{$q := $c.Q}}
 <article class="card question {{if $q.Pending}}pending{{end}}" id="question-{{$q.ID}}">
   <h3>{{$q.Username}} · {{if $q.TaskName}}{{deref $q.TaskName}}{{else}}{{.T "General"}}{{end}} <small class="muted">{{$q.ContestName}} · {{dt $q.AskedAt}} UTC</small>
-    {{if $q.Pending}}<span class="tag bad">{{.T "pending"}}</span>{{else if $q.Ignored}}<span class="tag">{{.T "ignored"}}</span>{{else}}<span class="tag ok">{{.T "answered"}}</span>{{if $q.Public}} <span class="tag">{{.T "public"}}</span>{{end}}{{end}}</h3>
+    {{with $q.Assignee}}<span class="tag info" title="{{$.T "taken by"}}">{{icon "user"}} {{.}}</span> {{end}}{{if $q.Pending}}<span class="tag bad">{{.T "pending"}}</span>{{else if $q.Ignored}}<span class="tag">{{.T "ignored"}}</span>{{else}}<span class="tag ok">{{.T "answered"}}</span>{{if $q.Public}} <span class="tag">{{.T "public"}}</span>{{end}}{{end}}</h3>
   <p class="pre">{{$q.Text}}</p>
   {{if $q.ReplyAt}}<p class="answer"><b>{{.T (deref $q.ReplySubject)}}</b> <span class="pre">{{deref $q.ReplyText}}</span></p>{{end}}
   {{if $c.CanAnswer}}
@@ -223,7 +223,9 @@
     <p class="checks"><label><input type="checkbox" name="public"> {{.T "Show the question and the answer to everyone in the contest"}}</label>
     <button>{{.T "Answer"}}</button></p>
   </form>
-  {{if $q.Pending}}<form method="post" action="/questions/{{$q.ID}}/ignore" hx-post="/questions/{{$q.ID}}/ignore" hx-target="closest article" hx-swap="outerHTML" class="inline">
+  {{if $q.Pending}}<form method="post" action="/questions/{{$q.ID}}/assign" hx-post="/questions/{{$q.ID}}/assign" hx-target="closest article" hx-swap="outerHTML" class="inline">
+    <input type="hidden" name="csrf" value="{{.P.CSRF}}">{{if $c.Taken}}<input type="hidden" name="take" value="0"><button class="link">{{.T "give back"}}</button>{{else}}<input type="hidden" name="take" value="1"><button class="link">{{if $q.Assignee}}{{.T "take over"}}{{else}}{{.T "take it"}}{{end}}</button>{{end}}</form> ·
+  {{end}}{{if $q.Pending}}<form method="post" action="/questions/{{$q.ID}}/ignore" hx-post="/questions/{{$q.ID}}/ignore" hx-target="closest article" hx-swap="outerHTML" class="inline">
     <input type="hidden" name="csrf" value="{{.P.CSRF}}"><input type="hidden" name="ignore" value="1"><button class="link">{{.T "ignore"}}</button></form>
   {{else if $q.Ignored}}<form method="post" action="/questions/{{$q.ID}}/ignore" hx-post="/questions/{{$q.ID}}/ignore" hx-target="closest article" hx-swap="outerHTML" class="inline">
     <input type="hidden" name="csrf" value="{{.P.CSRF}}"><input type="hidden" name="ignore" value="0"><button class="link">{{.T "back to pending"}}</button></form>{{end}}
@@ -383,7 +385,7 @@
     <thead><tr><th>#</th><th>{{$p.T "Contestant"}}</th>{{if $l.ICPC}}<th class="num">{{$p.T "Solved"}}</th><th class="num">{{$p.T "Penalty"}}</th>{{else}}<th class="num">{{$p.T "Score"}}</th>{{end}}</tr></thead>
     <tbody>
     {{range $l.Board}}<tr>
-      <td>{{.Rank}}</td>
+      <td>{{if .Rank}}{{.Rank}}{{else}}–{{end}}</td>
       <td><a class="name-cell" href="/participations/{{.ParticipationID}}"><span class="avatar sm {{avatarc .Username}}">{{initials .Name}}</span><span><b>{{.Name}}</b><small>{{.Sub}}{{if .Hidden}} · {{$p.T "hidden"}}{{end}}</small></span></a></td>
       {{if $l.ICPC}}<td class="num">{{.Solved}}</td><td class="num">{{.Penalty}}</td>{{else}}<td class="num"><b>{{score .Total $l.Precision}}</b></td>{{end}}
     </tr>{{end}}
@@ -409,7 +411,7 @@
     <tbody>
     {{range $l.Tasks}}<tr>
       <td><span class="letter {{lclass .Index}}">{{letter .Index}}</span></td>
-      <td><a href="/tasks/{{.ID}}">{{.Name}}</a> <span class="muted small">{{.Title}}</span>{{if .Closed}} <span class="tag bad">{{$p.T "closed"}}</span>{{end}}</td>
+      <td><a href="/tasks/{{.ID}}">{{.Name}}</a> <span class="muted small">{{.Title}}</span>{{if .Closed}} <span class="tag bad">{{$p.T "submissions closed"}}</span>{{end}}</td>
       <td class="c">{{if .Solvers}}<span class="st-ic ok" title="{{$p.T "%d solved it" .Solvers}}{{with .FirstSolver}} · {{$p.T "first: %s" .}}{{end}}">{{icon "check-circle"}}</span> <small>{{.Solvers}}</small>{{else if .Partial}}<span class="st-ic warn" title="{{$p.T "%d with points" .Partial}}">{{icon "half-circle"}}</span> <small>{{.Partial}}</small>{{else}}<span class="st-ic bad" title="{{$p.T "Unsolved"}}">{{icon "x-circle"}}</span>{{end}}</td>
       <td class="num">{{.Submissions}}{{if .Pending}} <small class="muted" title="{{$p.T "being evaluated"}}">(+{{.Pending}})</small>{{end}}</td>
     </tr>{{end}}

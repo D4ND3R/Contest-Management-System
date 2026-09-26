@@ -23,6 +23,8 @@
   <label>{{.T "to"}} <input type="datetime-local" step="1" name="analysis_stop" value="{{local $c.AnalysisStop $c.Timezone}}"></label>
   <label><input type="checkbox" name="practice_enabled" {{if $c.PracticeEnabled}}checked{{end}}> {{.T "Practice after the contest (unofficial submissions, no end)"}}</label>
 </p>
+<p class="checks"><label>{{.T "Appeals until"}} <input type="datetime-local" step="1" name="appeals_until" value="{{local $c.AppealsUntil $c.Timezone}}"></label>
+  <span class="muted small">{{.T "empty: no appeals. Contestants appeal from the end of their contest until then."}}</span></p>
 </fieldset>
 <fieldset><legend>{{.T "Presentation"}}</legend>
 <div class="grid">
@@ -120,6 +122,12 @@
   <label><input type="checkbox" name="ranking_show_hidden" {{if $c.RankingShowHidden}}checked{{end}}> {{.T "hidden users"}}</label>
   <label><input type="checkbox" name="ranking_anonymous" {{if $c.RankingAnonymous}}checked{{end}}> {{.T "anonymous (no names)"}}</label>
 </p>
+<label>{{.T "Medals"}} <select name="medals">
+  <option value="none" {{if eq $c.Medals "none"}}selected{{end}}>{{.T "none"}}</option>
+  <option value="admins" {{if eq $c.Medals "admins"}}selected{{end}}>{{.T "cutoffs for the administrators"}}</option>
+  <option value="public" {{if eq $c.Medals "public"}}selected{{end}}>{{.T "cutoffs also on the public scoreboards"}}</option>
+</select></label>
+<p class="muted small">{{.T "IOI rule: at most a twelfth of the official participants get gold, a quarter gold or silver, half a medal; a tie is never split and a zero score wins nothing. Unofficial and hidden participants take no place and no medal."}}</p>
 <p class="muted small">{{.T "Team contests are ranked by team. The public scoreboard is served by the ranking web server; the freeze hides later results until you unfreeze it from the ranking page."}}</p>
 </fieldset>
 <fieldset><legend>{{.T "Printing"}}</legend>
@@ -191,6 +199,7 @@
 <p class="muted small">{{.T "One zip file with the whole contest: settings, sites, tasks with every dataset, participants (with their password hashes), communication and, optionally, the submissions with their results and the final results table. Import it from the contests page of this or another installation (same version or newer)."}}</p>
 <form method="get" action="/contests/{{$c.ID}}/archive.zip" class="inline-form">
   <label><input type="checkbox" name="submissions" value="1" checked> {{.T "with the submissions"}}</label>
+  <label><input type="checkbox" name="anonymize" value="1"> {{.T "anonymized (for research: names, e-mails, photos, IPs and passwords removed; users become user<id>)"}}</label>
   <button>{{.T "Download the archive"}}</button>
 </form>
 </section>

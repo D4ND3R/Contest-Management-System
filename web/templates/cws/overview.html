@@ -93,7 +93,7 @@
   <table class="compact">
   <thead><tr><th>#</th><th>{{.T "Contestant"}}</th><th class="num">{{if $d.BoardICPC}}{{.T "Solved"}}{{else}}{{.T "Score"}}{{end}}</th></tr></thead>
   <tbody>
-  {{range $d.Board}}<tr {{if eq .Key $d.Mine}}class="mine"{{end}}><td>{{.Rank}}</td>
+  {{range $d.Board}}<tr {{if eq .Key $d.Mine}}class="mine"{{end}}><td>{{.ShownPlace}}</td>
     <td><span class="name-cell"><span class="avatar sm {{avatarc .Name}}">{{initials .Name}}</span><b>{{.Name}}</b></span></td>
     <td class="num">{{if $d.BoardICPC}}{{.Solved}}{{else}}{{fscore .Total $d.BoardPrecision}}{{end}}</td></tr>{{end}}
   </tbody>

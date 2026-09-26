@@ -94,7 +94,7 @@ SELECT p.id, p.ip, p.login_nonce FROM participations p WHERE p.contest_id = $1 A
 
 -- name: UpdateParticipation :one
 UPDATE participations SET team_id = $2, ip = $3, delay_time_s = $4, extra_time_s = $5, hidden = $6, unrestricted = $7,
-    starting_time = $8, site_id = $9
+    starting_time = $8, site_id = $9, unofficial = $10
 WHERE id = $1
 RETURNING *;
 

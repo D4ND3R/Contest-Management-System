@@ -29,6 +29,20 @@ frozen. Open public scoreboards do not reload when unfreezing: the rows
 that changed are revealed one by one from the bottom up (half a minute at
 most), each highlighted as it moves.
 
+## Unofficial participants and medals
+
+- **Unofficial** (participant page): a guest or an extra contestant is
+  judged and shown like everybody else, marked *unofficial* (a * on the
+  public scoreboard), but takes no place and no medal: the official
+  places skip them. Hidden participants take no place either.
+- **Medals** (Settings → Ranking): *none*, *cutoffs for the
+  administrators* or *also on the public scoreboards*. The IOI rule: at most
+  a twelfth of the official participants get gold, a quarter gold or
+  silver, half a medal; a tie is never split (a tie group that does not
+  fit gets the next medal) and a zero score wins nothing. The ranking shows
+  the cutoffs (lowest total and number for each medal) and every
+  medallist; the CSV export has `official` and `medal` columns.
+
 ## Ranking web server
 
 The RWS never touches the database: it keeps the boards in memory (saved in

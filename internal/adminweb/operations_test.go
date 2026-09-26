@@ -1,12 +1,15 @@
 package adminweb
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/db"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 )
 
@@ -43,13 +46,13 @@ func TestEmergencyControlsAdmin(t *testing.T) {
 	}
 
 	tid := fmt.Sprint(f.task.ID)
-	if code, body := b.Post("/tasks/"+tid+"/close", url.Values{"closed": {"1"}}); code != 200 || !strings.Contains(body, `<span class="tag bad">closed</span>`) {
+	if code, body := b.Post("/tasks/"+tid+"/close", url.Values{"closed": {"1"}}); code != 200 || !strings.Contains(body, `<span class="tag bad">submissions closed</span>`) {
 		t.Fatalf("close = %d\n%s", code, body)
 	}
 	if task, _ := f.q.GetTask(bg, f.task.ID); !task.SubmissionsClosed {
 		t.Fatal("task not closed")
 	}
-	if _, body := b.Get("/contests/" + id); !strings.Contains(body, `<span class="tag bad">closed</span>`) {
+	if _, body := b.Get("/contests/" + id); !strings.Contains(body, `<span class="tag bad">submissions closed</span>`) {
 		t.Fatal("dashboard problem status without the closed task")
 	}
 	b.Post("/tasks/"+tid+"/close", url.Values{"closed": {"0"}})
@@ -141,5 +144,159 @@ func TestDelegationLeader(t *testing.T) {
 	// Full administrators see any team's page.
 	if _, body := all.Get(fmt.Sprintf("/delegation?team=%d", other.ID)); !strings.Contains(body, "ana") {
 		t.Fatal("admin view of a delegation")
+	}
+}
+
+// TestUnofficialAndMedals (SPEC_IOI §9.2, §10): an unofficial participant
+// is marked in the ranking and takes no place; medal cutoffs appear for
+// the administrators once the contest awards medals.
+func TestUnofficialAndMedals(t *testing.T) {
+	f := newFixture(t)
+	b := f.login("all")
+	code, body := b.Post(fmt.Sprintf("/participations/%d", f.part.ID), url.Values{"team_id": {fmt.Sprint(f.team.ID)}, "ip": {""},
+		"delay_time_s": {"0"}, "extra_time_s": {"0"}, "unofficial": {"on"}})
+	if code != 200 {
+		t.Fatalf("save participation = %d\n%s", code, body)
+	}
+	if p, _ := f.q.GetParticipation(bg, f.part.ID); !p.Unofficial {
+		t.Fatal("participation not unofficial")
+	}
+	_, body = b.Get(fmt.Sprintf("/contests/%d/ranking", f.contest.ID))
+	if !strings.Contains(body, `<td class="num">–</td>`) || !strings.Contains(body, `<span class="tag">unofficial</span>`) {
+		t.Fatalf("ranking:\n%s", body)
+	}
+	c := db.ContestToUpdate(f.contest)
+	c.Medals = "admins"
+	f.q.UpdateContest(bg, c)
+	f.pool.Exec(bg, "UPDATE participations SET unofficial = false")
+	_, body = b.Get(fmt.Sprintf("/contests/%d/ranking", f.contest.ID))
+	if strings.Contains(body, "unofficial</span>") {
+		t.Fatal("still unofficial")
+	}
+	_, csv := b.Get(fmt.Sprintf("/contests/%d/ranking.csv", f.contest.ID))
+	if !strings.Contains(csv, ",official,medal") {
+		t.Fatalf("csv:\n%s", csv)
+	}
+}
+
+// TestQuestionAssignment (SPEC_IOI §9.3): a staff member takes a question,
+// the others see who has it (and may take it over), and each can list
+// the questions they took.
+func TestQuestionAssignment(t *testing.T) {
+	f := newFixture(t)
+	q, err := f.q.CreateQuestion(bg, sqlc.CreateQuestionParams{ParticipationID: f.part.ID, AskedAt: time.Now(), Subject: "s", Text: "Is n ≤ 10?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := f.login("messaging")
+	path := fmt.Sprintf("/questions/%d/assign", q.ID)
+	if code, body := m.Post(path, url.Values{"take": {"1"}}); code != 200 || !strings.Contains(body, "You took the question.") {
+		t.Fatalf("take = %d", code)
+	}
+	if got, _ := f.q.GetQuestion(bg, q.ID); got.AssignedAdminID == nil || *got.AssignedAdminID != f.admins["messaging"].ID {
+		t.Fatalf("not assigned: %+v", got)
+	}
+	if _, body := m.Get("/questions?mine=1"); !strings.Contains(body, "Is n ≤ 10?") || !strings.Contains(body, "give back") {
+		t.Fatal("my questions")
+	}
+	a := f.login("all")
+	_, body := a.Get("/questions")
+	if !strings.Contains(body, "admin_messaging") || !strings.Contains(body, "take over") {
+		t.Fatalf("other admin's view:\n%s", body)
+	}
+	if _, body := a.Get("/questions?mine=1"); strings.Contains(body, "Is n ≤ 10?") {
+		t.Fatal("somebody else's question in my list")
+	}
+	if code, _ := f.login("read_only").Post(path, url.Values{"take": {"1"}}); code != http.StatusForbidden {
+		t.Fatalf("read-only take = %d", code)
+	}
+	m.Post(path, url.Values{"take": {"0"}})
+	if got, _ := f.q.GetQuestion(bg, q.ID); got.AssignedAdminID != nil {
+		t.Fatal("not given back")
+	}
+}
+
+// TestDatasetCompare (SPEC_IOI §6): a candidate dataset is compared with
+// the live one: the task scores and the submissions that would change,
+// and how many submissions it has not judged yet.
+func TestDatasetCompare(t *testing.T) {
+	f := newFixture(t)
+	b := f.login("read_only")
+	cand, err := f.q.CreateDataset(bg, db.NewDatasetParams(f.task.ID, "stricter"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The first submission scores 40 on the candidate; the second is not
+	// judged there yet.
+	sid := f.subs[0]
+	f.q.EnsureSubmissionResult(bg, sqlc.EnsureSubmissionResultParams{SubmissionID: sid, DatasetID: cand.ID})
+	ok := "ok"
+	f.q.SetCompilationResult(bg, sqlc.SetCompilationResultParams{SubmissionID: sid, DatasetID: cand.ID, CompilationOutcome: &ok, TestcasesTotal: 2})
+	score := 40.0
+	det := json.RawMessage(`{}`)
+	if err := f.q.SetScore(bg, sqlc.SetScoreParams{SubmissionID: sid, DatasetID: cand.ID, Score: &score, ScoreDetails: det, PublicScore: &score,
+		PublicScoreDetails: det, RankingScoreDetails: json.RawMessage(`[40]`)}); err != nil {
+		t.Fatal(err)
+	}
+	code, body := b.Get(fmt.Sprintf("/tasks/%d/compare?b=%d", f.task.ID, cand.ID))
+	if code != 200 {
+		t.Fatalf("compare = %d\n%s", code, body)
+	}
+	for _, want := range []string{"1 contestants and 2 submissions compared: 1 task scores and 1 submission scores would change",
+		"1 submissions are not judged on B yet", `<td class="num bad">-60</td>`, fmt.Sprintf(`href="/submissions/%d"`, sid)} {
+		if !strings.Contains(body, want) {
+			t.Errorf("compare page lacks %s", want)
+		}
+	}
+	if t.Failed() {
+		t.Log(body)
+	}
+	if code, _ := b.Get(fmt.Sprintf("/tasks/%d/compare?a=%d&b=%d", f.task.ID, cand.ID, cand.ID)); code != http.StatusUnprocessableEntity {
+		t.Fatalf("same dataset twice = %d", code)
+	}
+	if _, body := b.Get(fmt.Sprintf("/tasks/%d", f.task.ID)); !strings.Contains(body, fmt.Sprintf(`href="/tasks/%d/compare?b=%d"`, f.task.ID, cand.ID)) {
+		t.Fatal("no compare link on the task page")
+	}
+}
+
+// TestAppealsAdmin (SPEC_IOI §14): the staff list a contest's appeals,
+// answer them (an answer is required), and see open ones on the dashboard.
+func TestAppealsAdmin(t *testing.T) {
+	f := newFixture(t)
+	until := time.Now().Add(time.Hour)
+	c := db.ContestToUpdate(f.contest)
+	c.AppealsUntil = &until
+	if _, err := f.q.UpdateContest(bg, c); err != nil {
+		t.Fatal(err)
+	}
+	a, err := f.q.CreateAppeal(bg, sqlc.CreateAppealParams{ParticipationID: f.part.ID, TaskID: &f.task.ID, Text: "Testcase 3 is wrong."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := f.login("messaging")
+	id := fmt.Sprint(f.contest.ID)
+	if _, body := m.Get("/contests/" + id); !strings.Contains(body, "1 appeals waiting for an answer") || !strings.Contains(body, `href="/contests/`+id+`/appeals"`) {
+		t.Fatal("dashboard without the appeal")
+	}
+	if _, body := m.Get("/contests/" + id + "/appeals"); !strings.Contains(body, "Testcase 3 is wrong.") || !strings.Contains(body, fmt.Sprintf(`action="/appeals/%d"`, a.ID)) {
+		t.Fatal("appeals list")
+	}
+	path := fmt.Sprintf("/appeals/%d", a.ID)
+	if code, _ := m.Post(path, url.Values{"status": {"rejected"}}); code != http.StatusUnprocessableEntity {
+		t.Fatalf("answer without text = %d", code)
+	}
+	if code, _ := f.login("read_only").Post(path, url.Values{"status": {"rejected"}, "response": {"No."}}); code != http.StatusForbidden {
+		t.Fatalf("read-only answer = %d", code)
+	}
+	if code, body := m.Post(path, url.Values{"status": {"rejected"}, "response": {"The testcase is right."}}); code != 200 || !strings.Contains(body, "Appeal answered.") {
+		t.Fatalf("answer = %d", code)
+	}
+	rows, _ := f.q.AdminListAppeals(bg, sqlc.AdminListAppealsParams{ContestID: f.contest.ID})
+	if len(rows) != 1 || rows[0].Status != "rejected" || rows[0].Handler == nil || *rows[0].Handler != "admin_messaging" {
+		t.Fatalf("appeal %+v", rows)
+	}
+	open := "open"
+	if rows, _ := f.q.AdminListAppeals(bg, sqlc.AdminListAppealsParams{ContestID: f.contest.ID, Status: &open}); len(rows) != 0 {
+		t.Fatal("status filter")
 	}
 }

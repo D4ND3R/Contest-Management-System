@@ -455,3 +455,8 @@ ul.syntax code{font-size:.8rem}
   .banner h1,.banner .sub,.banner .when,.banner .figure,.banner .eyebrow{color:#000}
 }
 .login-banner{display:block;width:calc(100% + 2.4rem);max-width:none;margin:-1.05rem -1.2rem 1rem;height:130px;object-fit:cover;border-radius:var(--radius) var(--radius) 0 0}
+/* medals and unofficial participants (rankings) */
+.medal{display:inline-flex;align-items:center;gap:.25rem;font-weight:620}.medal .ic{width:15px;height:15px}
+.medal.gold{color:#e3b341}.medal.silver{color:#b4bfcf}.medal.bronze{color:#d0894a}
+tr.medal-gold>td:first-child{box-shadow:inset 3px 0 #e3b341}tr.medal-silver>td:first-child{box-shadow:inset 3px 0 #b4bfcf}tr.medal-bronze>td:first-child{box-shadow:inset 3px 0 #d0894a}
+sup.uo{color:var(--text-2);margin-left:.15rem}.cutoffs{display:flex;flex-wrap:wrap;gap:.6rem 1.4rem;margin:0}

@@ -110,7 +110,9 @@ problema:
      (*Faltan managers para esta configuración*).
    - **Poner en vivo** cuando esté correcto: los envíos se puntúan con el
      dataset en vivo; un segundo dataset puede evaluar los envíos nuevos en
-     segundo plano para comparar antes de cambiar (*autoevaluación*).
+     segundo plano para comparar antes de cambiar (*autoevaluación*);
+     **comparar con el vivo** lista los puntajes de problema y los envíos
+     que cambiarían.
 4. **Probador de problemas**: envía cualquier fuente como administrador y ve
    el veredicto por caso sin que cuente en ningún lado; el **Reporte de
    validación** evalúa las soluciones de referencia en cada dataset.

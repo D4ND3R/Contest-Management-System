@@ -32,6 +32,19 @@ type Announcement struct {
 	AdminID   *int64    `json:"admin_id"`
 }
 
+type Appeal struct {
+	ID              int64      `json:"id"`
+	ParticipationID int64      `json:"participation_id"`
+	TaskID          *int64     `json:"task_id"`
+	SubmissionID    *int64     `json:"submission_id"`
+	CreatedAt       time.Time  `json:"created_at"`
+	Text            string     `json:"text"`
+	Status          string     `json:"status"`
+	Response        string     `json:"response"`
+	HandledBy       *int64     `json:"handled_by"`
+	HandledAt       *time.Time `json:"handled_at"`
+}
+
 type Attachment struct {
 	ID       int64  `json:"id"`
 	TaskID   int64  `json:"task_id"`
@@ -175,6 +188,8 @@ type Contest struct {
 	BannerType                  string     `json:"banner_type"`
 	SubmissionsPaused           bool       `json:"submissions_paused"`
 	PauseMessage                string     `json:"pause_message"`
+	Medals                      string     `json:"medals"`
+	AppealsUntil                *time.Time `json:"appeals_until"`
 }
 
 type Dataset struct {
@@ -259,6 +274,7 @@ type Participation struct {
 	SiteID              *int64         `json:"site_id"`
 	CommunicationSeenAt time.Time      `json:"communication_seen_at"`
 	Approved            bool           `json:"approved"`
+	Unofficial          bool           `json:"unofficial"`
 }
 
 type ParticipationTaskScore struct {
@@ -303,6 +319,7 @@ type Question struct {
 	ContestID       int64      `json:"contest_id"`
 	TaskID          *int64     `json:"task_id"`
 	Public          bool       `json:"public"`
+	AssignedAdminID *int64     `json:"assigned_admin_id"`
 }
 
 type ScoreAdjustment struct {

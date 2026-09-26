@@ -495,6 +495,7 @@ func (s *Server) newPage(rc *reqCtx, title, active string) *page {
 		p.Tasks = rc.contest.Tasks
 	}
 	p.Ranking = rankingVisible(rc.contest.Contest, rc.now)
+	p.Appeals = appealsShown(rc)
 	return p
 }
 

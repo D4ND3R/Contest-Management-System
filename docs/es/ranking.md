@@ -32,6 +32,21 @@ abiertos no se recargan al descongelar: las filas que cambiaron se revelan
 una por una de abajo hacia arriba (medio minuto como máximo), resaltadas al
 moverse.
 
+## Participantes no oficiales y medallas
+
+- **No oficial** (página del participante): un invitado o un concursante
+  extra se evalúa y se muestra como todos, marcado *no oficial* (un * en la
+  tabla pública), pero no ocupa puesto ni recibe medalla: los puestos
+  oficiales lo saltan. Los participantes ocultos tampoco ocupan puesto.
+- **Medallas** (Configuración → Ranking): *ninguna*, *cortes para los
+  administradores* o *también en las tablas públicas*. La regla de la IOI:
+  como máximo una doceava parte de los participantes oficiales recibe oro,
+  una cuarta parte oro o plata y la mitad una medalla; un empate nunca se
+  divide (un grupo empatado que no entra recibe la medalla siguiente) y un
+  puntaje de cero no gana nada. La clasificación muestra los cortes (total
+  mínimo y cantidad de cada medalla) y a cada medallista; el CSV exportado
+  tiene las columnas `official` y `medal`.
+
 ## Servidor de ranking
 
 El RWS nunca toca la base de datos: guarda los marcadores en memoria (y en

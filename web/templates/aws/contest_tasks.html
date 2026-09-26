@@ -8,7 +8,7 @@
 <tbody>
 {{range $i, $t := .Data.Tasks}}
 <tr>
-  <td><span class="letter {{lclass $i}}">{{letter $i}}</span></td><td><a href="/tasks/{{$t.ID}}"><b>{{$t.Name}}</b></a>{{if $t.SubmissionsClosed}} <span class="tag bad">{{$.T "closed"}}</span>{{end}}</td><td>{{$t.Title}}</td>
+  <td><span class="letter {{lclass $i}}">{{letter $i}}</span></td><td><a href="/tasks/{{$t.ID}}"><b>{{$t.Name}}</b></a>{{if $t.SubmissionsClosed}} <span class="tag bad">{{$.T "submissions closed"}}</span>{{end}}</td><td>{{$t.Title}}</td>
   <td class="num">{{if $.CanWrite}}
     <form method="post" action="/contests/{{$c.ID}}/tasks/{{$t.ID}}/move" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="dir" value="up"><button class="link" title="{{$.T "Move up"}}">↑</button></form>
     <form method="post" action="/contests/{{$c.ID}}/tasks/{{$t.ID}}/move" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="dir" value="down"><button class="link" title="{{$.T "Move down"}}">↓</button></form>

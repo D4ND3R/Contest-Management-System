@@ -31,6 +31,81 @@ func (q *Queries) CloneDatasetContents(ctx context.Context, arg CloneDatasetCont
 	return err
 }
 
+const compareDatasetSubmissions = `-- name: CompareDatasetSubmissions :many
+SELECT s.id, s.participation_id, u.username, s.submitted_at, s.official, (k.submission_id IS NOT NULL)::boolean AS tokened,
+       ra.compilation_outcome AS compilation_a, ra.score AS score_a, ra.ranking_score_details AS details_a, ra.scored_at AS scored_at_a,
+       rb.compilation_outcome AS compilation_b, rb.score AS score_b, rb.ranking_score_details AS details_b, rb.scored_at AS scored_at_b
+FROM submissions s
+JOIN participations p ON p.id = s.participation_id
+JOIN users u ON u.id = p.user_id
+LEFT JOIN submission_results ra ON ra.submission_id = s.id AND ra.dataset_id = $1::bigint
+LEFT JOIN submission_results rb ON rb.submission_id = s.id AND rb.dataset_id = $2::bigint
+LEFT JOIN tokens k ON k.submission_id = s.id
+WHERE s.task_id = $3::bigint AND s.invalidated_at IS NULL AND NOT s.tester
+ORDER BY u.username, s.submitted_at, s.id
+`
+
+type CompareDatasetSubmissionsParams struct {
+	DatasetA int64 `json:"dataset_a"`
+	DatasetB int64 `json:"dataset_b"`
+	TaskID   int64 `json:"task_id"`
+}
+
+type CompareDatasetSubmissionsRow struct {
+	ID              int64           `json:"id"`
+	ParticipationID *int64          `json:"participation_id"`
+	Username        string          `json:"username"`
+	SubmittedAt     time.Time       `json:"submitted_at"`
+	Official        bool            `json:"official"`
+	Tokened         bool            `json:"tokened"`
+	CompilationA    *string         `json:"compilation_a"`
+	ScoreA          *float64        `json:"score_a"`
+	DetailsA        json.RawMessage `json:"details_a"`
+	ScoredAtA       *time.Time      `json:"scored_at_a"`
+	CompilationB    *string         `json:"compilation_b"`
+	ScoreB          *float64        `json:"score_b"`
+	DetailsB        json.RawMessage `json:"details_b"`
+	ScoredAtB       *time.Time      `json:"scored_at_b"`
+}
+
+// Every counted submission of a task with its results on two datasets
+// (the dataset comparison page; submissions_task_idx, then the results'
+// primary key): scores per submission and the inputs of the task score.
+func (q *Queries) CompareDatasetSubmissions(ctx context.Context, arg CompareDatasetSubmissionsParams) ([]CompareDatasetSubmissionsRow, error) {
+	rows, err := q.db.Query(ctx, compareDatasetSubmissions, arg.DatasetA, arg.DatasetB, arg.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CompareDatasetSubmissionsRow{}
+	for rows.Next() {
+		var i CompareDatasetSubmissionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParticipationID,
+			&i.Username,
+			&i.SubmittedAt,
+			&i.Official,
+			&i.Tokened,
+			&i.CompilationA,
+			&i.ScoreA,
+			&i.DetailsA,
+			&i.ScoredAtA,
+			&i.CompilationB,
+			&i.ScoreB,
+			&i.DetailsB,
+			&i.ScoredAtB,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countTestcases = `-- name: CountTestcases :one
 SELECT count(*) FROM testcases WHERE dataset_id = $1
 `

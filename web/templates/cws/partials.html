@@ -62,7 +62,7 @@
 <th class="num">{{if $b.ICPC}}{{.T "Solved"}}{{else}}{{.T "Total"}}{{end}}</th>{{if $b.ICPC}}<th class="num">{{.T "Penalty"}}</th>{{end}}</tr></thead>
 <tbody>
 {{range $r := $d.Rows}}
-<tr class="{{if eq $r.Key $d.Mine}}mine{{end}}"><td class="num">{{$r.Rank}}</td><td>{{$r.Name}}{{if and $b.Institutions $r.Institution}} <small class="muted">{{$r.Institution}}</small>{{end}}</td>
+<tr class="{{if eq $r.Key $d.Mine}}mine{{end}}{{with $r.Medal}} medal-{{.}}{{end}}"><td class="num">{{$r.ShownPlace}}</td><td>{{$r.Name}}{{if $r.Unofficial}} <span class="tag">{{$.T "unofficial"}}</span>{{end}}{{with $r.Medal}} <span class="medal {{.}}" title="{{$.T .}}">{{icon "award"}}</span>{{end}}{{if and $b.Institutions $r.Institution}} <small class="muted">{{$r.Institution}}</small>{{end}}</td>
 {{range $i, $c := $r.Cells}}{{$x := cell $b $i $c}}<td class="num {{$x.Class}}">{{$x.Text}}{{with $x.Minute}} <small>{{.}}</small>{{end}}{{if $x.Pending}} <span class="pending">?</span>{{end}}{{with $x.Subtasks}}<small class="sub">{{.}}</small>{{end}}</td>{{end}}
 <td class="num"><b>{{if $b.ICPC}}{{$r.Solved}}{{else}}{{fscore $r.Total $b.Precision}}{{end}}</b></td>{{if $b.ICPC}}<td class="num">{{$r.Penalty}}</td>{{end}}</tr>
 {{end}}

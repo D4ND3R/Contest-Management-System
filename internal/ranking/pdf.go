@@ -85,7 +85,7 @@ func (r *Ranking) WritePDF(w io.Writer, l PDFLabels) error {
 			if i%2 == 1 {
 				pg.FillRect(margin, y-3.5, x-margin, rowH, 0.93)
 			}
-			cells := []string{strconv.Itoa(row.Rank), contestantName(row), teamOf(row)}
+			cells := []string{row.ShownPlace(), contestantName(row), teamOf(row)}
 			for k, cell := range row.Cells {
 				cells = append(cells, pdfCell(cell, r.Tasks[k], r.ICPC))
 			}

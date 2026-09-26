@@ -118,6 +118,16 @@ job live. Setting up the printer: [deployment](deployment.md#printing).
   task. **User tests** (run a source on the contestant's own input) have their
   own count and interval limits.
 
+## Appeals
+
+**Appeals until** (Settings → Lifecycle): when set, each contestant gets an
+**Appeals** page once their contest is over, and can appeal a task
+(optionally naming one of their submissions) until that time. The staff
+answer on the contest's **Appeals** page (accept or reject, with an answer
+the contestant reads); open appeals show on the dashboard. Accepting
+records the decision only: correct the result with the usual tools (fix
+the dataset and rejudge, or adjust the score), which are audited.
+
 ## Certificates
 
 **Certificates** in the contest menu designs one certificate per

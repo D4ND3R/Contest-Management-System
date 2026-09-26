@@ -11,17 +11,19 @@ import (
 )
 
 const adminListQuestions = `-- name: AdminListQuestions :many
-SELECT q.id, q.participation_id, q.asked_at, q.subject, q.text, q.reply_at, q.reply_subject, q.reply_text, q.reply_admin_id, q.ignored, q.contest_id, q.task_id, q.public, u.username, c.name AS contest_name, t.name AS task_name,
-       (q.reply_at IS NULL AND NOT q.ignored)::boolean AS pending
+SELECT q.id, q.participation_id, q.asked_at, q.subject, q.text, q.reply_at, q.reply_subject, q.reply_text, q.reply_admin_id, q.ignored, q.contest_id, q.task_id, q.public, q.assigned_admin_id, u.username, c.name AS contest_name, t.name AS task_name,
+       (q.reply_at IS NULL AND NOT q.ignored)::boolean AS pending, ad.username AS assignee
 FROM questions q
 JOIN participations p ON p.id = q.participation_id
 JOIN users u ON u.id = p.user_id
 JOIN contests c ON c.id = q.contest_id
 LEFT JOIN tasks t ON t.id = q.task_id
+LEFT JOIN admins ad ON ad.id = q.assigned_admin_id
 WHERE ($1::bigint IS NULL OR q.contest_id = $1)
-  AND ($2::bigint IS NULL OR q.task_id = $2)
-  AND ($3::bigint IS NULL OR q.id = $3)
-  AND ($4::boolean OR (q.reply_at IS NULL AND NOT q.ignored))
+  AND ($2::bigint IS NULL OR q.assigned_admin_id = $2)
+  AND ($3::bigint IS NULL OR q.task_id = $3)
+  AND ($4::bigint IS NULL OR q.id = $4)
+  AND ($5::boolean OR (q.reply_at IS NULL AND NOT q.ignored))
 ORDER BY (q.reply_at IS NULL AND NOT q.ignored) DESC,
          CASE WHEN q.reply_at IS NULL AND NOT q.ignored THEN q.asked_at END ASC,
          COALESCE(q.reply_at, q.asked_at) DESC
@@ -30,6 +32,7 @@ LIMIT 300
 
 type AdminListQuestionsParams struct {
 	ContestID    *int64 `json:"contest_id"`
+	AssignedTo   *int64 `json:"assigned_to"`
 	TaskID       *int64 `json:"task_id"`
 	QuestionID   *int64 `json:"question_id"`
 	WithAnswered bool   `json:"with_answered"`
@@ -49,10 +52,12 @@ type AdminListQuestionsRow struct {
 	ContestID       int64      `json:"contest_id"`
 	TaskID          *int64     `json:"task_id"`
 	Public          bool       `json:"public"`
+	AssignedAdminID *int64     `json:"assigned_admin_id"`
 	Username        string     `json:"username"`
 	ContestName     string     `json:"contest_name"`
 	TaskName        *string    `json:"task_name"`
 	Pending         bool       `json:"pending"`
+	Assignee        *string    `json:"assignee"`
 }
 
 // Staff inbox: pending questions oldest first (questions_pending_idx), then
@@ -60,6 +65,7 @@ type AdminListQuestionsRow struct {
 func (q *Queries) AdminListQuestions(ctx context.Context, arg AdminListQuestionsParams) ([]AdminListQuestionsRow, error) {
 	rows, err := q.db.Query(ctx, adminListQuestions,
 		arg.ContestID,
+		arg.AssignedTo,
 		arg.TaskID,
 		arg.QuestionID,
 		arg.WithAnswered,
@@ -85,10 +91,12 @@ func (q *Queries) AdminListQuestions(ctx context.Context, arg AdminListQuestions
 			&i.ContestID,
 			&i.TaskID,
 			&i.Public,
+			&i.AssignedAdminID,
 			&i.Username,
 			&i.ContestName,
 			&i.TaskName,
 			&i.Pending,
+			&i.Assignee,
 		); err != nil {
 			return nil, err
 		}
@@ -98,6 +106,21 @@ func (q *Queries) AdminListQuestions(ctx context.Context, arg AdminListQuestions
 		return nil, err
 	}
 	return items, nil
+}
+
+const assignQuestion = `-- name: AssignQuestion :exec
+UPDATE questions SET assigned_admin_id = $1 WHERE id = $2::bigint
+`
+
+type AssignQuestionParams struct {
+	AdminID *int64 `json:"admin_id"`
+	ID      int64  `json:"id"`
+}
+
+// A staff member takes a question (or gives it back: NULL).
+func (q *Queries) AssignQuestion(ctx context.Context, arg AssignQuestionParams) error {
+	_, err := q.db.Exec(ctx, assignQuestion, arg.AdminID, arg.ID)
+	return err
 }
 
 const cancelPrintJob = `-- name: CancelPrintJob :execrows
@@ -279,7 +302,7 @@ func (q *Queries) CreatePrintJob(ctx context.Context, arg CreatePrintJobParams) 
 const createQuestion = `-- name: CreateQuestion :one
 INSERT INTO questions (participation_id, contest_id, task_id, asked_at, subject, text)
 VALUES ($1, (SELECT contest_id FROM participations WHERE id = $1), $2, $3, $4, $5)
-RETURNING id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public
+RETURNING id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public, assigned_admin_id
 `
 
 type CreateQuestionParams struct {
@@ -313,6 +336,7 @@ func (q *Queries) CreateQuestion(ctx context.Context, arg CreateQuestionParams) 
 		&i.ContestID,
 		&i.TaskID,
 		&i.Public,
+		&i.AssignedAdminID,
 	)
 	return i, err
 }
@@ -423,7 +447,7 @@ func (q *Queries) GetPrintJobInfo(ctx context.Context, id int64) (GetPrintJobInf
 }
 
 const getQuestion = `-- name: GetQuestion :one
-SELECT id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public FROM questions WHERE id = $1
+SELECT id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public, assigned_admin_id FROM questions WHERE id = $1
 `
 
 func (q *Queries) GetQuestion(ctx context.Context, id int64) (Question, error) {
@@ -443,6 +467,7 @@ func (q *Queries) GetQuestion(ctx context.Context, id int64) (Question, error) {
 		&i.ContestID,
 		&i.TaskID,
 		&i.Public,
+		&i.AssignedAdminID,
 	)
 	return i, err
 }
@@ -670,7 +695,7 @@ func (q *Queries) ListPrintJobsByParticipation(ctx context.Context, participatio
 }
 
 const listPublicAnswers = `-- name: ListPublicAnswers :many
-SELECT id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public FROM questions WHERE contest_id = $1 AND public AND reply_at IS NOT NULL
+SELECT id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public, assigned_admin_id FROM questions WHERE contest_id = $1 AND public AND reply_at IS NOT NULL
 ORDER BY reply_at DESC LIMIT 200
 `
 
@@ -698,6 +723,7 @@ func (q *Queries) ListPublicAnswers(ctx context.Context, contestID int64) ([]Que
 			&i.ContestID,
 			&i.TaskID,
 			&i.Public,
+			&i.AssignedAdminID,
 		); err != nil {
 			return nil, err
 		}
@@ -710,7 +736,7 @@ func (q *Queries) ListPublicAnswers(ctx context.Context, contestID int64) ([]Que
 }
 
 const listQuestionsByContest = `-- name: ListQuestionsByContest :many
-SELECT q.id, q.participation_id, q.asked_at, q.subject, q.text, q.reply_at, q.reply_subject, q.reply_text, q.reply_admin_id, q.ignored, q.contest_id, q.task_id, q.public, u.username
+SELECT q.id, q.participation_id, q.asked_at, q.subject, q.text, q.reply_at, q.reply_subject, q.reply_text, q.reply_admin_id, q.ignored, q.contest_id, q.task_id, q.public, q.assigned_admin_id, u.username
 FROM questions q
 JOIN participations p ON p.id = q.participation_id
 JOIN users u ON u.id = p.user_id
@@ -732,6 +758,7 @@ type ListQuestionsByContestRow struct {
 	ContestID       int64      `json:"contest_id"`
 	TaskID          *int64     `json:"task_id"`
 	Public          bool       `json:"public"`
+	AssignedAdminID *int64     `json:"assigned_admin_id"`
 	Username        string     `json:"username"`
 }
 
@@ -758,6 +785,7 @@ func (q *Queries) ListQuestionsByContest(ctx context.Context, contestID int64) (
 			&i.ContestID,
 			&i.TaskID,
 			&i.Public,
+			&i.AssignedAdminID,
 			&i.Username,
 		); err != nil {
 			return nil, err
@@ -771,7 +799,7 @@ func (q *Queries) ListQuestionsByContest(ctx context.Context, contestID int64) (
 }
 
 const listQuestionsByParticipation = `-- name: ListQuestionsByParticipation :many
-SELECT id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public FROM questions WHERE participation_id = $1 ORDER BY asked_at DESC, id DESC
+SELECT id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public, assigned_admin_id FROM questions WHERE participation_id = $1 ORDER BY asked_at DESC, id DESC
 `
 
 func (q *Queries) ListQuestionsByParticipation(ctx context.Context, participationID int64) ([]Question, error) {
@@ -797,6 +825,7 @@ func (q *Queries) ListQuestionsByParticipation(ctx context.Context, participatio
 			&i.ContestID,
 			&i.TaskID,
 			&i.Public,
+			&i.AssignedAdminID,
 		); err != nil {
 			return nil, err
 		}
@@ -860,7 +889,7 @@ func (q *Queries) PrintUsage(ctx context.Context, participationID int64) (PrintU
 const replyQuestion = `-- name: ReplyQuestion :one
 UPDATE questions SET reply_at = now(), reply_subject = $2, reply_text = $3, reply_admin_id = $4, ignored = false,
     public = $5
-WHERE id = $1 RETURNING id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public
+WHERE id = $1 RETURNING id, participation_id, asked_at, subject, text, reply_at, reply_subject, reply_text, reply_admin_id, ignored, contest_id, task_id, public, assigned_admin_id
 `
 
 type ReplyQuestionParams struct {
@@ -894,6 +923,7 @@ func (q *Queries) ReplyQuestion(ctx context.Context, arg ReplyQuestionParams) (Q
 		&i.ContestID,
 		&i.TaskID,
 		&i.Public,
+		&i.AssignedAdminID,
 	)
 	return i, err
 }

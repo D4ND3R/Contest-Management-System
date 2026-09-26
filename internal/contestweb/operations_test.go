@@ -1,8 +1,12 @@
 package contestweb
 
 import (
+	"fmt"
+	"io"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 )
@@ -65,5 +69,66 @@ func TestEmergencyControls(t *testing.T) {
 	}
 	if actor != "contestant:ana" || len(files) != 1 || !strings.Contains(details, files[0].Digest) || !strings.Contains(details, `"task": "sum"`) {
 		t.Fatalf("receipt %s %s (files %+v)", actor, details, files)
+	}
+}
+
+// TestAppeals (SPEC_IOI §14): after their contest a contestant appeals a
+// task (optionally one of their submissions) until the deadline, sees the
+// staff's answer, and cannot appeal once the deadline passed.
+func TestAppeals(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	c := f.client()
+	_, page := f.login(c, "ana", "secret")
+	csrf := csrfOf(t, page)
+	f.submit(c, csrf, "c11", "int main(){}", true)
+	subs, _ := f.q.ListSubmissionsByParticipation(bg, f.part.ID)
+	reload := func() { f.srv.cache.invalidateContest(0) }
+	if code, _ := f.get(c, "/ioi/appeals"); code != 404 {
+		t.Fatalf("appeals without a deadline = %d", code)
+	}
+	// The contest ends; appeals are open for a day.
+	until := time.Now().Add(24 * time.Hour)
+	f.pool.Exec(bg, "UPDATE contests SET start_time = now() - interval '3 hours', stop_time = now() - interval '1 minute', appeals_until = $1", until)
+	reload()
+	code, body := f.get(c, "/ioi/appeals")
+	if code != 200 || !strings.Contains(body, "Send an appeal") || !strings.Contains(body, `href="/ioi/appeals"`) {
+		t.Fatalf("appeals page: %d\n%s", code, body)
+	}
+	post := func(v url.Values) (int, string) {
+		v.Set("csrf", csrf)
+		resp, err := c.PostForm(f.url+"/ioi/appeals", v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+	if code, body := post(url.Values{"task": {"sum"}, "submission": {"999999"}, "text": {"x"}}); code != 400 || !strings.Contains(body, "not yours") {
+		t.Fatalf("foreign submission: %d", code)
+	}
+	if code, _ := post(url.Values{"task": {"sum"}, "text": {""}}); code != 400 {
+		t.Fatalf("empty appeal: %d", code)
+	}
+	if code, body := post(url.Values{"task": {"sum"}, "submission": {fmt.Sprintf("#%d", subs[0].ID)}, "text": {"Testcase 3 is wrong."}}); code != 200 ||
+		!strings.Contains(body, "Your appeal was sent.") || !strings.Contains(body, "waiting for an answer") {
+		t.Fatalf("appeal: %d\n%s", code, body)
+	}
+	rows, _ := f.q.ListAppealsByParticipation(bg, f.part.ID)
+	if len(rows) != 1 || rows[0].SubmissionID == nil || *rows[0].SubmissionID != subs[0].ID {
+		t.Fatalf("appeals %+v", rows)
+	}
+	f.q.AnswerAppeal(bg, sqlc.AnswerAppealParams{ID: rows[0].ID, Status: "accepted", Response: "Fixed; the task was rejudged."})
+	if _, body := f.get(c, "/ioi/appeals"); !strings.Contains(body, "Fixed; the task was rejudged.") || !strings.Contains(body, `<span class="tag ok">accepted</span>`) {
+		t.Fatal("answer not shown")
+	}
+	// After the deadline: the page stays, new appeals are refused.
+	f.pool.Exec(bg, "UPDATE contests SET appeals_until = now() - interval '1 second'")
+	reload()
+	if _, body := f.get(c, "/ioi/appeals"); !strings.Contains(body, "Appeals are closed.") || strings.Contains(body, "Send an appeal") {
+		t.Fatal("closed appeals page")
+	}
+	if code, _ := post(url.Values{"task": {"sum"}, "text": {"late"}}); code != 403 {
+		t.Fatalf("late appeal: %d", code)
 	}
 }

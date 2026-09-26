@@ -104,7 +104,8 @@ By hand, **Tasks → Create task** and then, on the task page:
      managers for this configuration*).
    - **Make live** when it is right: submissions are scored with the live
      dataset; a second dataset can judge new submissions in the background
-     to compare before switching (*autojudge*).
+     to compare before switching (*autojudge*); **compare with live**
+     lists the task scores and submissions that would change.
 4. **Task tester**: submit any source as an administrator and see the
    verdict per testcase without it counting anywhere; **Validation report**
    judges the reference solutions on every dataset.

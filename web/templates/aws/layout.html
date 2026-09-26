@@ -63,6 +63,7 @@
   <a class="nav {{if .OnC "ranking"}}active{{end}}" href="/contests/{{$cid}}/ranking">{{icon "trophy"}}<span class="t">{{.T "Scoreboard"}}</span></a>
   <a class="nav {{if .OnC "stats"}}active{{end}}" href="/contests/{{$cid}}/stats">{{icon "bar-chart"}}<span class="t">{{.T "Statistics"}}</span></a>
   <a class="nav {{if .OnC "communication"}}active{{end}}" href="/contests/{{$cid}}/communication">{{icon "megaphone"}}<span class="t">{{.T "Announcements"}}</span></a>
+  {{if $c.AppealsUntil}}<a class="nav {{if .OnC "appeals"}}active{{end}}" href="/contests/{{$cid}}/appeals">{{icon "clipboard"}}<span class="t">{{.T "Appeals"}}</span></a>{{end}}
   {{if $c.AllowPrinting}}<a class="nav {{if .OnC "printing"}}active{{end}}" href="/contests/{{$cid}}/printing">{{icon "printer"}}<span class="t">{{.T "Printing"}}</span></a>{{end}}
   {{if eq $c.ScoringMode "icpc"}}<a class="nav {{if .OnC "balloons"}}active{{end}}" href="/contests/{{$cid}}/balloons">{{icon "balloon"}}<span class="t">{{.T "Balloons"}}</span></a>{{end}}
   <a class="nav {{if .OnC "plagiarism"}}active{{end}}" href="/contests/{{$cid}}/plagiarism">{{icon "copy"}}<span class="t">{{.T "Plagiarism"}}</span></a>

@@ -109,7 +109,10 @@ func TestIOIRankingTiesAndHidden(t *testing.T) {
 	if err := r.WriteCSV(&buf); err != nil {
 		t.Fatal(err)
 	}
-	if lines := strings.Split(strings.TrimSpace(buf.String()), "\n"); lines[0] != "rank,username,first_name,last_name,team,a,b,total" || lines[1] != "1,eva,,,,100,100,200" {
+	// A hidden participant, when included, takes no place: the others
+	// keep the places of the public ranking.
+	if lines := strings.Split(strings.TrimSpace(buf.String()), "\n"); lines[0] != "rank,username,first_name,last_name,team,a,b,total,official,medal" ||
+		lines[1] != ",eva,,,,100,100,200,true," || lines[2] != "1,ana,,,,100,40,140,true," {
 		t.Fatalf("csv:\n%s", buf.String())
 	}
 }

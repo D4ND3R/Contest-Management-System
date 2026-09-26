@@ -126,6 +126,17 @@ Configurar la impresora: [despliegue](despliegue.md#impresión).
   problema. Las **pruebas de usuario** (ejecutar un código con una entrada
   propia) tienen sus propios límites de cantidad e intervalo.
 
+## Apelaciones
+
+**Apelaciones hasta** (Configuración → Ciclo de vida): si se define, cada
+concursante tiene una página **Apelaciones** en cuanto termina su concurso
+y puede apelar un problema (opcionalmente indicando uno de sus envíos)
+hasta esa fecha. El equipo responde en la página **Apelaciones** del
+concurso (aceptar o rechazar, con una respuesta que el concursante lee);
+las apelaciones abiertas aparecen en el panel. Aceptar solo registra la
+decisión: corrige el resultado con las herramientas habituales (arreglar
+el dataset y reevaluar, o ajustar el puntaje), que quedan auditadas.
+
 ## Certificados
 
 **Certificados**, en el menú del concurso, diseña un certificado por

@@ -156,3 +156,13 @@ de la lista de concursos) si el archivo tiene envíos y como *borrador* si
 no. Cada archivo se verifica contra su SHA-256; un archivo dañado, o uno
 escrito por una versión más nueva de CMS, se rechaza antes de escribir
 nada. La descarga y la importación quedan en el registro de auditoría.
+
+### Archivos anonimizados
+
+Marca **anonimizado** al descargar un archivo (o el CSV de resultados) para
+compartir un concurso con fines de investigación o entrenamiento: los
+usuarios pasan a ser `user<id>`; se quitan nombres, correos,
+instituciones, fotos, restricciones de IP y contraseñas. Quedan los
+países, los equipos (códigos y banderas), los problemas, los envíos y
+todos los resultados. El texto libre (preguntas, apelaciones, código
+fuente) no se reescribe: revísalo antes de publicarlo.

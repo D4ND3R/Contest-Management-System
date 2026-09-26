@@ -44,7 +44,9 @@ web site; commands run on the main server unless noted.
   seconds. A queue that keeps growing means not enough judging power (add
   a worker, see [external workers](external-worker.md)) or a stuck worker.
 - **Questions** (menu counter): answer privately or to everyone; the quick
-  answers save time.
+  answers save time. With several people at the desk, **take** a question
+  before answering it (the others see who has it; *only the ones I took*
+  filters the inbox).
 - System alerts (red notices in the admin): evaluation errors after the
   retries, failed backups.
 - `journalctl -u 'cms-*' -p warning -f` on the main server.

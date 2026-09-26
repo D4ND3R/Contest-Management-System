@@ -1125,7 +1125,7 @@ localization, H8 audit (`AUDIT.md` §10) and summary.
 - Docs: `docs/en/evaluation.md`, `docs/es/evaluacion.md`, languages,
   verify-host and the admin guide.
 
-### H5 — contest operations (in progress)
+### H5 — contest operations (done)
 - **Emergency controls**: pause submissions (with a message) and close one
   task; notices on the contest site, dashboard tools, audited (D88;
   `TestEmergencyControls`, `TestEmergencyControlsAdmin`).
@@ -1135,4 +1135,17 @@ localization, H8 audit (`AUDIT.md` §10) and summary.
   `TestAuditChainPage`).
 - **Roles**: task setters and delegation leaders (`TestTaskSetterRole`,
   `TestDelegationLeader`).
+- **Unofficial participants and medals**: places skip unofficial and
+  hidden participants; IOI medal cutoffs for the administrators or also
+  public (D89; `TestPlaces`, `TestMedals`, `TestBoardPlacesAndMedals`,
+  `TestUnofficialAndMedals`).
+- **Clarification desk**: take / take over / give back a question, "mine"
+  filter (`TestQuestionAssignment`).
+- **Dataset comparison** before switching the live dataset
+  (`TestDatasetCompare`).
+- **Appeals** after the contest, answered by the staff (`TestAppeals`,
+  `TestAppealsAdmin`).
+- **Anonymized archives and results** (`TestAnonymizedExport`).
+- Docs: ranking, contest settings, contest day, backups and the admin
+  guide (en/es).
 

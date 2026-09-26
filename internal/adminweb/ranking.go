@@ -83,6 +83,9 @@ func (s *Server) exportRanking(w http.ResponseWriter, r *http.Request, rc *reqCt
 		s.internalError(w, r, rc, err)
 		return
 	}
+	if r.URL.Query().Get("anonymize") == "1" {
+		rk.Anonymize()
+	}
 	ext, ct := ".json", "application/json"
 	if csv {
 		ext, ct = ".csv", "text/csv; charset=utf-8"

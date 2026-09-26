@@ -52,8 +52,10 @@
   // rerank takes a row that only moved out of the table, with its new rank.
   function rerank(tr, rank) {
     tr.dataset.rank = rank;
+    // Boards with unofficial rows show places, which come with the rows'
+    // content; the others show the rank.
     var c = tr.querySelector(".rank");
-    if (c) c.textContent = rank;
+    if (c && tr.dataset.place === undefined) c.textContent = rank;
     tr.remove();
     return tr;
   }

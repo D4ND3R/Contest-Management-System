@@ -49,25 +49,30 @@ type Cell struct {
 
 // Row is one participation.
 type Row struct {
-	Rank            int     `json:"rank"`
-	ParticipationID int64   `json:"participation_id"`
-	UserID          int64   `json:"user_id"`
-	Username        string  `json:"username"`
-	FirstName       string  `json:"first_name"`
-	LastName        string  `json:"last_name"`
-	TeamCode        string  `json:"team,omitempty"`
-	TeamName        string  `json:"team_name,omitempty"`
-	TeamFlag        string  `json:"team_flag,omitempty"` // blob digest
-	TeamInstitution string  `json:"team_institution,omitempty"`
-	Institution     string  `json:"institution,omitempty"`
-	Country         string  `json:"country,omitempty"`
-	Site            string  `json:"site,omitempty"`
-	Hidden          bool    `json:"hidden,omitempty"`
-	Unrestricted    bool    `json:"unrestricted,omitempty"`
-	Cells           []Cell  `json:"tasks"`
-	Total           float64 `json:"total"`
-	Solved          int     `json:"solved,omitempty"`
-	Penalty         int     `json:"penalty,omitempty"`
+	Rank            int    `json:"rank"`
+	ParticipationID int64  `json:"participation_id"`
+	UserID          int64  `json:"user_id"`
+	Username        string `json:"username"`
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
+	TeamCode        string `json:"team,omitempty"`
+	TeamName        string `json:"team_name,omitempty"`
+	TeamFlag        string `json:"team_flag,omitempty"` // blob digest
+	TeamInstitution string `json:"team_institution,omitempty"`
+	Institution     string `json:"institution,omitempty"`
+	Country         string `json:"country,omitempty"`
+	Site            string `json:"site,omitempty"`
+	Hidden          bool   `json:"hidden,omitempty"`
+	Unrestricted    bool   `json:"unrestricted,omitempty"`
+	// Unofficial participants are ranked in position but take no place
+	// and no medal; Place is the official place (0 for them).
+	Unofficial bool    `json:"unofficial,omitempty"`
+	Place      int     `json:"place,omitempty"`
+	Medal      string  `json:"medal,omitempty"`
+	Cells      []Cell  `json:"tasks"`
+	Total      float64 `json:"total"`
+	Solved     int     `json:"solved,omitempty"`
+	Penalty    int     `json:"penalty,omitempty"`
 }
 
 // Ranking of a contest.
@@ -79,6 +84,10 @@ type Ranking struct {
 	Tasks     []Task    `json:"tasks"`
 	Rows      []Row     `json:"rows"`
 	Generated time.Time `json:"generated"`
+	// Cutoffs are the medal cutoffs (when the contest awards medals).
+	Cutoffs []Cutoff `json:"cutoffs,omitempty"`
+	// Unofficial: some rows are unofficial participants.
+	Unofficial bool `json:"unofficial,omitempty"`
 }
 
 // Options select what Compute includes.
@@ -180,7 +189,7 @@ func newBuild(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options
 			continue
 		}
 		row := Row{ParticipationID: p.Participation.ID, UserID: p.Participation.UserID, Username: p.Username,
-			FirstName: p.FirstName, LastName: p.LastName, Hidden: p.Participation.Hidden,
+			FirstName: p.FirstName, LastName: p.LastName, Hidden: p.Participation.Hidden, Unofficial: p.Participation.Unofficial,
 			Institution: p.Institution, Country: p.Country, Site: derefStr(p.SiteName),
 			Unrestricted: p.Participation.Unrestricted, Cells: make([]Cell, len(tasks)),
 			TeamCode: derefStr(p.TeamCode), TeamName: derefStr(p.TeamName), TeamFlag: derefStr(p.TeamFlag),
@@ -218,6 +227,10 @@ func (b *build) finish() *Ranking {
 		row.Total = round(row.Total, r.Precision)
 	}
 	r.sort()
+	r.places()
+	if b.c.Medals != "none" && !r.ICPC {
+		r.medals()
+	}
 	return r
 }
 
@@ -314,11 +327,16 @@ func (r *Ranking) WriteCSV(w io.Writer) error {
 	if r.ICPC {
 		head = append(head, "solved", "penalty")
 	}
+	head = append(head, "official", "medal")
 	if err := cw.Write(head); err != nil {
 		return err
 	}
 	for _, row := range r.Rows {
-		rec := []string{strconv.Itoa(row.Rank), row.Username, row.FirstName, row.LastName, row.TeamCode}
+		place := ""
+		if row.Place > 0 {
+			place = strconv.Itoa(row.Place)
+		}
+		rec := []string{place, row.Username, row.FirstName, row.LastName, row.TeamCode}
 		for i, cell := range row.Cells {
 			rec = append(rec, formatScore(cell.Score, r.Tasks[i].Precision))
 		}
@@ -326,6 +344,7 @@ func (r *Ranking) WriteCSV(w io.Writer) error {
 		if r.ICPC {
 			rec = append(rec, strconv.Itoa(row.Solved), strconv.Itoa(row.Penalty))
 		}
+		rec = append(rec, strconv.FormatBool(!row.Unofficial), row.Medal)
 		if err := cw.Write(rec); err != nil {
 			return err
 		}

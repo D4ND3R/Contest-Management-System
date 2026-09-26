@@ -13,7 +13,8 @@
   <td><a href="/datasets/{{.ID}}">{{.Description}}</a> {{if and $task.ActiveDatasetID (eq .ID (deref64 $task.ActiveDatasetID))}}<span class="tag ok">{{$.T "live"}}</span>{{end}}{{if .Autojudge}}<span class="tag">{{$.T "autojudge"}}</span>{{end}}</td>
   <td>{{.TaskType}}</td><td>{{.ScoreType}}</td>
   <td>{{msToS .TimeLimitMs}} s · {{bytes .MemoryLimitBytes}}</td>
-  <td>{{if and $.CanWrite (not (and $task.ActiveDatasetID (eq .ID (deref64 $task.ActiveDatasetID))))}}
+  <td>{{if not (and $task.ActiveDatasetID (eq .ID (deref64 $task.ActiveDatasetID)))}}<a href="/tasks/{{$task.ID}}/compare?b={{.ID}}">{{$.T "compare with live"}}</a>{{end}}
+    {{if and $.CanWrite (not (and $task.ActiveDatasetID (eq .ID (deref64 $task.ActiveDatasetID))))}}
     <form method="post" action="/datasets/{{.ID}}/activate" class="inline" data-confirm="{{$.T "Make %s the live dataset? Scores will change." .Description}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "make live"}}</button></form>{{end}}</td>
 </tr>
 {{end}}

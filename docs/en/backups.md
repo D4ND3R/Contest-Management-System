@@ -152,3 +152,12 @@ otherwise nothing is written. By default the new contest is *archived*
 *draft* otherwise. Files are checked against their SHA-256; a damaged file,
 or an archive written by a newer CMS version, is refused before anything
 is written. Both the download and the import are in the audit log.
+
+### Anonymized archives
+
+Tick **anonymized** when downloading an archive (or the results CSV) to
+share a contest for research or training: usernames become `user<id>`;
+names, e-mails, institutions, photos, IP restrictions and passwords are
+removed. Countries, teams (codes and flags), tasks, submissions and every
+result stay. Free text (questions, appeals, source code) is not rewritten:
+review it before publishing.

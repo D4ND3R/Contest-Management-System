@@ -59,6 +59,7 @@
   {{if .Contest.AllowUserTests}}<a class="nav {{if eq .Active "testing"}}active{{end}}" href="{{.Base}}testing">{{icon "flask"}}<span class="t">{{.T "Testing"}}</span></a>{{end}}
   {{if .Contest.AllowPrinting}}<a class="nav {{if eq .Active "printing"}}active{{end}}" href="{{.Base}}printing">{{icon "printer"}}<span class="t">{{.T "Printing"}}</span></a>{{end}}
   <a class="nav {{if eq .Active "communication"}}active{{end}}" href="{{.Base}}communication">{{icon "message"}}<span class="t">{{.T "Communication"}}</span></a>
+  {{if .Appeals}}<a class="nav {{if eq .Active "appeals"}}active{{end}}" href="{{.Base}}appeals">{{icon "clipboard"}}<span class="t">{{.T "Appeals"}}</span></a>{{end}}
   <a class="nav {{if eq .Active "documentation"}}active{{end}}" href="{{.Base}}documentation">{{icon "book"}}<span class="t">{{.T "Documentation"}}</span></a>
   <div class="foot">{{.T "Times in %s" .TZ}}<br>CMS {{.Version}}</div>
 </nav>

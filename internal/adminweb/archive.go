@@ -18,12 +18,14 @@ func (s *Server) handleContestArchive(w http.ResponseWriter, r *http.Request, rc
 		return
 	}
 	subs := r.URL.Query().Get("submissions") == "1"
+	anon := r.URL.Query().Get("anonymize") == "1"
 	rc.target("contest", c.ID)
 	rc.note("submissions", subs)
+	rc.note("anonymized", anon)
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+c.Name+`-archive.zip"`)
 	w.Header().Set("Cache-Control", "no-store")
-	if _, err := contestarchive.Export(r.Context(), s.pool, s.blobs, c.ID, w, contestarchive.Options{Submissions: subs}); err != nil {
+	if _, err := contestarchive.Export(r.Context(), s.pool, s.blobs, c.ID, w, contestarchive.Options{Submissions: subs, Anonymize: anon}); err != nil {
 		// The response has started: the truncated zip does not open.
 		s.log.Error("contest archive", "contest", c.ID, "error", err)
 	}
