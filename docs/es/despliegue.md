@@ -14,7 +14,7 @@ contenedores, ver [Docker Compose](docker.md).
 
 | | Necesario |
 |---|---|
-| Sistema | **Linux**: Ubuntu 22.04 o 24.04, Debian 12 o 13 (el instalador lo comprueba) |
+| Sistema | **Linux**: Ubuntu 22.04, 24.04 o 26.04, Debian 12 o 13 (el instalador lo comprueba) |
 | Máquina | una **máquina virtual KVM** (la mayoría de los VPS) o un **servidor dedicado** |
 | Acceso | **root** (sudo) por SSH |
 | Kernel | **grupos de control v2** (lo predeterminado en esos sistemas; el instalador lo comprueba y `--enable-cgroup-v2` los activa) |
@@ -55,6 +55,11 @@ En el servidor, con un usuario con sudo:
 curl -fsSL https://raw.githubusercontent.com/D4ND3R/Contest-Management-System/main/scripts/install.sh \
   | sudo bash -s -- --domain cms.ejemplo.org --email tu@ejemplo.org
 ```
+
+El mismo script viene adjunto a cada versión, en
+`https://github.com/D4ND3R/Contest-Management-System/releases/latest/download/install.sh`
+(usa esa dirección en el mismo comando si el servidor no llega a
+`raw.githubusercontent.com`).
 
 Sin `--domain` sirve HTTP simple en las direcciones de la máquina
 (concurso en el puerto 80, ranking 8080, admin 8081), para un concurso en
@@ -194,6 +199,16 @@ RAM/32, `work_mem 8MB` (16 MB desde 16 GB de RAM), `max_worker_processes`
 on`, `random_page_cost 1.1` (SSD). El rol y la base `cms` reciben una
 contraseña aleatoria. Cada servicio usa como máximo 16 conexiones
 (`database.max_conns`).
+
+Usa el clúster `main` del PostgreSQL más nuevo instalado, en el puerto de
+ese clúster. Después de actualizar la distribución (por ejemplo, Ubuntu
+24.04 a 26.04), el clúster de la versión anterior suele quedarse con el
+puerto 5432 y el nuevo recibe el 5433; el instalador toma el nuevo y
+escribe su puerto en `/etc/cms/cms.yaml`. Si no hay ningún clúster, crea
+uno (`C.UTF-8`), y la base de datos siempre se crea en UTF-8, sea cual sea
+la codificación por defecto del clúster. Si PostgreSQL no arranca, el
+instalador se detiene y muestra su registro (`pg_lsclusters` lista los
+clústeres, sus puertos y su estado).
 
 ### Valkey
 

@@ -24,7 +24,7 @@ make dev-native   # native processes (needs PostgreSQL 16 + Redis/Valkey locally
 
 ## Production / Producción
 
-Server / Servidor: **Linux** (Ubuntu 22.04/24.04, Debian 12/13) on a **KVM
+Server / Servidor: **Linux** (Ubuntu 22.04/24.04/26.04, Debian 12/13) on a **KVM
 virtual machine or a dedicated server**, **root**, **control groups v2**,
 **amd64 or arm64**. Not for judging: Windows, macOS, OpenVZ/LXC container
 VPSs, serverless platforms. A 2 vCPU / 4 GB server handles about 500

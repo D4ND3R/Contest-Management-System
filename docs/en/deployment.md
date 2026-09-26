@@ -13,7 +13,7 @@ To run it in containers instead, see [Docker Compose](docker.md).
 
 | | Required |
 |---|---|
-| System | **Linux**: Ubuntu 22.04 or 24.04, Debian 12 or 13 (the installer checks) |
+| System | **Linux**: Ubuntu 22.04, 24.04 or 26.04, Debian 12 or 13 (the installer checks) |
 | Machine | a **KVM virtual machine** (most VPSs) or a **dedicated server** |
 | Access | **root** (sudo) over SSH |
 | Kernel | **control groups v2** (the default on those systems; the installer checks, and `--enable-cgroup-v2` turns them on) |
@@ -53,6 +53,11 @@ On the server, as a user with sudo:
 curl -fsSL https://raw.githubusercontent.com/D4ND3R/Contest-Management-System/main/scripts/install.sh \
   | sudo bash -s -- --domain cms.example.org --email you@example.org
 ```
+
+The same script is attached to every release, at
+`https://github.com/D4ND3R/Contest-Management-System/releases/latest/download/install.sh`
+(use that URL in the same command if `raw.githubusercontent.com` is not
+reachable from the server).
 
 Without `--domain` it serves plain HTTP on the machine's addresses
 (contest on port 80, ranking 8080, admin 8081), for a contest on a local
@@ -188,6 +193,15 @@ back), `synchronous_commit on` (no accepted submission is ever lost),
 `wal_compression on`,
 `random_page_cost 1.1` (SSD). The role and database `cms` get a random
 password. The services use at most 16 connections each (`database.max_conns`).
+
+It uses the `main` cluster of the newest PostgreSQL installed, on that
+cluster's port. After a distribution upgrade (say Ubuntu 24.04 to 26.04),
+the old version's cluster usually keeps port 5432 and the new one gets
+5433; the installer takes the new one and writes its port into
+`/etc/cms/cms.yaml`. With no cluster at all it creates one (`C.UTF-8`),
+and the database is always created UTF-8, whatever the cluster's default
+encoding. If PostgreSQL does not start, the installer stops and shows its
+log (`pg_lsclusters` lists the clusters, their ports and state).
 
 ### Valkey
 

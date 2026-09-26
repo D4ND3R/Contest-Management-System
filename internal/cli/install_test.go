@@ -355,3 +355,57 @@ func TestInstallFromRelease(t *testing.T) {
 		t.Fatalf("purge: %v\n%s", err, out)
 	}
 }
+
+// TestInstallPostgresCluster: the installer uses the main cluster of the
+// newest installed PostgreSQL, on its own port (after a distribution upgrade
+// the old version's cluster keeps 5432 and the new one gets 5433), and
+// creates one, in C.UTF-8, when there is none.
+func TestInstallPostgresCluster(t *testing.T) {
+	script, err := os.ReadFile(filepath.Join("..", "..", "scripts", "install.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(script)
+	funcs := filepath.Join(t.TempDir(), "functions.sh")
+	os.WriteFile(funcs, []byte(src[:strings.LastIndex(src, "main \"$@\"")]), 0o644) // everything but the call to main
+	run := func(clusters string, installed []string, mode string) (string, string, error) {
+		dir := t.TempDir()
+		lib, bin := filepath.Join(dir, "lib"), filepath.Join(dir, "bin")
+		for _, v := range installed {
+			os.MkdirAll(filepath.Join(lib, v, "bin"), 0o755)
+			os.WriteFile(filepath.Join(lib, v, "bin", "postgres"), []byte("#!/bin/sh\n"), 0o755)
+		}
+		os.MkdirAll(bin, 0o755)
+		os.WriteFile(filepath.Join(dir, "clusters"), []byte(clusters), 0o644)
+		os.WriteFile(filepath.Join(bin, "pg_lsclusters"), []byte("#!/bin/sh\ncat "+dir+"/clusters\n"), 0o755)
+		os.WriteFile(filepath.Join(bin, "pg_createcluster"), []byte("#!/bin/sh\necho \"$*\" > "+dir+"/created\n"+
+			"echo \"$3 $4 5432 down postgres /var/lib/postgresql/$3/$4 log\" >> "+dir+"/clusters\n"), 0o755)
+		cmd := exec.Command("bash", "-c", `source "$1"; pg_cluster $2; echo "cluster=$PGVER port=$PGPORT"`, "_", funcs, mode)
+		cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "CMS_INSTALL_PG_LIB="+lib)
+		out, err := cmd.CombinedOutput()
+		created, _ := os.ReadFile(filepath.Join(dir, "created"))
+		return string(out), string(created), err
+	}
+	upgraded := "16 main 5432 down,binaries_missing postgres /var/lib/postgresql/16/main log\n18 main 5433 down postgres /var/lib/postgresql/18/main log\n"
+	for _, c := range []struct {
+		name, clusters string
+		installed      []string
+		mode, want     string
+	}{
+		{"fresh", "18 main 5432 online postgres /var/lib/postgresql/18/main log\n", []string{"18"}, "create", "cluster=18 port=5432"},
+		{"upgraded, old server removed", upgraded, []string{"18"}, "create", "cluster=18 port=5433"},
+		{"upgraded, both installed", upgraded, []string{"16", "18"}, "create", "cluster=18 port=5433"},
+		{"other clusters only", "18 reports 5432 online postgres /x log\n", []string{"18"}, "", "cluster= port=5432"},
+	} {
+		if out, _, err := run(c.clusters, c.installed, c.mode); err != nil || !strings.Contains(out, c.want) {
+			t.Errorf("%s: %v\n%s", c.name, err, out)
+		}
+	}
+	out, created, err := run("", []string{"16", "18"}, "create")
+	if err != nil || !strings.Contains(out, "creating 18/main") || !strings.Contains(out, "cluster=18 port=5432") || strings.TrimSpace(created) != "--locale C.UTF-8 18 main" {
+		t.Errorf("no cluster: %v created %q\n%s", err, created, out)
+	}
+	if out, _, err := run("", nil, "create"); err == nil || !strings.Contains(out, "PostgreSQL is not installed") {
+		t.Errorf("nothing installed: %v\n%s", err, out)
+	}
+}

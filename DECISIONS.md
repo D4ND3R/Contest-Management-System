@@ -970,3 +970,34 @@ the archives of Ubuntu 22.04 and 24.04 and Debian 12 and 13, and Caddy
 2.11 installed from its repository on Ubuntu 22.04.
 `CMS_INSTALL_APT_CACHE` lets the tests play a system without these
 packages (`TestInstallFromRelease`).
+
+## D79. Installer: Ubuntu 26.04, and the PostgreSQL cluster it actually finds
+Ubuntu 26.04 LTS replaces GNU coreutils with uutils (Rust) and ships
+PostgreSQL 18. The installer was run for real in an `ubuntu:26.04`
+container, with a stand-in for systemctl that starts PostgreSQL and
+Valkey directly. Everything it uses behaves like GNU. That includes
+`stat -f` naming cgroup v2 `cgroup2fs`, `sort -V`, `sha256sum`, `seq`
+and `install`. `find`, `sed`, `tar` and `cmp` are still GNU. The run
+showed three real faults, none specific to uutils.
+- The `ln` into `/usr/local/share/doc`, which minimal systems lack, and
+  the dry run's PostgreSQL step both stopped the script silently under
+  `set -e` on a machine without PostgreSQL yet.
+- The PostgreSQL step assumed the newest `/etc/postgresql/<version>`
+  cluster runs on 5432 and that `template1` is UTF-8. The published
+  installer fails on two ordinary server states:
+  - after a distribution upgrade, the old version's cluster keeps 5432
+    (its server removed) and the new one gets 5433: `psql` cannot
+    connect;
+  - a cluster created under the C locale is SQL_ASCII: `createdb -E UTF8`
+    is refused.
+
+Now `pg_cluster` takes the `main` cluster of the newest PostgreSQL whose
+server is installed, and uses its port everywhere (psql, createdb, the
+URL in `cms.yaml`). It creates one in `C.UTF-8` when there is none. The
+database is created from `template0` with `--locale C.UTF-8`, and when
+PostgreSQL does not start the installer shows its log instead of
+failing further on. The installer also sets `LC_ALL=C.UTF-8`, because a
+locale forwarded by SSH but missing on the server floods apt and
+PostgreSQL's scripts with warnings that read like errors. Each state was
+run in a 26.04 container: fresh, no cluster, SQL_ASCII, upgraded.
+`TestInstallPostgresCluster` covers the choice of cluster.

@@ -979,3 +979,22 @@ Skipping skills: immersive-web-design, master skill.
 - **Not fixable from here.** The repository has no `main` branch yet,
   so the documented one-liner (`…/main/scripts/install.sh`) answers 404
   until one exists.
+
+## Installer: the 404 and Ubuntu 26.04 (done)
+Skipping skills: immersive-web-design, master skill.
+
+- **404.** The one-line installer is fetched from the `main` branch, which
+  did not exist (the only branch was the working branch). `main` now
+  exists. The deployment guides also give the copy attached to every
+  release (`releases/latest/download/install.sh`), which does not depend
+  on any branch.
+- **Ubuntu 26.04 and PostgreSQL (D79).** The installer was run for real
+  on Ubuntu 26.04 (uutils coreutils, PostgreSQL 18), in a container. The
+  published installer fails with PostgreSQL errors in two ordinary
+  states: after an upgrade from 24.04 (the new cluster is on 5433) and
+  with a SQL_ASCII cluster. It now uses the cluster it finds, on its
+  port, creates one if missing, always creates the database in UTF-8,
+  and shows PostgreSQL's log if it does not start. It also no longer
+  stops silently: on minimal systems (`/usr/local/share/doc` missing)
+  and in the dry run on a machine without PostgreSQL. Ubuntu 26.04 is
+  now a supported system.
