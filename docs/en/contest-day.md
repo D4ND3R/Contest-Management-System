@@ -61,6 +61,17 @@ web site; commands run on the main server unless noted.
   participant → extra time** (seconds); with per-user time windows, **delay**
   moves their start.
 
+**Emergency controls**
+
+- **Pause submissions** (contest **Settings → Emergency controls**, or the
+  dashboard's quick tools): every contestant sees a notice with your
+  message and cannot submit or run tests until you **resume**; questions
+  still work. The clock keeps running: extend the contest afterwards if
+  the pause should not count.
+- **Close one task** (contest **Problems → close submissions**): its
+  statement stays visible, submissions to it are refused with a notice;
+  **reopen** it when fixed. The dashboard marks closed tasks.
+
 **Rejudging**
 
 - Wrong testcase or checker: fix the dataset (or create a new one and make

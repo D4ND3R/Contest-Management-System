@@ -79,10 +79,36 @@ type taskData struct {
 	Latest *resultCard
 }
 
+// Why submissions are refused (untranslated).
+const (
+	msgClosed     = "Submissions are closed."
+	msgPaused     = "Submissions are paused by the organizers."
+	msgTaskClosed = "Submissions to this task are closed."
+)
+
+// submitBlocked says why submissions and user tests to t are refused now,
+// "" when they are accepted: the contest window, the organizers' pause or
+// the task closed (emergency controls, SPEC_IOI §9.3).
+func submitBlocked(rc *reqCtx, t *taskView) string {
+	switch {
+	case !rc.status.CanSubmit:
+		return msgClosed
+	case rc.contest.SubmissionsPaused:
+		return msgPaused
+	case t != nil && t.SubmissionsClosed:
+		return msgTaskClosed
+	}
+	return ""
+}
+
 func (s *Server) taskData(r *http.Request, rc *reqCtx, p *page, t *taskView) (*taskData, error) {
-	d := &taskData{Task: t, CanSubmit: rc.status.CanSubmit}
+	why := submitBlocked(rc, t)
+	d := &taskData{Task: t, CanSubmit: why == ""}
 	if !d.CanSubmit {
-		d.CannotSubmit = p.T("Submissions are closed.")
+		d.CannotSubmit = p.T(why)
+		if why == msgPaused && rc.contest.PauseMessage != "" {
+			d.CannotSubmit += " " + rc.contest.PauseMessage
+		}
 	}
 	for _, l := range t.Languages {
 		d.Languages = append(d.Languages, langChoice{ID: l.ID, Name: l.Name})
@@ -107,7 +133,7 @@ func (s *Server) taskData(r *http.Request, rc *reqCtx, p *page, t *taskView) (*t
 	if d.Tokens, err = s.tokenView(r, rc, t); err != nil {
 		return nil, err
 	}
-	if d.TestsEnabled = testsEnabled(rc, t) && rc.status.CanSubmit; testsEnabled(rc, t) {
+	if d.TestsEnabled = testsEnabled(rc, t) && d.CanSubmit; testsEnabled(rc, t) {
 		if d.Tests, err = s.listTests(r, rc, p, t); err != nil {
 			return nil, err
 		}
@@ -252,8 +278,8 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request, rc *reqCtx
 	if t == nil {
 		return
 	}
-	if !rc.status.CanSubmit {
-		s.submitError(w, r, rc, http.StatusForbidden, "Submissions are closed.")
+	if why := submitBlocked(rc, t); why != "" {
+		s.submitError(w, r, rc, http.StatusForbidden, why)
 		return
 	}
 	if !s.limiter.Allow(r.Context(), "submit:"+itoa(rc.part.ID), s.cfg.RateLimitPerMinute, time.Minute) {
@@ -521,7 +547,8 @@ func (s *Server) storeSubmission(r *http.Request, rc *reqCtx, t *taskView, files
 				return err
 			}
 		}
-		return nil
+		// Last, so the audit chain's lock is held as briefly as possible.
+		return q.InsertSubmissionReceipt(ctx, receipt(rc, t, id, params, langID, now, s.ips.ClientIP(r).String()))
 	})
 	if err != nil {
 		return 0, err
@@ -531,6 +558,25 @@ func (s *Server) storeSubmission(r *http.Request, rc *reqCtx, t *taskView, files
 		s.log.Warn("notify dispatcher", "submission", id, "error", err)
 	}
 	return id, nil
+}
+
+// receipt is a submission's entry in the audit chain (SPEC_IOI §13): who,
+// what, when and the SHA-256 of every file as received.
+func receipt(rc *reqCtx, t *taskView, id int64, files []sqlc.CreateSubmissionFilesParams, lang *string, at time.Time,
+	ip string) sqlc.InsertSubmissionReceiptParams {
+	digests := make(map[string]string, len(files))
+	for _, f := range files {
+		digests[f.Filename] = f.Digest
+	}
+	det, _ := json.Marshal(struct {
+		Contest       string            `json:"contest"`
+		Participation int64             `json:"participation"`
+		Task          string            `json:"task"`
+		Language      *string           `json:"language,omitempty"`
+		SubmittedAt   time.Time         `json:"submitted_at"`
+		Files         map[string]string `json:"files"`
+	}{rc.contest.Name, rc.part.ID, t.Name, lang, at.UTC(), digests})
+	return sqlc.InsertSubmissionReceiptParams{Actor: "contestant:" + rc.part.Username, SubmissionID: id, Details: det, Ip: ip}
 }
 
 // ---------------------------------------------------------------- submissions

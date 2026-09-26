@@ -8,7 +8,7 @@
 <meta name="csrf-token" content="{{.CSRF}}">
 <meta name="server-time" content="{{.ServerMillis}}">
 <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0}'>
-{{if .Admin}}<meta name="cms-events" content="/events">{{end}}
+{{if and .Admin (not .IsLeader)}}<meta name="cms-events" content="/events">{{end}}
 <script src="{{static "htmx.min.js"}}" defer></script>
 <script src="{{static "admin.js"}}" defer></script>
 </head>
@@ -32,7 +32,7 @@
   </div>
   <div class="top-right">
     {{if eq .Phase "running"}}<div class="timer" title="{{$c.Name}}"><small>{{.T "Time remaining"}}</small><span class="clock" data-countdown="{{.EndMillis}}">{{.Remaining}}</span></div>{{end}}
-    <a class="iconbtn" href="/questions" title="{{.T "Questions"}}">{{icon "bell"}}{{template "question-count" .}}</a>
+    {{if not .IsLeader}}<a class="iconbtn" href="/questions" title="{{.T "Questions"}}">{{icon "bell"}}{{template "question-count" .}}</a>{{end}}
     <details class="userbox">
       <summary><span class="avatar {{avatarc .Admin.Username}}">{{initials .Admin.Username}}</span><span class="who"><b>{{.Admin.Username}}</b><small>{{.RoleLabel}}</small></span>{{icon "chevron-down"}}</summary>
       <div class="menu">
@@ -50,6 +50,10 @@
   </div>
 </header>
 <nav class="sidebar" aria-label="{{.T "Administration"}}">
+  {{if .IsLeader}}
+  <a class="nav {{if .On "/delegation"}}active{{end}}" href="/delegation">{{icon "flag"}}<span class="t">{{.T "My delegation"}}</span></a>
+  <a class="nav {{if .On "/account"}}active{{end}}" href="/account">{{icon "user"}}<span class="t">{{.T "My account"}}</span></a>
+  {{else}}
   <a class="nav {{if eq .Path "/"}}active{{end}}" href="/">{{icon "dashboard"}}<span class="t">{{.T "Dashboard"}}</span></a>
   {{if $c}}
   <div class="group">{{.T "Contest"}}</div>
@@ -80,6 +84,7 @@
   <a class="nav {{if .On "/languages"}}active{{end}}" href="/languages">{{icon "code"}}<span class="t">{{.T "Languages"}}</span></a>
   <a class="nav {{if .On "/admins"}}active{{end}}" href="/admins">{{icon "shield"}}<span class="t">{{.T "Admins"}}</span></a>
   <a class="nav {{if .On "/audit"}}active{{end}}" href="/audit">{{icon "list"}}<span class="t">{{.T "Audit log"}}</span></a>
+  {{end}}
   <div class="foot">CMS {{.Version}}<br>{{.T "Times in UTC unless noted."}}</div>
 </nav>
 <main id="main" class="content">

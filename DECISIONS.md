@@ -1353,3 +1353,45 @@ fair under load. What was built, and the choices behind it:
   Judges page compares machines against the median of all machines. The
   benchmark measures CPU time, as the verdicts do; turbo, the governor and
   SMT siblings are what it is meant to catch, and they show in it.
+
+## D88. Emergency controls, a tamper-evident audit log, task setters and delegation leaders (SPEC_IOI H5)
+- **Emergency controls** (§9.3) are two flags, `contests.submissions_paused`
+  (+ message) and `tasks.submissions_closed` (migration 0021), checked where
+  submissions and user tests are accepted (one function,
+  `submitBlocked`). A pause does not stop the clock: stopping time would
+  shift every per-user window and the ranking's timeline; the existing
+  global extension is the explicit, audited way to give the time back.
+  Questions keep working during a pause (that is when contestants ask).
+- **Tamper evidence** (§9.4, §13) lives in the database, not the web
+  servers, so every writer is covered: a BEFORE INSERT trigger chains each
+  audit entry (seq, previous hash, SHA-256 over a canonical text of the
+  entry: actor, action, target, details, ip, created_at in UTC
+  microseconds) under a transaction-level advisory lock; BEFORE
+  UPDATE/DELETE/TRUNCATE triggers refuse changes, except the foreign key
+  clearing `admin_id` when an administrator is deleted — which is why the
+  administrator's name is copied into `actor` and `admin_id` is not
+  hashed. Each submission adds a receipt with the SHA-256 of its files
+  (they are content-addressed already) as the last statement of its
+  transaction, so the lock is held for microseconds (measured: 20 000
+  chained inserts in about a second). Entries that arrive already hashed
+  (a backup restored with COPY) keep their values; verification
+  recomputes everything in SQL (`audit_hash`), so Go and the database
+  cannot disagree on the canonical form. A hash chain only proves
+  integrity up to a hash known outside the database: the page and
+  `cms ctl audit-verify` show the head for organisers to write down or
+  publish; the table owner can still disable triggers, which is exactly
+  what the chain exposes. Receipts are hidden from the default audit
+  listing (they would drown the administrators' actions) and shown with
+  the action filter.
+- **Roles** (§9.2, §9.4): `task_setter` gets the task-preparation routes
+  (a new permission level, `permTasks`) and keeps read access; making a
+  dataset live, rejudging and deleting a task stay with `all` because they
+  change contestants' scores. `leader` is an administrator account tied to
+  a team (the delegation): it reaches only its own account and
+  `/delegation`, which lists the team's contestants' submissions with the
+  results the contestants see (public score, only when the contest's
+  score visibility allows, ICPC verdicts) and their sources; everything
+  else answers 403, and the layout hides the administration menu, the
+  question counter and the event stream. Reusing the admin site (instead of
+  logging leaders into the contest site) keeps them out of contestants'
+  sessions and gives them 2FA and the audit log for free.

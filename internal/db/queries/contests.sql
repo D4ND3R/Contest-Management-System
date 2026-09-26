@@ -76,3 +76,8 @@ WHERE c.status = 'published' AND c.start_time <= now()
 GROUP BY c.id
 HAVING c.stop_time + make_interval(secs => coalesce(max(p.delay_time_s + p.extra_time_s), 0)::double precision) > now()
 ORDER BY c.start_time;
+
+-- name: SetContestPaused :exec
+-- Emergency control: submissions and user tests stop (or resume).
+UPDATE contests SET submissions_paused = @paused::boolean, pause_message = @message::text, updated_at = now()
+WHERE id = @id::bigint;

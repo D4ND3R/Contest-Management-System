@@ -8,7 +8,7 @@
 {{end}}
 </tbody>
 </table>
-<p class="muted small">{{.T "Roles: all can change everything; messaging can read everything and answer questions, send announcements and messages; read_only can only look."}}</p>
+<p class="muted small">{{.T "Roles: all can change everything; messaging can read everything and answer questions, send announcements and messages; task_setter can read everything and prepare tasks (statements, datasets, testcases, graders, the tester), but not make a dataset live, rejudge or delete; read_only can only look; leader (a delegation leader) sees only the submissions and public results of their team's contestants."}}</p>
 {{if .CanWrite}}
 <form method="post" action="/admins" class="card inline-form">
   {{template "csrf" .CSRF}}
@@ -17,6 +17,7 @@
   <label>{{.T "Name"}} <input name="name"></label>
   <label>{{.T "Password"}} <input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
   <label>{{.T "Role"}} <select name="role">{{range .Data.Roles}}<option>{{.}}</option>{{end}}</select></label>
+  <label>{{.T "Team (delegation leaders)"}} <select name="team_id"><option value="">—</option>{{range .Data.Teams}}<option value="{{.ID}}">{{.Code}} — {{.Name}}</option>{{end}}</select></label>
   <button>{{.T "Create"}}</button>
 </form>
 {{end}}

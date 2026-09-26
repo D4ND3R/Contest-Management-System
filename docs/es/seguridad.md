@@ -89,6 +89,27 @@ dónde mirar:
 Si un envío lo amerita, **invalídalo** con un motivo (sigue visible y deja
 de contar) y habla con el concursante.
 
+## Registro de auditoría a prueba de manipulación
+
+Cada acción de un administrador y un comprobante de cada envío (quién,
+cuándo, el problema y el SHA-256 de cada archivo tal como llegó) van al
+**registro de auditoría**, que la base de datos mantiene de solo agregar:
+rechaza modificaciones, borrados y vaciados (el único cambio permitido es
+quitar el id del administrador cuando se borra uno; su nombre queda en la
+entrada). Las entradas están encadenadas con hashes: cada una guarda el
+hash de la anterior y un hash de su propio contenido, así que una entrada
+modificada, borrada o reordenada a espaldas de la base rompe todos los
+hashes siguientes.
+
+- **Registro de auditoría → Verificar la cadena**, o `cms ctl audit-verify`,
+  recalcula toda la cadena y nombra las primeras entradas rotas.
+- Anota (o publica) el número y el hash de la última entrada durante el
+  concurso, por ejemplo al inicio y al final: cualquiera puede comprobar
+  después que la cadena sigue llegando a ella, lo que prueba que nada
+  anterior cambió.
+- Los comprobantes de envío se listan en la página de auditoría con el
+  filtro de acción `submission.received`.
+
 ## Archivos subidos
 
 - Los banners de los concursos se revisan por su contenido: PNG, JPEG,

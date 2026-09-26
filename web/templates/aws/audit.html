@@ -1,5 +1,14 @@
 {{define "content"}}
 <h1>{{.T "Audit log"}}</h1>
+<section class="card" id="chain">
+  <h2>{{icon "lock"}} {{.T "Tamper evidence"}}</h2>
+  {{with .Data.Head}}<p>{{$.T "The log is append-only and hash-chained: %d entries (administrators' actions and a receipt with the SHA-256 of every submission). Latest entry:" .Seq}} <code>#{{.Seq}} {{.Hash}}</code></p>{{else}}<p class="muted">{{.T "Nothing yet."}}</p>{{end}}
+  {{with .Data.Verify}}
+    {{if .OK}}<p class="ok">{{$.T "Verified: the chain of %d entries is intact." .Entries}}</p>
+    {{else}}<div class="alert"><p>{{$.T "The chain is broken: the log was changed outside CMS."}}</p><ul>{{range .Problems}}<li>{{.}}</li>{{end}}</ul>{{if .More}}<p>{{$.T "… and %d more." .More}}</p>{{end}}</div>{{end}}
+  {{else}}<p><a class="button secondary" href="/audit/verify">{{icon "check-circle"}} {{.T "Verify the chain"}}</a></p>{{end}}
+  <p class="muted small">{{.T "Write down or publish the latest entry's hash during the contest: if an entry before it is later changed, removed or reordered, the verification (here or with cms ctl audit-verify) no longer reaches that hash."}}</p>
+</section>
 <form method="get" class="filters">
   <label>{{.T "Administrator"}} <select name="admin"><option value="">{{.T "all"}}</option>{{range .Data.Admins}}<option value="{{.ID}}" {{if eq .ID $.Data.Admin}}selected{{end}}>{{.Username}}</option>{{end}}</select></label>
   <label>{{.T "Action"}} <input name="action" value="{{.Data.Action}}" list="audit-actions" placeholder="{{.T "e.g. contest. or score.adjust"}}" size="18"></label>
@@ -7,15 +16,16 @@
   <label>{{.T "From (UTC)"}} <input type="datetime-local" name="from" value="{{.Data.From}}"></label>
   <label>{{.T "to"}} <input type="datetime-local" name="to" value="{{.Data.To}}"></label>
   <button>{{.T "Filter"}}</button> <a href="/audit">{{.T "reset"}}</a>
+  <span class="muted small">{{.T "Submission receipts are listed with the action filter submission.received."}}</span>
 </form>
 <table class="audit">
-<thead><tr><th>{{.T "Time (UTC)"}}</th><th>{{.T "Administrator"}}</th><th>{{.T "Action"}}</th><th>{{.T "Target"}}</th><th>{{.T "Details"}}</th><th>IP</th></tr></thead>
+<thead><tr><th>#</th><th>{{.T "Time (UTC)"}}</th><th>{{.T "Who"}}</th><th>{{.T "Action"}}</th><th>{{.T "Target"}}</th><th>{{.T "Details"}}</th><th>IP</th></tr></thead>
 <tbody>
 {{range .Data.Rows}}
-<tr><td>{{dt .CreatedAt}}</td><td>{{deref .AdminUsername}}</td><td><code>{{.Action}}</code></td>
+<tr><td class="num muted">{{with .Seq}}{{deref64 .}}{{end}}</td><td>{{dt .CreatedAt}}</td><td>{{if .Actor}}{{.Actor}}{{else}}{{deref .AdminUsername}}{{end}}</td><td><code>{{.Action}}</code></td>
 <td>{{.TargetType}}{{if .TargetID}} {{deref64 .TargetID}}{{end}}</td><td><code class="small">{{printf "%s" .Details}}</code></td><td>{{.Ip}}</td></tr>
 {{else}}
-<tr><td colspan="6" class="muted">{{.T "Nothing yet."}}</td></tr>
+<tr><td colspan="7" class="muted">{{.T "Nothing yet."}}</td></tr>
 {{end}}
 </tbody>
 </table>

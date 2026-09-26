@@ -1,0 +1,28 @@
+{{define "content"}}
+<div class="page-head"><div><h1>{{.T "My delegation"}}</h1>{{with .Data.Team}}<p>{{.Code}} — {{.Name}}</p>{{end}}</div></div>
+{{if .Data.Unlinked}}<p class="alert">{{.T "Your account is not linked to a delegation; ask an administrator."}}</p>{{end}}
+{{if not .IsLeader}}
+<form method="get" class="filters">
+  <label>{{.T "Team"}} <select name="team">{{range .Data.Teams}}<option value="{{.ID}}" {{if and $.Data.Team (eq .ID $.Data.Team.ID)}}selected{{end}}>{{.Code}} — {{.Name}}</option>{{end}}</select></label>
+  <button>{{.T "Show"}}</button>
+</form>
+{{end}}
+<p class="muted small">{{.T "The submissions of the delegation's contestants, with the results they see themselves (scores only when the contest shows them). Leaders cannot submit."}}</p>
+{{range .Data.Contests}}
+<section class="card">
+  <h2>{{icon "flag"}} {{if .Title}}{{.Title}}{{else}}{{.Name}}{{end}}</h2>
+  {{range .People}}
+  <h3>{{.Username}}{{with .Name}} <small class="muted">{{.}}</small>{{end}}</h3>
+  {{if .Subs}}
+  <table class="compact">
+  <thead><tr><th>{{$.T "Time (UTC)"}}</th><th>{{$.T "Task"}}</th><th>{{$.T "Language"}}</th><th>{{$.T "Result"}}</th><th></th></tr></thead>
+  <tbody>
+  {{range .Subs}}<tr><td>{{dt .At}}</td><td>{{.Task}}</td><td>{{.Language}}</td><td class="{{.Class}}">{{.Result}}</td>
+    <td><a href="/delegation/submissions/{{.ID}}{{if not $.IsLeader}}?team={{$.Data.Team.ID}}{{end}}">{{$.T "source"}}</a></td></tr>{{end}}
+  </tbody>
+  </table>
+  {{else}}<p class="muted">{{$.T "No submissions yet."}}</p>{{end}}
+  {{end}}
+</section>
+{{else}}{{if .Data.Team}}<p class="muted">{{.T "No contestants of this team in any contest."}}</p>{{end}}{{end}}
+{{end}}

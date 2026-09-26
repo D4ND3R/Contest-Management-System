@@ -409,7 +409,7 @@
     <tbody>
     {{range $l.Tasks}}<tr>
       <td><span class="letter {{lclass .Index}}">{{letter .Index}}</span></td>
-      <td><a href="/tasks/{{.ID}}">{{.Name}}</a> <span class="muted small">{{.Title}}</span></td>
+      <td><a href="/tasks/{{.ID}}">{{.Name}}</a> <span class="muted small">{{.Title}}</span>{{if .Closed}} <span class="tag bad">{{$p.T "closed"}}</span>{{end}}</td>
       <td class="c">{{if .Solvers}}<span class="st-ic ok" title="{{$p.T "%d solved it" .Solvers}}{{with .FirstSolver}} · {{$p.T "first: %s" .}}{{end}}">{{icon "check-circle"}}</span> <small>{{.Solvers}}</small>{{else if .Partial}}<span class="st-ic warn" title="{{$p.T "%d with points" .Partial}}">{{icon "half-circle"}}</span> <small>{{.Partial}}</small>{{else}}<span class="st-ic bad" title="{{$p.T "Unsolved"}}">{{icon "x-circle"}}</span>{{end}}</td>
       <td class="num">{{.Submissions}}{{if .Pending}} <small class="muted" title="{{$p.T "being evaluated"}}">(+{{.Pending}})</small>{{end}}</td>
     </tr>{{end}}
@@ -458,6 +458,7 @@
       <a class="tool" href="/contests/{{$cid}}/communication">{{icon "megaphone"}} {{$p.T "Announce"}}</a>
       <a class="tool" href="/system">{{icon "cpu"}} {{$p.T "Judges"}}</a>
       <a class="tool" href="/audit">{{icon "list"}} {{$p.T "View logs"}}</a>
+      {{if $l.C.SubmissionsPaused}}<a class="tool bad" href="/contests/{{$cid}}/settings#emergency">{{icon "play"}} {{$p.T "Resume submissions"}}</a>{{else}}<a class="tool" href="/contests/{{$cid}}/settings#emergency">{{icon "pause"}} {{$p.T "Pause submissions"}}</a>{{end}}
     </div>
   </section>
 

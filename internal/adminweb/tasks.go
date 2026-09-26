@@ -492,3 +492,29 @@ func (s *Server) serveBlob(w http.ResponseWriter, r *http.Request, rc *reqCtx, d
 	h.Set("Cache-Control", "private, max-age=0")
 	io.Copy(w, rd)
 }
+
+// handleTaskClose closes or reopens submissions to one task (emergency
+// control, SPEC_IOI §9.3): the statement stays visible.
+func (s *Server) handleTaskClose(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	t, ok := s.loadTask(w, r, rc)
+	if !ok {
+		return
+	}
+	closed := r.FormValue("closed") == "1"
+	if err := s.q.SetTaskSubmissionsClosed(r.Context(), sqlc.SetTaskSubmissionsClosedParams{ID: t.ID, Closed: closed}); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	rc.target("task", t.ID)
+	rc.note("closed", closed)
+	back := "/tasks/" + strconv.FormatInt(t.ID, 10)
+	if t.ContestID != nil {
+		s.contestChanged(r.Context(), *t.ContestID, 0)
+		back = "/contests/" + strconv.FormatInt(*t.ContestID, 10) + "/tasks"
+	}
+	if closed {
+		s.done(w, r, back, "Submissions to %s are closed.", t.Name)
+		return
+	}
+	s.done(w, r, back, "Submissions to %s are open again.", t.Name)
+}

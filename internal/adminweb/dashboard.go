@@ -70,6 +70,8 @@ type dashTask struct {
 	Submissions, Pending int64
 	FirstSolver          string
 	FirstSolveSubmission int64
+	// Closed: submissions to the task are closed (emergency control).
+	Closed bool
 }
 
 // State is solved (by someone), partial or unsolved.
@@ -102,6 +104,10 @@ type healthItem struct {
 func (l *dashLive) Time(t time.Time) string { return t.In(l.loc).Format("15:04") }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	if rc.admin.Role == "leader" {
+		webkit.Redirect(w, r, "/delegation")
+		return
+	}
 	list, err := s.q.ListContests(r.Context())
 	if err != nil {
 		s.internalError(w, r, rc, err)
@@ -245,8 +251,14 @@ func (s *Server) dashLive(r *http.Request, rc *reqCtx, c sqlc.Contest) (*dashLiv
 	for _, f := range firsts {
 		firstByTask[f.TaskID] = f
 	}
+	closed := map[int64]bool{}
+	if ts, err := s.q.ListTasksByContest(ctx, &c.ID); err == nil {
+		for _, t := range ts {
+			closed[t.ID] = t.SubmissionsClosed
+		}
+	}
 	for i, t := range rk.Tasks {
-		dt := dashTask{Index: i, ID: t.ID, Name: t.Name, Title: t.Title}
+		dt := dashTask{Index: i, ID: t.ID, Name: t.Name, Title: t.Title, Closed: closed[t.ID]}
 		for _, row := range rk.Rows {
 			if i >= len(row.Cells) {
 				continue
@@ -305,6 +317,10 @@ func (s *Server) dashLive(r *http.Request, rc *reqCtx, c sqlc.Contest) (*dashLiv
 	}
 	if err := s.dashEvents(r, l, c, firsts, tr); err != nil {
 		return nil, err
+	}
+	if c.SubmissionsPaused {
+		l.Notes = append([]dashEvent{{At: now, Icon: "pause", Class: "bad", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/settings#emergency",
+			Text: tr("Submissions are paused"), Sub: c.PauseMessage}}, l.Notes...)
 	}
 	s.dashHealth(r, rc, l, c, now)
 	return l, nil

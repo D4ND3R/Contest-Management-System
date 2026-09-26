@@ -20,6 +20,7 @@ type Admin struct {
 	CreatedAt              time.Time `json:"created_at"`
 	TotpSecret             *string   `json:"totp_secret"`
 	PasswordChangeRequired bool      `json:"password_change_required"`
+	TeamID                 *int64    `json:"team_id"`
 }
 
 type Announcement struct {
@@ -47,6 +48,10 @@ type AuditLog struct {
 	TargetID   *int64          `json:"target_id"`
 	Details    json.RawMessage `json:"details"`
 	Ip         string          `json:"ip"`
+	Actor      string          `json:"actor"`
+	Seq        *int64          `json:"seq"`
+	PrevHash   string          `json:"prev_hash"`
+	Hash       *string         `json:"hash"`
 }
 
 type Balloon struct {
@@ -168,6 +173,8 @@ type Contest struct {
 	Tagline                     string     `json:"tagline"`
 	BannerDigest                *string    `json:"banner_digest"`
 	BannerType                  string     `json:"banner_type"`
+	SubmissionsPaused           bool       `json:"submissions_paused"`
+	PauseMessage                string     `json:"pause_message"`
 }
 
 type Dataset struct {
@@ -408,6 +415,7 @@ type Task struct {
 	CreatedAt              time.Time `json:"created_at"`
 	UpdatedAt              time.Time `json:"updated_at"`
 	Languages              []string  `json:"languages"`
+	SubmissionsClosed      bool      `json:"submissions_closed"`
 }
 
 type TaskExample struct {

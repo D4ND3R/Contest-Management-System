@@ -149,6 +149,23 @@
 {{end}}
 
 {{if and (not .Data.New) .CanWrite}}
+<section class="card" id="emergency">
+<h2>{{icon "alert"}} {{.T "Emergency controls"}}</h2>
+{{if .Data.Paused}}
+<p class="alert">{{.T "Submissions are paused: contestants cannot submit or run tests."}}{{with .Data.PauseMessage}} “{{.}}”{{end}}</p>
+<form method="post" action="/contests/{{$c.ID}}/pause" class="inline-form">
+  {{template "csrf" .CSRF}}<input type="hidden" name="paused" value="0">
+  <button>{{icon "play"}} {{.T "Resume submissions"}}</button>
+</form>
+{{else}}
+<form method="post" action="/contests/{{$c.ID}}/pause" class="inline-form" data-confirm="{{.T "Pause submissions and user tests for every contestant now?"}}">
+  {{template "csrf" .CSRF}}<input type="hidden" name="paused" value="1">
+  <label>{{.T "Message for the contestants (optional)"}} <input name="message" maxlength="500" size="40"></label>
+  <button class="danger">{{icon "pause"}} {{.T "Pause submissions"}}</button>
+</form>
+{{end}}
+<p class="muted small">{{.T "A pause stops submissions and user tests (questions still work); the clock keeps running, so extend the contest afterwards if the pause should not count. To stop a single task, close it on the Problems page."}}</p>
+</section>
 <section class="card">
 <h2>{{.T "Extend the contest"}}</h2>
 <form method="post" action="/contests/{{$c.ID}}/extend" class="inline-form" data-confirm="{{.T "Change the end of the contest for everybody now?"}}">

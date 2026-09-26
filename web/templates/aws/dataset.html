@@ -12,7 +12,7 @@
 
 <form method="post" action="/datasets/{{$ds.ID}}" class="card">
 {{template "csrf" .CSRF}}
-<fieldset {{if not .CanWrite}}disabled{{end}}>
+<fieldset {{if not .CanEditTasks}}disabled{{end}}>
 <div class="grid">
   <label>{{.T "Description"}} <input name="description" value="{{$d.Description}}" required></label>
   <label>{{.T "Time limit (s)"}} <input name="time_limit" value="{{msToS $d.TimeLimitMs}}" inputmode="decimal"></label>
@@ -89,17 +89,17 @@
 </details>
 </div>
 </div>
-{{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}
+{{if .CanEditTasks}}<button>{{.T "Save"}}</button>{{end}}
 </fieldset>
 </form>
 
 <section class="card" id="managers">
 <h2>{{.T "Managers"}} <small class="muted">{{.T "checkers, graders, stubs, headers"}}</small></h2>
 <ul>{{range .Data.Managers}}<li><a href="/datasets/{{$ds.ID}}/managers/{{.Filename}}">{{.Filename}}</a>
-  {{if $.CanWrite}}<form method="post" action="/datasets/{{$ds.ID}}/managers/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
+  {{if $.CanEditTasks}}<form method="post" action="/datasets/{{$ds.ID}}/managers/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
 {{else}}<li class="muted">{{.T "None."}}</li>{{end}}</ul>
 {{with .Data.Required}}<p class="muted small">{{$.T "This configuration uses:"}} {{join . ", "}}.</p>{{end}}
-{{if .CanWrite}}
+{{if .CanEditTasks}}
 <form method="post" action="/datasets/{{$ds.ID}}/managers" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}<input type="file" name="files" multiple required> <button>{{.T "Upload"}}</button>
 </form>
@@ -108,7 +108,7 @@
 
 <section class="card" id="testcases">
 <h2>{{.T "Testcases"}} <small class="muted">{{len .Data.Testcases}}</small></h2>
-{{if .CanWrite}}
+{{if .CanEditTasks}}
 <div class="row">
 <form method="post" action="/datasets/{{$ds.ID}}/testcases/archive" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
@@ -133,9 +133,9 @@
 <tbody>
 {{range .Data.Testcases}}
 <tr><td>{{.Codename}}</td>
-<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/public" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="public" value="{{if .Public}}0{{else}}1{{end}}"><button class="link">{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}</button></form>{{else}}{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}{{end}}</td>
+<td>{{if $.CanEditTasks}}<form method="post" action="/testcases/{{.ID}}/public" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="public" value="{{if .Public}}0{{else}}1{{end}}"><button class="link">{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}</button></form>{{else}}{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}{{end}}</td>
 <td><a href="/testcases/{{.ID}}/input">{{$.T "input"}}</a></td><td><a href="/testcases/{{.ID}}/output">{{$.T "output"}}</a></td>
-<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/example" class="inline">{{template "csrf" $.CSRF}}<button class="link" title="{{$.T "Show it in the statement, on the page and in the PDF"}}">{{$.T "use as example"}}</button></form> · <form method="post" action="/testcases/{{.ID}}/delete" class="inline" data-confirm="{{$.T "Delete testcase %s?" .Codename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
+<td>{{if $.CanEditTasks}}<form method="post" action="/testcases/{{.ID}}/example" class="inline">{{template "csrf" $.CSRF}}<button class="link" title="{{$.T "Show it in the statement, on the page and in the PDF"}}">{{$.T "use as example"}}</button></form> · <form method="post" action="/testcases/{{.ID}}/delete" class="inline" data-confirm="{{$.T "Delete testcase %s?" .Codename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
 {{else}}
 <tr><td colspan="5" class="muted">{{.T "No testcases."}}</td></tr>
 {{end}}
@@ -143,7 +143,7 @@
 </table>
 </section>
 
-{{if and .CanWrite (not .Data.Live)}}
+{{if and .CanEditTasks (not .Data.Live)}}
 <section class="card danger">
 <form method="post" action="/datasets/{{$ds.ID}}/delete" data-confirm="{{.T "Delete this dataset and its results?"}}">
   {{template "csrf" .CSRF}}<button class="danger">{{.T "Delete dataset"}}</button>

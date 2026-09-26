@@ -91,3 +91,7 @@ DELETE FROM task_examples WHERE id = $1 AND task_id = $2;
 -- name: DeleteTaskExamples :exec
 DELETE FROM task_examples WHERE task_id = $1;
 
+
+-- name: SetTaskSubmissionsClosed :exec
+-- Emergency control: one task stops accepting submissions (or reopens).
+UPDATE tasks SET submissions_closed = @closed::boolean WHERE id = @id::bigint;

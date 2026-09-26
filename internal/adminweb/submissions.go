@@ -302,13 +302,18 @@ func (s *Server) loadSubmission(w http.ResponseWriter, r *http.Request, rc *reqC
 
 // files loads the source files of a submission (text up to 1 MiB each).
 func (s *Server) files(r *http.Request, sub sqlc.AdminGetSubmissionRow) ([]fileView, error) {
-	fs, err := s.q.ListSubmissionFiles(r.Context(), sub.ID)
+	return s.filesOf(r, sub.ID, sub.Language)
+}
+
+// filesOf loads the source files of submission id in language lang.
+func (s *Server) filesOf(r *http.Request, id int64, lang *string) ([]fileView, error) {
+	fs, err := s.q.ListSubmissionFiles(r.Context(), id)
 	if err != nil {
 		return nil, err
 	}
 	ext := ""
-	if sub.Language != nil {
-		if l, ok := s.langs.Get(*sub.Language); ok {
+	if lang != nil {
+		if l, ok := s.langs.Get(*lang); ok {
 			ext = l.SourceExtension()
 		}
 	}

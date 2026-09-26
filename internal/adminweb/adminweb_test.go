@@ -70,7 +70,7 @@ func newFixture(t *testing.T, opts ...func(*config.AdminWeb)) *fixture {
 	}
 	f := &fixture{t: t, pool: pool, q: sqlc.New(pool), store: store, admins: map[string]sqlc.Admin{}, rdb: rdb, ns: ns}
 	hash, _ := auth.HashPassword("fixture-pass-1")
-	for _, role := range []string{"all", "messaging", "read_only"} {
+	for _, role := range []string{"all", "messaging", "read_only", "task_setter"} {
 		a, err := f.q.CreateAdmin(bg, sqlc.CreateAdminParams{Name: role, Username: "admin_" + role, PasswordHash: hash, Enabled: true, Role: role})
 		if err != nil {
 			t.Fatal(err)
@@ -78,6 +78,13 @@ func newFixture(t *testing.T, opts ...func(*config.AdminWeb)) *fixture {
 		f.admins[role] = a
 	}
 	f.seed()
+	// A delegation leader of the seeded team.
+	leader, err := f.q.CreateAdmin(bg, sqlc.CreateAdminParams{Name: "leader", Username: "admin_leader", PasswordHash: hash, Enabled: true,
+		Role: "leader", TeamID: &f.team.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.admins["leader"] = leader
 	cfg := config.Default().AdminWeb
 	cfg.LoginRateLimit = 1000
 	for _, o := range opts {

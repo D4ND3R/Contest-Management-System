@@ -1124,3 +1124,15 @@ localization, H8 audit (`AUDIT.md` §10) and summary.
   `TestCalibrationsOnSystemPage`).
 - Docs: `docs/en/evaluation.md`, `docs/es/evaluacion.md`, languages,
   verify-host and the admin guide.
+
+### H5 — contest operations (in progress)
+- **Emergency controls**: pause submissions (with a message) and close one
+  task; notices on the contest site, dashboard tools, audited (D88;
+  `TestEmergencyControls`, `TestEmergencyControlsAdmin`).
+- **Tamper-evident audit log**: append-only, hash-chained entries,
+  submission receipts with file hashes, `cms ctl audit-verify` and a
+  verification on the audit page (`TestChain`, `TestChainBackfill`,
+  `TestAuditChainPage`).
+- **Roles**: task setters and delegation leaders (`TestTaskSetterRole`,
+  `TestDelegationLeader`).
+

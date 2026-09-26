@@ -10,8 +10,12 @@ inglés (selector de idioma al pie). Las demás guías profundizan:
 ## 1. Administradores
 
 **Administradores**: agrega a cada persona con su rol: *all* (todo),
-*messaging* (preguntas, anuncios, globos, impresión; lectura del resto) o
-*read only* (solo lectura). Cada administrador puede activar un segundo
+*messaging* (preguntas, anuncios, globos, impresión; lectura del resto),
+*task setter* (prepara problemas: enunciados, datasets, casos, graders, el
+probador; poner un dataset en vivo, reevaluar y borrar quedan para *all*),
+*read only* (solo lectura) o *leader* para líderes de delegación: vinculado
+a un equipo, ve solo los envíos, el código y los resultados que ven sus
+concursantes (**Mi delegación**), y no puede enviar. Cada administrador puede activar un segundo
 factor (**Mi cuenta → Autenticación de dos factores**, cualquier app TOTP);
 un administrador con rol *all* puede reiniciar el dispositivo perdido de
 otro. Todo cambio queda en el **Registro de auditoría**.

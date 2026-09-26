@@ -338,6 +338,7 @@ ul.feed .when{margin-left:auto;color:var(--text-3);font-size:.78rem;white-space:
 .tool{display:flex;align-items:center;gap:.7rem;padding:.85rem .9rem;border-radius:10px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--text)!important;font-weight:560;font-size:.9rem;text-decoration:none!important}
 .tool:hover{border-color:var(--accent-line);background:var(--panel-3)}
 .tool>.ic{width:22px;height:22px;color:var(--text-2)}
+.tool.bad{border-color:rgba(240,82,82,.45);color:var(--bad)!important}.tool.bad>.ic{color:var(--bad)}
 
 /* ---------------------------------------------------------------- notifications */
 #notifications{position:fixed;right:1rem;bottom:1rem;display:flex;flex-direction:column;gap:.5rem;z-index:50}

@@ -9,7 +9,12 @@ other guides go deeper: [contest settings](contest-settings.md),
 ## 1. Administrators
 
 **Admins → New admin**. Roles: *all* (everything), *messaging* (questions,
-announcements, balloons, printing; read the rest) and *read only*. Each
+announcements, balloons, printing; read the rest), *task setter* (prepare
+tasks: statements, datasets, testcases, graders, the task tester; making a
+dataset live, rejudging and deleting stay with *all*), *read only*, and
+*leader* for delegation leaders: linked to a team, they see only their
+contestants' submissions, sources and the results the contestants see
+(**My delegation**), and cannot submit. Each
 administrator can turn on a second factor (**My account → Two-factor
 authentication**, any TOTP app); an administrator with role *all* can reset
 another's lost device. Every change is in the **Audit log**.

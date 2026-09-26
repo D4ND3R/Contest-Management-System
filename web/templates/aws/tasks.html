@@ -1,6 +1,6 @@
 {{define "content"}}
-<h1>{{.T "Tasks"}} {{if .CanWrite}}<a class="button small" href="/tasks/import">{{.T "Import a package"}}</a>{{end}}</h1>
-{{if .CanWrite}}
+<h1>{{.T "Tasks"}} {{if .CanEditTasks}}<a class="button small" href="/tasks/import">{{.T "Import a package"}}</a>{{end}}</h1>
+{{if .CanEditTasks}}
 <form method="post" action="/tasks" class="card inline-form">
   {{template "csrf" .CSRF}}
   <label>{{.T "Name"}} <input name="name" required pattern="[A-Za-z0-9_.\-]+"></label>

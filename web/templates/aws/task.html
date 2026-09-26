@@ -1,7 +1,7 @@
 {{define "content"}}
 {{$t := .Data.T}}{{$task := .Data.Task}}
 <h1>{{.T "Task %s" $task.Name}} <small class="muted">{{$task.Title}}{{with .Data.Contest}} · {{$.T "in"}} <a href="/contests/{{.ID}}">{{.Name}}</a>{{end}}</small></h1>
-<p class="actions"><a href="/tasks/{{$task.ID}}/export.zip">{{.T "Export as a package"}}</a> · <a href="/tasks/{{$task.ID}}/validation">{{.T "Validation report"}}</a>{{if .CanWrite}} · <a href="/tasks/import?task={{$task.ID}}">{{.T "Import a dataset from a package"}}</a>{{end}}</p>
+<p class="actions"><a href="/tasks/{{$task.ID}}/export.zip">{{.T "Export as a package"}}</a> · <a href="/tasks/{{$task.ID}}/validation">{{.T "Validation report"}}</a>{{if .CanEditTasks}} · <a href="/tasks/import?task={{$task.ID}}">{{.T "Import a dataset from a package"}}</a>{{end}}</p>
 
 <section class="card" id="datasets">
 <h2>{{.T "Datasets"}}</h2>
@@ -19,7 +19,7 @@
 {{end}}
 </tbody>
 </table>
-{{if .CanWrite}}
+{{if .CanEditTasks}}
 <form method="post" action="/tasks/{{$task.ID}}/datasets" class="inline-form">
   {{template "csrf" .CSRF}}
   <label>{{.T "New dataset"}} <input name="description" placeholder="{{.T "description"}}" required></label>
@@ -32,7 +32,7 @@
 <section class="card" id="tester">
 <h2>{{.T "Task tester"}} <small class="muted">{{.T "reference solutions, judged on every dataset; never counted"}}</small></h2>
 {{with .Data.Tester}}
-{{if $.CanWrite}}
+{{if $.CanEditTasks}}
 <form method="post" action="/tasks/{{$task.ID}}/tester" enctype="multipart/form-data" class="inline-form">
   {{template "csrf" $.CSRF}}
   {{if .NeedsLanguage}}<label>{{$.T "Language"}} <select name="language">{{range .Languages}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
@@ -66,10 +66,10 @@
   <td><a href="/tasks/{{$task.ID}}/statements/{{.Language}}/edit">{{if stsource .ContentType}}{{$.T "edit"}}{{else}}{{$.T "view"}}{{end}}</a> ·
   <a href="/tasks/{{$task.ID}}/statements/{{.Language}}/pdf" target="_blank" rel="noopener">PDF</a> ·
   <a href="/tasks/{{$task.ID}}/statements/{{.Language}}">{{$.T "file"}}</a>
-  {{if $.CanWrite}} · <form method="post" action="/tasks/{{$task.ID}}/statements/{{.Language}}/delete" class="inline" data-confirm="{{$.T "Delete the %s statement?" .Language}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
+  {{if $.CanEditTasks}} · <form method="post" action="/tasks/{{$task.ID}}/statements/{{.Language}}/delete" class="inline" data-confirm="{{$.T "Delete the %s statement?" .Language}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
 {{else}}<tr><td colspan="3" class="muted">{{.T "None."}}</td></tr>{{end}}
 </table>
-{{if .CanWrite}}
+{{if .CanEditTasks}}
 <p><a class="button" href="/tasks/{{$task.ID}}/statements/new/edit">{{.T "Write a statement"}}</a></p>
 <form method="post" action="/tasks/{{$task.ID}}/statements" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
@@ -83,9 +83,9 @@
 <section class="card" id="attachments">
 <h2>{{.T "Attachments"}}</h2>
 <ul>{{range .Data.Attachments}}<li><a href="/tasks/{{$task.ID}}/attachments/{{.Filename}}">{{.Filename}}</a>
-  {{if $.CanWrite}}<form method="post" action="/tasks/{{$task.ID}}/attachments/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
+  {{if $.CanEditTasks}}<form method="post" action="/tasks/{{$task.ID}}/attachments/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
 {{else}}<li class="muted">{{.T "None."}}</li>{{end}}</ul>
-{{if .CanWrite}}
+{{if .CanEditTasks}}
 <form method="post" action="/tasks/{{$task.ID}}/attachments" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
   <input type="file" name="file" required> <button>{{.T "Upload attachment"}}</button>
@@ -102,7 +102,7 @@
   <h3>{{$.T "Example %d" (inc $i)}}</h3>
   <div class="io"><div><div class="io-label">{{$.T "Input"}}</div><pre>{{$e.Input}}</pre></div><div><div class="io-label">{{$.T "Output"}}</div><pre>{{$e.Output}}</pre></div></div>
   {{if $e.Truncated}}<p class="muted">{{$.T "Long example: only the beginning is shown here."}}</p>{{end}}
-  {{if $.CanWrite}}
+  {{if $.CanEditTasks}}
   <form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/note">{{template "csrf" $.CSRF}}
     <label>{{$.T "Explanation (Markdown, optional)"}} <textarea name="note" rows="2">{{$e.Note}}</textarea></label>
     <button>{{$.T "Save"}}</button></form>
@@ -112,7 +112,7 @@
   {{else}}{{with $e.Note}}<p class="pre">{{.}}</p>{{end}}{{end}}
 </div>
 {{else}}<p class="muted">{{.T "None."}}</p>{{end}}
-{{if .CanWrite}}
+{{if .CanEditTasks}}
 <details><summary>{{.T "Add an example"}}</summary>
 <form method="post" action="/tasks/{{$task.ID}}/examples" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
@@ -131,7 +131,7 @@
 
 <form method="post" action="/tasks/{{$task.ID}}" class="card">
 {{template "csrf" .CSRF}}
-<fieldset {{if not .CanWrite}}disabled{{end}}>
+<fieldset {{if not .CanEditTasks}}disabled{{end}}>
 <fieldset><legend>{{.T "General"}}</legend>
 <div class="grid">
   <label>{{.T "Name"}} <input name="name" value="{{$t.Name}}" required pattern="[A-Za-z0-9_.\-]+"></label>
@@ -159,7 +159,7 @@
 </fieldset>
 {{template "token-fields" (part $ $t)}}
 {{template "limit-fields" (part $ $t)}}
-{{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}
+{{if .CanEditTasks}}<button>{{.T "Save"}}</button>{{end}}
 </fieldset>
 </form>
 

@@ -64,6 +64,17 @@ principal salvo que se indique otra cosa.
   → el participante → tiempo extra** (segundos); con ventanas de tiempo por
   usuario, **retraso** mueve su inicio.
 
+**Controles de emergencia**
+
+- **Pausar los envíos** (**Configuración → Controles de emergencia** del
+  concurso, o las herramientas rápidas del panel): cada concursante ve un
+  aviso con tu mensaje y no puede enviar ni correr pruebas hasta que los
+  **reanudes**; las preguntas siguen funcionando. El reloj sigue corriendo:
+  extiende el concurso después si la pausa no debe contar.
+- **Cerrar un problema** (**Problemas → cerrar envíos** del concurso): su
+  enunciado sigue visible y los envíos se rechazan con un aviso; **reábrelo**
+  cuando esté arreglado. El panel marca los problemas cerrados.
+
 **Reevaluar**
 
 - Caso de prueba o checker equivocado: corrige el dataset (o crea uno nuevo

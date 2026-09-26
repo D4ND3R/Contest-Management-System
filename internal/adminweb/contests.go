@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -29,6 +30,9 @@ type contestForm struct {
 	Pending int64
 	// BannerURL shows the banner image ("" = none).
 	BannerURL string
+	// Paused and PauseMessage: the emergency pause (not a form field).
+	Paused       bool
+	PauseMessage string
 }
 
 type localization struct{ Code, Name string }
@@ -337,6 +341,7 @@ func (s *Server) handleContestSettings(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 	d.BannerURL = bannerURL(c)
+	d.Paused, d.PauseMessage = c.SubmissionsPaused, c.PauseMessage
 	s.render(w, "contest", http.StatusOK, s.contestCrumbs(s.newPage(w, r, rc, "Settings", "contests", d), c))
 }
 
@@ -385,6 +390,7 @@ func (s *Server) handleContestUpdate(w http.ResponseWriter, r *http.Request, rc 
 		rc.contest = &old
 		d, _ := s.contestForm(r.Context(), c, false)
 		d.BannerURL = bannerURL(old)
+		d.Paused, d.PauseMessage = old.SubmissionsPaused, old.PauseMessage
 		s.formError(w, r, rc, "contest", s.contestCrumbs(s.newPage(w, r, rc, "Settings", "contests", d), old), f.err.Error())
 		return
 	}
@@ -603,4 +609,42 @@ func (s *Server) handleContestExtend(w http.ResponseWriter, r *http.Request, rc 
 	rc.target("contest", c.ID)
 	s.contestChanged(r.Context(), c.ID, 0)
 	s.done(w, r, "/contests/"+strconv.FormatInt(c.ID, 10), "End of the contest moved by %d minutes; contestants' clocks are updated.", minutes)
+}
+
+// maxPauseMessage bounds the message shown to contestants during a pause.
+const maxPauseMessage = 500
+
+// handleContestPause pauses or resumes submissions and user tests for the
+// whole contest (emergency control, SPEC_IOI §9.3). The clock keeps
+// running: extend the contest afterwards if the pause should not count.
+func (s *Server) handleContestPause(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	c, ok := s.loadContest(w, r, rc)
+	if !ok {
+		return
+	}
+	paused := r.FormValue("paused") == "1"
+	msg := strings.TrimSpace(r.FormValue("message"))
+	if !paused {
+		msg = ""
+	}
+	if len(msg) > maxPauseMessage {
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, i18n.T(adminLang(r), "The message is too long (at most %d characters).", maxPauseMessage))
+		return
+	}
+	if err := s.q.SetContestPaused(r.Context(), sqlc.SetContestPausedParams{ID: c.ID, Paused: paused, Message: msg}); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	rc.target("contest", c.ID)
+	rc.note("paused", paused)
+	if msg != "" {
+		rc.note("message", msg)
+	}
+	s.contestChanged(r.Context(), c.ID, 0)
+	back := "/contests/" + strconv.FormatInt(c.ID, 10)
+	if paused {
+		s.done(w, r, back, "Submissions paused: contestants cannot submit or run tests until you resume.")
+		return
+	}
+	s.done(w, r, back, "Submissions resumed.")
 }

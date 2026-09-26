@@ -87,6 +87,25 @@ to look:
 If a submission deserves it, **invalidate** it with a reason (it stays
 visible and no longer counts) and deal with the contestant.
 
+## Tamper-evident audit log
+
+Every administrator action and a receipt of every submission (who, when,
+the task and the SHA-256 of each file as it arrived) go to the **audit
+log**, which the database keeps append-only: updates, deletions and
+truncation are refused (the only change allowed is clearing the
+administrator's id when an administrator is deleted; their name stays in
+the entry). Entries are hash-chained: each stores the hash of the previous
+one and a hash of its own content, so an entry changed, removed or
+reordered behind the database's back breaks every later hash.
+
+- **Audit log → Verify the chain**, or `cms ctl audit-verify`, recomputes
+  the whole chain and names the first broken entries.
+- Write down (or publish) the latest entry's number and hash during the
+  contest, e.g. at the start and at the end: anyone can check later that
+  the chain still reaches it, which proves nothing before it changed.
+- Submission receipts are listed on the audit page with the action filter
+  `submission.received`.
+
 ## Uploads
 
 - Contest banners are checked from their bytes: PNG, JPEG, GIF or WebP,

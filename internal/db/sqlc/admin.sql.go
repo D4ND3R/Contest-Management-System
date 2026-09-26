@@ -11,6 +11,74 @@ import (
 	"time"
 )
 
+const auditChain = `-- name: AuditChain :many
+SELECT seq::bigint AS seq, id, prev_hash, coalesce(hash, '')::text AS hash,
+       audit_hash(prev_hash, seq, actor, action, target_type, target_id, details, ip, created_at)::text AS expected
+FROM audit_log
+WHERE seq > $1::bigint
+ORDER BY seq
+LIMIT $2::integer
+`
+
+type AuditChainParams struct {
+	AfterSeq int64 `json:"after_seq"`
+	MaxRows  int32 `json:"max_rows"`
+}
+
+type AuditChainRow struct {
+	Seq      int64  `json:"seq"`
+	ID       int64  `json:"id"`
+	PrevHash string `json:"prev_hash"`
+	Hash     string `json:"hash"`
+	Expected string `json:"expected"`
+}
+
+// The chain in order with each entry's recomputed hash (verification;
+// audit_log_seq_idx), a page at a time.
+func (q *Queries) AuditChain(ctx context.Context, arg AuditChainParams) ([]AuditChainRow, error) {
+	rows, err := q.db.Query(ctx, auditChain, arg.AfterSeq, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditChainRow{}
+	for rows.Next() {
+		var i AuditChainRow
+		if err := rows.Scan(
+			&i.Seq,
+			&i.ID,
+			&i.PrevHash,
+			&i.Hash,
+			&i.Expected,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const auditHead = `-- name: AuditHead :one
+SELECT seq::bigint AS seq, hash::text AS hash, created_at FROM audit_log WHERE seq IS NOT NULL ORDER BY seq DESC LIMIT 1
+`
+
+type AuditHeadRow struct {
+	Seq       int64     `json:"seq"`
+	Hash      string    `json:"hash"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// The latest entry of the chain (audit_log_seq_idx).
+func (q *Queries) AuditHead(ctx context.Context) (AuditHeadRow, error) {
+	row := q.db.QueryRow(ctx, auditHead)
+	var i AuditHeadRow
+	err := row.Scan(&i.Seq, &i.Hash, &i.CreatedAt)
+	return i, err
+}
+
 const countAdmins = `-- name: CountAdmins :one
 SELECT count(*) FROM admins
 `
@@ -22,8 +90,20 @@ func (q *Queries) CountAdmins(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countUnchainedAudit = `-- name: CountUnchainedAudit :one
+SELECT count(*)::bigint FROM audit_log WHERE seq IS NULL OR hash IS NULL
+`
+
+// Entries outside the chain (should be none).
+func (q *Queries) CountUnchainedAudit(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countUnchainedAudit)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createAdmin = `-- name: CreateAdmin :one
-INSERT INTO admins (name, username, password_hash, enabled, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required
+INSERT INTO admins (name, username, password_hash, enabled, role, team_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required, team_id
 `
 
 type CreateAdminParams struct {
@@ -32,6 +112,7 @@ type CreateAdminParams struct {
 	PasswordHash string `json:"password_hash"`
 	Enabled      bool   `json:"enabled"`
 	Role         string `json:"role"`
+	TeamID       *int64 `json:"team_id"`
 }
 
 func (q *Queries) CreateAdmin(ctx context.Context, arg CreateAdminParams) (Admin, error) {
@@ -41,6 +122,7 @@ func (q *Queries) CreateAdmin(ctx context.Context, arg CreateAdminParams) (Admin
 		arg.PasswordHash,
 		arg.Enabled,
 		arg.Role,
+		arg.TeamID,
 	)
 	var i Admin
 	err := row.Scan(
@@ -53,6 +135,7 @@ func (q *Queries) CreateAdmin(ctx context.Context, arg CreateAdminParams) (Admin
 		&i.CreatedAt,
 		&i.TotpSecret,
 		&i.PasswordChangeRequired,
+		&i.TeamID,
 	)
 	return i, err
 }
@@ -67,7 +150,7 @@ func (q *Queries) DeleteAdmin(ctx context.Context, id int64) error {
 }
 
 const getAdmin = `-- name: GetAdmin :one
-SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required FROM admins WHERE id = $1
+SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required, team_id FROM admins WHERE id = $1
 `
 
 func (q *Queries) GetAdmin(ctx context.Context, id int64) (Admin, error) {
@@ -83,12 +166,13 @@ func (q *Queries) GetAdmin(ctx context.Context, id int64) (Admin, error) {
 		&i.CreatedAt,
 		&i.TotpSecret,
 		&i.PasswordChangeRequired,
+		&i.TeamID,
 	)
 	return i, err
 }
 
 const getAdminByUsername = `-- name: GetAdminByUsername :one
-SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required FROM admins WHERE username = $1
+SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required, team_id FROM admins WHERE username = $1
 `
 
 func (q *Queries) GetAdminByUsername(ctx context.Context, username string) (Admin, error) {
@@ -104,6 +188,7 @@ func (q *Queries) GetAdminByUsername(ctx context.Context, username string) (Admi
 		&i.CreatedAt,
 		&i.TotpSecret,
 		&i.PasswordChangeRequired,
+		&i.TeamID,
 	)
 	return i, err
 }
@@ -133,8 +218,221 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 	return err
 }
 
+const insertSubmissionReceipt = `-- name: InsertSubmissionReceipt :exec
+INSERT INTO audit_log (actor, action, target_type, target_id, details, ip)
+VALUES ($1::text, 'submission.received', 'submission', $2::bigint, $3::jsonb, $4::text)
+`
+
+type InsertSubmissionReceiptParams struct {
+	Actor        string          `json:"actor"`
+	SubmissionID int64           `json:"submission_id"`
+	Details      json.RawMessage `json:"details"`
+	Ip           string          `json:"ip"`
+}
+
+// Tamper evidence: every submission, with the SHA-256 of its files, joins
+// the audit chain as it arrives.
+func (q *Queries) InsertSubmissionReceipt(ctx context.Context, arg InsertSubmissionReceiptParams) error {
+	_, err := q.db.Exec(ctx, insertSubmissionReceipt,
+		arg.Actor,
+		arg.SubmissionID,
+		arg.Details,
+		arg.Ip,
+	)
+	return err
+}
+
+const leaderParticipations = `-- name: LeaderParticipations :many
+SELECT p.id, p.contest_id, c.name AS contest_name, c.title AS contest_title, c.start_time, c.stop_time,
+       c.score_visibility, c.scoring_mode, u.username, u.first_name, u.last_name
+FROM participations p
+JOIN users u ON u.id = p.user_id
+JOIN contests c ON c.id = p.contest_id
+WHERE p.team_id = $1::bigint
+ORDER BY c.start_time DESC, u.username
+`
+
+type LeaderParticipationsRow struct {
+	ID              int64     `json:"id"`
+	ContestID       int64     `json:"contest_id"`
+	ContestName     string    `json:"contest_name"`
+	ContestTitle    string    `json:"contest_title"`
+	StartTime       time.Time `json:"start_time"`
+	StopTime        time.Time `json:"stop_time"`
+	ScoreVisibility string    `json:"score_visibility"`
+	ScoringMode     string    `json:"scoring_mode"`
+	Username        string    `json:"username"`
+	FirstName       string    `json:"first_name"`
+	LastName        string    `json:"last_name"`
+}
+
+// A delegation leader's contestants: the participations of their team
+// (a sequential scan of participations, one row per contestant and
+// contest; leaders' pages are rare).
+func (q *Queries) LeaderParticipations(ctx context.Context, teamID int64) ([]LeaderParticipationsRow, error) {
+	rows, err := q.db.Query(ctx, leaderParticipations, teamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LeaderParticipationsRow{}
+	for rows.Next() {
+		var i LeaderParticipationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContestID,
+			&i.ContestName,
+			&i.ContestTitle,
+			&i.StartTime,
+			&i.StopTime,
+			&i.ScoreVisibility,
+			&i.ScoringMode,
+			&i.Username,
+			&i.FirstName,
+			&i.LastName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const leaderSubmission = `-- name: LeaderSubmission :one
+SELECT s.id, s.participation_id, s.submitted_at, s.language, t.name AS task_name, t.title AS task_title, t.score_precision,
+       sr.public_score, sr.verdict, (sr.scored_at IS NOT NULL)::boolean AS scored, sr.compilation_outcome, sr.compilation_text,
+       u.username, c.name AS contest_name, c.stop_time, c.score_visibility, c.scoring_mode
+FROM submissions s
+JOIN participations p ON p.id = s.participation_id
+JOIN users u ON u.id = p.user_id
+JOIN contests c ON c.id = p.contest_id
+JOIN tasks t ON t.id = s.task_id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE s.id = $1::bigint AND p.team_id = $2::bigint
+`
+
+type LeaderSubmissionParams struct {
+	ID     int64 `json:"id"`
+	TeamID int64 `json:"team_id"`
+}
+
+type LeaderSubmissionRow struct {
+	ID                 int64     `json:"id"`
+	ParticipationID    *int64    `json:"participation_id"`
+	SubmittedAt        time.Time `json:"submitted_at"`
+	Language           *string   `json:"language"`
+	TaskName           string    `json:"task_name"`
+	TaskTitle          string    `json:"task_title"`
+	ScorePrecision     int32     `json:"score_precision"`
+	PublicScore        *float64  `json:"public_score"`
+	Verdict            *string   `json:"verdict"`
+	Scored             bool      `json:"scored"`
+	CompilationOutcome *string   `json:"compilation_outcome"`
+	CompilationText    *string   `json:"compilation_text"`
+	Username           string    `json:"username"`
+	ContestName        string    `json:"contest_name"`
+	StopTime           time.Time `json:"stop_time"`
+	ScoreVisibility    string    `json:"score_visibility"`
+	ScoringMode        string    `json:"scoring_mode"`
+}
+
+// One submission, if it belongs to the team.
+func (q *Queries) LeaderSubmission(ctx context.Context, arg LeaderSubmissionParams) (LeaderSubmissionRow, error) {
+	row := q.db.QueryRow(ctx, leaderSubmission, arg.ID, arg.TeamID)
+	var i LeaderSubmissionRow
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipationID,
+		&i.SubmittedAt,
+		&i.Language,
+		&i.TaskName,
+		&i.TaskTitle,
+		&i.ScorePrecision,
+		&i.PublicScore,
+		&i.Verdict,
+		&i.Scored,
+		&i.CompilationOutcome,
+		&i.CompilationText,
+		&i.Username,
+		&i.ContestName,
+		&i.StopTime,
+		&i.ScoreVisibility,
+		&i.ScoringMode,
+	)
+	return i, err
+}
+
+const leaderSubmissions = `-- name: LeaderSubmissions :many
+SELECT s.id, s.participation_id, s.submitted_at, s.language, t.name AS task_name, t.score_precision,
+       sr.public_score, sr.verdict, (sr.scored_at IS NOT NULL)::boolean AS scored, sr.compilation_outcome,
+       s.invalidated_at
+FROM submissions s
+JOIN tasks t ON t.id = s.task_id
+LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE s.participation_id = ANY($1::bigint[])
+ORDER BY s.id DESC
+LIMIT $2::integer
+`
+
+type LeaderSubmissionsParams struct {
+	ParticipationIds []int64 `json:"participation_ids"`
+	MaxRows          int32   `json:"max_rows"`
+}
+
+type LeaderSubmissionsRow struct {
+	ID                 int64      `json:"id"`
+	ParticipationID    *int64     `json:"participation_id"`
+	SubmittedAt        time.Time  `json:"submitted_at"`
+	Language           *string    `json:"language"`
+	TaskName           string     `json:"task_name"`
+	ScorePrecision     int32      `json:"score_precision"`
+	PublicScore        *float64   `json:"public_score"`
+	Verdict            *string    `json:"verdict"`
+	Scored             bool       `json:"scored"`
+	CompilationOutcome *string    `json:"compilation_outcome"`
+	InvalidatedAt      *time.Time `json:"invalidated_at"`
+}
+
+// Their submissions with what the contestants themselves see (the public
+// score and verdict on the live dataset), newest first
+// (submissions_participation_task_idx).
+func (q *Queries) LeaderSubmissions(ctx context.Context, arg LeaderSubmissionsParams) ([]LeaderSubmissionsRow, error) {
+	rows, err := q.db.Query(ctx, leaderSubmissions, arg.ParticipationIds, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LeaderSubmissionsRow{}
+	for rows.Next() {
+		var i LeaderSubmissionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParticipationID,
+			&i.SubmittedAt,
+			&i.Language,
+			&i.TaskName,
+			&i.ScorePrecision,
+			&i.PublicScore,
+			&i.Verdict,
+			&i.Scored,
+			&i.CompilationOutcome,
+			&i.InvalidatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAdmins = `-- name: ListAdmins :many
-SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required FROM admins ORDER BY username
+SELECT id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required, team_id FROM admins ORDER BY username
 `
 
 func (q *Queries) ListAdmins(ctx context.Context) ([]Admin, error) {
@@ -156,6 +454,7 @@ func (q *Queries) ListAdmins(ctx context.Context) ([]Admin, error) {
 			&i.CreatedAt,
 			&i.TotpSecret,
 			&i.PasswordChangeRequired,
+			&i.TeamID,
 		); err != nil {
 			return nil, err
 		}
@@ -193,13 +492,15 @@ func (q *Queries) ListAuditActions(ctx context.Context) ([]string, error) {
 }
 
 const listAuditLog = `-- name: ListAuditLog :many
-SELECT a.id, a.admin_id, a.created_at, a.action, a.target_type, a.target_id, a.details, a.ip, ad.username AS admin_username
+SELECT a.id, a.admin_id, a.created_at, a.action, a.target_type, a.target_id, a.details, a.ip, a.actor, a.seq, a.prev_hash, a.hash, ad.username AS admin_username
 FROM audit_log a LEFT JOIN admins ad ON ad.id = a.admin_id
 WHERE ($2::bigint IS NULL OR a.admin_id = $2)
   AND ($3::text IS NULL OR a.action LIKE $3::text || '%')
   AND ($4::timestamptz IS NULL OR a.created_at >= $4::timestamptz)
   AND ($5::timestamptz IS NULL OR a.created_at < $5::timestamptz)
   AND ($6::bigint IS NULL OR a.id < $6)
+  -- Submission receipts only when asked for (an action filter).
+  AND ($3::text IS NOT NULL OR a.action <> 'submission.received')
 ORDER BY a.id DESC
 LIMIT $1
 `
@@ -222,6 +523,10 @@ type ListAuditLogRow struct {
 	TargetID      *int64          `json:"target_id"`
 	Details       json.RawMessage `json:"details"`
 	Ip            string          `json:"ip"`
+	Actor         string          `json:"actor"`
+	Seq           *int64          `json:"seq"`
+	PrevHash      string          `json:"prev_hash"`
+	Hash          *string         `json:"hash"`
 	AdminUsername *string         `json:"admin_username"`
 }
 
@@ -250,6 +555,10 @@ func (q *Queries) ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]L
 			&i.TargetID,
 			&i.Details,
 			&i.Ip,
+			&i.Actor,
+			&i.Seq,
+			&i.PrevHash,
+			&i.Hash,
 			&i.AdminUsername,
 		); err != nil {
 			return nil, err
@@ -300,7 +609,7 @@ func (q *Queries) SetAdminTOTP(ctx context.Context, arg SetAdminTOTPParams) erro
 }
 
 const updateAdmin = `-- name: UpdateAdmin :one
-UPDATE admins SET name = $2, username = $3, enabled = $4, role = $5 WHERE id = $1 RETURNING id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required
+UPDATE admins SET name = $2, username = $3, enabled = $4, role = $5, team_id = $6 WHERE id = $1 RETURNING id, name, username, password_hash, enabled, role, created_at, totp_secret, password_change_required, team_id
 `
 
 type UpdateAdminParams struct {
@@ -309,6 +618,7 @@ type UpdateAdminParams struct {
 	Username string `json:"username"`
 	Enabled  bool   `json:"enabled"`
 	Role     string `json:"role"`
+	TeamID   *int64 `json:"team_id"`
 }
 
 func (q *Queries) UpdateAdmin(ctx context.Context, arg UpdateAdminParams) (Admin, error) {
@@ -318,6 +628,7 @@ func (q *Queries) UpdateAdmin(ctx context.Context, arg UpdateAdminParams) (Admin
 		arg.Username,
 		arg.Enabled,
 		arg.Role,
+		arg.TeamID,
 	)
 	var i Admin
 	err := row.Scan(
@@ -330,6 +641,7 @@ func (q *Queries) UpdateAdmin(ctx context.Context, arg UpdateAdminParams) (Admin
 		&i.CreatedAt,
 		&i.TotpSecret,
 		&i.PasswordChangeRequired,
+		&i.TeamID,
 	)
 	return i, err
 }

@@ -30,6 +30,11 @@ type page struct {
 	Crumbs     []crumb
 	CanWrite   bool
 	CanMessage bool
+	// CanEditTasks: tasks, datasets and statements may be changed (full
+	// administrators and task setters).
+	CanEditTasks bool
+	// IsLeader: a delegation leader, who sees only their delegation.
+	IsLeader bool
 	// Pending is the number of unanswered questions (menu counter).
 	Pending    int64
 	Data       any
@@ -52,13 +57,17 @@ func (s *Server) newPage(w http.ResponseWriter, r *http.Request, rc *reqCtx, tit
 		p.CSRF = s.csrf.Token(rc.sess.ID)
 		p.CanWrite = roleAllows(rc.admin.Role, permAll)
 		p.CanMessage = roleAllows(rc.admin.Role, permMessaging)
-		if n, err := s.q.CountPendingQuestions(r.Context()); err == nil {
-			p.Pending = n
+		p.CanEditTasks = roleAllows(rc.admin.Role, permTasks)
+		p.IsLeader = rc.admin.Role == "leader"
+		if !p.IsLeader {
+			if n, err := s.q.CountPendingQuestions(r.Context()); err == nil {
+				p.Pending = n
+			}
 		}
 	}
 	p.Flash = s.takeFlash(w, r)
 	p.Path = r.URL.Path
-	if rc != nil {
+	if rc != nil && !p.IsLeader {
 		p.Contest = s.pageContest(r, rc)
 		if p.Contest != nil {
 			p.Phase = contestPhase(*p.Contest, p.ServerTime)
@@ -190,6 +199,10 @@ func (p *page) RoleLabel() string {
 		return p.T("Messaging")
 	case "read_only":
 		return p.T("Read-only")
+	case "task_setter":
+		return p.T("Task setter")
+	case "leader":
+		return p.T("Delegation leader")
 	}
 	return p.Admin.Role
 }
