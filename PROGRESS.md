@@ -959,6 +959,12 @@ Skipping skills: immersive-web-design, master skill.
   script's own polling connection, so it failed whenever a poll was in
   flight (most runs under load). It now closes only the browser's
   connections (15 of 15 runs pass).
+- **Rate-limit tests across a minute boundary.** The limiter counts per
+  calendar minute; the login-limit and question tests expected all their
+  events in one window, and under the race detector they take seconds,
+  so a minute boundary in between split the count (about one CI run in
+  ten). The limiter takes a clock (`Limiter.Now`, also passed to the
+  contest server through `Deps.Limiter`), which those tests freeze.
 - **Not fixable from here.** The repository has no `main` branch yet,
   so the documented one-liner (`…/main/scripts/install.sh`) answers 404
   until one exists.

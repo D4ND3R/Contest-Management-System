@@ -94,6 +94,10 @@ func TestAdminCookiesAreHardened(t *testing.T) {
 // administrator.
 func TestAdminLoginLimits(t *testing.T) {
 	f := newFixture(t, func(c *config.AdminWeb) { c.LoginRateLimit = 15 })
+	// One minute for the whole test: under the race detector it takes
+	// seconds, and failures split by a minute boundary would not add up.
+	frozen := time.Now()
+	f.srv.limiter.Now = func() time.Time { return frozen }
 	for i := 0; i < 20; i++ {
 		f.login("read_only")
 	}
@@ -123,6 +127,7 @@ func TestAdminLoginLimits(t *testing.T) {
 
 	// Second factor: five wrong codes lock it, whatever the address.
 	g := newFixture(t)
+	g.srv.limiter.Now = func() time.Time { return frozen }
 	secret := "JBSWY3DPEHPK3PXP"
 	g.pool.Exec(bg, "UPDATE admins SET totp_secret = $1 WHERE id = $2", secret, g.admins["messaging"].ID)
 	c := webtest.New(t, g.url)

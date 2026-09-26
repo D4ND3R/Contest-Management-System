@@ -104,10 +104,14 @@ func (r *IPResolver) ClientIP(req *http.Request) netip.Addr {
 }
 
 // Limiter is a fixed-window rate limiter shared by every web node through
-// Redis, with an in-process fallback when Redis is unavailable.
+// Redis, with an in-process fallback when Redis is unavailable. Windows are
+// aligned to the clock (per minute: calendar minutes).
 type Limiter struct {
 	rdb *redis.Client
 	ns  string
+	// Now is the clock; nil means time.Now. Tests freeze it so that events
+	// they expect in one window never straddle two.
+	Now func() time.Time
 
 	mu    sync.Mutex
 	local map[string]*window
@@ -116,6 +120,13 @@ type Limiter struct {
 type window struct {
 	start time.Time
 	n     int
+}
+
+func (l *Limiter) now() time.Time {
+	if l.Now != nil {
+		return l.Now()
+	}
+	return time.Now()
 }
 
 // NewLimiter creates a limiter storing counters under ns.
@@ -129,7 +140,7 @@ func (l *Limiter) Allow(ctx context.Context, key string, limit int, period time.
 	if limit <= 0 {
 		return true
 	}
-	slot := time.Now().UnixNano() / int64(period)
+	slot := l.now().UnixNano() / int64(period)
 	k := fmt.Sprintf("%srl:%s:%d", l.ns, key, slot)
 	if l.rdb != nil {
 		pipe := l.rdb.Pipeline()
@@ -142,7 +153,7 @@ func (l *Limiter) Allow(ctx context.Context, key string, limit int, period time.
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	w, ok := l.local[key]
-	now := time.Now()
+	now := l.now()
 	if !ok || now.Sub(w.start) >= period {
 		if len(l.local) > 100000 {
 			l.local = map[string]*window{}
@@ -161,7 +172,7 @@ func (l *Limiter) Over(ctx context.Context, key string, limit int, period time.D
 	if limit <= 0 {
 		return false
 	}
-	slot := time.Now().UnixNano() / int64(period)
+	slot := l.now().UnixNano() / int64(period)
 	if l.rdb != nil {
 		n, err := l.rdb.Get(ctx, fmt.Sprintf("%srl:%s:%d", l.ns, key, slot)).Int64()
 		if err == nil || errors.Is(err, redis.Nil) {
@@ -171,7 +182,7 @@ func (l *Limiter) Over(ctx context.Context, key string, limit int, period time.D
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	w, ok := l.local[key]
-	return ok && time.Since(w.start) < period && w.n >= limit
+	return ok && l.now().Sub(w.start) < period && w.n >= limit
 }
 
 // Hit counts one event for key (see Over).

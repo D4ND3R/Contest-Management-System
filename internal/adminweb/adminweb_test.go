@@ -51,6 +51,7 @@ type fixture struct {
 	rdb     *redis.Client
 	ns      string
 	backups *backup.Runner
+	srv     *Server
 }
 
 // newFixture starts an admin server over a seeded database; opts adjust
@@ -91,6 +92,7 @@ func newFixture(t *testing.T, opts ...func(*config.AdminWeb)) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.srv = srv
 	ctx, cancel := context.WithCancel(bg)
 	ready := make(chan net.Addr, 1)
 	done := make(chan struct{})

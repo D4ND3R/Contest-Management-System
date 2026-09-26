@@ -38,6 +38,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/rankingweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/sandbox"
 	"github.com/D4ND3R/Contest-Management-System/internal/testutil"
+	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 	"github.com/D4ND3R/Contest-Management-System/internal/worker"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -136,7 +137,13 @@ func newStack(t testing.TB, o stackOpts) *stack {
 	}
 	cfg := config.Default().ContestWeb
 	cfg.RateLimitPerMinute, cfg.LoginRateLimit = 100000, 100000
-	cws, err := contestweb.New(cfg, contestweb.Deps{Pool: pool, Redis: rdb, Blobs: s.store, Langs: reg, Secret: s.secret, NS: ns}, logging.Discard())
+	// The rate limits count in one minute for the whole test: under the
+	// race detector a flow takes seconds, and events expected in one
+	// window could straddle two.
+	limiter := webkit.NewLimiter(rdb, ns)
+	frozen := time.Now()
+	limiter.Now = func() time.Time { return frozen }
+	cws, err := contestweb.New(cfg, contestweb.Deps{Pool: pool, Redis: rdb, Blobs: s.store, Langs: reg, Secret: s.secret, NS: ns, Limiter: limiter}, logging.Discard())
 	if err != nil {
 		t.Fatal(err)
 	}

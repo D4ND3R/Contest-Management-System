@@ -76,6 +76,9 @@ type Deps struct {
 	Secret []byte
 	NS     string
 	Checks []httpx.Check
+	// Limiter counts logins, submissions and questions (nil: one over Redis
+	// under NS).
+	Limiter *webkit.Limiter
 }
 
 // New builds a server.
@@ -95,6 +98,9 @@ func New(cfg config.ContestWeb, d Deps, log *slog.Logger) (*Server, error) {
 		signer: webkit.NewSigner(d.Secret, "cws-session"), ips: ips, limiter: webkit.NewLimiter(d.Redis, d.NS),
 		secret: d.Secret, cache: newCache(q, d.Langs, 3*time.Second), hub: newHub(), sessions: webkit.NewSessionTracker(d.Redis, d.NS),
 		checks: d.Checks, now: time.Now,
+	}
+	if d.Limiter != nil {
+		s.limiter = d.Limiter
 	}
 	if err := s.loadTemplates(); err != nil {
 		return nil, err

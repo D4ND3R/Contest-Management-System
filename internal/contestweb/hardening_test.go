@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // routeSource is the package's non-test source, where routes are registered
@@ -136,6 +137,10 @@ func TestSessionCookiesAreHardened(t *testing.T) {
 // address and per username.
 func TestLoginLimitsCountFailures(t *testing.T) {
 	f := newFixture(t, fixtureOpts{loginLimit: 5, trusted: []string{"127.0.0.1/32"}})
+	// One minute for the whole test: failures split by a minute boundary
+	// would not add up.
+	frozen := time.Now()
+	f.srv.limiter.Now = func() time.Time { return frozen }
 	for i := 0; i < 12; i++ {
 		if code, _ := f.login(f.client(), "ana", "secret"); code != 200 {
 			t.Fatalf("login %d from the shared address = %d", i, code)
