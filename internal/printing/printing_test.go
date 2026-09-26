@@ -106,7 +106,6 @@ echo "request id is $2-1 (2 file(s))"
 `), 0o755)
 	svc := New(q, rdb, ns, store, config.Printing{Printer: "hall", LPPath: lp, PaperSize: "A4"}, logging.Discard())
 	svc.Idle, svc.backoff = 100*time.Millisecond, time.Millisecond
-	var got []events.Event
 	evCtx, stopEv := context.WithCancel(ctx)
 	defer stopEv()
 	evs := make(chan events.Event, 16)
@@ -161,16 +160,21 @@ echo "request id is $2-1 (2 file(s))"
 	}
 	cancel()
 	<-done
-	stopEv()
-	for len(evs) > 0 {
-		got = append(got, <-evs)
-	}
+	// Events arrive through Redis after the database changes: wait for the
+	// last one instead of taking whatever arrived so far.
 	var statuses []string
-	for _, e := range got {
-		if e.Type == events.TypePrint && e.ParticipationID == p.ID {
-			statuses = append(statuses, e.Status)
+	for timeout := time.After(5 * time.Second); len(statuses) == 0 || statuses[len(statuses)-1] != "failed"; {
+		select {
+		case e := <-evs:
+			if e.Type == events.TypePrint && e.ParticipationID == p.ID {
+				statuses = append(statuses, e.Status)
+			}
+			continue
+		case <-timeout:
 		}
+		break
 	}
+	stopEv()
 	if s := strings.Join(statuses, ","); s != "done,queued,done,failed" {
 		t.Errorf("events %s", s)
 	}

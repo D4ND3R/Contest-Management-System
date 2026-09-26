@@ -965,6 +965,10 @@ Skipping skills: immersive-web-design, master skill.
   so a minute boundary in between split the count (about one CI run in
   ten). The limiter takes a clock (`Limiter.Now`, also passed to the
   contest server through `Deps.Limiter`), which those tests freeze.
+- **Printing events.** printing.TestService stopped listening as soon as
+  the job's database state was final, but the matching event travels
+  through Redis a moment later, so the last one was sometimes missed. It
+  now waits for it (20 of 20 runs under the race detector pass).
 - **Open: one unexplained CI failure.** TestReevaluationLevels failed
   once (CI run 46, isolate 2.7 on cgroup v2): a correct C solution was
   judged 0 on its first judging. It passed in the runs before and after
