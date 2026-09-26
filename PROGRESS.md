@@ -1006,3 +1006,11 @@ Skipping skills: immersive-web-design, master skill.
   shows Valkey's own error if it still fails. Reproduced with that exact
   state in a 26.04 container: before, the same failure; now it finishes
   on 6380.
+- **A machine that serves other things (D81).** That server also runs
+  Nextcloud AIO (ports 80, 443, 8080). The installer now checks the web
+  ports before changing anything and names the program holding each one.
+  `--http-ports C,R,A` moves the LAN sites (e.g. 8000,8001,8002). The
+  firewall is no longer enabled over other services (it prints what CMS
+  needs instead), and it keeps SSH on any port and WireGuard open. A Caddyfile it did
+  not write is kept aside and restored on uninstall. Verified in a 26.04
+  container that mimics that server.

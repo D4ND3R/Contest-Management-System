@@ -62,12 +62,12 @@ El mismo script viene adjunto a cada versión, en
 `raw.githubusercontent.com`).
 
 Sin `--domain` sirve HTTP simple en las direcciones de la máquina
-(concurso en el puerto 80, ranking 8080, admin 8081), para un concurso en
-una red local. El instalador:
+(concurso en el puerto 80, ranking 8080, admin 8081; `--http-ports` los
+cambia), para un concurso en una red local. El instalador:
 
 1. comprueba la máquina (sistema, arquitectura, que no sea un contenedor,
-   grupos de control v2) y se detiene con una explicación si no puede
-   evaluar;
+   grupos de control v2, puertos web libres) y se detiene con una
+   explicación, antes de cambiar nada, si no puede evaluar o servir;
 2. descarga de GitHub la última versión para esta arquitectura y
    **verifica su suma SHA-256** (una descarga corrupta o alterada detiene
    todo);
@@ -89,9 +89,27 @@ y no cambia nada), `--web nginx` (nginx + certbot en lugar de Caddy),
 `--admin-allow 203.0.113.0/24` (quién puede abrir el admin), `--languages
 full` (las doce herramientas en lugar de C, C++, Python y Java),
 `--private-ip 10.8.0.1` (para que los [workers externos](worker-externo.md)
-lleguen a este servidor), `--no-firewall`, `--enable-cgroup-v2`. La lista
-completa: `--help`, o el comienzo de
+lleguen a este servidor), `--http-ports 8000,8001,8002` (puertos del
+concurso, el ranking y el admin en una LAN), `--no-firewall`,
+`--enable-cgroup-v2`. La lista completa: `--help`, o el comienzo de
 [scripts/install.sh](../../scripts/install.sh).
+
+**En una máquina que ya sirve otras cosas** (un servidor casero con
+Nextcloud, otro sitio web, contenedores): si un programa ya ocupa un puerto
+que necesita el servidor web del CMS, el instalador lo nombra antes de
+cambiar nada. En una LAN, elige tres puertos libres:
+
+```sh
+sudo bash install.sh --dry-run --lan --http-ports 8000,8001,8002   # primero, comprobar
+sudo bash install.sh --lan --http-ports 8000,8001,8002
+```
+
+Un dominio necesita los puertos 80 y 443 para sus certificados; en una
+máquina así usa `--lan` con `--http-ports`, o pon el CMS detrás del
+servidor web que ya los tiene. Un Redis que ya usa el 6379 no se toca (ver
+Valkey más abajo), y tampoco un Caddyfile que el instalador no escribió: se
+guarda como `/etc/caddy/Caddyfile.before-cms`. El firewall no se activa si
+otros programas escuchan en la máquina (ver Firewall más abajo).
 
 Sin acceso a Internet en el servidor, descarga `cms_<versión>_linux_<arq>.tar.gz`
 y `checksums.txt` de la [página de versiones](https://github.com/D4ND3R/Contest-Management-System/releases),
@@ -147,8 +165,9 @@ detiene y elimina los servicios, los binarios y `/opt/cms`, y conserva los
 datos: `/etc/cms` (configuración y secretos), `/var/lib/cms` (archivos y
 respaldos) y la base de datos PostgreSQL `cms`. `--uninstall --purge`
 borra también eso y el usuario `cms` (toma un respaldo antes). PostgreSQL,
-Valkey, el proxy, isolate y los compiladores quedan instalados. Agrega
-`--dry-run` para ver la lista primero.
+Valkey, el proxy, isolate y los compiladores quedan instalados; un
+Caddyfile guardado como `/etc/caddy/Caddyfile.before-cms` vuelve a su
+lugar. Agrega `--dry-run` para ver la lista primero.
 
 ## Qué hace el instalador, paso a paso
 
@@ -259,14 +278,29 @@ sitio de administración. Con nginx, `/etc/nginx/sites-available/cms` hace de
 proxy con `proxy_buffering off` (server-sent events) y `certbot --nginx`
 agrega los certificados. Los servicios del CMS escuchan solo en 127.0.0.1 y
 confían en `X-Forwarded-For` del proxy (`trusted_proxies`), así las
-restricciones por IP y los logs ven las direcciones de los concursantes.
+restricciones por IP y los logs ven las direcciones de los concursantes. Un
+Caddyfile que el instalador no escribió se guarda una vez como
+`/etc/caddy/Caddyfile.before-cms`.
 
 ### Firewall
 
-`ufw`: rechaza todo lo entrante salvo SSH, 80 y 443 (en una LAN: 80, 8080 y
-8081; el puerto del admin solo desde `--admin-allow`). Con `--private-ip`,
-los puertos 6379 (Valkey) y 8891 (servidor de blobs) se abren solo en esa
-dirección.
+`ufw`: rechaza todo lo entrante salvo SSH (el puerto 22 y cualquier otro en
+que escuche `sshd`), el puerto de WireGuard si hay un túnel activo, 80 y
+443 (en una LAN: los tres `--http-ports`, por
+defecto 80, 8080 y 8081; el puerto del admin solo desde `--admin-allow`).
+Con `--private-ip`, el puerto de Valkey (6379) y el 8891 (servidor de
+blobs) se abren solo en esa dirección.
+
+Si `ufw` todavía no está activo y algo más escucha en las direcciones de
+la máquina, por TCP o UDP (cualquier cosa salvo SSH, WireGuard, los puertos
+publicados de contenedores, los servicios del propio CMS y los demonios
+habituales de DHCP, mDNS y hora), un firewall que rechaza todo por defecto
+lo dejaría sin acceso: el instalador no lo activa, nombra cada uno con su
+puerto (`node:3000/tcp`; `2049/tcp` para los del propio kernel, como NFS) y
+los puertos que necesita el CMS, para que los permitas todos
+(`sudo ufw allow PUERTO/tcp`) antes de `sudo ufw enable`.
+Ten en cuenta que Docker publica los puertos de sus contenedores por fuera
+de `ufw`.
 
 ### Base de datos y primer administrador
 

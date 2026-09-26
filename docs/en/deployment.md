@@ -60,11 +60,12 @@ The same script is attached to every release, at
 reachable from the server).
 
 Without `--domain` it serves plain HTTP on the machine's addresses
-(contest on port 80, ranking 8080, admin 8081), for a contest on a local
-network. It:
+(contest on port 80, ranking 8080, admin 8081; `--http-ports` changes
+them), for a contest on a local network. It:
 
 1. checks the machine (system, architecture, not a container, control
-   groups v2) and stops with an explanation if it cannot judge;
+   groups v2, free web ports) and stops with an explanation, before
+   changing anything, if it cannot judge or cannot serve;
 2. downloads the latest release for this architecture from GitHub and
    **verifies its SHA-256 checksum** (a corrupted or tampered download
    stops everything);
@@ -85,8 +86,26 @@ nothing), `--web nginx` (nginx + certbot instead of Caddy), `--admin-allow
 203.0.113.0/24` (who may open the admin), `--languages full` (all twelve
 toolchains instead of C, C++, Python and Java), `--private-ip 10.8.0.1`
 (let [external workers](external-worker.md) reach this server),
+`--http-ports 8000,8001,8002` (contest, ranking and admin ports on a LAN),
 `--no-firewall`, `--enable-cgroup-v2`. The whole list: `--help`, or the top
 of [scripts/install.sh](../../scripts/install.sh).
+
+**On a machine that already serves something** (a home server with
+Nextcloud, another web site, containers): a program that already holds a
+port CMS's web server needs is reported by name before anything is
+changed. On a LAN, pick three free ports:
+
+```sh
+sudo bash install.sh --dry-run --lan --http-ports 8000,8001,8002   # check first
+sudo bash install.sh --lan --http-ports 8000,8001,8002
+```
+
+A domain needs ports 80 and 443 for its certificates, so on such a machine
+use `--lan` with `--http-ports`, or put CMS behind the web server that
+already has them. A Redis already on 6379 is left alone (see Valkey
+below), and so is a Caddyfile the installer did not write: it is kept as
+`/etc/caddy/Caddyfile.before-cms`. The firewall is not enabled when other
+programs listen on the machine (see Firewall below).
 
 Without Internet access on the server, download `cms_<version>_linux_<arch>.tar.gz`
 and `checksums.txt` from the [releases page](https://github.com/D4ND3R/Contest-Management-System/releases),
@@ -141,8 +160,9 @@ stops and removes the services, the binaries and `/opt/cms`, and keeps the
 data: `/etc/cms` (configuration and secrets), `/var/lib/cms` (files and
 backups) and the PostgreSQL database `cms`. `--uninstall --purge` deletes
 those too, and the `cms` user (take a backup first). PostgreSQL, Valkey,
-the proxy, isolate and the compilers stay installed. Add `--dry-run` to see
-the list first.
+the proxy, isolate and the compilers stay installed; a Caddyfile kept as
+`/etc/caddy/Caddyfile.before-cms` is put back. Add `--dry-run` to see the
+list first.
 
 ## What the installer does, step by step
 
@@ -252,13 +272,24 @@ With nginx, `/etc/nginx/sites-available/cms` proxies with
 `proxy_buffering off` (server-sent events) and `certbot --nginx` adds the
 certificates. The CMS services listen on 127.0.0.1 only and trust
 `X-Forwarded-For` from the proxy (`trusted_proxies`), so IP restrictions
-and logs see the contestants' addresses.
+and logs see the contestants' addresses. A Caddyfile the installer did
+not write is kept once as `/etc/caddy/Caddyfile.before-cms`.
 
 ### Firewall
 
-`ufw`: deny incoming except SSH, 80 and 443 (on a LAN: 80, 8080 and 8081;
-the admin port only from `--admin-allow`). With `--private-ip`, ports 6379
-(Valkey) and 8891 (blob server) are open on that address only.
+`ufw`: deny incoming except SSH (port 22 and any other port `sshd`
+listens on), WireGuard's port if a tunnel is up, 80 and 443 (on a LAN: the three `--http-ports`, by default 80,
+8080 and 8081; the admin port only from `--admin-allow`). With
+`--private-ip`, Valkey's port (6379) and 8891 (blob server) are open on
+that address only.
+
+When `ufw` is not active yet and anything else listens on the machine's
+addresses, TCP or UDP (anything but SSH, WireGuard, containers' published
+ports, CMS's own services and the usual DHCP, mDNS and time daemons), a
+deny-by-default firewall would cut it off: the installer leaves it off,
+names each listener with its port (`node:3000/tcp`; `2049/tcp` for the
+kernel's own, such as NFS) and the ports CMS needs, so you can allow them
+all (`sudo ufw allow PORT/tcp`) before `sudo ufw enable`. Note that Docker publishes container ports past `ufw`.
 
 ### Database and first administrator
 

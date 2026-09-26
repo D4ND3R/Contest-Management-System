@@ -1029,3 +1029,52 @@ redis-server on 6379 and a cms.yaml from the failed run. The published
 installer fails the same way; the fixed one finishes on 6380, with Redis
 untouched. `TestInstallValkeyPort` covers the port choice and
 `sync_ports`.
+
+## D81. Sharing the machine: web ports, the firewall and the Caddyfile
+The same Ubuntu 26.04 server runs Nextcloud AIO, whose containers publish
+ports 80, 443 and 8080. With `--lan`, CMS's Caddy needs 80, 8080 and 8081,
+so it would fail next, after the packages, the database and the services
+were already set up. Its firewall step would also have enabled `ufw` deny
+by default on a machine that serves other things, which cuts them off (and
+the administrator too, with SSH on another port).
+
+- **Web ports are checked first.** `detect()` checks the ports the web
+  server needs (on a LAN the three site ports, for a domain 80 and 443)
+  and names the program holding each. Like every blocker, it stops a real
+  run before anything changes and is listed by `--dry-run`. The web
+  server CMS configures (a re-run) is not a conflict.
+- **`--http-ports C,R,A`** moves the contest, ranking and admin sites on a
+  LAN (default 80,8080,8081). It is refused with `--domain` (ACME needs
+  80/443; behind an existing proxy is the way there) and for 8888-8891,
+  where the CMS services themselves listen on 127.0.0.1. Picking free
+  ports automatically was rejected: unlike Valkey's port, which only CMS
+  reads, these are the addresses people type, so they must be chosen and
+  known.
+- **The firewall is not enabled over other services.** When `ufw` is not
+  active yet and anything else listens on a non-loopback address, TCP or
+  UDP, the step names each listener with its port, prints the ports CMS
+  needs and the commands, and leaves the decision to the administrator.
+  Not counted: SSH, WireGuard, containers' published ports
+  (`docker-proxy`; Docker bypasses `ufw` for them anyway), CMS's own
+  services and the usual DHCP, mDNS and time daemons. Sockets without a
+  program are the kernel's (WireGuard, NFS) and are named by port;
+  `systemd` is counted unless the port is SSH's (socket activation).
+  When it does enable `ufw`, it also allows every port `sshd` or
+  `ssh.socket` listens on (not only 22) and WireGuard's listen ports
+  (`wg show`), so neither the administrator nor the workers are locked
+  out.
+- **A Caddyfile the installer did not write** (the package's example, or
+  another site's) is copied once to `Caddyfile.before-cms`, and
+  `--uninstall` puts it back.
+
+Verified in an Ubuntu 26.04 container with listeners on 80, 443 and 8080
+named `docker-proxy` and a Redis on 6379. The default ports are blocked
+before any change, with `--http-ports` and the example. With
+`--http-ports 8000,8001,8002` it installs; contest, ranking and admin
+answer through Caddy while :80 stays with the other program. With
+another service (a listener on 3000) the firewall is left off, and a
+re-run is clean. A custom Caddyfile is kept and restored by
+`--uninstall`. `TestInstallWebPorts` covers the port check, the option's
+validation, the rendered Caddy/nginx configuration and both firewall
+paths: TCP, UDP, kernel and `systemd` listeners, SSH on 2222 and a
+WireGuard tunnel.

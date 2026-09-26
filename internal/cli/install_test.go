@@ -476,3 +476,115 @@ func TestInstallValkeyPort(t *testing.T) {
 		t.Errorf("sync_ports: %v\n%s\n%s", err, out, got)
 	}
 }
+
+// fakeSS makes an ss that reports the given listeners ("80/tcp" ->
+// program, "" for a kernel socket): with "sport = :PORT" only that TCP
+// port, otherwise every listener of the protocol asked for (-ltnpH or
+// -lunpH). wg, when given, is what `wg show all listen-port` prints.
+func fakeSS(t *testing.T, listeners map[string]string, wg string) string {
+	t.Helper()
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "bin")
+	os.MkdirAll(filepath.Join(dir, "ports"), 0o755)
+	os.MkdirAll(bin, 0o755)
+	for port, name := range listeners {
+		p, proto, _ := strings.Cut(port, "/")
+		os.WriteFile(filepath.Join(dir, "ports", proto+"-"+p), []byte(name), 0o644)
+	}
+	os.WriteFile(filepath.Join(bin, "ss"), []byte(`#!/bin/sh
+D="`+dir+`/ports"
+line() { n=$(cat "$D/$2-$1"); u=""; [ -n "$n" ] && u="users:((\"$n\",pid=7,fd=8))"; echo "LISTEN 0 511 0.0.0.0:$1 0.0.0.0:* $u"; }
+case "$1" in -lunpH) proto=udp ;; *) proto=tcp ;; esac
+case "$2" in
+  *:*) p=${2##*:}; [ -f "$D/$proto-$p" ] && line "$p" $proto ;;
+  *) for f in "$D"/$proto-*; do [ -f "$f" ] && line "${f##*-}" $proto; done ;;
+esac
+exit 0
+`), 0o755)
+	if wg != "" {
+		os.WriteFile(filepath.Join(bin, "wg"), []byte("#!/bin/sh\nprintf '"+wg+"\\n'\n"), 0o755)
+	}
+	return bin
+}
+
+// TestInstallWebPorts: on a machine that already serves something (another
+// web server, a container), the web ports are checked before anything
+// changes, --http-ports moves the LAN sites, and the firewall is left to the
+// administrator instead of cutting the other services off; SSH stays open
+// on whatever port it listens.
+func TestInstallWebPorts(t *testing.T) {
+	// The chosen ports reach Caddy, nginx and the firewall.
+	for _, web := range []string{"caddy", "nginx"} {
+		dir := t.TempDir()
+		runInstall(t, "--render-only", dir, "--lan", "--web", web, "--http-ports", "8000,8001,8002", "--cpus", "2", "--ram-mb", "4096")
+		files := readTree(t, dir)
+		conf := files["etc/caddy/Caddyfile"]
+		if web == "nginx" {
+			conf = files["etc/nginx/sites-available/cms"]
+		}
+		for _, p := range []string{"8000", "8001", "8002"} {
+			if !strings.Contains(conf, p) {
+				t.Errorf("%s configuration lacks port %s:\n%s", web, p, conf)
+			}
+		}
+		if strings.Contains(conf, ":80 ") || strings.Contains(conf, "listen 80;") {
+			t.Errorf("%s still on port 80:\n%s", web, conf)
+		}
+	}
+	for _, bad := range [][]string{{"--lan", "--http-ports", "8000,8000,8001"}, {"--lan", "--http-ports", "web"}, {"--lan", "--http-ports", "0,8001,8002"}, {"--lan", "--http-ports", "8000,8888,8002"}, {"--domain", "x.org", "--http-ports", "8000,8001,8002"}} {
+		cmd := exec.Command("bash", append([]string{filepath.Join("..", "..", "scripts", "install.sh"), "--dry-run"}, bad...)...)
+		if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "--http-ports") {
+			t.Errorf("%v accepted: %s", bad, out)
+		}
+	}
+
+	ubuntu := "ID=ubuntu\nVERSION_ID=\"24.04\"\nPRETTY_NAME=\"Ubuntu 24.04 LTS\"\n"
+	ts := fakeRelease(t, "9.9.9", false)
+	withSS := func(listeners map[string]string, wg string) []string {
+		env := installEnv(t, ubuntu, "x86_64", "none", "cgroup2fs")
+		return append(env, "PATH="+fakeSS(t, listeners, wg)+":"+os.Getenv("PATH"))
+	}
+	// Nextcloud-style containers on 80 and 8080: reported before any change,
+	// with the way out.
+	nextcloud := map[string]string{"80/tcp": "docker-proxy", "8080/tcp": "docker-proxy", "443/tcp": "docker-proxy", "2222/tcp": "sshd", "68/udp": "systemd-network"}
+	out, err := runInstallEnv(withSS(nextcloud, ""), "", "--dry-run", "--release-url", ts.URL, "--lan")
+	if err != nil || !strings.Contains(out, "BLOCKER: port 80 is used by docker-proxy") || !strings.Contains(out, "BLOCKER: port 8080 is used by docker-proxy") ||
+		!strings.Contains(out, "--http-ports 8000,8001,8002") {
+		t.Fatalf("taken web ports: %v\n%s", err, out)
+	}
+	if out, err := runInstallEnv(withSS(nextcloud, ""), "", "--dry-run", "--release-url", ts.URL, "--domain", "cms.example.org"); err != nil ||
+		!strings.Contains(out, "BLOCKER: port 80 is used by docker-proxy: HTTPS for a domain needs ports 80 and 443") {
+		t.Fatalf("taken HTTPS ports: %v\n%s", err, out)
+	}
+	// Free ports: no blocker; containers do not keep the firewall off, and
+	// SSH on 2222 is allowed before it is enabled.
+	out, err = runInstallEnv(withSS(nextcloud, ""), "", "--dry-run", "--release-url", ts.URL, "--lan", "--http-ports", "8000,8001,8002")
+	if err != nil || strings.Contains(out, "BLOCKER") || !strings.Contains(out, "would run: ufw allow 2222/tcp") ||
+		!strings.Contains(out, "would run: ufw allow 8000/tcp") || !strings.Contains(out, "would run: ufw --force enable") ||
+		!strings.Contains(out, "contest:  http://<this machine>:8000/") {
+		t.Fatalf("free ports: %v\n%s", err, out)
+	}
+	// Another service on the machine, TCP or UDP, or a kernel one: the
+	// firewall is left off, with what CMS needs.
+	for _, other := range []struct{ port, name, want string }{
+		{"3000/tcp", "node", "node:3000/tcp"},
+		{"41641/udp", "tailscaled", "tailscaled:41641/udp"},
+		{"2049/tcp", "", "2049/tcp"},
+		{"8765/tcp", "systemd", "systemd:8765/tcp"},
+	} {
+		busy := map[string]string{"80/tcp": "docker-proxy", "22/tcp": "sshd", other.port: other.name}
+		out, err = runInstallEnv(withSS(busy, ""), "", "--dry-run", "--release-url", ts.URL, "--lan", "--http-ports", "8000,8001,8002")
+		if err != nil || !strings.Contains(out, "left off: other programs listen on this machine ("+other.want+")") ||
+			!strings.Contains(out, "CMS needs TCP 22 8000 8001 8002 open") || strings.Contains(out, "ufw --force enable") {
+			t.Fatalf("other service %s: %v\n%s", other.want, err, out)
+		}
+	}
+	// A WireGuard tunnel (a kernel UDP socket) and SSH through systemd's
+	// socket are kept open instead.
+	tunnel := map[string]string{"51820/udp": "", "22/tcp": "systemd"}
+	out, err = runInstallEnv(withSS(tunnel, "wg0\t51820"), "", "--dry-run", "--release-url", ts.URL, "--lan", "--http-ports", "8000,8001,8002")
+	if err != nil || strings.Contains(out, "left off") || !strings.Contains(out, "would run: ufw allow 51820/udp") ||
+		!strings.Contains(out, "would run: ufw --force enable") {
+		t.Fatalf("WireGuard: %v\n%s", err, out)
+	}
+}
