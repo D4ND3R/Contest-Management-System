@@ -199,6 +199,12 @@ if command -v timedatectl >/dev/null && [ -d /run/systemd/system ]; then
 else
   info "clock synchronisation not checked (no systemd)"
 fi
+# The worker builds its seccomp filter (the sandbox's second wall) with the
+# system C compiler; the kernel must support seccomp filters.
+if ! grep -q '^Seccomp:' /proc/self/status 2>/dev/null; then
+  warn "the kernel has no seccomp support: programs are confined by isolate alone" "use a kernel built with CONFIG_SECCOMP_FILTER (every distribution kernel is)"
+elif command -v cc >/dev/null; then ok "C compiler present: the worker builds its seccomp filter"
+else warn "no C compiler: the worker cannot build its seccomp filter" "sudo apt-get install gcc libc6-dev (then restart cms-worker)"; fi
 if command -v isolate-check-environment >/dev/null; then
   # Its warnings (ASLR, transparent huge pages, ...) make times less stable.
   CE=$(isolate-check-environment 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E '^WARNING' || true)

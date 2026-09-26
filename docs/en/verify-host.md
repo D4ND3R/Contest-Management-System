@@ -26,6 +26,7 @@ they must not belong to a running worker).
 | isolate | missing, not setuid root, no configuration, unsafe `box_root` | `scripts/install-isolate.sh`, `chown`/`chmod` |
 | control groups | cgroup v1 with isolate 2, missing controllers (cpuset, memory, pids), `isolate.service` stopped | kernel parameter, `systemctl enable --now isolate.service` |
 | sandbox | `isolate --cg --init` / `--run` fails | the isolate error |
+| seccomp | never (warning without kernel support or a C compiler) | `apt-get install gcc libc6-dev` |
 | CPUs, SMT, turbo, governor, swap, NTP, ASLR, huge pages | never (warnings) | how to make times stable |
 | judge self-test | any verdict unexpected, any host check failing, any verdict different between runs | see below |
 
@@ -60,7 +61,10 @@ as the workers and on the configured judging cores:
   host files, network access, writing outside the box, sleeping forever,
   memory and output hogs, huge stderr, `#include </dev/random>` and
   `</dev/zero>` at compile time, threads with and without allowance,
-  `kill(-1)`, stack overflow, privilege escalation. Besides the verdict it
+  `kill(-1)`, stack overflow, privilege escalation, and the calls the
+  [seccomp filter](security.md) forbids (user namespaces, `clone` into a new
+  network, `bpf`, `io_uring`, `ptrace`, `keyctl`, `perf_event_open`), which
+  must end in a security violation. Besides the verdict it
   checks the host: no process of the sandbox users survives, no file
   appears outside the box, a listener on the host receives no connection;
 - the **sample solutions** (AC, WA, TLE, MLE, RE, CE) in every language

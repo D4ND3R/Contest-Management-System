@@ -26,6 +26,7 @@ func TestClassify(t *testing.T) {
 		{"abort at ceiling", map[string]string{"status": "SG", "exitsig": "6", "cg-mem": "65500"}, true, StatusMemory},
 		{"rss at ceiling no cg", map[string]string{"status": "RE", "exitcode": "1", "max-rss": "65536"}, false, StatusMemory},
 		{"xfsz", map[string]string{"status": "SG", "exitsig": "25"}, true, StatusOutputLimit},
+		{"seccomp", map[string]string{"status": "SG", "exitsig": "31", "cg-mem": "1000"}, true, StatusSecurity},
 		{"internal", map[string]string{"status": "XX", "message": "boom"}, true, StatusSandboxError},
 	}
 	for _, c := range cases {
@@ -67,6 +68,20 @@ func TestArgs(t *testing.T) {
 	if got := strings.Join(b.args(&Spec{Args: []string{"x"}, Limits: Limits{Memory: 1 << 20}}), " "); !strings.Contains(got, "--mem=1024") || !strings.Contains(got, "--processes=1") ||
 		!strings.Contains(got, "--stdin=/dev/null") || !strings.Contains(got, "--stdout=/dev/null") || !strings.Contains(got, "--stderr=/dev/null") || !strings.Contains(got, "--dir=/dev/shm:tmp") {
 		t.Errorf("no-cg args %q", got)
+	}
+}
+
+// TestArgsSeccomp: with a launcher every run goes through it (mounted
+// read-only), unless the spec opts out.
+func TestArgsSeccomp(t *testing.T) {
+	b := &Box{ID: 1, iso: &Isolate{Launcher: "/var/lib/cms/launcher/cms-seccomp-abc"}, metaPath: "/tmp/m"}
+	got := strings.Join(b.args(&Spec{Args: []string{"./sol", "-x"}}), " ")
+	if !strings.Contains(got, "--dir=/cms-launcher=/var/lib/cms/launcher --run -- /cms-launcher/cms-seccomp-abc ./sol -x") {
+		t.Fatalf("launcher args %q", got)
+	}
+	if got := strings.Join(b.args(&Spec{Args: []string{"./sol"}, NoSeccomp: true}), " "); strings.Contains(got, "cms-launcher") ||
+		!strings.HasSuffix(got, "--run -- ./sol") {
+		t.Fatalf("opt-out args %q", got)
 	}
 }
 

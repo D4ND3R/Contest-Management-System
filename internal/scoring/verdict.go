@@ -9,6 +9,7 @@ const (
 	VerdictRuntime      = "RE"
 	VerdictOutputLimit  = "OLE"
 	VerdictCompileError = "CE"
+	VerdictSecurity     = "SV"
 )
 
 // ICPCVerdict is the binary verdict of a submission scored with details d:
@@ -45,6 +46,8 @@ func failureVerdict(status string) string {
 		return VerdictRuntime
 	case "output_limit":
 		return VerdictOutputLimit
+	case "security":
+		return VerdictSecurity
 	}
 	return VerdictWrong
 }

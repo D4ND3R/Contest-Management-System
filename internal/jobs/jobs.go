@@ -84,6 +84,9 @@ type Compilation struct {
 	WallTime    float64 `json:"wall_time"`
 	Memory      int64   `json:"memory"`
 	Executables []File  `json:"executables,omitempty"`
+	// Security: the compiler was stopped by the seccomp filter (the
+	// source tried something the sandbox forbids).
+	Security bool `json:"security,omitempty"`
 }
 
 // Evaluation of one testcase.

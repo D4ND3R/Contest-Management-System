@@ -89,6 +89,7 @@ var tables = []table{
 	{"tokens", inSubmissions, "id", true},
 	{"submission_results", inSubmissions, "submission_id, dataset_id", true},
 	{"evaluations", inSubmissions, "submission_id, dataset_id, testcase_id", true},
+	{"submission_flags", inSubmissions, "submission_id, kind, reason", true},
 	{"participation_task_scores", inParticipations + " AND " + inTasks, "participation_id, task_id", true},
 	{"score_adjustments", inParticipations + " AND " + inTasks, "id", true},
 }

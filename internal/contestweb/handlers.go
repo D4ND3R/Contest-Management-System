@@ -22,6 +22,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
+	"github.com/D4ND3R/Contest-Management-System/internal/suspicious"
 	"github.com/D4ND3R/Contest-Management-System/internal/tasktypes"
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 	"github.com/jackc/pgx/v5"
@@ -490,8 +491,15 @@ func (s *Server) storeSubmission(r *http.Request, rc *reqCtx, t *taskView, files
 		params[i] = sqlc.CreateSubmissionFilesParams{Filename: f.name, Digest: info.Digest}
 	}
 	var langID *string
+	var flags []suspicious.Flag
 	if lang != nil {
 		langID = &lang.ID
+		// Sources only (output-only submissions have no language).
+		src := make(map[string][]byte, len(files))
+		for _, f := range files {
+			src[f.name] = f.data
+		}
+		flags = suspicious.Scan(lang.ID, src)
 	}
 	var id int64
 	err := db.InTx(ctx, s.pool, func(tx pgx.Tx, q *sqlc.Queries) error {
@@ -504,8 +512,16 @@ func (s *Server) storeSubmission(r *http.Request, rc *reqCtx, t *taskView, files
 		for i := range params {
 			params[i].SubmissionID = id
 		}
-		_, err = q.CreateSubmissionFiles(ctx, params)
-		return err
+		if _, err = q.CreateSubmissionFiles(ctx, params); err != nil {
+			return err
+		}
+		for _, f := range flags {
+			if err := q.InsertSubmissionFlag(ctx, sqlc.InsertSubmissionFlagParams{SubmissionID: id, Kind: "source",
+				Reason: f.Reason, Detail: f.Detail}); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return 0, err

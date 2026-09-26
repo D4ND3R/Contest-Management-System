@@ -27,6 +27,7 @@ marcha).
 | isolate | falta, no es setuid root, sin configuración, `box_root` inseguro | `scripts/install-isolate.sh`, `chown`/`chmod` |
 | grupos de control | cgroup v1 con isolate 2, faltan controladores (cpuset, memory, pids), `isolate.service` detenido | parámetro del kernel, `systemctl enable --now isolate.service` |
 | sandbox | `isolate --cg --init` / `--run` falla | el error de isolate |
+| seccomp | nunca (advertencia sin soporte del kernel o sin compilador de C) | `apt-get install gcc libc6-dev` |
 | CPUs, SMT, turbo, gobernador, swap, NTP, ASLR, huge pages | nunca (advertencias) | cómo estabilizar los tiempos |
 | autoprueba del juez | un veredicto inesperado, una comprobación del host fallida, un veredicto distinto entre corridas | ver abajo |
 
@@ -63,7 +64,10 @@ código que los workers y en los núcleos de evaluación configurados:
   lectura de archivos del host, acceso a la red, escritura fuera de la caja,
   dormir para siempre, consumo excesivo de memoria y de salida, stderr
   enorme, `#include </dev/random>` y `</dev/zero>` al compilar, hilos con y
-  sin permiso, `kill(-1)`, desbordamiento de pila, escalada de privilegios.
+  sin permiso, `kill(-1)`, desbordamiento de pila, escalada de privilegios,
+  y las llamadas que el [filtro seccomp](seguridad.md) prohíbe (namespaces de
+  usuario, `clone` a una red nueva, `bpf`, `io_uring`, `ptrace`, `keyctl`,
+  `perf_event_open`), que deben terminar en violación de seguridad.
   Además del veredicto comprueba el host: ningún proceso de los usuarios de
   la sandbox sobrevive, no aparece ningún archivo fuera de la caja, un
   servidor en el host no recibe conexiones;

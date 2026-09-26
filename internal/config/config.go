@@ -196,6 +196,10 @@ type Worker struct {
 	// Extra read-only directories bound inside every sandbox (e.g. /usr/lib/jvm).
 	SandboxDirs       []string `yaml:"sandbox_dirs"`
 	HeartbeatInterval Duration `yaml:"heartbeat_interval"`
+	// Seccomp: "auto" builds the seccomp launcher with the system C
+	// compiler and runs without it (with a warning) when that fails; "on"
+	// refuses to start without it; "off" never uses it.
+	Seccomp string `yaml:"seccomp"`
 }
 
 type Monitor struct {
@@ -294,7 +298,7 @@ func Default() *Config {
 			MetricsListen: ":9102", IsolatePath: "isolate", IsolateCG: true,
 			IsolateBoxRoot: "/var/local/lib/isolate", WorkDir: "./data/worker",
 			CacheDir: "./data/worker-cache", CacheMaxBytes: 2 << 30,
-			HeartbeatInterval: Duration(2 * time.Second),
+			HeartbeatInterval: Duration(2 * time.Second), Seccomp: "auto",
 		},
 		Monitor: Monitor{
 			MetricsListen: ":9103", HeartbeatTimeout: Duration(10 * time.Second),
@@ -360,6 +364,7 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 		"CMS_WORKER_CACHE_DIR":   &c.Worker.CacheDir,
 		"CMS_ISOLATE_PATH":       &c.Worker.IsolatePath,
 		"CMS_ISOLATE_BOX_ROOT":   &c.Worker.IsolateBoxRoot,
+		"CMS_WORKER_SECCOMP":     &c.Worker.Seccomp,
 		"CMS_DISPATCHER_METRICS": &c.Dispatcher.MetricsListen,
 		"CMS_WORKER_METRICS":     &c.Worker.MetricsListen,
 		"CMS_MONITOR_METRICS":    &c.Monitor.MetricsListen,
@@ -492,6 +497,11 @@ func (c *Config) Validate() error {
 		if err != nil || len(k) < 32 {
 			errs = append(errs, errors.New("secret_key must be at least 32 bytes, hex encoded"))
 		}
+	}
+	switch c.Worker.Seccomp {
+	case "", "auto", "on", "off":
+	default:
+		errs = append(errs, fmt.Errorf("worker.seccomp: %q is not auto, on or off", c.Worker.Seccomp))
 	}
 	if c.Dispatcher.MaxAttempts < 1 {
 		errs = append(errs, errors.New("dispatcher.max_attempts must be >= 1"))

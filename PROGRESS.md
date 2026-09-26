@@ -1085,3 +1085,21 @@ localization, H8 audit (`AUDIT.md` §10) and summary.
   ranking and backups docs follow the new menus (es/en).
 - `TestBlobGCKnowsEveryDigest` guards the blob garbage collector.
 
+### H3 — the sandbox's second wall (done)
+- **Seccomp filter** (D86): a C launcher built by the worker
+  (`internal/sandbox/seccomp.go`) kills programs on namespace, BPF,
+  io_uring, keyring, ptrace, mount, module, clock... calls; threads and
+  every language keep working (`TestSeccompLauncher`, `TestArgsSeccomp`;
+  in isolate: `TestMaliciousBattery` with seven new cases,
+  `TestSampleSolutions`, `TestSecurityViolation` end to end).
+- **Security violation** verdict (`security` status, verdict `SV`,
+  translated messages; compilation stopped by the filter).
+- **Suspicious submissions** (`internal/suspicious`, migration 0019):
+  source scan on arrival and runtime flags; shown on the submission page,
+  tagged and filterable in the list, counted on the dashboard
+  (`TestScan`, `TestSuspiciousSourceFlagged`, `TestSuspiciousSubmissions`).
+- `worker.seccomp: auto|on|off`; seccomp state per worker on the Judges
+  page and in the dashboard's health; self-test and verify-host report it.
+- Docs: `docs/en/security.md`, `docs/es/seguridad.md`, verify-host and
+  the admin guide.
+

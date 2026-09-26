@@ -70,6 +70,12 @@ func cmdJudgeSelftest(args []string, stdout, stderr io.Writer) error {
 	}
 	fmt.Fprintf(stdout, "judge self-test: cores %v, isolate %s (control groups %v), boxes %d-%d\n",
 		wc.Cores, wc.IsolatePath, wc.IsolateCG, *offset, *offset+boxes-1)
+	if j.Seccomp() {
+		fmt.Fprintln(stdout, "seccomp filter: on (forbidden system calls end in a security violation)")
+	} else {
+		fmt.Fprintln(stdout, "WARNING: the seccomp filter is off: programs are confined by isolate alone and its checks are skipped; "+
+			"install a C compiler (gcc) and restart the worker, or see worker.seccomp")
+	}
 	for _, p := range selftest.SharedCores("/sys/devices/system/cpu", wc.Cores) {
 		fmt.Fprintf(stdout, "WARNING: judging CPUs %d and %d are hyperthreads of one physical core: each slows the other down; "+
 			"keep one CPU per core in worker.cores (the installer does)\n", p[0], p[1])

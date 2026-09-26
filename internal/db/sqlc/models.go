@@ -324,6 +324,14 @@ type SubmissionFile struct {
 	Digest       string `json:"digest"`
 }
 
+type SubmissionFlag struct {
+	SubmissionID int64     `json:"submission_id"`
+	Kind         string    `json:"kind"`
+	Reason       string    `json:"reason"`
+	Detail       string    `json:"detail"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 type SubmissionResult struct {
 	SubmissionID        int64           `json:"submission_id"`
 	DatasetID           int64           `json:"dataset_id"`

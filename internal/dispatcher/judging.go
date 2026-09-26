@@ -14,6 +14,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/jobs"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 	"github.com/D4ND3R/Contest-Management-System/internal/scoring"
+	"github.com/D4ND3R/Contest-Management-System/internal/suspicious"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -313,6 +314,12 @@ func (d *Dispatcher) applyCompilation(ctx context.Context, q *sqlc.Queries, eff 
 	}); err != nil {
 		return wrap("set compilation", err)
 	}
+	if c.Security {
+		if err := q.InsertSubmissionFlag(ctx, sqlc.InsertSubmissionFlagParams{SubmissionID: sc.meta.ID, Kind: "runtime",
+			Reason: suspicious.Forbidden, Detail: "compilation"}); err != nil {
+			return wrap("flag submission", err)
+		}
+	}
 	if !c.Success {
 		return d.scoreCompilationFailure(ctx, q, eff, sc)
 	}
@@ -365,6 +372,13 @@ func (d *Dispatcher) applyEvaluations(ctx context.Context, q *sqlc.Queries, eff 
 			ExitCode: code, Signal: sig, Worker: &worker,
 		}); err != nil {
 			return wrap("upsert evaluation", err)
+		}
+		// "security": the seccomp filter stopped the program (sandbox.StatusSecurity).
+		if e.ExitStatus == "security" {
+			if err := q.InsertSubmissionFlag(ctx, sqlc.InsertSubmissionFlagParams{SubmissionID: sc.meta.ID, Kind: "runtime",
+				Reason: suspicious.Forbidden, Detail: "testcase " + sc.di.byID[e.TestcaseID].Codename}); err != nil {
+				return wrap("flag submission", err)
+			}
 		}
 	}
 	prog, err := q.RefreshTestcasesDone(ctx, sqlc.RefreshTestcasesDoneParams{SubmissionID: sc.meta.ID, DatasetID: sc.di.ds.ID})

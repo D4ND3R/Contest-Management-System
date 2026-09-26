@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
+	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
+	"github.com/D4ND3R/Contest-Management-System/internal/suspicious"
 	"github.com/D4ND3R/Contest-Management-System/internal/webtest"
 )
 
@@ -128,5 +130,35 @@ func TestContestBanner(t *testing.T) {
 	}
 	if code, _ := b.Get(path); code != http.StatusNotFound {
 		t.Fatalf("removed banner = %d", code)
+	}
+}
+
+// TestSuspiciousSubmissions (SPEC_IOI H3): flagged submissions show why on
+// their page, have a tag and a filter in the list, and a notification on
+// the dashboard; the workers' seccomp state is on the system page.
+func TestSuspiciousSubmissions(t *testing.T) {
+	f := newFixture(t)
+	b := f.login("all")
+	sub := f.subs[0]
+	if err := f.q.InsertSubmissionFlag(bg, sqlc.InsertSubmissionFlagParams{SubmissionID: sub, Kind: "source", Reason: suspicious.Process,
+		Detail: `sum.%l:2: system("id");`}); err != nil {
+		t.Fatal(err)
+	}
+	f.q.InsertSubmissionFlag(bg, sqlc.InsertSubmissionFlagParams{SubmissionID: sub, Kind: "runtime", Reason: suspicious.Forbidden, Detail: "testcase 0"})
+	code, body := b.Get(fmt.Sprintf("/submissions/%d", sub))
+	if code != 200 || !strings.Contains(body, "Suspicious submission") || !strings.Contains(body, "starts other programs") ||
+		!strings.Contains(body, "seen by the sandbox") || !strings.Contains(body, "system(&#34;id&#34;);") {
+		t.Fatalf("submission page: %d\n%s", code, body)
+	}
+	list := fmt.Sprintf("/contests/%d/submissions", f.contest.ID)
+	if _, body := b.Get(list); !strings.Contains(body, "suspicious</span>") {
+		t.Fatal("no suspicious tag in the list")
+	}
+	_, body = b.Get(list + "?status=flagged")
+	if !strings.Contains(body, fmt.Sprintf(`href="/submissions/%d"`, sub)) || strings.Contains(body, fmt.Sprintf(`href="/submissions/%d"`, f.subs[1])) {
+		t.Fatalf("flagged filter:\n%s", body)
+	}
+	if _, body := b.Get(fmt.Sprintf("/contests/%d", f.contest.ID)); !strings.Contains(body, "1 suspicious submissions") {
+		t.Fatal("no dashboard notification")
 	}
 }

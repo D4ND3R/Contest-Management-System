@@ -116,6 +116,9 @@ func seed(t *testing.T, pool *pgxpool.Pool, store blob.Store) int64 {
 		s := must[sqlc.Submission](t)(q.CreateSubmission(ctx, sqlc.CreateSubmissionParams{ParticipationID: &p.ID, TaskID: tasks[ti].ID,
 			SubmittedAt: now.Add(-2 * time.Hour), Language: ptr("cpp17"), Official: true}))
 		must[int64](t)(q.CreateSubmissionFiles(ctx, []sqlc.CreateSubmissionFilesParams{{SubmissionID: s.ID, Filename: tasks[ti].Name + ".%l", Digest: put(src)}}))
+		if strings.Contains(src, "system(") {
+			check(t, q.InsertSubmissionFlag(ctx, sqlc.InsertSubmissionFlagParams{SubmissionID: s.ID, Kind: "source", Reason: "starts other programs"}))
+		}
 		key := sqlc.EnsureSubmissionResultParams{SubmissionID: s.ID, DatasetID: active[ti].ID}
 		check(t, q.EnsureSubmissionResult(ctx, key))
 		must[int64](t)(q.SetCompilationResult(ctx, sqlc.SetCompilationResultParams{SubmissionID: s.ID, DatasetID: active[ti].ID,
@@ -135,7 +138,7 @@ func seed(t *testing.T, pool *pgxpool.Pool, store blob.Store) int64 {
 	}
 	s1 := submit(pa, 0, "int main(){}", 100)
 	submit(pa, 1, "int main(){return 0;}", 50)
-	submit(pb, 0, "wrong", 0)
+	submit(pb, 0, "wrong system(1)", 0)
 	must[sqlc.Token](t)(q.CreateToken(ctx, sqlc.CreateTokenParams{SubmissionID: s1.ID, PlayedAt: now.Add(-90 * time.Minute)}))
 	check(t, func() error {
 		_, err := pool.Exec(ctx, "UPDATE submissions SET invalidated_by = $1 WHERE id = $2", admin.ID, s1.ID)
@@ -225,7 +228,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 	h, arch := export(t, src, srcStore, id, Options{Submissions: true})
 	want := map[string]int64{"contests": 1, "sites": 1, "certificate_templates": 1, "users": 2, "teams": 1, "tasks": 2, "statements": 2, "attachments": 2,
 		"task_examples": 2, "datasets": 4, "managers": 4, "testcases": 8, "participations": 2, "announcements": 1, "questions": 1, "messages": 1,
-		"submissions": 3, "submission_files": 3, "tokens": 1, "submission_results": 3, "evaluations": 6,
+		"submissions": 3, "submission_files": 3, "tokens": 1, "submission_results": 3, "evaluations": 6, "submission_flags": 1,
 		"participation_task_scores": 3, "score_adjustments": 1}
 	for name, n := range want {
 		if h.Rows(name) != n {

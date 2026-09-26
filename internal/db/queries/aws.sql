@@ -7,7 +7,8 @@ SELECT s.id, s.submitted_at, s.language, s.official, s.participation_id, s.task_
        u.username, t.name AS task_name, t.score_precision,
        sr.compilation_outcome, sr.testcases_done, sr.testcases_total, sr.score, sr.scored_at,
        sr.system_error, sr.verdict, (tk.submission_id IS NOT NULL)::boolean AS tokened,
-       (s.invalidated_at IS NOT NULL)::boolean AS invalidated
+       (s.invalidated_at IS NOT NULL)::boolean AS invalidated,
+       EXISTS (SELECT 1 FROM submission_flags f WHERE f.submission_id = s.id)::boolean AS flagged
 FROM submissions s
 JOIN participations p ON p.id = s.participation_id
 JOIN users u ON u.id = p.user_id
@@ -26,6 +27,7 @@ WHERE p.contest_id = @contest_id::bigint
         WHEN 'compile_failed' THEN sr.compilation_outcome = 'fail'
         WHEN 'scored' THEN sr.scored_at IS NOT NULL AND sr.compilation_outcome = 'ok'
         WHEN 'error' THEN sr.system_error IS NOT NULL
+        WHEN 'flagged' THEN EXISTS (SELECT 1 FROM submission_flags f WHERE f.submission_id = s.id)
         ELSE true END)
   AND (sqlc.narg(verdict)::text IS NULL OR sr.verdict = sqlc.narg(verdict)::text)
   AND (sqlc.narg(from_time)::timestamptz IS NULL OR s.submitted_at >= sqlc.narg(from_time)::timestamptz)
@@ -333,3 +335,12 @@ LIMIT @lim::int;
 -- Teams taking part in a contest (the dashboard banner; participations of
 -- one contest through the (contest_id, user_id) unique index).
 SELECT count(DISTINCT team_id)::bigint FROM participations WHERE contest_id = $1 AND team_id IS NOT NULL;
+
+-- name: AdminContestFlagged :one
+-- Flagged submissions of a contest (the dashboard's notification; flags
+-- are few, read through their primary key).
+SELECT count(DISTINCT f.submission_id)::bigint
+FROM submission_flags f
+JOIN submissions s ON s.id = f.submission_id
+JOIN participations p ON p.id = s.participation_id
+WHERE p.contest_id = $1;

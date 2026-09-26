@@ -36,6 +36,8 @@ type WorkerStatus struct {
 	Alive     bool         `json:"alive"`
 	// Host is the load of the worker's machine.
 	Host *hoststat.Stats `json:"host,omitempty"`
+	// Seccomp: programs run behind the seccomp filter.
+	Seccomp bool `json:"seccomp"`
 }
 
 func (q *Queue) workerKey(name string) string { return q.Key("worker", name) }

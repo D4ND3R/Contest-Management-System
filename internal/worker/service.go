@@ -150,7 +150,8 @@ func (s *Service) heartbeat(ctx context.Context) {
 		hs := s.host.Sample(s.dirs...)
 		s.mu.Lock()
 		st := &queue.WorkerStatus{Name: s.exec.Name, Hostname: host, Version: version.String(), StartedAt: s.started,
-			Slots: append([]queue.SlotStatus(nil), s.slots...), JobsDone: s.jobsDone.Load(), Errors: s.errors.Load(), Host: &hs}
+			Slots: append([]queue.SlotStatus(nil), s.slots...), JobsDone: s.jobsDone.Load(), Errors: s.errors.Load(), Host: &hs,
+			Seccomp: s.exec.Seccomp()}
 		s.mu.Unlock()
 		if err := s.q.Heartbeat(ctx, st, 4*s.interval); err != nil && ctx.Err() == nil {
 			s.log.Warn("heartbeat", "error", err)

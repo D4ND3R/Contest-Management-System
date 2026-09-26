@@ -50,6 +50,9 @@ func NewSlot(iso *Isolate, index, core int, ids []int) *Slot {
 // SetMaintenanceCores sets the CPUs used for background re-initialisation.
 func (s *Slot) SetMaintenanceCores(cpus []int) { s.maint = cpus }
 
+// Isolate is the sandbox configuration of the slot.
+func (s *Slot) Isolate() *Isolate { return s.iso }
+
 // NumBoxes returns how many logical boxes the slot owns.
 func (s *Slot) NumBoxes() int { return len(s.boxes) }
 

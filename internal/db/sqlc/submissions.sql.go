@@ -227,6 +227,28 @@ func (q *Queries) InsertExecutable(ctx context.Context, arg InsertExecutablePara
 	return err
 }
 
+const insertSubmissionFlag = `-- name: InsertSubmissionFlag :exec
+INSERT INTO submission_flags (submission_id, kind, reason, detail) VALUES ($1, $2, $3, $4)
+ON CONFLICT DO NOTHING
+`
+
+type InsertSubmissionFlagParams struct {
+	SubmissionID int64  `json:"submission_id"`
+	Kind         string `json:"kind"`
+	Reason       string `json:"reason"`
+	Detail       string `json:"detail"`
+}
+
+func (q *Queries) InsertSubmissionFlag(ctx context.Context, arg InsertSubmissionFlagParams) error {
+	_, err := q.db.Exec(ctx, insertSubmissionFlag,
+		arg.SubmissionID,
+		arg.Kind,
+		arg.Reason,
+		arg.Detail,
+	)
+	return err
+}
+
 const invalidateSubmissionResult = `-- name: InvalidateSubmissionResult :one
 UPDATE submission_results SET
     generation = generation + CASE WHEN $3::text = 'score' THEN 0 ELSE 1 END,
@@ -500,6 +522,36 @@ func (q *Queries) ListSubmissionFilesBySubmissions(ctx context.Context, ids []in
 			&i.SubmissionID,
 			&i.Filename,
 			&i.Digest,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSubmissionFlags = `-- name: ListSubmissionFlags :many
+SELECT submission_id, kind, reason, detail, created_at FROM submission_flags WHERE submission_id = $1 ORDER BY created_at, kind, reason
+`
+
+func (q *Queries) ListSubmissionFlags(ctx context.Context, submissionID int64) ([]SubmissionFlag, error) {
+	rows, err := q.db.Query(ctx, listSubmissionFlags, submissionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SubmissionFlag{}
+	for rows.Next() {
+		var i SubmissionFlag
+		if err := rows.Scan(
+			&i.SubmissionID,
+			&i.Kind,
+			&i.Reason,
+			&i.Detail,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

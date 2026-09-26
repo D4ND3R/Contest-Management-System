@@ -34,10 +34,12 @@ const (
 	MsgCompilationTimeout   = "Compilation timed out"
 	MsgCompilationMemory    = "Compilation exceeded the memory limit"
 	MsgCompilationOutput    = "Compilation produced too much output"
+	MsgCompilationSecurity  = "Compilation stopped: forbidden system call"
 	MsgTimeout              = "Execution timed out"
 	MsgWallTimeout          = "Execution timed out (wall clock limit exceeded)"
 	MsgMemory               = "Memory limit exceeded"
 	MsgOutputLimit          = "Output limit exceeded"
+	MsgSecurity             = "Security violation: the program made a forbidden system call"
 	MsgNonZero              = "Execution failed because the return code was nonzero"
 	MsgSignal               = "Execution killed by signal %d"
 	MsgMissingOutput        = "Evaluation didn't produce file %s"
@@ -55,6 +57,8 @@ func executionText(r *sandbox.Result) string {
 		return MsgMemory
 	case sandbox.StatusOutputLimit:
 		return MsgOutputLimit
+	case sandbox.StatusSecurity:
+		return MsgSecurity
 	case sandbox.StatusSignal:
 		return fmt.Sprintf(MsgSignal, r.Signal)
 	case sandbox.StatusNonZero:
@@ -223,6 +227,8 @@ func compile(ctx context.Context, env *Env, box *sandbox.Box, s *sourceSet) (*jo
 				c.Text = MsgCompilationMemory
 			case sandbox.StatusOutputLimit:
 				c.Text = MsgCompilationOutput
+			case sandbox.StatusSecurity:
+				c.Text, c.Security = MsgCompilationSecurity, true
 			default:
 				c.Text = MsgCompilationFailed
 			}

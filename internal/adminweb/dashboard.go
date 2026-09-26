@@ -437,8 +437,19 @@ func (s *Server) dashHealth(r *http.Request, rc *reqCtx, l *dashLive, c sqlc.Con
 	tr := adminTr(r)
 	st := s.systemStatus(r, rc)
 	judges := healthItem{Name: tr("Judges"), Value: tr("%d online, %d/%d slots busy", st.Alive, st.Busy, st.Slots), Class: "ok"}
-	if st.Alive == 0 {
+	unfiltered := 0
+	for _, w := range st.Workers {
+		if w.Alive && !w.Seccomp {
+			unfiltered++
+		}
+	}
+	switch {
+	case st.Alive == 0:
 		judges.Value, judges.Class = tr("offline"), "bad"
+	case unfiltered > 0:
+		judges.Class = "warn"
+		l.Notes = append(l.Notes, dashEvent{At: now, Icon: "shield", Class: "warn", URL: "/system",
+			Text: tr("%d judges run without the seccomp filter", unfiltered)})
 	}
 	var waiting int64
 	for _, p := range st.Priorities {
@@ -495,6 +506,10 @@ func (s *Server) dashHealth(r *http.Request, rc *reqCtx, l *dashLive, c sqlc.Con
 		if n > 0 {
 			l.Notes = append(l.Notes, dashEvent{At: now, Icon: "alert", Class: "bad", URL: "/", Text: tr("%d submissions could not be judged", n)})
 		}
+	}
+	if n, err := s.q.AdminContestFlagged(ctx, c.ID); err == nil && n > 0 {
+		l.Notes = append(l.Notes, dashEvent{At: now, Icon: "shield", Class: "warn",
+			URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/submissions?status=flagged", Text: tr("%d suspicious submissions", n)})
 	}
 	if c.Registration == "approval" {
 		if n, err := s.q.CountPendingRegistrations(ctx, c.ID); err == nil && n > 0 {

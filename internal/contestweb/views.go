@@ -65,6 +65,7 @@ var verdictNames = map[string]string{
 	scoring.VerdictMemory:      "Memory limit exceeded",
 	scoring.VerdictRuntime:     "Runtime error",
 	scoring.VerdictOutputLimit: "Output limit exceeded",
+	scoring.VerdictSecurity:    "Security violation",
 }
 
 // icpcVerdict names the verdict of a scored submission; results scored

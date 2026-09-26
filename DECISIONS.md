@@ -1238,3 +1238,51 @@ keeping the banner.
   Archives and clones carry it (they copy every `sha256_digest` column),
   and the blob garbage collector knows it; `TestBlobGCKnowsEveryDigest` now
   fails if a future digest column is forgotten there.
+
+## D86. A seccomp filter behind isolate; flagging suspicious submissions (SPEC_IOI H3)
+The owner asked to "improve the detection of malicious files that attack
+the server", and SPEC_IOI §2.1/§13 ask for a seccomp filter as a second
+wall and a **Security Violation** verdict.
+
+- **Where the filter comes from.** isolate has no seccomp support. A
+  launcher installs the filter (`PR_SET_NO_NEW_PRIVS`, then a classic BPF
+  program) and `execvp`s the real command; isolate runs the launcher,
+  mounted read-only at `/cms-launcher`. It is **C, compiled by the worker
+  at start** with the system compiler (statically when `libc.a` exists):
+  its start costs tens of microseconds of the measured CPU time, where a
+  Go launcher costs milliseconds (a Go runtime per run), and syscall
+  numbers come from the target's own headers, so amd64 and arm64 need no
+  tables. The source lives in the Go code (a `.c` file would make the
+  package a cgo one); the binary is cached by the hash of the source.
+- **A deny list, not an allow list.** Eleven languages with JVMs,
+  runtimes and compilers use a wide and changing set of calls; an allow
+  list would break one of them on the next toolchain update. The deny list
+  covers what a contest program never needs and what most sandbox escapes
+  went through: namespaces (`unshare`, `setns`, `clone` with namespace
+  flags — checked on its first argument), `bpf`, `io_uring`,
+  `userfaultfd`, `perf_event_open`, keyrings, `ptrace` and cross-process
+  memory, mounts, `chroot`, modules, `kexec`, `reboot`, swap, clocks,
+  `syslog`, I/O ports, file handles (`open_by_handle_at`), and the x32 ABI
+  and foreign architectures. `clone3` cannot be inspected (its flags are in
+  memory): it answers `ENOSYS`, the C libraries fall back to `clone`. Every
+  compiler and runtime of `config/languages` was run through it (their
+  samples pass in the sandbox, with and without the filter alike).
+- **The verdict.** The filter kills (`SECCOMP_RET_KILL_PROCESS`); SIGSYS
+  is only sent by it, so the sandbox classifies it as `security`, the
+  judge writes "Security violation: the program made a forbidden system
+  call", and the ICPC-style verdict is `SV`. A compilation stopped by it
+  fails with its own message.
+- **Degrading.** `worker.seccomp: auto` (default) runs without the filter
+  when no C compiler is there — isolate still confines everything — and
+  says so: worker log, a *no seccomp* tag on the Judges page, a dashboard
+  notification, a self-test warning, a verify-host warning. `on` makes it
+  mandatory, `off` disables it.
+- **Suspicious submissions** are flagged, never rejected or penalised: a
+  scan of the source on arrival (per language: starting programs, network,
+  raw system calls, system paths, includes from outside, ptrace, native
+  code; binary data anywhere) and the sandbox's `security` results become
+  rows of `submission_flags` (migration 0019) with where they were seen.
+  Rejecting on patterns would punish `system("pause")` left in by a
+  beginner and could be dodged by any attacker; the sandbox is what stops
+  attacks, the flags point the staff at intent. The scan is a few regular
+  expressions (RE2, linear time) over at most the submission size limit.

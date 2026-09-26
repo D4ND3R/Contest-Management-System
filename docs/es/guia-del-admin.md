@@ -157,6 +157,10 @@ problema esté en verde.
   zip; **reevaluar** un envío, un usuario, un problema o el concurso
   (recompilar, reevaluar o solo recalcular puntajes); **invalidar** un
   envío con un motivo (se puede restaurar).
+- Los **envíos sospechosos** (código que ejecuta programas, abre sockets,
+  hace llamadas directas al sistema..., o programas que el filtro seccomp
+  mató) quedan marcados: una etiqueta y un filtro en los envíos, una
+  notificación en el panel; ver [seguridad](seguridad.md).
 - Página de la **participación**: tiempo extra, ajuste manual de puntaje con
   motivo (auditado), sesiones, "ver como el concursante".
 - **Extender el concurso** para todos desde su página de Configuración;

@@ -108,6 +108,23 @@ func (q *Queries) AdminContestCounts(ctx context.Context) ([]AdminContestCountsR
 	return items, nil
 }
 
+const adminContestFlagged = `-- name: AdminContestFlagged :one
+SELECT count(DISTINCT f.submission_id)::bigint
+FROM submission_flags f
+JOIN submissions s ON s.id = f.submission_id
+JOIN participations p ON p.id = s.participation_id
+WHERE p.contest_id = $1
+`
+
+// Flagged submissions of a contest (the dashboard's notification; flags
+// are few, read through their primary key).
+func (q *Queries) AdminContestFlagged(ctx context.Context, contestID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, adminContestFlagged, contestID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const adminContestRecentQuestions = `-- name: AdminContestRecentQuestions :many
 SELECT q.id, q.asked_at, q.subject, q.reply_at, q.ignored, u.username, t.name AS task_name
 FROM questions q
@@ -649,7 +666,8 @@ SELECT s.id, s.submitted_at, s.language, s.official, s.participation_id, s.task_
        u.username, t.name AS task_name, t.score_precision,
        sr.compilation_outcome, sr.testcases_done, sr.testcases_total, sr.score, sr.scored_at,
        sr.system_error, sr.verdict, (tk.submission_id IS NOT NULL)::boolean AS tokened,
-       (s.invalidated_at IS NOT NULL)::boolean AS invalidated
+       (s.invalidated_at IS NOT NULL)::boolean AS invalidated,
+       EXISTS (SELECT 1 FROM submission_flags f WHERE f.submission_id = s.id)::boolean AS flagged
 FROM submissions s
 JOIN participations p ON p.id = s.participation_id
 JOIN users u ON u.id = p.user_id
@@ -668,6 +686,7 @@ WHERE p.contest_id = $1::bigint
         WHEN 'compile_failed' THEN sr.compilation_outcome = 'fail'
         WHEN 'scored' THEN sr.scored_at IS NOT NULL AND sr.compilation_outcome = 'ok'
         WHEN 'error' THEN sr.system_error IS NOT NULL
+        WHEN 'flagged' THEN EXISTS (SELECT 1 FROM submission_flags f WHERE f.submission_id = s.id)
         ELSE true END)
   AND ($9::text IS NULL OR sr.verdict = $9::text)
   AND ($10::timestamptz IS NULL OR s.submitted_at >= $10::timestamptz)
@@ -712,6 +731,7 @@ type AdminListSubmissionsRow struct {
 	Verdict            *string    `json:"verdict"`
 	Tokened            bool       `json:"tokened"`
 	Invalidated        bool       `json:"invalidated"`
+	Flagged            bool       `json:"flagged"`
 }
 
 // Queries of the admin web server (AWS).
@@ -759,6 +779,7 @@ func (q *Queries) AdminListSubmissions(ctx context.Context, arg AdminListSubmiss
 			&i.Verdict,
 			&i.Tokened,
 			&i.Invalidated,
+			&i.Flagged,
 		); err != nil {
 			return nil, err
 		}

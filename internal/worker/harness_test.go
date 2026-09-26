@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -51,6 +52,8 @@ func newHarnessSlots(t testing.TB, n int) *harness {
 		Name: "test", IsolatePath: iso.Path, IsolateCG: iso.CG, IsolateBoxRoot: iso.BoxRoot,
 		Cores: cores[:n], BoxIDOffset: boxOffset, WorkDir: filepath.Join(dir, "work"),
 		CacheDir: filepath.Join(dir, "cache"), CacheMaxBytes: 1 << 30,
+		// CMS_TEST_SECCOMP=off compares a run without the filter.
+		Seccomp: os.Getenv("CMS_TEST_SECCOMP"),
 	}
 	boxOffset += n * 2 * sandbox.BoxesPerSlot
 	e, err := NewExecutor(cfg, store, logging.Discard())

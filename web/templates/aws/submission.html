@@ -15,6 +15,12 @@
   <dt>{{.T "Token"}}</dt><dd>{{if $s.Tokened}}{{.T "played"}}{{else}}{{.T "no"}}{{end}}</dd>
   {{if $s.Comment}}<dt>{{.T "Comment"}}</dt><dd>{{$s.Comment}}</dd>{{end}}
 </dl>
+{{with .Data.Flags}}<section class="card danger">
+<div class="card-head"><h2>{{icon "alert"}} {{$.T "Suspicious submission"}}</h2></div>
+<p class="muted small">{{$.T "The source or its runs look like an attack on the judge rather than a solution. The sandbox stopped it; a flag changes no score. Review the source and invalidate the submission if needed."}}</p>
+<ul class="feed">{{range .}}<li><span class="ico {{if eq .Kind "runtime"}}bad{{else}}warn{{end}}">{{icon "alert"}}</span><div class="what"><b>{{$.T .Reason}}</b>
+<small>{{if eq .Kind "runtime"}}{{$.T "seen by the sandbox"}}{{else}}{{$.T "seen in the source"}}{{end}}{{with .Detail}} · <code>{{.}}</code>{{end}}</small></div><span class="when">{{dt .CreatedAt}}</span></li>{{end}}</ul>
+</section>{{end}}
 {{if $s.InvalidatedAt}}<p class="alert">{{.T "Invalidated on %s UTC: it does not count." (dt $s.InvalidatedAt)}} {{.T "Reason:"}} <b>{{$s.InvalidatedReason}}</b></p>{{end}}
 {{if .CanWrite}}<p>{{template "reevaluate" (reeval $ "submission_id" $s.ID (printf "/submissions/%d" $s.ID))}}</p>
 {{if not $s.Tester}}{{if $s.InvalidatedAt}}

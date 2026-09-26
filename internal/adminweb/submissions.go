@@ -58,11 +58,11 @@ func (f submissionFilter) query(before int64) string {
 func (f submissionFilter) Query() string { return f.query(0) }
 
 // statusFilters are the values of the submission list's status filter.
-var statusFilters = []string{"pending", "compile_failed", "scored", "error"}
+var statusFilters = []string{"pending", "compile_failed", "scored", "error", "flagged"}
 
 // verdictFilters are the verdicts of the verdict filter.
 var verdictFilters = []string{scoring.VerdictAccepted, scoring.VerdictWrong, scoring.VerdictTime, scoring.VerdictMemory,
-	scoring.VerdictRuntime, scoring.VerdictOutputLimit, scoring.VerdictCompileError}
+	scoring.VerdictRuntime, scoring.VerdictOutputLimit, scoring.VerdictCompileError, scoring.VerdictSecurity}
 
 type submissionsPage struct {
 	Contest   sqlc.Contest
@@ -97,10 +97,9 @@ func submissionQuery(r *http.Request, c sqlc.Contest) (submissionFilter, sqlc.Ad
 	if f.Language != "" {
 		p.Language = &f.Language
 	}
-	switch f.Status {
-	case "pending", "compile_failed", "scored", "error":
+	if contains(statusFilters, f.Status) {
 		p.Status = &f.Status
-	default:
+	} else {
 		f.Status = ""
 	}
 	if contains(verdictFilters, f.Verdict) {
@@ -270,7 +269,9 @@ type resultView struct {
 }
 
 type submissionPage struct {
-	S       sqlc.AdminGetSubmissionRow
+	S sqlc.AdminGetSubmissionRow
+	// Flags say why the submission looks suspicious.
+	Flags   []sqlc.SubmissionFlag
 	Files   []fileView
 	Results []resultView
 	Contest string
@@ -337,6 +338,10 @@ func (s *Server) handleSubmission(w http.ResponseWriter, r *http.Request, rc *re
 	}
 	d := &submissionPage{S: sub}
 	var err error
+	if d.Flags, err = s.q.ListSubmissionFlags(r.Context(), sub.ID); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
 	if d.Files, err = s.files(r, sub); err != nil {
 		s.internalError(w, r, rc, err)
 		return

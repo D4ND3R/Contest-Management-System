@@ -160,3 +160,10 @@ WHERE s.task_id = sqlc.arg(task_id)::bigint AND p.contest_id = sqlc.arg(contest_
 ORDER BY s.participation_id,
     CASE WHEN sqlc.arg(best)::boolean THEN COALESCE(r.score, -1) ELSE 0 END DESC,
     s.submitted_at DESC, s.id DESC;
+
+-- name: InsertSubmissionFlag :exec
+INSERT INTO submission_flags (submission_id, kind, reason, detail) VALUES ($1, $2, $3, $4)
+ON CONFLICT DO NOTHING;
+
+-- name: ListSubmissionFlags :many
+SELECT * FROM submission_flags WHERE submission_id = $1 ORDER BY created_at, kind, reason;

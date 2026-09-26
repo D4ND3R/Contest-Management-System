@@ -52,6 +52,9 @@ func compareRuns(t *testing.T, first, second []selftest.Result, env string) {
 func TestMaliciousBattery(t *testing.T) {
 	h := newHarness(t)
 	j := h.judge(1)
+	if !j.Seccomp() && os.Getenv("CMS_SANDBOX_TESTS") == "1" {
+		t.Fatal("the seccomp filter is not active (a C compiler is needed to build it)")
+	}
 	first, err := j.RunBattery(t.Context())
 	if err != nil {
 		t.Fatal(err)

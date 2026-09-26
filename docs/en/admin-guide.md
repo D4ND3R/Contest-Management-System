@@ -145,6 +145,10 @@ backup and restore it, rehearse with a short contest
   **reevaluate** a submission, user, task or contest (recompile,
   re-evaluate or only rescore); **invalidate** a submission with a reason
   (restorable).
+- **Suspicious submissions** (sources that start programs, open sockets,
+  make raw system calls..., or programs the seccomp filter killed) are
+  flagged: a tag and a filter in the submissions, a notification on the
+  dashboard; see [security](security.md).
 - **Participation** page: extra time, manual score adjustment with a reason
   (audited), sessions, "view as the contestant".
 - **Extend the contest** for everybody from its Settings page; **Balloons**

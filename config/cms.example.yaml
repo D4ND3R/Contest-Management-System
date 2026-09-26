@@ -91,6 +91,9 @@ worker:
   queues: []                 # empty = all, in priority order
   sandbox_dirs: []           # extra read-only dirs, e.g. /usr/lib/jvm
   heartbeat_interval: 2s
+  # Seccomp filter (docs/en/security.md): auto = build it with the system C
+  # compiler, run without it (warning) if that fails; on = required; off.
+  seccomp: auto
 
 monitor:
   metrics_listen: ":9103"

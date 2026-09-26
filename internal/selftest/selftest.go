@@ -54,6 +54,13 @@ type Judge struct {
 	UIDs [2]int
 }
 
+// Seccomp reports whether the executor runs programs behind the seccomp
+// filter (the battery's seccomp cases are skipped otherwise).
+func (j *Judge) Seccomp() bool {
+	s, ok := j.Exec.(interface{ Seccomp() bool })
+	return ok && s.Seccomp()
+}
+
 // Result is the outcome of one program.
 type Result struct {
 	Group string // "security" or "samples"
@@ -111,6 +118,8 @@ type securityCase struct {
 	want              []string
 	outcome           float64
 	check             func(env *hostEnv, output string) []string
+	// seccomp: the case tests the seccomp filter (skipped without it).
+	seccomp bool
 }
 
 func defaultLimits() jobs.Limits {
@@ -129,6 +138,9 @@ var tle = []string{"timeout", "timeout_wall"}
 // can pile up to the memory limit first. Either way the box was killed
 // whole (noProcs checks that nothing survived).
 var contained = []string{"timeout", "timeout_wall", "memory"}
+
+// security is what the seccomp filter makes of a forbidden system call.
+var security = []string{"security"}
 
 // escapePaths are the files write_outside.c tries to create on the host.
 var escapePaths = []string{"/cms_pwned", "/usr/cms_pwned", "/usr/bin/cms_pwned", "/etc/cms_pwned",
@@ -207,7 +219,16 @@ func securityCases() []securityCase {
 				return append(p, leftoverProcesses(env.uids)...)
 			}},
 		{name: "stack_overflow", file: "stack_overflow.c", limits: lim, want: []string{"signal", "memory"}},
-		{name: "privilege_escalation", file: "privilege.c", limits: lim, want: []string{"ok"},
+		{name: "seccomp_user_namespace", file: "forbidden.c", input: "unshare\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_clone_newnet", file: "forbidden.c", input: "clone_newnet\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_bpf", file: "forbidden.c", input: "bpf\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_io_uring", file: "forbidden.c", input: "io_uring\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_ptrace", file: "forbidden.c", input: "ptrace\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_keyctl", file: "forbidden.c", input: "keyctl\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_perf_event", file: "forbidden.c", input: "perf\n", limits: lim, want: security, seccomp: true},
+		// setuid fails; chroot and mount are refused, or kill it with the
+		// seccomp filter.
+		{name: "privilege_escalation", file: "privilege.c", limits: lim, want: []string{"ok", "security"},
 			check: func(_ *hostEnv, out string) []string {
 				if strings.Contains(out, "ROOT") {
 					return []string{"privilege escalation succeeded: " + firstLine(out)}
@@ -260,6 +281,9 @@ func (j *Judge) RunBattery(ctx context.Context) ([]Result, error) {
 	for _, c := range securityCases() {
 		if err := ctx.Err(); err != nil {
 			return out, err
+		}
+		if c.seccomp && !j.Seccomp() {
+			continue
 		}
 		src, err := Program("malicious/" + c.file)
 		if err != nil {

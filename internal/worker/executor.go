@@ -58,6 +58,17 @@ func NewExecutor(cfg config.Worker, store blob.Store, log *slog.Logger) (*Execut
 		cores = sandbox.DefaultCores()
 	}
 	iso := &sandbox.Isolate{Path: cfg.IsolatePath, CG: cfg.IsolateCG, BoxRoot: cfg.IsolateBoxRoot}
+	if cfg.Seccomp != "off" {
+		l, err := sandbox.BuildLauncher(context.Background(), filepath.Join(cfg.WorkDir, "launcher"), "cc")
+		switch {
+		case err == nil:
+			iso.Launcher = l
+		case cfg.Seccomp == "on":
+			return nil, fmt.Errorf("seccomp (worker.seccomp: on): %w", err)
+		default:
+			log.Warn("running without the seccomp filter (install a C compiler, or set worker.seccomp: off)", "error", err)
+		}
+	}
 	cacheMax := int64(cfg.CacheMaxBytes)
 	if cacheMax <= 0 {
 		cacheMax = 2 << 30
@@ -86,6 +97,11 @@ func NewExecutor(cfg config.Worker, store blob.Store, log *slog.Logger) (*Execut
 		e.stages = append(e.stages, st)
 	}
 	return e, nil
+}
+
+// Seccomp reports whether programs run behind the seccomp filter.
+func (e *Executor) Seccomp() bool {
+	return len(e.Slots) > 0 && e.Slots[0].Isolate().Launcher != ""
 }
 
 // Close destroys every box.
