@@ -122,7 +122,7 @@ func (p *Pusher) Run(ctx context.Context) error {
 	lease := p.queue.NewLease("ranking-pusher", 10*time.Second)
 	return lease.Run(ctx, func(ctx context.Context) error {
 		p.log.Info("ranking pusher active", "servers", len(p.targets))
-		g, ctx := app.NewGroup(ctx)
+		g, _ := app.NewGroup(ctx)
 		g.Go(p.watchScores)
 		g.Go(p.watchContests)
 		g.Go(p.loop)

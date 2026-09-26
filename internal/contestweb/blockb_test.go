@@ -378,11 +378,11 @@ func (f *fixture) postTest(c *http.Client, csrf, src, input string) (int, string
 func TestUserTests(t *testing.T) {
 	f := newFixture(t, fixtureOpts{})
 	c := f.client()
-	_, page := f.login(c, "ana", "secret")
-	if code, _ := f.get(c, "/ioi/tasks/sum"); code != 200 {
+	f.login(c, "ana", "secret")
+	code, page := f.get(c, "/ioi/tasks/sum")
+	if code != 200 {
 		t.Fatal(code)
 	}
-	_, page = f.get(c, "/ioi/tasks/sum")
 	if !strings.Contains(page, "Test your solution") {
 		t.Fatalf("no test form:\n%s", page)
 	}

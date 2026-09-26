@@ -47,7 +47,7 @@ func runPrinting(ctx context.Context, cfg *config.Config, log *slog.Logger) erro
 	}
 	defer d.Close()
 	svc := printing.New(sqlc.New(d.DB), d.Redis, cfg.Redis.Namespace, d.Blobs, cfg.Printing, log)
-	g, ctx := app.NewGroup(ctx)
+	g, _ := app.NewGroup(ctx)
 	g.Go(svc.Run)
 	g.Go(func(ctx context.Context) error {
 		return httpx.Serve(ctx, log, cfg.Printing.MetricsListen, httpx.OpsMux("printing", d.Checks()...), nil)
@@ -120,7 +120,7 @@ func runAdminWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) erro
 	if err != nil {
 		return err
 	}
-	g, ctx := app.NewGroup(ctx)
+	g, _ := app.NewGroup(ctx)
 	g.Go(backups.Run)
 	g.Go(func(ctx context.Context) error { return srv.Run(ctx, cfg.AdminWeb.Listen, nil) })
 	return g.Wait()
@@ -140,7 +140,7 @@ func runDispatcher(ctx context.Context, cfg *config.Config, log *slog.Logger) er
 		Namespace: cfg.Redis.Namespace, SweepInterval: cfg.Dispatcher.SweepInterval.D(),
 		MaxAttempts: cfg.Dispatcher.MaxAttempts, TestcasesPerJob: cfg.Dispatcher.TestcasesPerJob,
 	})
-	g, ctx := app.NewGroup(ctx)
+	g, _ := app.NewGroup(ctx)
 	g.Go(disp.Run)
 	// The ranking pusher feeds the ranking web servers (when configured).
 	pusher := rankingpush.New(d.DB, d.Redis, d.Blobs, log, rankingpush.Options{URLs: cfg.Dispatcher.RankingURLs,
@@ -163,7 +163,7 @@ func runWorker(ctx context.Context, cfg *config.Config, log *slog.Logger) error 
 	if err != nil {
 		return err
 	}
-	g, ctx := app.NewGroup(ctx)
+	g, _ := app.NewGroup(ctx)
 	g.Go(svc.Run)
 	g.Go(func(ctx context.Context) error {
 		return httpx.Serve(ctx, log, cfg.Worker.MetricsListen, httpx.OpsMux("worker", d.Checks()...), nil)
@@ -181,7 +181,7 @@ func runMonitor(ctx context.Context, cfg *config.Config, log *slog.Logger) error
 		CheckInterval: cfg.Monitor.CheckInterval.D(), JobTimeout: cfg.Monitor.JobTimeout.D(),
 		DeadGrace: time.Second, MaxAttempts: cfg.Dispatcher.MaxAttempts,
 	})
-	g, ctx := app.NewGroup(ctx)
+	g, _ := app.NewGroup(ctx)
 	g.Go(m.Run)
 	g.Go(func(ctx context.Context) error {
 		return httpx.Serve(ctx, log, cfg.Monitor.MetricsListen, httpx.OpsMux("monitor", d.Checks()...), nil)

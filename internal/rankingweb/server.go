@@ -156,7 +156,7 @@ func (s *Server) Handler() http.Handler {
 
 // Run serves HTTP and saves changed boards periodically.
 func (s *Server) Run(ctx context.Context, addr string, ready chan<- net.Addr) error {
-	g, ctx := app.NewGroup(ctx)
+	g, _ := app.NewGroup(ctx)
 	g.Go(func(ctx context.Context) error { return httpx.Serve(ctx, s.log, addr, s.Handler(), ready) })
 	g.Go(func(ctx context.Context) error {
 		t := time.NewTicker(5 * time.Second)

@@ -204,7 +204,7 @@ var ReservedNames = []string{"static", "healthz", "metrics", "lang", "debug"}
 
 // Run serves HTTP and the event fan-out until ctx ends.
 func (s *Server) Run(ctx context.Context, addr string, ready chan<- net.Addr) error {
-	g, ctx := app.NewGroup(ctx)
+	g, _ := app.NewGroup(ctx)
 	g.Go(func(ctx context.Context) error {
 		for ctx.Err() == nil {
 			err := events.Subscribe(ctx, s.rdb, s.ns, s.onEvent)

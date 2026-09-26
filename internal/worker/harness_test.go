@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -79,14 +78,6 @@ func (h *harness) put(data []byte) string {
 		h.t.Fatal(err)
 	}
 	return info.Digest
-}
-
-func (h *harness) putFile(path string) string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		h.t.Fatal(err)
-	}
-	return h.put(data)
 }
 
 func (h *harness) lang(id string) *langs.Language {

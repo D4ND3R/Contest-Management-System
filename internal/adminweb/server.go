@@ -348,7 +348,7 @@ func (s *Server) Handler() http.Handler {
 
 // Run serves HTTP and forwards live events to connected administrators.
 func (s *Server) Run(ctx context.Context, addr string, ready chan<- net.Addr) error {
-	g, ctx := app.NewGroup(ctx)
+	g, _ := app.NewGroup(ctx)
 	g.Go(func(ctx context.Context) error {
 		for ctx.Err() == nil {
 			err := events.Subscribe(ctx, s.rdb, s.ns, s.hub.publish)

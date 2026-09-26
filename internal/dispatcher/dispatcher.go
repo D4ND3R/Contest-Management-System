@@ -125,7 +125,7 @@ func (d *Dispatcher) Run(ctx context.Context) error {
 		} else if n > 0 {
 			d.log.Info("adopted pending results/events of a previous dispatcher", "count", n)
 		}
-		g, ctx := app.NewGroup(ctx)
+		g, _ := app.NewGroup(ctx)
 		g.Go(d.eventLoop)
 		g.Go(d.resultLoop)
 		g.Go(d.sweepLoop)

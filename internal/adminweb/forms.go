@@ -46,14 +46,6 @@ func (f *form) required(name, label string) string {
 	return v
 }
 
-func (f *form) optStr(name string) *string {
-	v := f.str(name)
-	if v == "" {
-		return nil
-	}
-	return &v
-}
-
 func (f *form) check(name string) bool {
 	switch f.r.FormValue(name) {
 	case "on", "1", "true", "yes":
