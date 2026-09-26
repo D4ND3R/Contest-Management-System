@@ -7,21 +7,41 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
 
-// postRoutes lists the POST routes registered in server.go.
+// routeSource is the package's non-test source, where routes are registered
+// (server.go and extra.go).
+func routeSource(t *testing.T) string {
+	t.Helper()
+	files, _ := filepath.Glob("*.go")
+	var src strings.Builder
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		src.Write(b)
+	}
+	return src.String()
+}
+
+// postRoutes lists the POST routes registered in the package.
 func postRoutes(t *testing.T) []string {
 	t.Helper()
-	src, err := os.ReadFile("server.go")
-	if err != nil {
-		t.Fatal(err)
-	}
 	var out []string
-	for _, m := range regexp.MustCompile(`"POST (/[^"]+)"`).FindAllStringSubmatch(string(src), -1) {
+	for _, m := range regexp.MustCompile(`"POST (/[^"]+)"`).FindAllStringSubmatch(routeSource(t), -1) {
 		out = append(out, m[1])
+	}
+	if !slices.Contains(out, "/{contest}/questions") {
+		t.Fatal("the routes of extra.go were not found")
 	}
 	if len(out) < 8 {
 		t.Fatalf("only %d POST routes found", len(out))

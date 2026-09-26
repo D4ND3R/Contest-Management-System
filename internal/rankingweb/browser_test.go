@@ -1,14 +1,16 @@
 package rankingweb
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/config"
 	"github.com/D4ND3R/Contest-Management-System/internal/logging"
@@ -39,13 +41,31 @@ func TestLivePageInBrowser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// /test/drop cuts the browser's connections only: cutting every one
+	// would also break the requests of the script driving the test.
+	type connKey struct{}
+	var mu sync.Mutex
+	browser := map[net.Conn]bool{}
 	mux := http.NewServeMux()
-	ts := httptest.NewUnstartedServer(mux)
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.UserAgent(), "Chrome") {
+			mu.Lock()
+			browser[r.Context().Value(connKey{}).(net.Conn)] = true
+			mu.Unlock()
+		}
+		mux.ServeHTTP(w, r)
+	}))
+	ts.Config.ConnContext = func(ctx context.Context, c net.Conn) context.Context { return context.WithValue(ctx, connKey{}, c) }
 	mux.Handle("/", s.Handler())
 	mux.HandleFunc("GET /test/spectators", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, s.clients.Load()) })
 	mux.HandleFunc("POST /test/drop", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		for c := range browser {
+			c.Close()
+			delete(browser, c)
+		}
+		mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
-		go func() { time.Sleep(50 * time.Millisecond); ts.CloseClientConnections() }()
 	})
 	ts.Start()
 	defer ts.Close()
