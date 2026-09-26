@@ -1,6 +1,7 @@
 package dispatcher_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -13,13 +14,34 @@ import (
 )
 
 // next takes the next job from the queues (the test plays the worker).
+// Like a worker it survives duplicates: the event and the sweeper may both
+// enqueue a new submission's compilation (the dispatcher discards the
+// second result), so a job doing what a taken one does is skipped. The
+// fake worker heartbeats, or the monitor would reclaim the jobs it holds.
 func (e *env) next() *queue.Delivery {
 	e.t.Helper()
-	d, err := e.q.Next(ctx, "fake/0", 10*time.Second, nil)
-	if err != nil || d == nil {
-		e.t.Fatalf("no job: %v", err)
+	if e.taken == nil {
+		e.taken = map[string]bool{}
 	}
-	return d
+	for {
+		if err := e.q.Heartbeat(ctx, &queue.WorkerStatus{Name: "fake"}, time.Minute); err != nil {
+			e.t.Fatal(err)
+		}
+		d, err := e.q.Next(ctx, "fake/0", 10*time.Second, nil)
+		if err != nil || d == nil {
+			e.t.Fatalf("no job: %v", err)
+		}
+		key := fmt.Sprint(d.Job.Kind, d.Job.SubmissionID, d.Job.DatasetID, d.Job.Generation)
+		for _, tc := range d.Job.Testcases {
+			key += fmt.Sprint(" ", tc.ID)
+		}
+		if e.taken[key] {
+			e.q.Ack(ctx, d)
+			continue
+		}
+		e.taken[key] = true
+		return d
+	}
 }
 
 // answer completes a job: compilations succeed, testcases get outcome().

@@ -55,6 +55,8 @@ type env struct {
 	evMu    sync.Mutex
 	evs     []events.Event
 	boxBase int
+	// taken are the jobs the test (playing the worker) already took.
+	taken map[string]bool
 }
 
 var boxBase = 600
