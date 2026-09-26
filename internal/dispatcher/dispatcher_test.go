@@ -236,6 +236,17 @@ func (e *env) waitScored(sub, ds int64, timeout time.Duration) sqlc.SubmissionRe
 	return sqlc.SubmissionResult{}
 }
 
+// logResult prints a result, its compilation and its evaluations
+// (diagnostics on failure).
+func (e *env) logResult(r sqlc.SubmissionResult) {
+	e.t.Helper()
+	e.t.Logf("result: score %v gen %d compilation %v %q tries %d evaluation %v done %d system error %v",
+		derefF(r.Score), r.Generation, deref(r.CompilationOutcome), r.CompilationText, r.CompilationTries,
+		deref(r.EvaluationOutcome), r.TestcasesDone, deref(r.SystemError))
+	e.t.Logf("compiler: %s %s", r.CompilationStdout, r.CompilationStderr)
+	e.logEvaluations(r.SubmissionID, r.DatasetID)
+}
+
 // logEvaluations prints a result's evaluations (diagnostics on failure).
 func (e *env) logEvaluations(sub, ds int64) {
 	e.t.Helper()
@@ -250,6 +261,13 @@ func (e *env) logEvaluations(sub, ds int64) {
 }
 
 func derefF(p *float64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+func deref(p *string) any {
 	if p == nil {
 		return nil
 	}
@@ -344,14 +362,19 @@ func TestReevaluationLevels(t *testing.T) {
 	e := newEnv(t, true)
 	id := e.submit(srcAC, true)
 	first := e.waitScored(id, e.dataset.ID, 60*time.Second)
+	if first.Score == nil || *first.Score != 100 {
+		e.logResult(first)
+		t.Fatal("the first judging did not score 100")
+	}
 	for _, lv := range []dispatcher.Level{dispatcher.Rescore, dispatcher.Reevaluate, dispatcher.Recompile} {
 		n, err := dispatcher.Invalidate(ctx, e.pool, e.q, dispatcher.Scope{TaskID: e.task.ID}, lv)
 		if err != nil || n != 1 {
 			t.Fatalf("%s: invalidated %d, %v", lv, n, err)
 		}
 		r := e.waitScored(id, e.dataset.ID, 60*time.Second)
-		if *r.Score != 100 {
-			t.Fatalf("%s: score %v", lv, *r.Score)
+		if r.Score == nil || *r.Score != 100 {
+			e.logResult(r)
+			t.Fatalf("%s: not 100", lv)
 		}
 		switch lv {
 		case dispatcher.Rescore:
