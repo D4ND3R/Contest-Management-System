@@ -46,7 +46,7 @@ func TestSampleSolutions(t *testing.T) {
 			langs = append(langs, l)
 		}
 	}
-	j := h.judge(3)
+	j := h.judge(len(h.exec.Slots)) // the harness has fewer slots on machines with fewer cores
 	first, skipped, err := j.RunSamples(t.Context(), langs)
 	if err != nil {
 		t.Fatal(err)

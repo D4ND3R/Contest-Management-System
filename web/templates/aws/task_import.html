@@ -38,7 +38,7 @@
   <dt>{{$.T "Type"}}</dt><dd>{{$c.TaskType}}</dd>
   <dt>{{$.T "Limits"}}</dt><dd>{{if $c.TimeLimit}}{{num $c.TimeLimit}} s · {{end}}{{if $c.MemoryLimit}}{{num $c.MemoryLimit}} MiB{{end}}</dd>
   <dt>{{$.T "Score type"}}</dt><dd>{{$c.ScoreType}} · {{$.T "maximum score %s" (num $p.MaxScore)}}</dd>
-  {{if $c.Subtasks}}<dt>{{$.T "Subtasks"}}</dt><dd><ol>{{range $i, $st := $c.Subtasks}}<li>{{num $st.Points}} {{$.T "points"}}{{with index $p.Coverage.Subtasks $i}} · {{if .Error}}<span class="bad">{{.Error}}</span>{{else}}{{joinHead .Testcases 12}}{{end}}{{end}}</li>{{end}}</ol></dd>{{end}}
+  {{if $c.Subtasks}}<dt>{{$.T "Subtasks"}}</dt><dd><ol>{{range $i, $st := $c.Subtasks}}<li>{{num $st.Points}} {{$.T "points"}}{{if lt $i (len $p.Coverage.Subtasks)}}{{with index $p.Coverage.Subtasks $i}} · {{if .Error}}<span class="bad">{{.Error}}</span>{{else}}{{joinHead .Testcases 12}}{{end}}{{end}}{{end}}</li>{{end}}</ol></dd>{{end}}
   <dt>{{$.T "Testcases"}}</dt><dd>{{len $p.Tests}} ({{$.T "%d public" $d.Public}})</dd>
   <dt>{{$.T "Statements"}}</dt><dd>{{range $p.Statements}}<span class="tag">{{.Language}}</span> {{end}}</dd>
   <dt>{{$.T "Managers"}}</dt><dd>{{range $p.Managers}}<code>{{.Name}}</code> {{else}}—{{end}}</dd>

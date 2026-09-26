@@ -181,6 +181,15 @@ func TestPackageImportPreview(t *testing.T) {
 	if code != 200 || strings.Contains(body, "Create the task") {
 		t.Fatalf("broken preview = %d", code)
 	}
+	// With subtasks but no usable testcase (every expected output missing):
+	// the subtasks are listed without coverage, the problems too.
+	bad = zipOf(t, map[string]string{"problem.yaml": "name: nuevo\ntype: batch\ntime_limit: 1\nmemory_limit: 64\nscoring: group_min\nsubtasks:\n  - {points: 40, tests: \"1_.*\"}\n  - {points: 60, tests: \"2_.*\"}\n",
+		"tests/1_01.in": "1", "tests/2_01.in": "2"})
+	code, body = b.PostMultipart("/tasks/import", map[string]string{"step": "preview", "mode": "task"},
+		webtest.File{Field: "package", Name: "nuevo.zip", Data: bad})
+	if code != 200 || !strings.Contains(body, "tests/2_01.in") || !strings.Contains(body, "no expected output") || !strings.Contains(body, "Subtasks") {
+		t.Fatalf("subtasks without testcases = %d\n%s", code, body)
+	}
 	// Not a zip at all.
 	code, body = b.PostMultipart("/tasks/import", map[string]string{"step": "preview"}, webtest.File{Field: "package", Name: "x.zip", Data: []byte("hello")})
 	if code != http.StatusUnprocessableEntity || !strings.Contains(body, "not a zip archive") {

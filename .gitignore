@@ -3,7 +3,7 @@
 /data/
 /loadtest/results/
 *.test
-*.out
+/*.out
 *.prof
 coverage.*
 /dist/
