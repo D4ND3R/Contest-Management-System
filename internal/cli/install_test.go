@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -280,6 +281,24 @@ func TestInstallFromRelease(t *testing.T) {
 	if strings.Contains(out, "BLOCKER") || t.Failed() {
 		t.Fatalf("plan:\n%s", out)
 	}
+	// Ubuntu 22.04's archive has no caddy, no valkey and no Java 21: Caddy's
+	// own repository, Redis and Java 17 instead.
+	aptCache := filepath.Join(t.TempDir(), "apt-cache")
+	os.WriteFile(aptCache, []byte("#!/bin/sh\ncase \"$2\" in caddy|valkey-server|openjdk-21-jdk-headless) exit 100 ;; esac\nexit 0\n"), 0o755)
+	jammy := append(installEnv(t, "ID=ubuntu\nVERSION_ID=\"22.04\"\nPRETTY_NAME=\"Ubuntu 22.04 LTS\"\n", "x86_64", "none", "cgroup2fs"),
+		"CMS_INSTALL_APT_CACHE="+aptCache)
+	out, err = runInstallEnv(jammy, "", "--dry-run", "--release-url", ts.URL, "--domain", "cms.example.org")
+	if err != nil || !strings.Contains(out, "adding Caddy's repository") || !strings.Contains(out, "caddy-stable.list") ||
+		!regexp.MustCompile(`apt-get install .*openjdk-17-jdk-headless .*redis-server caddy `).MatchString(out) {
+		t.Fatalf("Ubuntu 22.04 packages: %v\n%s", err, out)
+	}
+	// Where the archive has them, no extra repository.
+	os.WriteFile(aptCache, []byte("#!/bin/sh\nexit 0\n"), 0o755)
+	out, _ = runInstallEnv(jammy, "", "--dry-run", "--release-url", ts.URL, "--domain", "cms.example.org")
+	if strings.Contains(out, "Caddy's repository") || !regexp.MustCompile(`apt-get install .*openjdk-21-jdk-headless .*valkey-server caddy `).MatchString(out) {
+		t.Fatalf("archive packages:\n%s", out)
+	}
+
 	// A given version, from the checkout this time.
 	if out, err := runInstallEnv(good, "", "--dry-run", "--release-url", ts.URL, "--version", "v9.9.9"); err != nil || !strings.Contains(out, "==> release 9.9.9") {
 		t.Fatalf("--version: %v\n%s", err, out)

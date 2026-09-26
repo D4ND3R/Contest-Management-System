@@ -152,7 +152,9 @@ Valkey, el proxy, isolate y los compiladores quedan instalados. Agrega
 `gcc g++ python3 openjdk-17/21-jdk-headless` (más `pypy3 fp-compiler rustc
 golang-go kotlin mono-mcs ghc` con `--languages full`), `postgresql`,
 `valkey-server` (o `redis-server` donde Valkey no está empaquetado), `caddy`
-(o `nginx certbot python3-certbot-nginx`) y `ufw`.
+(o `nginx certbot python3-certbot-nginx`) y `ufw`. Ubuntu 22.04 no empaqueta
+Caddy: allí el instalador agrega el repositorio oficial de Caddy
+(`/etc/apt/sources.list.d/caddy-stable.list`).
 
 ### isolate y cgroup v2
 

@@ -310,24 +310,50 @@ cleanup() { [ -n "${WORK:-}" ] && rm -rf "$WORK"; return 0; }
 # --- packages, isolate --------------------------------------------------------------
 packages() {
   step "packages"
-  local pkgs="ca-certificates curl openssl gcc g++ libc6-dev python3 openjdk-17-jdk-headless"
-  if real || [ "$DRY" = 1 ]; then
-    apt-cache show openjdk-21-jdk-headless >/dev/null 2>&1 && pkgs=${pkgs/openjdk-17/openjdk-21}
-  fi
+  export DEBIAN_FRONTEND=noninteractive
+  # A fresh machine may have no package lists yet: read them before choosing.
+  run apt-get update -qq
+  local pkgs="ca-certificates curl openssl gcc g++ libc6-dev python3"
+  if available openjdk-21-jdk-headless; then pkgs="$pkgs openjdk-21-jdk-headless"; else pkgs="$pkgs openjdk-17-jdk-headless"; fi
   [ "$LANGS" = full ] && pkgs="$pkgs pypy3 fp-compiler rustc golang-go kotlin mono-mcs ghc"
   if [ "$ROLE" = main ]; then
     pkgs="$pkgs postgresql ufw"
-    if apt-cache show valkey-server >/dev/null 2>&1; then pkgs="$pkgs valkey-server"; else pkgs="$pkgs redis-server"; fi
-    if [ "$WEB" = caddy ]; then pkgs="$pkgs caddy"; else pkgs="$pkgs nginx certbot python3-certbot-nginx"; fi
+    if available valkey-server; then pkgs="$pkgs valkey-server"; else pkgs="$pkgs redis-server"; fi
+    if [ "$WEB" = caddy ]; then
+      { real || [ "$DRY" = 1 ]; } && ! available caddy && caddy_repository
+      pkgs="$pkgs caddy"
+    else
+      pkgs="$pkgs nginx certbot python3-certbot-nginx"
+    fi
   else
     pkgs="$pkgs ufw"
   fi
   # isolate is built from source: its build dependencies.
   pkgs="$pkgs build-essential git libcap-dev libseccomp-dev libsystemd-dev pkg-config"
-  export DEBIAN_FRONTEND=noninteractive
-  run apt-get update -qq
   # shellcheck disable=SC2086
   run apt-get install -y -qq --no-install-recommends $pkgs
+}
+
+# available: the package can be installed from the configured archives
+# (never consulted when only rendering, so the rendered files are stable).
+available() { { real || [ "$DRY" = 1 ]; } && "${CMS_INSTALL_APT_CACHE:-apt-cache}" show "$1" >/dev/null 2>&1; }
+
+# caddy_repository adds Caddy's official Debian repository, for systems
+# whose archive has no caddy (Ubuntu 22.04).
+caddy_repository() {
+  local key=/usr/share/keyrings/caddy-stable-archive-keyring.gpg list=/etc/apt/sources.list.d/caddy-stable.list
+  say "  caddy is not in this system's archive: adding Caddy's repository (dl.cloudsmith.io/public/caddy/stable)"
+  if [ "$DRY" = 1 ]; then
+    say "(dry-run) would write $key and $list"
+    return 0
+  fi
+  command -v gpg >/dev/null || apt-get install -y -qq --no-install-recommends gnupg
+  curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor --yes -o "$key" ||
+    die "could not download Caddy's signing key (or use --web nginx)"
+  curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt -o "$list" ||
+    die "could not download Caddy's repository definition (or use --web nginx)"
+  chmod 644 "$key" "$list"
+  apt-get update -qq
 }
 
 isolate_setup() {

@@ -146,7 +146,9 @@ the list first.
 `gcc g++ python3 openjdk-17/21-jdk-headless` (plus `pypy3 fp-compiler rustc
 golang-go kotlin mono-mcs ghc` with `--languages full`), `postgresql`,
 `valkey-server` (or `redis-server` where Valkey is not packaged), `caddy`
-(or `nginx certbot python3-certbot-nginx`) and `ufw`.
+(or `nginx certbot python3-certbot-nginx`) and `ufw`. Ubuntu 22.04 does not
+package Caddy: the installer adds Caddy's official repository
+(`/etc/apt/sources.list.d/caddy-stable.list`) there.
 
 ### isolate and cgroup v2
 

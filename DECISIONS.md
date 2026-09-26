@@ -953,3 +953,20 @@ logout are allowed. The flag is stored, not recomputed per request, so
 the check costs nothing after login. It is set before the session exists,
 so it cannot be skipped by racing requests. Creating or updating an
 administrator with such a password is refused outright.
+
+## D78. Installer packages: read the archive first, Caddy's repository where missing
+The installer picks packages by what the system's archive offers: Java 21
+or 17, Valkey or Redis, and Caddy. It used to check before refreshing the
+package lists (a fresh cloud image has none, so every check failed), and
+it assumed `caddy` exists everywhere, which is not true on Ubuntu 22.04.
+It now runs `apt-get update` first. Where the archive has no `caddy`, it
+adds Caddy's official repository: the signing key goes to
+`/usr/share/keyrings/caddy-stable-archive-keyring.gpg` and the list to
+`/etc/apt/sources.list.d/caddy-stable.list`, following Caddy's own
+instructions. It does not fall back to nginx, because `--domain`
+promises automatic HTTPS with Caddy; `--web nginx` remains the explicit
+alternative. Every package the installer asks for was resolved against
+the archives of Ubuntu 22.04 and 24.04 and Debian 12 and 13, and Caddy
+2.11 installed from its repository on Ubuntu 22.04.
+`CMS_INSTALL_APT_CACHE` lets the tests play a system without these
+packages (`TestInstallFromRelease`).
