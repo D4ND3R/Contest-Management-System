@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 )
 
 // UIFuncs are the template helpers of the shared design (every site adds
@@ -21,6 +23,10 @@ func UIFuncs() template.FuncMap {
 		"avatarc":  AvatarClass,
 		"donut":    Donut,
 		"share":    Percent,
+		// dir and bcp47 mark text in another language than the page's
+		// (a statement in Persian under an English interface).
+		"dir":   i18n.Dir,
+		"bcp47": func(lang string) string { return strings.ReplaceAll(lang, "_", "-") },
 	}
 }
 

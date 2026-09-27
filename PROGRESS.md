@@ -1177,3 +1177,25 @@ localization, H8 audit (`AUDIT.md` §10) and summary.
   main server and the workers (rolling), upgrades through `cmsctl
   upgrade`, secrets under `no_log`, contest directories applied.
 - Docs: operations, contest configuration in Git, Ansible, backups (en/es).
+
+### H7 — accessibility and localization (done)
+- **18 interface languages** for the contestant and ranking sites, three of
+  them right to left (ar, fa, he), as locale files; `locales_dir` adds or
+  corrects languages; `cms ctl locale-template` / `locale-check` for
+  translators; the message list is generated and every shipped locale is
+  complete with matching placeholders (`TestShippedLocales`,
+  `TestContestantMessagesUpToDate`, `TestSameVerbs`, `TestRegisterAndLoadDir`).
+- **Right to left**: logical CSS properties, mirrored arrows, code left to
+  right, statements in their own direction, bidi-isolated user text and
+  names (`TestDir`, browser test).
+- **Display preferences**: dark, light, high contrast, as the system; four
+  text sizes; one form with the language, on the three sites
+  (`TestDisplayPreferences`, ranking `TestAccessibility`).
+- **Accessibility**: WCAG AA colour tokens, keyboard-reachable mobile menu,
+  Escape closes menus, live region for results, named ranking markers,
+  labelled admin controls; `webtest.A11y` over the contestant, ranking and
+  admin pages (`TestA11yFindsProblems` and each site's `TestAccessibility`).
+- **In-browser editor** with Tab indentation, Esc-then-Tab exit,
+  Ctrl+Enter, a browser draft, and checks before sending
+  (`TestEditorSubmission`, `TestContestantUIInBrowser`).
+- Docs: interface languages and accessibility (en/es).

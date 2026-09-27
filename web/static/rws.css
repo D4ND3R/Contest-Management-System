@@ -17,3 +17,4 @@ table.board tr.moved>td{background:var(--warn-soft);transition:background 2s}
 img.flag{height:1.1rem;vertical-align:middle;border-radius:2px}
 svg.chart{width:100%;max-width:48rem;height:14rem;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;display:block}
 svg.chart .line{fill:none;stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke}
+.rws-foot{padding-top:0;color:var(--text-3);font-size:.85rem}

@@ -19,6 +19,7 @@
 - [Evaluar rápido y con justicia: colas, cortocircuito, caché de compilación, precarga, multiplicadores de tiempo, calibración](evaluacion.md)
 - [Cómo se defiende el juez: sandbox, filtro seccomp, envíos sospechosos](seguridad.md)
 - [Lenguajes de programación](languages.md)
+- [Idiomas de la interfaz y accesibilidad: 18 idiomas, derecha a izquierda, temas, tamaño de texto, teclado, el editor de código](interfaz.md)
 - [Paquetes de ejemplo](../examples/packages/README.md)
 
 English documentation: [docs/en](../en/README.md).

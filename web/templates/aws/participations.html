@@ -18,7 +18,7 @@
   <input type="hidden" name="contest_id" value="{{$c.ID}}">
   <h3>{{.T "Import users from CSV into this contest"}}</h3>
   <p class="muted small">{{.T "Columns: username, password, first_name, last_name, email, institution, country, region, timezone, team, site, ip, hidden, unrestricted, delay_time, extra_time. A preview is shown before importing."}}</p>
-  <input type="file" name="file" accept=".csv,text/csv" required>
+  <input type="file" name="file" accept=".csv,text/csv" required aria-label="{{.T "Import users from CSV into this contest"}}">
   <p class="checks"><label><input type="checkbox" name="update"> {{.T "Update existing users"}}</label> <label><input type="checkbox" name="generate" checked> {{.T "Generate missing passwords"}}</label></p>
   <button>{{.T "Import"}}</button>
 </form>

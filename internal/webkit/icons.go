@@ -81,10 +81,18 @@ var iconPaths = map[string]string{
 	"heart-pulse":   `<path d="M3 12h4l2-4 3 8 2-4h7"/>`,
 }
 
+// directional icons point along the reading direction: right-to-left
+// pages mirror them (the "flip" class).
+var directional = map[string]bool{"arrow-right": true, "chevron-left": true, "chevron-right": true, "send": true, "logout": true}
+
 var icons = func() map[string]template.HTML {
 	m := make(map[string]template.HTML, len(iconPaths))
 	for name, paths := range iconPaths {
-		m[name] = template.HTML(`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false">` + paths + `</svg>`)
+		class := "ic"
+		if directional[name] {
+			class = "ic flip"
+		}
+		m[name] = template.HTML(`<svg class="` + class + `" viewBox="0 0 24 24" aria-hidden="true" focusable="false">` + paths + `</svg>`)
 	}
 	return m
 }()

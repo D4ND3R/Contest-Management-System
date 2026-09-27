@@ -39,7 +39,11 @@ func TestIconsExist(t *testing.T) {
 		t.Fatalf("only %d icon uses found", seen)
 	}
 	for _, n := range IconNames() {
-		if s := string(Icon(n)); !strings.HasPrefix(s, `<svg class="ic" viewBox="0 0 24 24"`) || strings.Contains(s, "<script") {
+		want := `<svg class="ic" viewBox="0 0 24 24"`
+		if directional[n] {
+			want = `<svg class="ic flip" viewBox="0 0 24 24"` // mirrored on right-to-left pages
+		}
+		if s := string(Icon(n)); !strings.HasPrefix(s, want) || strings.Contains(s, "<script") {
 			t.Errorf("icon %s: %s", n, s)
 		}
 	}

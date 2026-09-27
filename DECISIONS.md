@@ -1494,3 +1494,68 @@ fair under load. What was built, and the choices behind it:
   server, and a pinned version (never `latest`) so reruns are
   reproducible. The first-run administrator password is hidden and reset
   with `cmsctl admin-password`, rather than risking it in Ansible logs.
+
+## D91. Interface languages as data, right to left, display preferences and the code editor (SPEC_IOI H7)
+
+- **Languages are locale files, not code.** The contestant and ranking sites
+  are what dozens of delegations read; each extra language is a YAML file
+  (English text → translation) embedded in the binary, and an
+  installation's `locales_dir` adds languages or corrects shipped ones
+  without a rebuild. The administration site stays in English and Spanish:
+  its ~2000 strings are read by the host's staff, and a half-translated
+  admin panel is worse than a complete English one.
+- **What a language must translate is generated, not maintained by hand.**
+  `internal/i18n/contestant.txt` (make generate) collects the texts the
+  contestant and ranking templates translate and the catalog keys that
+  appear as literals in the Go packages whose messages reach contestants.
+  The Spanish catalog already covers every shown string (tests enforce it),
+  so being a Spanish key is what marks a literal as a message. A test fails
+  when the file is stale, and every shipped locale must translate all of
+  it.
+- **Placeholders are checked, not trusted.** A translation must take the
+  same arguments as the English text (the same verb at each position;
+  `%[n]` indexes may reorder them, which Japanese, Korean and Turkish
+  need). Mismatches are dropped at load time, so a bad file shows English
+  instead of `%!d(string=…)` in a contestant's face.
+- **18 languages are shipped** (en, es, fr, pt, de, it, ru, uk, pl, tr, zh,
+  ja, ko, vi, id, ar, fa, he), written for this project and checked by
+  machine; the docs say plainly that a native speaker should read them
+  before an official contest, and `locale-template` / `locale-check` make
+  that review and new languages cheap.
+- **Right to left through logical CSS properties**, not a second
+  stylesheet: every left/right became inline-start/end, the two
+  direction-dependent gradients and the off-canvas menu read a variable,
+  and arrows carry a `flip` class. Code, inputs and outputs are forced left
+  to right. A statement takes the direction of its own language, which may
+  differ from the interface's; user-written text (questions, answers,
+  names) uses `dir="auto"` / `<bdi>` so a right-to-left name cannot
+  scramble a ranking row. Ranking rows stay language-neutral (they are
+  rendered once for every spectator), so the medal and unofficial markers
+  name themselves through `aria-labelledby` pointing at translated text on
+  the page.
+- **Display preferences live in a cookie**, not the session or the
+  database: they must work on the login page, on the ranking site (which
+  has no sessions) and cost nothing on the server. Dark stays the default
+  (the approved design); light, high contrast and "as the system" are
+  choices. Text sizes scale the root font, whose base became a percentage
+  so the browser's own font setting is respected. Filled buttons got their
+  own colour tokens so white text keeps 4.5:1 and the high-contrast theme
+  can use black on yellow.
+- **Selecting a language no longer submits by itself**: a select that acts
+  on change breaks WCAG 3.2.2 for keyboard users (every arrow press would
+  reload). One form applies language, theme and size together.
+- **The editor is a textarea with a little JavaScript**, not an embedded
+  code editor: no dependency, nothing for the CSP to allow, the browser's
+  own undo, find, zoom and screen-reader support, and well inside the
+  JavaScript budget. Tab indents, so Esc then Tab leaves it (no keyboard
+  trap). It is offered only when the submission is one source file, sends
+  a text field that goes through the same size checks as an upload (line
+  endings normalised), and a chosen file takes precedence. The checks
+  before sending (size, extension against the language) only save a round
+  trip; the server repeats all of them.
+- **Accessibility is tested, not promised**: `webtest.A11y` checks every
+  audited page of the three sites (lang and dir, one main landmark and h1,
+  alt text, a name for every control, button and link, unique ids and valid
+  ARIA references, no positive tabindex), and a Playwright script drives
+  the real contest site through the editor, keyboard use, right to left,
+  high contrast and large text.

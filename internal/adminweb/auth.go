@@ -124,6 +124,9 @@ func (s *Server) handleLang(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{Name: "cms_lang", Value: lang, Path: "/", MaxAge: 365 * 24 * 3600,
 			HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteLaxMode})
 	}
+	if r.Form.Has("theme") || r.Form.Has("size") {
+		webkit.WriteDisplay(w, webkit.DisplayFromForm(r), s.cfg.CookieSecure)
+	}
 	back := r.Header.Get("HX-Current-URL")
 	if back == "" {
 		back = r.Referer()

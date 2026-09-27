@@ -274,21 +274,25 @@ func (b BackupS3) Enabled() bool { return b.Endpoint != "" && b.Bucket != "" }
 
 // Config is the root configuration.
 type Config struct {
-	Log          Log        `yaml:"log"`
-	Database     Database   `yaml:"database"`
-	Redis        Redis      `yaml:"redis"`
-	Blob         Blob       `yaml:"blob"`
-	SecretKey    string     `yaml:"secret_key"` // hex, >= 32 bytes; signs cookies and CSRF tokens
-	LanguagesDir string     `yaml:"languages_dir"`
-	ContestWeb   ContestWeb `yaml:"contest_web"`
-	AdminWeb     AdminWeb   `yaml:"admin_web"`
-	RankingWeb   RankingWeb `yaml:"ranking_web"`
-	Dispatcher   Dispatcher `yaml:"dispatcher"`
-	Worker       Worker     `yaml:"worker"`
-	Monitor      Monitor    `yaml:"monitor"`
-	Printing     Printing   `yaml:"printing"`
-	Backup       Backup     `yaml:"backup"`
-	BlobServer   BlobServer `yaml:"blob_server"`
+	Log          Log      `yaml:"log"`
+	Database     Database `yaml:"database"`
+	Redis        Redis    `yaml:"redis"`
+	Blob         Blob     `yaml:"blob"`
+	SecretKey    string   `yaml:"secret_key"` // hex, >= 32 bytes; signs cookies and CSRF tokens
+	LanguagesDir string   `yaml:"languages_dir"`
+	// LocalesDir holds extra interface languages for the contestant and
+	// ranking sites, or corrections to the shipped ones (<code>.yaml; see
+	// docs/en/interface.md). Empty: only the shipped ones.
+	LocalesDir string     `yaml:"locales_dir"`
+	ContestWeb ContestWeb `yaml:"contest_web"`
+	AdminWeb   AdminWeb   `yaml:"admin_web"`
+	RankingWeb RankingWeb `yaml:"ranking_web"`
+	Dispatcher Dispatcher `yaml:"dispatcher"`
+	Worker     Worker     `yaml:"worker"`
+	Monitor    Monitor    `yaml:"monitor"`
+	Printing   Printing   `yaml:"printing"`
+	Backup     Backup     `yaml:"backup"`
+	BlobServer BlobServer `yaml:"blob_server"`
 
 	// Path the config was loaded from ("" when defaults only).
 	Path string `yaml:"-"`
@@ -375,6 +379,7 @@ func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 		"CMS_S3_SECRET_KEY":        &c.Blob.S3.SecretKey,
 		"CMS_SECRET_KEY":           &c.SecretKey,
 		"CMS_LANGUAGES_DIR":        &c.LanguagesDir,
+		"CMS_LOCALES_DIR":          &c.LocalesDir,
 		"CMS_CONTEST_WEB_LISTEN":   &c.ContestWeb.Listen,
 		"CMS_ADMIN_WEB_LISTEN":     &c.AdminWeb.Listen,
 		"CMS_RANKING_WEB_LISTEN":   &c.RankingWeb.Listen,

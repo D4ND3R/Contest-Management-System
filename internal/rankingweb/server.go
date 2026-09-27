@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"slices"
 
 	"fmt"
 	"html/template"
@@ -540,17 +541,50 @@ func (s *Server) saveAll() {
 
 // page is the template data of a scoreboard page.
 type page struct {
-	Lang  string
-	Title string
-	Board *ranking.Board
-	Name  string // contest
-	Key   string
-	Data  any
-	Live  bool
-	Seq   int64 // the sequence the rows shown correspond to (live pages)
+	Lang    string
+	Display webkit.Display
+	Path    string
+	Title   string
+	Board   *ranking.Board
+	Name    string // contest
+	Key     string
+	Data    any
+	Live    bool
+	Seq     int64 // the sequence the rows shown correspond to (live pages)
 }
 
 func (p *page) T(msg string, args ...any) string { return i18n.T(p.Lang, msg, args...) }
+
+// Dir is the writing direction of the page's language.
+func (p *page) Dir() string { return i18n.Dir(p.Lang) }
+
+// Languages, Themes and Sizes are the preference choices.
+func (p *page) Languages() []webkit.Option {
+	var out []webkit.Option
+	for _, l := range i18n.Languages() {
+		out = append(out, webkit.Option{Value: l, Label: i18n.Names[l]})
+	}
+	return out
+}
+func (p *page) Themes() []webkit.Option { return webkit.ThemeOptions(p.T) }
+func (p *page) Sizes() []webkit.Option  { return webkit.SizeOptions(p.T) }
+
+// newPage starts a page. The ranking site has no sessions or forms that
+// change anything, so the preferences come as query parameters (a GET
+// form) and are remembered in the cookies the other sites use.
+func newPage(w http.ResponseWriter, r *http.Request) *page {
+	p := &page{Lang: lang(r), Display: webkit.ReadDisplay(r), Path: r.URL.Path}
+	q := r.URL.Query()
+	if q.Has("lang") && slices.Contains(i18n.Languages(), q.Get("lang")) {
+		http.SetCookie(w, &http.Cookie{Name: "cms_lang", Value: q.Get("lang"), Path: "/", MaxAge: 365 * 24 * 3600,
+			HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: r.TLS != nil})
+	}
+	if q.Has("theme") || q.Has("size") {
+		p.Display = webkit.DisplayFromForm(r)
+		webkit.WriteDisplay(w, p.Display, r.TLS != nil)
+	}
+	return p
+}
 
 func lang(r *http.Request) string {
 	explicit := r.URL.Query().Get("lang")
@@ -607,7 +641,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.RUnlock()
 	sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name })
-	p := &page{Lang: lang(r), Title: s.cfg.Title, Data: list}
+	p := newPage(w, r)
+	p.Title, p.Data = s.cfg.Title, list
 	webkit.Render(w, s.log, s.pages["index"], "layout", http.StatusOK, p)
 }
 
@@ -619,7 +654,8 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, name string
 	w.Header().Set("Cache-Control", "no-cache")
 	if cached == nil {
 		bd.mu.Lock()
-		p := &page{Lang: l, Title: bd.b.Title, Board: bd.b, Name: name, Live: true, Seq: bd.shown}
+		p := newPage(w, r)
+		p.Lang, p.Title, p.Board, p.Name, p.Live, p.Seq = l, bd.b.Title, bd.b, name, true, bd.shown
 		var sb strings.Builder
 		if err := s.pages["board"].ExecuteTemplate(&sb, "layout", p); err != nil {
 			bd.mu.Unlock()
@@ -711,7 +747,8 @@ func (s *Server) handleUser(w http.ResponseWriter, r *http.Request, name string,
 		return
 	}
 	d.Chart = chart(d.Points, b.Start, b.Stop, maxTotal(b))
-	p := &page{Lang: lang(r), Title: d.Row.Name, Board: b, Name: name, Data: d}
+	p := newPage(w, r)
+	p.Title, p.Board, p.Name, p.Data = d.Row.Name, b, name, d
 	webkit.Render(w, s.log, s.pages["user"], "layout", http.StatusOK, p)
 }
 

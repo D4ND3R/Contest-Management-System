@@ -113,6 +113,7 @@ func New(cfg config.ContestWeb, d Deps, log *slog.Logger) (*Server, error) {
 func (s *Server) loadTemplates() error {
 	funcs := template.FuncMap{
 		"static":  s.static.URL,
+		"kib":     func(n int64) int64 { return n >> 10 },
 		"row":     func(p *page, sv subView) rowCtx { return rowCtx{P: p, S: sv} },
 		"testrow": func(p *page, v testView) testCtx { return testCtx{P: p, T: v} },
 		"card":    func(p *page, c *resultCard, t *taskView) cardCtx { return cardCtx{P: p, C: c, Task: t} },
@@ -277,12 +278,14 @@ type reqCtx struct {
 	part    sqlc.GetParticipationViewRow
 	// group is the participation, or every participation of its team in a
 	// team contest (they share submissions, limits and scores).
-	group  []int64
-	sess   *webkit.Session
-	lang   string
-	status contest.Status
-	ip     netip.Addr
-	now    time.Time
+	group []int64
+	sess  *webkit.Session
+	lang  string
+	// display: the visitor's theme and text size.
+	display webkit.Display
+	status  contest.Status
+	ip      netip.Addr
+	now     time.Time
 }
 
 // sessionTTL is how long a contestant session lasts: the contest's
@@ -400,7 +403,7 @@ func (s *Server) withAuth(h func(http.ResponseWriter, *http.Request, *reqCtx)) h
 		}
 		now := s.now()
 		rc := &reqCtx{ctx: r.Context(), contest: cv, part: part, sess: sess, ip: ip, now: now,
-			lang: s.language(r, cv, part.PreferredLanguages, sess.Lang)}
+			lang: s.language(r, cv, part.PreferredLanguages, sess.Lang), display: webkit.ReadDisplay(r)}
 		rc.group = []int64{part.ID}
 		if cv.TeamMode && part.TeamID != nil {
 			if ids, err := s.cache.team(r.Context(), cv.ID, *part.TeamID); err == nil && len(ids) > 0 {
@@ -477,7 +480,7 @@ func (s *Server) newPage(rc *reqCtx, title, active string) *page {
 		}
 	}
 	p := &page{
-		Lang: rc.lang, Title: title, CSRF: s.csrf.Token(rc.sess.ID), Base: "/" + rc.contest.Name + "/",
+		Lang: rc.lang, Display: rc.display, Title: title, CSRF: s.csrf.Token(rc.sess.ID), Base: "/" + rc.contest.Name + "/",
 		Contest: rc.contest, Part: &rc.part, Status: statusView{rc.status}, Active: active,
 		EventsURL: "/" + rc.contest.Name + "/events", ServerTime: rc.now.UnixMilli(),
 		UILanguages: uiLanguages(rc.contest.AllowedLocalizations), loc: loc,
@@ -516,7 +519,7 @@ func (s *Server) renderPartial(w http.ResponseWriter, name string, data any) {
 // errorPage renders an error for authenticated or anonymous visitors.
 func (s *Server) errorPage(w http.ResponseWriter, r *http.Request, cv *contestView, status int, title, msg string) {
 	lang := s.language(r, cv, nil, "")
-	p := &page{Lang: lang, Contest: cv, loc: time.UTC, UILanguages: uiLanguages(nil)}
+	p := &page{Lang: lang, Display: webkit.ReadDisplay(r), Contest: cv, loc: time.UTC, UILanguages: uiLanguages(nil)}
 	p.Title, p.Error = p.T(title), i18n.TDetail(lang, msg)
 	if cv != nil {
 		p.Base = "/" + cv.Name + "/"

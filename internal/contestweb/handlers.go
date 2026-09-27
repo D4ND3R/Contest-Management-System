@@ -58,7 +58,12 @@ func (s *Server) visibleTask(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 
 // ---------------------------------------------------------------- task
 
-type langChoice struct{ ID, Name string }
+// langChoice is a language of the submission form; Exts are its source
+// extensions (the page checks a chosen file against them before sending).
+type langChoice struct {
+	ID, Name string
+	Exts     string
+}
 
 type taskData struct {
 	Task         *taskView
@@ -71,6 +76,8 @@ type taskData struct {
 	CannotSubmit string
 	Languages    []langChoice
 	LastLanguage string
+	// MaxFileBytes is the size limit of each file (checked in the page too).
+	MaxFileBytes int64
 	Limits       [][2]string
 	// Statement is the statement shown on the page.
 	Statement *statementPage
@@ -111,8 +118,9 @@ func (s *Server) taskData(r *http.Request, rc *reqCtx, p *page, t *taskView) (*t
 		}
 	}
 	for _, l := range t.Languages {
-		d.Languages = append(d.Languages, langChoice{ID: l.ID, Name: l.Name})
+		d.Languages = append(d.Languages, langChoice{ID: l.ID, Name: l.Name, Exts: strings.Join(l.SourceExtensions, " ")})
 	}
+	d.MaxFileBytes = s.fileLimit(rc, t)
 	subs, err := s.listSubs(r, rc, t)
 	if err != nil {
 		return nil, err
@@ -346,11 +354,29 @@ type submittedFile struct {
 
 // readSubmission parses and validates the multipart form.
 func (s *Server) readSubmission(w http.ResponseWriter, r *http.Request, rc *reqCtx, t *taskView) ([]submittedFile, *langs.Language, string) {
-	max := int64(s.cfg.MaxSubmissionBytes)
-	if max <= 0 {
-		max = 1 << 20
+	return s.readSources(w, r, rc, t, s.submissionLimit())
+}
+
+// submissionLimit bounds a whole submission request.
+func (s *Server) submissionLimit() int64 {
+	if max := int64(s.cfg.MaxSubmissionBytes); max > 0 {
+		return max
 	}
-	return s.readSources(w, r, rc, t, max)
+	return 1 << 20
+}
+
+// fileLimit is the size limit of each file of a submission to t: the
+// task's source limit, the contest's and the server's.
+func (s *Server) fileLimit(rc *reqCtx, t *taskView) int64 {
+	perFile := t.SourceLimit
+	max := s.submissionLimit()
+	if perFile <= 0 {
+		perFile = max
+	}
+	if m := rc.contest.MaxSubmissionBytes; m != nil && *m < perFile {
+		perFile = *m
+	}
+	return perFile
 }
 
 // readSources reads the files (and language) of a submission or a user
@@ -382,6 +408,15 @@ func (s *Server) readSources(w http.ResponseWriter, r *http.Request, rc *reqCtx,
 	var files []submittedFile
 	for _, format := range t.Formats {
 		f, hdr, err := r.FormFile(format)
+		if err != nil && t.Editor() && strings.TrimSpace(r.FormValue("source")) != "" {
+			// Typed in the page's editor (browsers send its lines with CRLF).
+			data := []byte(strings.ReplaceAll(r.FormValue("source"), "\r\n", "\n"))
+			if int64(len(data)) > perFile {
+				return nil, nil, "A file exceeds the size limit."
+			}
+			files = append(files, submittedFile{name: format, data: data})
+			continue
+		}
 		if err != nil {
 			if t.NeedsLanguage {
 				return nil, nil, "Every file of the submission is required."

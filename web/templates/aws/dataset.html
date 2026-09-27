@@ -74,7 +74,7 @@
 </fieldset>
 <details><summary>{{.T "Advanced: raw parameters (JSON)"}}</summary>
   <p class="checks"><label><input type="checkbox" name="raw_params"> {{.T "Use this JSON instead of the fields above"}}</label></p>
-  <textarea name="task_type_params" rows="6" class="code">{{.Data.ParamsJSON}}</textarea>
+  <textarea name="task_type_params" rows="6" class="code" aria-label="{{.T "Advanced: raw parameters (JSON)"}}">{{.Data.ParamsJSON}}</textarea>
 </details>
 </div>
 <div>
@@ -84,7 +84,7 @@
 <p class="muted small" data-group="score" data-for="GroupMin GroupMul">{{.T "It saves judging time (the score cannot change); skipped testcases are shown as skipped instead of their result."}}</p>
 <details {{if .Data.Editor.Raw}}open{{end}}><summary>{{.T "Advanced: raw score parameters (JSON)"}}</summary>
   <p class="checks"><label><input type="checkbox" name="raw_score" {{if .Data.Editor.Raw}}checked{{end}}> {{.T "Use this JSON instead of the editor"}}</label></p>
-  <textarea name="score_type_params" id="score_type_params" rows="7" class="code">{{.Data.ScoreJSON}}</textarea>
+  <textarea name="score_type_params" id="score_type_params" rows="7" class="code" aria-label="{{.T "Advanced: raw score parameters (JSON)"}}">{{.Data.ScoreJSON}}</textarea>
   <small class="muted">{{.T "Sum: points per testcase (e.g. 10). Group*: one entry per subtask with its maximum score and testcases (regex, count or list) and an optional threshold, e.g."}} <code>[[40, "1_.*"], [60, 5]]</code></small>
 </details>
 </div>
@@ -101,7 +101,7 @@
 {{with .Data.Required}}<p class="muted small">{{$.T "This configuration uses:"}} {{join . ", "}}.</p>{{end}}
 {{if .CanEditTasks}}
 <form method="post" action="/datasets/{{$ds.ID}}/managers" enctype="multipart/form-data">
-  {{template "csrf" .CSRF}}<input type="file" name="files" multiple required> <button>{{.T "Upload"}}</button>
+  {{template "csrf" .CSRF}}<input type="file" name="files" multiple required aria-label="{{.T "Managers"}}"> <button>{{.T "Upload"}}</button>
 </form>
 {{end}}
 </section>
@@ -114,7 +114,7 @@
   {{template "csrf" .CSRF}}
   <h3>{{.T "From a zip archive"}}</h3>
   <div class="grid"><label>{{.T "Input names"}} <input name="input_template" value="*.in"></label><label>{{.T "Output names"}} <input name="output_template" value="*.out"></label></div>
-  <input type="file" name="archive" accept=".zip,application/zip" required>
+  <input type="file" name="archive" accept=".zip,application/zip" required aria-label="{{.T "From a zip archive"}}">
   <p class="checks"><label><input type="checkbox" name="overwrite"> {{.T "Overwrite existing"}}</label> <label><input type="checkbox" name="public"> {{.T "Public"}}</label></p>
   <button>{{.T "Import"}}</button>
 </form>

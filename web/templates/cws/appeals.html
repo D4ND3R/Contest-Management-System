@@ -20,8 +20,8 @@
 <article class="msg">
   <h3>{{.Task}}{{with .Submission}} · #{{.}}{{end}} <small class="muted">{{$.DateTime .At}}</small>
     {{if eq .Status "open"}}<span class="tag warn">{{$.T "waiting for an answer"}}</span>{{else if eq .Status "accepted"}}<span class="tag ok">{{$.T "accepted"}}</span>{{else}}<span class="tag bad">{{$.T "rejected"}}</span>{{end}}</h3>
-  <p class="pre">{{.Text}}</p>
-  {{with .Response}}<p class="answer"><b>{{$.T "Answer:"}}</b> <span class="pre">{{.}}</span></p>{{end}}
+  <p class="pre" dir="auto">{{.Text}}</p>
+  {{with .Response}}<p class="answer"><b>{{$.T "Answer:"}}</b> <span class="pre" dir="auto">{{.}}</span></p>{{end}}
 </article>
 {{else}}<p class="muted">{{.T "You have not sent any appeal."}}</p>{{end}}
 </section>

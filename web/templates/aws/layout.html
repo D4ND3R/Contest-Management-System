@@ -1,5 +1,5 @@
 {{define "layout"}}<!doctype html>
-<html lang="{{.Lang}}">
+<html lang="{{.Lang}}" dir="{{.Dir}}"{{with .Display.Theme}} data-theme="{{.}}"{{end}}{{with .Display.Size}} data-size="{{.}}"{{end}}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,10 +15,10 @@
 <body class="admin">
 <a class="skip" href="#main">{{.T "Skip to content"}}</a>
 {{if .Admin}}{{$c := .Contest}}{{$cid := .CID}}
-<input type="checkbox" id="nav" class="navtoggle" aria-hidden="true" tabindex="-1">
+<input type="checkbox" id="nav" class="navtoggle" aria-label="{{.T "Menu"}}">
 <div class="app">
 <header class="topbar">
-  <label for="nav" class="iconbtn burger" title="{{.T "Menu"}}">{{icon "menu"}}</label>
+  <label for="nav" class="iconbtn burger" title="{{.T "Menu"}}" aria-hidden="true">{{icon "menu"}}</label>
   <a class="brand" href="/">
     <span class="logo">{{icon "logo"}}</span>
     <span><b>CMS</b><small>{{.T "Contest Management System"}}</small></span>
@@ -26,7 +26,7 @@
   <div class="crumbs">
     {{if .Crumbs}}<a class="back" href="{{.BackURL}}" title="{{.T "Back"}}">{{icon "chevron-left"}}</a>
     {{range .Crumbs}}<a href="{{.URL}}">{{.Name}}</a><span class="sep">›</span>{{end}}<b>{{.Title}}</b>
-    {{else if $c}}<a href="/contests/{{$cid}}">{{icon "flag"}}</a><a href="/contests/{{$cid}}"><b>{{.ContestHeading}}</b></a>{{with $c.Description}}{{if $c.Title}}<span class="sep">·</span><span>{{.}}</span>{{end}}{{end}}
+    {{else if $c}}<a href="/contests/{{$cid}}" class="with-icon">{{icon "flag"}} <b>{{.ContestHeading}}</b></a>{{with $c.Description}}{{if $c.Title}}<span class="sep">·</span><span>{{.}}</span>{{end}}{{end}}
     {{else}}<b>{{.Title}}</b>{{end}}
     {{if $c}}<span class="pill {{.PhaseClass}}" title="{{$c.Name}}">{{.PhaseLabel}}</span>{{end}}
   </div>
@@ -37,11 +37,10 @@
       <summary><span class="avatar {{avatarc .Admin.Username}}">{{initials .Admin.Username}}</span><span class="who"><b>{{.Admin.Username}}</b><small>{{.RoleLabel}}</small></span>{{icon "chevron-down"}}</summary>
       <div class="menu">
         <a href="/account">{{icon "user"}} {{.T "My account"}}</a>
-        <form method="post" action="/lang">
-          <label for="ui-lang">{{.T "Language"}}</label>
-          <select id="ui-lang" name="lang" hx-post="/lang" hx-trigger="change">
-            {{range .Languages}}<option value="{{.Code}}" {{if eq .Code $.Lang}}selected{{end}}>{{.Name}}</option>{{end}}
-          </select>
+        <form method="post" action="/lang" class="prefs">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          {{template "prefs" .}}
+          <button class="small">{{.T "Apply"}}</button>
         </form>
         <hr>
         <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="item">{{icon "logout"}} {{.T "Log out"}}</button></form>
@@ -103,11 +102,14 @@
   {{template "content" .}}
   </main>
   <div class="foot">
-    <form method="post" action="/lang" class="inline">
-      <select name="lang" aria-label="{{.T "Language"}}" hx-post="/lang" hx-trigger="change">
-        {{range .Languages}}<option value="{{.Code}}" {{if eq .Code $.Lang}}selected{{end}}>{{.Name}}</option>{{end}}
-      </select>
-    </form>
+    <details class="prefs-box">
+      <summary>{{.T "Language and display"}}</summary>
+      <form method="post" action="/lang">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        {{template "prefs" .}}
+        <button class="small">{{.T "Apply"}}</button>
+      </form>
+    </details>
     <span>CMS {{.Version}}</span>
   </div>
 </div>
@@ -115,3 +117,10 @@
 <div id="notifications" aria-live="polite" data-alert="{{.T "System error:"}}" data-question="{{.T "New question:"}}" data-overview="{{.T "see the overview"}}"></div>
 </body>
 </html>{{end}}
+
+{{define "prefs"}}<label for="ui-lang">{{.T "Language"}}</label>
+<select id="ui-lang" name="lang">{{range .Languages}}<option value="{{.Code}}" lang="{{.Code}}" {{if eq .Code $.Lang}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+<label for="ui-theme">{{.T "Theme"}}</label>
+<select id="ui-theme" name="theme">{{range .Themes}}<option value="{{.Value}}" {{if eq .Value $.Display.Theme}}selected{{end}}>{{.Label}}</option>{{end}}</select>
+<label for="ui-size">{{.T "Text size"}}</label>
+<select id="ui-size" name="size">{{range .Sizes}}<option value="{{.Value}}" {{if eq .Value $.Display.Size}}selected{{end}}>{{.Label}}</option>{{end}}</select>{{end}}

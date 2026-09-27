@@ -23,6 +23,9 @@
 </div>
 {{if not $b.Rows}}<p class="empty">{{.T "Nobody takes part yet."}}</p>{{end}}
 </section>
+{{/* Names of the row markers for screen readers (rows are shared by every
+     viewer, so they point here for the words). */}}
+<div hidden><span id="d-medal-gold">{{.T "gold"}}</span><span id="d-medal-silver">{{.T "silver"}}</span><span id="d-medal-bronze">{{.T "bronze"}}</span><span id="d-unofficial">{{.T "Unofficial participant: no place and no medal."}}</span></div>
 {{if or $b.Unofficial $b.Cutoffs}}<section class="card legend">
 {{if $b.Cutoffs}}<p class="cutoffs">{{range $b.Cutoffs}}<span class="medal {{.Medal}}">{{icon "award"}} {{$.T .Medal}}: {{$.T "%d from %s points" .Count (score .Score $b.Precision)}}</span> {{end}}</p>{{end}}
 {{if $b.Unofficial}}<p class="muted small"><sup>*</sup> {{.T "Unofficial participant: no place and no medal."}}</p>{{end}}

@@ -153,7 +153,7 @@ func TestAdminInSpanish(t *testing.T) {
 	webtest.MustOK(t, "lang", code, body)
 	id := func(v int64) string { return fmt.Sprint(v) }
 	for path, want := range map[string][]string{
-		"/":                             {`<html lang="es">`, "Panel", "Cerrar sesión", "Clasificación en vivo"},
+		"/":                             {`<html lang="es" dir="ltr">`, "Panel", "Cerrar sesión", "Clasificación en vivo"},
 		"/contests/" + id(f.contest.ID): {"Estado de los problemas", "Eventos recientes", "Estado del sistema"},
 		"/contests/" + id(f.contest.ID) + "/settings": {"Guardar", "Reevaluar todo el concurso", "Imagen del banner"},
 		"/tasks/" + id(f.task.ID):                     {"Enunciados", "Probador de problemas", "Límites de envíos"},

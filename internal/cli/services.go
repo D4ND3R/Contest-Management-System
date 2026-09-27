@@ -21,6 +21,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/dispatcher"
 	"github.com/D4ND3R/Contest-Management-System/internal/events"
 	"github.com/D4ND3R/Contest-Management-System/internal/httpx"
+	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/monitor"
 	"github.com/D4ND3R/Contest-Management-System/internal/printing"
@@ -75,7 +76,23 @@ func loadLanguages(ctx context.Context, cfg *config.Config, q *sqlc.Queries) (*l
 	return reg, nil
 }
 
+// loadLocales registers the installation's interface languages (before
+// any request is served).
+func loadLocales(cfg *config.Config, log *slog.Logger) error {
+	if cfg.LocalesDir == "" {
+		return nil
+	}
+	warnings, err := i18n.LoadDir(cfg.LocalesDir)
+	for _, w := range warnings {
+		log.Warn("locale", "problem", w)
+	}
+	return err
+}
+
 func runContestWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
+	if err := loadLocales(cfg, log); err != nil {
+		return err
+	}
 	d, err := deps.Open(ctx, cfg, log, deps.Need{DB: true, Redis: true, Blobs: true})
 	if err != nil {
 		return err
@@ -95,6 +112,9 @@ func runContestWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) er
 }
 
 func runAdminWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
+	if err := loadLocales(cfg, log); err != nil {
+		return err
+	}
 	d, err := deps.Open(ctx, cfg, log, deps.Need{DB: true, Redis: true, Blobs: true})
 	if err != nil {
 		return err
@@ -203,6 +223,9 @@ func runMonitor(ctx context.Context, cfg *config.Config, log *slog.Logger) error
 
 // runRankingWeb serves the public scoreboards; it needs no database.
 func runRankingWeb(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
+	if err := loadLocales(cfg, log); err != nil {
+		return err
+	}
 	srv, err := rankingweb.New(cfg.RankingWeb, log)
 	if err != nil {
 		return err

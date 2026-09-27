@@ -24,28 +24,28 @@
 <div id="communication" data-src="{{.Base}}communication/list">
 {{with $d.Announcements}}
 <section class="card"><h2>{{$.T "Announcements"}}</h2>
-{{range .}}<article class="msg"><h3>{{.Subject}} <small class="muted">{{$.Time .CreatedAt}}</small></h3><p class="pre">{{.Text}}</p></article>{{end}}
+{{range .}}<article class="msg"><h3><bdi>{{.Subject}}</bdi> <small class="muted">{{$.Time .CreatedAt}}</small></h3><p class="pre" dir="auto">{{.Text}}</p></article>{{end}}
 </section>
 {{end}}
 {{with $d.Messages}}
 <section class="card"><h2>{{$.T "Private messages"}}</h2>
-{{range .}}<article class="msg"><h3>{{.Subject}} <small class="muted">{{$.Time .CreatedAt}}</small></h3><p class="pre">{{.Text}}</p></article>{{end}}
+{{range .}}<article class="msg"><h3><bdi>{{.Subject}}</bdi> <small class="muted">{{$.Time .CreatedAt}}</small></h3><p class="pre" dir="auto">{{.Text}}</p></article>{{end}}
 </section>
 {{end}}
 <section class="card"><h2>{{.T "Your questions"}}</h2>
 {{range $d.Questions}}
 <article class="msg">
   <h3>{{.About}} <small class="muted">{{$.Time .AskedAt}}</small></h3>
-  <p class="pre">{{.Text}}</p>
-  {{if .Answered}}<p class="answer"><b>{{$.T .ReplySubject}}</b>{{with .ReplyText}} <span class="pre">{{.}}</span>{{end}}{{if .Public}} <span class="tag">{{$.T "answered for everyone"}}</span>{{end}}</p>
+  <p class="pre" dir="auto">{{.Text}}</p>
+  {{if .Answered}}<p class="answer"><b>{{$.T .ReplySubject}}</b>{{with .ReplyText}} <span class="pre" dir="auto">{{.}}</span>{{end}}{{if .Public}} <span class="tag">{{$.T "answered for everyone"}}</span>{{end}}</p>
   {{else}}<p class="muted">{{$.T "Waiting for an answer."}}</p>{{end}}
 </article>
 {{else}}<p class="muted">{{.T "You have not asked anything."}}</p>{{end}}
 </section>
 {{with $d.Public}}
 <section class="card"><h2>{{$.T "Answers for everyone"}}</h2>
-{{range .}}<article class="msg"><h3>{{.About}} <small class="muted">{{$.Time .ReplyAt}}</small></h3><p class="pre">{{.Text}}</p>
-<p class="answer"><b>{{$.T .ReplySubject}}</b>{{with .ReplyText}} <span class="pre">{{.}}</span>{{end}}</p></article>{{end}}
+{{range .}}<article class="msg"><h3><bdi>{{.About}}</bdi> <small class="muted">{{$.Time .ReplyAt}}</small></h3><p class="pre" dir="auto">{{.Text}}</p>
+<p class="answer"><b>{{$.T .ReplySubject}}</b>{{with .ReplyText}} <span class="pre" dir="auto">{{.}}</span>{{end}}</p></article>{{end}}
 </section>
 {{end}}
 </div>

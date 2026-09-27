@@ -106,7 +106,7 @@
   <div class="card-head"><h2>{{icon "megaphone"}} {{.T "Announcements"}}</h2><a class="more" href="{{.Base}}communication">{{.T "View all"}} {{icon "arrow-right"}}</a></div>
   {{if $d.Announcements}}
   <ul class="feed">
-  {{range $d.Announcements}}<li><span class="ico info">{{icon "megaphone"}}</span><div class="what"><b>{{.Subject}}</b><small>{{.Text}}</small></div><span class="when">{{$.Time .CreatedAt}}</span></li>{{end}}
+  {{range $d.Announcements}}<li><span class="ico info">{{icon "megaphone"}}</span><div class="what"><b dir="auto">{{.Subject}}</b><small dir="auto">{{.Text}}</small></div><span class="when">{{$.Time .CreatedAt}}</span></li>{{end}}
   </ul>
   {{else}}<p class="empty">{{.T "No announcements."}}</p>{{end}}
 </section>

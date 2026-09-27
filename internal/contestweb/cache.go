@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,6 +60,12 @@ type taskView struct {
 	// InputFile / OutputFile are the files a Batch program reads and
 	// writes ("" = standard input and output).
 	InputFile, OutputFile string
+}
+
+// Editor reports whether the task takes one source file, which the
+// contestant may also type (or paste) in the page instead of uploading.
+func (t *taskView) Editor() bool {
+	return t.NeedsLanguage && len(t.Formats) == 1 && strings.HasSuffix(t.Formats[0], ".%l")
 }
 
 // languageTime is a language's own time limit (time_multiplier).

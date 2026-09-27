@@ -21,6 +21,7 @@ import (
 // page is the data of every admin page.
 type page struct {
 	Lang       string
+	Display    webkit.Display
 	Title      string
 	Admin      *sqlc.Admin
 	CSRF       string
@@ -51,7 +52,7 @@ type crumb struct{ Name, URL string }
 
 func (s *Server) newPage(w http.ResponseWriter, r *http.Request, rc *reqCtx, title, active string, data any) *page {
 	lang := adminLang(r)
-	p := &page{Lang: lang, Title: i18n.T(lang, title), Active: active, Data: data, ServerTime: s.now()}
+	p := &page{Lang: lang, Display: webkit.ReadDisplay(r), Title: i18n.T(lang, title), Active: active, Data: data, ServerTime: s.now()}
 	if rc != nil {
 		p.Admin = &rc.admin
 		p.CSRF = s.csrf.Token(rc.sess.ID)
@@ -221,10 +222,18 @@ func (p *page) crumb(name, url string) *page {
 // T translates a message into the page's language.
 func (p *page) T(msg string, args ...any) string { return i18n.T(p.Lang, msg, args...) }
 
-// Languages lists the UI languages for the selector.
+// Dir is the writing direction of the page's language.
+func (p *page) Dir() string { return i18n.Dir(p.Lang) }
+
+// Themes and Sizes are the display preference choices.
+func (p *page) Themes() []webkit.Option { return webkit.ThemeOptions(p.T) }
+func (p *page) Sizes() []webkit.Option  { return webkit.SizeOptions(p.T) }
+
+// Languages lists the UI languages for the selector (those that translate
+// the administration site).
 func (p *page) Languages() []localization {
 	var out []localization
-	for _, code := range i18n.Languages() {
+	for _, code := range i18n.AdminLanguages() {
 		out = append(out, localization{code, i18n.Names[code]})
 	}
 	return out
@@ -237,7 +246,7 @@ func adminLang(r *http.Request) string {
 	if c, err := r.Cookie("cms_lang"); err == nil {
 		explicit = c.Value
 	}
-	return i18n.Negotiate(explicit, nil, r.Header.Get("Accept-Language"), nil)
+	return i18n.Negotiate(explicit, nil, r.Header.Get("Accept-Language"), i18n.AdminLanguages())
 }
 
 // adminTr returns a translator into the administrator's language, for

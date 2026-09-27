@@ -19,6 +19,7 @@
 - [Judging quickly and fairly: queues, short-circuit, compilation cache, pre-warming, time multipliers, calibration](evaluation.md)
 - [How the judge defends itself: sandbox, seccomp filter, suspicious submissions](security.md)
 - [Programming languages](languages.md)
+- [Interface languages and accessibility: 18 languages, right to left, themes, text size, keyboard, the code editor](interface.md)
 - [Example problem packages](../examples/packages/README.md)
 
 Documentación en español: [docs/es](../es/README.md).

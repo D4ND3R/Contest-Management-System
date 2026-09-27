@@ -11,6 +11,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/version"
+	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 )
 
 // langOption is an entry of the UI language selector.
@@ -20,6 +21,7 @@ type langOption struct{ Code, Name string }
 // (translation, formatting) bound to the request's language and time zone.
 type page struct {
 	Lang        string
+	Display     webkit.Display
 	Title       string
 	CSRF        string
 	Base        string // "/<contest>/"
@@ -58,6 +60,13 @@ func (s statusView) Running() bool { return s.Phase == contest.Running }
 
 // T translates a message.
 func (p *page) T(msg string, args ...any) string { return i18n.T(p.Lang, msg, args...) }
+
+// Dir is the writing direction of the page's language.
+func (p *page) Dir() string { return i18n.Dir(p.Lang) }
+
+// Themes and Sizes are the display preference choices.
+func (p *page) Themes() []webkit.Option { return webkit.ThemeOptions(p.T) }
+func (p *page) Sizes() []webkit.Option  { return webkit.SizeOptions(p.T) }
 
 // TZ is the time zone name used to display times.
 func (p *page) TZ() string { return p.loc.String() }

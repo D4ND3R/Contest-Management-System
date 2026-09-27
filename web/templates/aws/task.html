@@ -89,7 +89,7 @@
 {{if .CanEditTasks}}
 <form method="post" action="/tasks/{{$task.ID}}/attachments" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
-  <input type="file" name="file" required> <button>{{.T "Upload attachment"}}</button>
+  <input type="file" name="file" required aria-label="{{.T "Upload attachment"}}"> <button>{{.T "Upload attachment"}}</button>
 </form>
 {{end}}
 </section>
