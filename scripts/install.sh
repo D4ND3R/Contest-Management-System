@@ -385,7 +385,7 @@ from_source() {
   WORK=$(mktemp -d)
   SRC=$WORK/release
   mkdir -p "$SRC"
-  cp "$root/bin/cms" "$root/bin/cmsctl" "$root/LICENSE" "$root/NOTICE" "$SRC/"
+  cp "$root/bin/cms" "$root/bin/cmsctl" "$root/NOTICE" "$SRC/"
   cp -r "$root/config" "$root/deploy" "$root/scripts" "$root/docs" "$SRC/"
   VER=$("$SRC/cms" version | awk '{print $2}')
   step "release $VER built from $root"

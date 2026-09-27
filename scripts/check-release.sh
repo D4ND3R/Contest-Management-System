@@ -7,7 +7,7 @@ set -euo pipefail
 DIST=${1:-dist}
 cd "$DIST"
 sha256sum --check --strict checksums.txt
-need=(cms cmsctl LICENSE NOTICE README.md config/cms.example.yaml config/languages/cpp17.yaml
+need=(cms cmsctl NOTICE README.md config/cms.example.yaml config/languages/cpp17.yaml
       migrations/0001_schema.sql web/templates/aws/layout.html deploy/systemd/cms.target
       deploy/systemd/cms-worker.service scripts/install.sh scripts/install-isolate.sh scripts/verify-host.sh
       docs/en/deployment.md docs/es/despliegue.md)

@@ -1676,3 +1676,16 @@ fair under load. What was built, and the choices behind it:
   and memory limits, crashes and security violations keep their message.
 - **Stored as "hide", not "show"**, so the zero value of every existing
   creation path (forms, packages, clones, imports) keeps today's behaviour.
+
+## D97. All rights reserved (replaces D72)
+
+- The owner removed the Apache-2.0 LICENSE and wants the code under
+  copyright only for now: no license is granted. README and NOTICE say so
+  (in both languages in the README); the release tarballs ship NOTICE
+  instead of LICENSE; the images are labelled
+  `LicenseRef-All-Rights-Reserved`, the SPDX form for a proprietary work.
+- NOTICE keeps the htmx attribution (Zero-Clause BSD needs none, but it
+  says what is bundled) and the statement that no CMS (AGPL-3.0) code is
+  included.
+- Releases already published under Apache-2.0 (v0.1.0 to v0.2.1) keep
+  that license for those versions; the change applies from the next one.

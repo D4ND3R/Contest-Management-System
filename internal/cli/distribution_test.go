@@ -103,7 +103,7 @@ func TestReleaseConfiguration(t *testing.T) {
 			t.Errorf("the release tarball lists %s, which matches nothing", glob)
 		}
 	}
-	for _, want := range []string{"LICENSE", "config/cms.example.yaml", "internal/db/migrations/*.sql", "web/templates/**/*", "deploy/systemd/*", "scripts/verify-host.sh"} {
+	for _, want := range []string{"NOTICE", "config/cms.example.yaml", "internal/db/migrations/*.sql", "web/templates/**/*", "deploy/systemd/*", "scripts/verify-host.sh"} {
 		if !slices.Contains(listed, want) {
 			t.Errorf("the release tarball does not ship %s", want)
 		}

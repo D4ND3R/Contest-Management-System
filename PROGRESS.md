@@ -1223,8 +1223,8 @@ checked to exist) found these still missing, now done:
 - **Hidden checker messages** per task (D96, `TestHiddenCheckerMessages`).
 - Docs: ranking, languages, operations, problem package, admin guide
   (en/es).
-- Open: the repository owner deleted `LICENSE`; `cli.TestReleaseConfiguration`
-  and `cli.TestDocsLinks` fail until the owner chooses a license (or none).
+- License: by the owner's decision the code is all rights reserved, with
+  no LICENSE file (D97); README, NOTICE, packaging and image labels follow.
   Pending on real hardware (**hw** in the audit): the host check on the
   owner's server, the load and failover drills on the contest machines,
   and a native speaker's review of each shipped translation.
