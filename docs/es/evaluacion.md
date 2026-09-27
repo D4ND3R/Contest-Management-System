@@ -32,11 +32,11 @@ problema toma el mejor, como siempre).
 
 ## Posición en la cola y tiempo de espera
 
-Mientras un envío espera un worker, la tarjeta de resultado de la página
-del problema dice cuántos envíos hay antes y cuánto tardan ahora los
-resultados (la mediana del tiempo entre envío y puntaje de los últimos 200
-envíos evaluados). La tarjeta se actualiza sola cada 10 segundos mientras
-espera y deja de hacerlo cuando el envío empieza a evaluarse.
+Mientras un envío espera un worker, su fila en la pestaña Envíos del
+problema (y su página) dice cuántos envíos hay antes y cuánto tardan ahora
+los resultados (la mediana del tiempo entre envío y puntaje de los últimos
+200 envíos evaluados). La fila se actualiza sola en cuanto cambia el estado
+del envío.
 
 ## Evaluación en cortocircuito
 

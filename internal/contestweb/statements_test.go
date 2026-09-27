@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -255,5 +256,35 @@ func TestLanguageTimes(t *testing.T) {
 	}
 	if (&taskView{Languages: tv.Languages}).LanguageTimes() != nil {
 		t.Fatal("no time limit, yet language limits")
+	}
+}
+
+// TestSubmissionWait (SPEC_MIN §10): with a wait between submissions, a
+// second submission sent too early is refused with the reason, and the
+// Submit button carries the moment it may be used again (the page counts
+// down); the task's limits say it.
+func TestSubmissionWait(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	f.setContest(t, "min_submission_interval_s = 60")
+	c := f.client()
+	_, page := f.login(c, "ana", "secret")
+	csrf := csrfOf(t, page)
+	if code, body := f.submit(c, csrf, "c11", "int main(){}", true); code != 200 {
+		t.Fatalf("first submission: %d\n%s", code, body)
+	}
+	code, body := f.submit(c, csrf, "c11", "int main(){return 0;}", true)
+	if code != http.StatusTooManyRequests || !strings.Contains(body, "Please wait before submitting again") {
+		t.Fatalf("second submission: %d\n%s", code, body)
+	}
+	if subs, _ := f.q.ListSubmissionsByParticipation(bg, f.part.ID); len(subs) != 1 {
+		t.Fatalf("%d submissions stored", len(subs))
+	}
+	_, tab := f.get(c, "/ioi/tasks/sum/submissions")
+	m := regexp.MustCompile(`data-ready-at="(\d+)" data-wait="Wait %s"`).FindStringSubmatch(tab)
+	if m == nil || !strings.Contains(tab, "Minimum interval: 0:01:00") {
+		t.Fatalf("submissions tab:\n%s", tab)
+	}
+	if at, _ := strconv.ParseInt(m[1], 10, 64); at < time.Now().Add(50*time.Second).UnixMilli() || at > time.Now().Add(61*time.Second).UnixMilli() {
+		t.Fatalf("ready at %d, now %d", at, time.Now().UnixMilli())
 	}
 }

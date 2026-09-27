@@ -108,8 +108,8 @@ reordered behind the database's back breaks every later hash.
 
 ## Uploads
 
-- Contest banners are checked from their bytes: PNG, JPEG, GIF or WebP,
-  never SVG (it can carry scripts).
+- Images (photos, flags, certificate logos) are checked from their bytes:
+  PNG, JPEG, GIF or WebP, never SVG (it can carry scripts).
 - HTML statements are converted to the CMS's own model: scripts and
   anything active are dropped.
 - Zip archives (output-only submissions, packages) are read with size

@@ -1,4 +1,19 @@
-# Idiomas de la interfaz y accesibilidad
+# Interfaz, idiomas y accesibilidad
+
+## El diseño
+
+Los tres sitios (concurso, administración, ranking) comparten un diseño
+sobrio, en la línea de Codeforces, QOJ y el CMS original: una línea de
+encabezado (concurso, fase, tiempo restante, usuario), una fila de enlaces
+como menú (dos en la administración: el servidor y el concurso actual),
+tablas, y el pie con las preferencias. No hay tarjetas, íconos ni imágenes
+decorativas: el color solo significa algo (veredictos y bloques de
+subtarea: verde aceptado, amarillo parcial, rojo rechazado, gris
+pendiente). Las páginas pesan pocos kilobytes, así que cargan rápido aun
+con muchos concursantes en la misma red.
+
+En pantallas angostas el menú se acomoda en varias líneas y las tablas
+anchas se desplazan dentro de sí mismas, nunca la página.
 
 ## Idiomas de la interfaz
 
@@ -8,15 +23,14 @@ francés, portugués, alemán, italiano, ruso, ucraniano, polaco, turco, chino
 escriben de derecha a izquierda: árabe, persa y hebreo. El sitio de
 administración está en inglés y español.
 
-Cada visitante elige un idioma en el menú **Idioma y visualización** (en el
-menú de usuario, o al pie de la página de inicio de sesión); la elección se
-recuerda en el navegador. Sin elección, deciden los idiomas preferidos del
+Cada visitante elige un idioma **al pie de cualquier página**; la página se
+recarga en ese idioma y la elección se recuerda en el navegador. Sin elección, deciden los idiomas preferidos del
 navegador. Un concurso puede restringir los idiomas ofrecidos
 (las casillas **Interfaz** de la configuración del concurso, o
 `allowed_localizations` en [contest.yaml](configuracion-en-git.md)).
 
-Los idiomas de derecha a izquierda invierten todo el diseño (el menú pasa a
-la derecha, las flechas apuntan al otro lado). El código fuente, las
+Los idiomas de derecha a izquierda invierten todo el diseño (el menú empieza
+a la derecha). El código fuente, las
 entradas y las salidas siempre se leen de izquierda a derecha. Un
 enunciado se muestra en la dirección de su propio idioma, sea cual sea el
 de la interfaz, así que un enunciado en persa se lee bien en una página en
@@ -66,26 +80,24 @@ un `cmsctl locale-check` completo y la revisión de un hablante nativo.
 Los tres sitios están hechos para usarse solo con teclado, con lector de
 pantalla y con texto grande.
 
-- **Preferencias de visualización** (menú **Idioma y visualización**):
-  oscuro (por defecto), claro, alto contraste (blanco y negro con acentos
-  amarillos, enlaces subrayados) o como prefiera el sistema operativo;
-  tamaño de texto normal, grande, más grande o el más grande. El tamaño base
-  sigue la configuración de letra del propio navegador y cada página se
-  reacomoda con cualquier zoom. Se recuerdan en el navegador, valen antes de
-  iniciar sesión y nunca cambian lo que ven los organizadores.
+- **Preferencias de visualización** (al pie de cada página, se aplican al
+  instante): tema claro (por defecto), oscuro, alto contraste (negro con
+  acentos amarillos, enlaces subrayados) o como prefiera el sistema
+  operativo; tamaño de texto normal, grande, más grande o el más grande. El
+  tamaño base sigue la configuración de letra del propio navegador y cada
+  página se reacomoda con cualquier zoom. Se recuerdan en el navegador,
+  valen antes de iniciar sesión y nunca cambian lo que ven los
+  organizadores.
 - **Teclado**: cada página empieza con un enlace "Ir al contenido"; todos
-  los controles se alcanzan con Tab y muestran dónde está el foco; los
-  menús se abren con Enter y se cierran con Escape; el botón de menú de las
-  pantallas angostas también se alcanza. El editor de código reserva Tab
+  los controles se alcanzan con Tab y muestran dónde está el foco. El editor de código reserva Tab
   para indentar: presiona Esc y luego Tab para salir (sin trampa de
   teclado).
 - **Lectores de pantalla**: las páginas declaran su idioma y dirección, cada
-  campo de formulario tiene etiqueta, los íconos se ocultan a la tecnología
-  asistiva o tienen nombre, los resultados aparecen en una región viva, las
+  campo de formulario tiene etiqueta, los resultados aparecen en una región viva, las
   notificaciones se anuncian y las marcas del ranking (medallas,
   participantes no oficiales) tienen palabras.
 - **Contraste**: todos los colores de texto cumplen WCAG AA (4,5:1) sobre su
-  fondo en los temas oscuro y claro; el tema de alto contraste va mucho más
+  fondo en los temas claro y oscuro; el tema de alto contraste va mucho más
   allá.
 - **Movimiento**: con la opción "reducir movimiento" del sistema operativo
   nada se anima.

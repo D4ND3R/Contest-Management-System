@@ -1228,3 +1228,33 @@ checked to exist) found these still missing, now done:
   Pending on real hardware (**hw** in the audit): the host check on the
   owner's server, the load and failover drills on the contest machines,
   and a native speaker's review of each shipped translation.
+
+### M — SPEC_MIN: minimal interface and the owner's requests (done)
+`SPEC_MIN.md` lists the 19 requests; `AUDIT.md` §11 maps each to its code
+and tests.
+- **Minimal redesign** (D98): one sober stylesheet for the three sites
+  (Codeforces/QOJ/CMS style: header line, plain menus, tables); no cards,
+  icons, banner or charts; the admin has two top menus (server, contest)
+  like Polygon; preferences at the foot, applied at once.
+- **Contestant flow** (D99, D100): Statement and Submissions tabs; a notice
+  on sending; full score and verdict with PA, one coloured block per
+  subtask and the public testcases one by one; a 20 s wait between
+  submissions proposed, counted down on the button; one Clarifications
+  page; live updates with pings and a polling fallback.
+- **Server-wide time zone** (D101) on the new Server page, followed by
+  every contest through a trigger; restores keep data verbatim.
+- **Scoreboard settings as questions** (D102).
+- **Problems step by step** (D103): a setup checklist, testcases typed one
+  by one, outputs from a reference solution, generators, all judged by the
+  workers through administrator-owned user tests and a dispatcher-driven
+  job table (`TestTestcaseJobs`, `TestTestcasesOneByOne`).
+- **Field review** on a native stack with a real judge: a problem built
+  from nothing in the browser (statement, typed testcases, reference
+  outputs, a Python generator), a contestant getting PA 40/100 with the
+  blocks live, a public clarification arriving live. It found that a
+  relative worker directory broke every sandbox run (D104, fixed).
+- The v0.2.1 upgrade error could not be reproduced: migrating a populated
+  v0.2.1 database is now a test (`TestUpgradeFromPopulatedV021`).
+- Docs (es/en): getting started, creating a problem, contestant guide,
+  clarifications, glossary, troubleshooting; the admin guide, contest
+  settings, rankings and interface pages rewritten for the new interface.

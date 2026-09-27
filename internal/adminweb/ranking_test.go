@@ -24,16 +24,44 @@ func TestRankingSettings(t *testing.T) {
 		c.RankingTieBreak != "shared" {
 		t.Fatalf("defaults %+v", c)
 	}
-	code, body = b.Post(fmt.Sprintf("/contests/%d", c.ID), url.Values{"name": {"rk"}, "start_time": {"2030-05-01T09:00"},
+	settings := url.Values{"name": {"rk"}, "start_time": {"2030-05-01T09:00"},
 		"stop_time": {"2030-05-01T14:00"}, "token_mode": {"disabled"}, "scoring_mode": {"ioi"},
 		"ranking_visibility": {"admins"}, "ranking_contestant_view": {"own"}, "ranking_when": {"after"}, "ranking_freeze_minutes": {"60"},
-		"ranking_show_flags": {"on"}, "ranking_anonymous": {"on"}, "ranking_tie_break": {"time"}, "ranking_show_photos": {"on"}})
+		"ranking_show_flags": {"on"}, "ranking_anonymous": {"on"}, "ranking_tie_break": {"time"}, "ranking_show_photos": {"on"}}
+	code, body = b.Post(fmt.Sprintf("/contests/%d", c.ID), settings)
 	webtest.MustOK(t, "save ranking settings", code, body)
 	c, _ = f.q.GetContestByName(bg, "rk")
 	if c.RankingVisibility != "admins" || c.RankingContestantView != "own" || c.RankingWhen != "after" || c.RankingFreezeMinutes != 60 ||
 		c.RankingShowSubtasks || !c.RankingShowFlags || !c.RankingAnonymous || c.RankingTieBreak != "time" || !c.RankingShowPhotos {
 		t.Fatalf("settings %+v", c)
 	}
+	// The form's single question (SPEC_MIN §11): a stored combination that
+	// is none of its answers is offered as "keep", and kept.
+	_, body = b.Get(fmt.Sprintf("/contests/%d/settings", c.ID))
+	if !strings.Contains(body, `<option value="keep" selected>keep the current setting (admins, own)</option>`) {
+		t.Fatalf("settings form:\n%s", body)
+	}
+	form := url.Values{"name": {"rk"}, "start_time": {"2030-05-01T09:00"}, "stop_time": {"2030-05-01T14:00"}, "token_mode": {"disabled"},
+		"scoring_mode": {"ioi"}, "ranking_preset": {"keep"}, "ranking_when": {"after"}}
+	code, body = b.Post(fmt.Sprintf("/contests/%d", c.ID), form)
+	webtest.MustOK(t, "keep", code, body)
+	if c, _ = f.q.GetContestByName(bg, "rk"); c.RankingVisibility != "admins" || c.RankingContestantView != "own" {
+		t.Fatalf("kept %s/%s", c.RankingVisibility, c.RankingContestantView)
+	}
+	for preset, want := range map[string][2]string{"public": {"public", "full"}, "own": {"contestants", "own"}, "staff": {"admins", "none"}, "hidden": {"hidden", "none"}} {
+		form.Set("ranking_preset", preset)
+		code, body := b.Post(fmt.Sprintf("/contests/%d", c.ID), form)
+		webtest.MustOK(t, preset, code, body)
+		if c, _ = f.q.GetContestByName(bg, "rk"); c.RankingVisibility != want[0] || c.RankingContestantView != want[1] {
+			t.Errorf("%s: %s/%s", preset, c.RankingVisibility, c.RankingContestantView)
+		}
+	}
+	form.Set("ranking_preset", "everyone")
+	if code, _ := b.Post(fmt.Sprintf("/contests/%d", c.ID), form); code != 422 {
+		t.Fatalf("unknown preset = %d", code)
+	}
+	code, body = b.Post(fmt.Sprintf("/contests/%d", c.ID), settings)
+	webtest.MustOK(t, "back to the settings", code, body)
 	if code, _ = b.Post(fmt.Sprintf("/contests/%d", c.ID), url.Values{"name": {"rk"}, "start_time": {"2030-05-01T09:00"},
 		"stop_time": {"2030-05-01T14:00"}, "token_mode": {"disabled"}, "scoring_mode": {"ioi"}, "ranking_visibility": {"everyone"}}); code != 422 {
 		t.Fatalf("invalid visibility = %d", code)

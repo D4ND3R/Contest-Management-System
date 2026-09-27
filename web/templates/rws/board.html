@@ -1,6 +1,6 @@
 {{define "content"}}{{$b := .Board}}
 <h1>{{$b.Title}}</h1>
-<p class="muted">{{when $b.Start $b.Timezone}} – {{when $b.Stop $b.Timezone}} ({{$b.Timezone}}) · {{len $b.Rows}} {{if $b.Teams}}{{.T "Teams"}}{{else}}{{.T "Participants"}}{{end}}</p>
+<p class="muted">{{when $b.Start $b.Timezone}} – {{when $b.Stop $b.Timezone}} ({{$b.Timezone}}) · {{if $b.Teams}}{{.T "Teams"}}{{else}}{{.T "Participants"}}{{end}}: {{len $b.Rows}}</p>
 {{if $b.Frozen}}<p class="info">{{.T "Frozen since %s: later submissions show as ?." (when (deref $b.FreezeAt) $b.Timezone)}}</p>{{end}}
 <div class="table-wrap">
 <table class="standings board">

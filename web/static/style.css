@@ -269,6 +269,7 @@ h2 small,h1 small{font-weight:400;font-size:.8em;margin-inline-start:.4rem}
 @media (max-width:900px){.grid-2{grid-template-columns:minmax(0,1fr)}}
 .inline-form,.filters{display:flex;flex-wrap:wrap;gap:.4rem .9rem;align-items:end;margin:.5rem 0}
 .inline-form label,.filters label{margin:0}
+.filters label{font-weight:400}
 .inline-form input:not([type=checkbox]):not([type=radio]),.inline-form select,.filters input:not([type=checkbox]):not([type=radio]),.filters select{width:auto;min-width:8rem}
 .checks label>input:not([type=checkbox]):not([type=radio]),.checks label>select{display:inline-block;width:auto;margin:0}
 button.secondary,.button.secondary{background:var(--bg)}
@@ -308,7 +309,7 @@ details.more>summary{cursor:pointer;color:var(--link);margin:.4rem 0}
 
 /* Standings (contest and ranking sites). */
 table.standings td,table.standings th{text-align:center;white-space:nowrap}
-table.standings td.name,table.standings th.name{text-align:start;white-space:normal}
+table.standings td.name,table.standings th.name{text-align:start;white-space:normal;width:35%}
 table.standings td.ok{color:var(--ok);font-weight:600}
 table.standings td.warn{color:var(--pa);font-weight:600}
 table.standings td.bad{color:var(--bad)}

@@ -1,10 +1,43 @@
 # Configuración del concurso
 
 Todo lo que sigue está en la página **Configuración** del concurso del sitio de
-administración (**Concursos → el concurso → Configuración**, también en el menú
-de la izquierda). Los cambios se aplican al instante: las
+administración (**Concursos → el concurso → Configuración**, o el último
+enlace de la segunda fila del menú). Los cambios se aplican al instante: las
 páginas de los concursantes los toman en menos de un segundo, sin reiniciar
 nada.
+
+## Cómo está organizado el formulario
+
+A la vista, lo que casi todo concurso ajusta:
+
+- **General**: nombre, título, descripción, estado, inicio y fin, tiempo
+  por concursante, modo (IOI o ICPC).
+- **Envíos**: la **espera entre envíos** (20 s en un concurso nuevo; vacío
+  = sin espera), el máximo de envíos por problema, el tamaño máximo de un
+  archivo, qué puntajes ven los concursantes, los mensajes del compilador,
+  pruebas, preguntas e impresión.
+- **Clasificación**: quién la ve, cuándo, el congelamiento y las columnas
+  (ver [rankings](ranking.md)); **Más opciones de la clasificación**
+  (plegado): desempates, medallas, congelar a una hora exacta, usuarios
+  ocultos, anónima, penalización ICPC y decimales.
+
+Plegado en **Todos los demás ajustes**: horario (análisis, práctica,
+apelaciones, lugar y lema), lenguajes, acceso y registro, puntuación
+(modo de los problemas nuevos, equipos, límites de pruebas), tokens e
+impresión.
+
+Debajo del formulario: **Controles de emergencia** (pausar los envíos),
+**Extender el concurso**, **Copiar este concurso**, **Archivo**,
+**Reevaluar todo el concurso** y **Borrar**.
+
+## Zona horaria
+
+Las horas del formulario (inicio, fin, congelamiento, apelaciones) están en
+la **zona horaria del servidor**, que se elige en **Servidor** y vale para
+todos los concursos y los tres sitios; el formulario la recuerda debajo de
+las fechas. Cambiarla no mueve los concursos: el mismo instante se muestra
+en la nueva zona. Un usuario puede tener una zona propia (concursantes
+remotos): en su página, **Zona horaria**.
 
 ## Ciclo de vida
 
@@ -59,16 +92,25 @@ registrarse de nuevo: los organizadores lo agregan al concurso.
 
 ## Resultados y retroalimentación
 
+- **Qué ve el concursante de cada envío**: el veredicto (AC, PA parcial, WA,
+  TLE, ...), el puntaje, un **bloque por subtarea** con sus puntos y su
+  veredicto, y el resultado de cada **caso público** uno por uno. Los casos
+  no públicos nunca se muestran uno por uno, pero cuentan en los bloques.
+  Marca como público al menos el primer caso (los ejemplos) de cada
+  problema.
 - **Puntajes visibles para los concursantes**: en cuanto se conocen, solo al
-  terminar o nunca. Ocultar los puntajes también oculta el detalle de los
-  casos de prueba. El ranking tiene su propia visibilidad
-  ([rankings](ranking.md)): ocúltalo también si revelaría los puntajes.
+  terminar o nunca. Ocultar los puntajes también oculta los veredictos y los
+  bloques. El ranking tiene su propia visibilidad ([rankings](ranking.md)):
+  ocúltalo también si revelaría los puntajes.
 - **Mostrar los mensajes del compilador**, tanto de compilaciones fallidas
   como exitosas.
-- **Tokens** (reglas del concurso y del problema): con un token el
-  concursante ve el resultado completo de un envío durante el concurso. La
-  página del concurso muestra los tokens disponibles y cuándo llega el
-  siguiente.
+- **Tokens** (reglas del concurso y del problema): con tokens activos el
+  concursante ve solo el puntaje de los casos públicos, hasta que usa un
+  token en un envío para ver su resultado completo. La pestaña Envíos del
+  problema muestra los tokens disponibles y cuándo llega el siguiente. Sin
+  tokens (lo normal), el resultado completo se ve siempre.
+- **Espera entre envíos**: el botón Enviar del concursante cuenta el tiempo
+  que falta; el servidor rechaza un envío antes de tiempo.
 
 ## Concursos ICPC
 

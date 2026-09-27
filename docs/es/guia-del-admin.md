@@ -1,11 +1,30 @@
 # Guía del administrador
 
 Un concurso desde cero en el panel de administración
-(`https://admin.<tu dominio>`). Todas las páginas están en español o en
-inglés (selector de idioma al pie). Las demás guías profundizan:
+(`https://admin.<tu dominio>`). Si nunca usaste el sistema, empieza por
+[primeros pasos](primeros-pasos.md), que recorre lo mismo con más detalle.
+Las demás guías profundizan: [crear un problema](crear-un-problema.md),
 [configuración del concurso](configuracion-del-concurso.md),
 [tipos de problema](task-types.md), [paquetes de problema](paquete-de-problema.md),
-[día del concurso](dia-del-concurso.md), [respaldos](respaldos.md).
+[clarificaciones](clarificaciones.md), [día del concurso](dia-del-concurso.md),
+[respaldos](respaldos.md). Las palabras técnicas están en el
+[glosario](glosario.md).
+
+## 0. Cómo está organizado el panel
+
+- **Arriba**: el concurso que estás viendo, su fase y el tiempo restante;
+  a la derecha **Preguntas** (con el número de pendientes), tu cuenta y
+  **Cerrar sesión**.
+- **Primera fila del menú**, todo el servidor: Panel, Concursos, Banco de
+  problemas, Usuarios, Equipos, Clarificaciones, Jueces, Lenguajes,
+  Respaldos, Administradores, Registro de auditoría, Servidor.
+- **Segunda fila**, el concurso actual (el que estás viendo; en la página de
+  inicio, el que está en curso o el siguiente): su panel, Problemas,
+  Participantes, Envíos, Clasificación, Anuncios, Estadísticas, Apelaciones,
+  Impresión y Globos (si aplican), Plagio, Certificados, Sedes,
+  Configuración.
+- **Pie**: idioma, tema y tamaño del texto (se aplican al instante), y la
+  zona horaria en la que se muestran las horas.
 
 ## 1. Administradores
 
@@ -22,35 +41,28 @@ otro. Todo cambio queda en el **Registro de auditoría**.
 
 ## 2. El concurso
 
+0. **Servidor → Zona horaria**: la zona de todas las horas de todos los
+   sitios (y de las que escribes en los formularios). Se puede cambiar en
+   cualquier momento.
 1. **Concursos → Nuevo concurso**: un nombre (letras, dígitos, `.`, `_`,
-   `-`; es la dirección, `https://<dominio>/<nombre>/`), una descripción,
-   el inicio y el fin en la zona horaria del concurso.
+   `-`; es la dirección, `https://<dominio>/<nombre>/`), un título, una
+   descripción, el inicio y el fin.
 2. Estado *borrador* mientras lo preparas (los concursantes no lo ven, los
    administradores sí); *publicado* cuando está listo; *archivado* al
    terminar (solo lectura, fuera de las listas).
-3. El resto, sección por sección —lenguajes, ventanas de tiempo por
-   concursante, práctica, IOI o ICPC, equipos, tokens, retroalimentación,
-   visibilidad de puntajes, acceso y registro, límites de envíos, preguntas,
-   impresión— está en la página **Configuración** del concurso y se
-   describe en [configuración del concurso](configuracion-del-concurso.md).
-   Cada campo muestra su significado al lado.
-4. **Presentación** (Configuración): un título visible para todos, la
-   descripción como subtítulo, el lugar y un lema forman el **banner** que
-   encabeza los paneles de concursantes y administradores (y la página de
-   ingreso). **Imagen del banner**: un PNG, JPEG, GIF o WebP ancho (unos
-   1600×400, hasta 4 MiB); SVG se rechaza porque puede llevar scripts. Sin
-   imagen el banner usa un fondo liso.
-5. **Sedes** (opcional): lugares con su propia hora de inicio; sirven para
+3. El formulario tiene tres partes a la vista —**General**, **Envíos** (la
+   espera entre envíos, 20 s por omisión; el máximo de envíos; qué puntajes
+   ven los concursantes) y **Clasificación** (quién la ve, cuándo, el
+   congelamiento, las columnas)— y el resto plegado en **Todos los demás
+   ajustes**: lenguajes, ventanas por concursante, práctica, apelaciones,
+   acceso y registro, equipos, tokens, impresión. Todo se describe en
+   [configuración del concurso](configuracion-del-concurso.md).
+4. **Sedes** (opcional): lugares con su propia hora de inicio; sirven para
    filtrar el ranking y los globos.
-6. Para reutilizar el concurso del año anterior: **Copiar este concurso** al
+5. Para reutilizar el concurso del año anterior: **Copiar este concurso** al
    final de su página de Configuración (problemas y configuración,
    opcionalmente los participantes), o importa su
    [archivo](respaldos.md#archivos-de-un-concurso).
-
-El menú de la izquierda sigue al concurso que estás viendo (la página de
-inicio muestra el que está en curso, o el siguiente): su **panel**,
-problemas, envíos, clasificación, estadísticas, avisos, participantes y
-configuración; la barra superior muestra su fase y el tiempo restante.
 
 ## 3. Concursantes
 
@@ -70,56 +82,52 @@ configuración; la barra superior muestra su fase y el tiempo restante.
 
 ## 4. Problemas
 
-Lo más rápido es un **paquete de problema**: **Problemas → Importar un
-paquete**, suelta el zip, revisa la vista previa (tipo, límites, subtareas,
-casos de prueba, enunciados, soluciones de referencia) y confirma. Las
-soluciones de referencia se evalúan enseguida y el reporte de validación
-dice si cada una obtiene el veredicto que anuncia su nombre. Los paquetes de
-CMS (italy_yaml) y de Polygon se convierten. El formato y un ejemplo por
-tipo están en [paquetes de problema](paquete-de-problema.md).
+Un problema se arma por partes, en cualquier orden:
+**Problemas → Nuevo problema** con solo un nombre, y después, en su página,
+la lista **Preparación** dice qué falta (enunciado, casos, checker,
+puntuación, una solución de referencia con el puntaje completo). Los casos
+se agregan **uno por uno** (entrada escrita o subida; salida escrita,
+subida, vacía o escrita por la solución de referencia) o con un
+**generador** que se ejecuta una vez por línea de parámetros. Todo esto se
+explica paso a paso en [crear un problema](crear-un-problema.md).
 
-A mano, **Problemas → Crear problema** y después, en la página del
-problema:
+También se puede importar un **paquete de problema**: **Banco de problemas →
+Importar un paquete de problema**, suelta el zip, revisa la vista previa
+(tipo, límites, subtareas, casos, enunciados, soluciones de referencia) y
+confirma. Las soluciones de referencia se evalúan enseguida y el reporte de
+validación dice si cada una obtiene el veredicto que anuncia su nombre. Los
+paquetes de CMS (italy_yaml) y de Polygon se convierten. El formato y un
+ejemplo por tipo están en [paquetes de problema](paquete-de-problema.md).
 
-1. **General**: título, enunciados (escritos en Markdown o LaTeX en el
-   editor, o subidos; uno o más marcados como principales, ver
-   [enunciados](enunciados.md)), ejemplos, adjuntos (archivos que descargan
-   los concursantes), archivos
-   del envío (`sol.%l`: `%l` se reemplaza por la extensión del lenguaje),
-   lenguajes (ninguno marcado = los del concurso).
-2. **Puntuación y retroalimentación**: modo de puntuación (mejor por
-   subtarea, como en la IOI desde 2017; mejor envío; o máximo entre los
-   envíos con token y el último; o el último envío que compiló, sea mejor o
-   peor), precisión, retroalimentación (completa, o solo el primer fallo
-   por subtarea), y si los concursantes ven los mensajes propios del
+Lo que hay en la página del problema y en la de cada dataset:
+
+1. **Configuración** del problema: título, archivos del envío (`sol.%l`:
+   `%l` se reemplaza por la extensión del lenguaje), lenguajes (ninguno
+   marcado = los del concurso), modo de puntuación (mejor por subtarea,
+   como en la IOI desde 2017; mejor envío; máximo entre los envíos con
+   token y el último; o el último envío que compiló), precisión,
+   retroalimentación, y si los concursantes ven los mensajes propios del
    checker o solo el mensaje estándar de cada resultado.
-3. **Datasets → Nuevo dataset** (copia uno existente o empieza vacío). En la
-   página del dataset:
-   - **Tipo de problema** y sus opciones (abajo), **Límites** (tiempo,
-     memoria, salida, tamaño del fuente).
-   - **Tipo de puntuación**: *Sum* (puntos por caso), *GroupMin* (una
+2. **Enunciados**, **Ejemplos** y **Adjuntos** ([enunciados](enunciados.md)).
+3. **Datasets**: el que está *en vivo* puntúa los envíos. En su página:
+   - **Tipo, límites y checker**: tipo de problema y sus opciones (abajo),
+     tiempo, memoria, salida, tamaño del fuente.
+   - **Puntuación y subtareas**: *Sum* (puntos por caso), *GroupMin* (una
      subtarea puntúa solo si pasan todos sus casos), *GroupMul*,
      *GroupThreshold*; el editor de subtareas pide los puntos y los casos de
      cada subtarea (una expresión regular sobre los nombres, una cantidad o
      una lista). Con GroupMin/GroupMul, **Cortocircuito** omite el resto de
-     una subtarea en cuanto un caso obtiene 0 (mismo puntaje, menos tiempo
-     de evaluación; ver [evaluación](evaluacion.md)).
-   - **Casos de prueba**: uno por uno (entrada, salida, público) o **Desde un
-     archivo zip** con patrones de nombre (`*.in`/`*.out`,
-     `input*`/`output*`).
+     una subtarea en cuanto un caso obtiene 0 (ver [evaluación](evaluacion.md)).
    - **Managers**: checker, graders, stubs, headers, interactor; la página
-     indica los archivos que todavía necesita la configuración elegida
-     (*Faltan managers para esta configuración*).
-   - **Poner en vivo** cuando esté correcto: los envíos se puntúan con el
-     dataset en vivo; un segundo dataset puede evaluar los envíos nuevos en
-     segundo plano para comparar antes de cambiar (*autoevaluación*);
-     **comparar con el vivo** lista los puntajes de problema y los envíos
-     que cambiarían.
+     indica los que todavía faltan.
+   - **Agregar casos** y **Casos de prueba**.
+   - **Poner en vivo** un dataset nuevo cuando esté correcto; un segundo
+     dataset puede evaluar los envíos nuevos en segundo plano para comparar
+     antes de cambiar; **comparar con el vivo** lista los puntajes que
+     cambiarían.
 4. **Probador de problemas**: envía cualquier fuente como administrador y ve
    el veredicto por caso sin que cuente en ningún lado; el **Reporte de
    validación** evalúa las soluciones de referencia en cada dataset.
-5. Agrega el problema al concurso (la página **Problemas** del concurso
-   lista sus problemas en orden).
 
 ### Cada tipo de problema, paso a paso
 
@@ -149,19 +157,18 @@ problema esté en verde.
 ## 6. Durante el concurso
 
 - El **panel** del concurso (su página, y la de inicio mientras está en
-  curso) se actualiza solo cada 20 segundos: lo alto de la clasificación, el
-  estado de cada problema (resuelto por alguien, solo puntos parciales, sin
-  resolver; envíos y quién lo resolvió primero), los últimos eventos
-  (envíos, primeras soluciones, preguntas, avisos), una gráfica de envíos y
-  aceptados en el tiempo, los conteos por veredicto, el estado de jueces,
-  cola, base de datos, discos y respaldos, y lo que requiere atención
-  (preguntas sin responder, envíos que no se pudieron evaluar, trabajos
-  atascados, registros por aprobar, el final cerca, una clasificación
-  congelada).
-- **Workers y colas**: colas, trabajos en curso, trabajos atascados
-  (reencolar), errores del sistema, CPU/memoria/disco.
-- **Preguntas** y **Comunicación** (anuncios, mensajes privados); las
-  respuestas pueden ser públicas.
+  curso) se actualiza solo cada 20 segundos: arriba lo que requiere
+  atención (preguntas sin responder, envíos que no se pudieron evaluar,
+  trabajos atascados, registros por aprobar, el final cerca, una
+  clasificación congelada); después, en tablas, cada problema (quién lo
+  resolvió, parciales, envíos), los conteos por veredicto, el estado de
+  jueces, cola, base de datos, discos y respaldos, lo alto de la
+  clasificación y los últimos eventos.
+- **Jueces**: colas, trabajos en curso, trabajos atascados (reencolar),
+  errores del sistema, CPU/memoria/disco.
+- **Clarificaciones** y **Anuncios**: responder a una persona o a todos,
+  avisos generales y mensajes privados ([clarificaciones](clarificaciones.md)).
+  Los concursantes los reciben al instante.
 - **Envíos**: filtros (problema, usuario, veredicto, lenguaje, puntaje,
   fechas), código con resaltado, diferencias entre dos envíos, descarga en
   zip; **reevaluar** un envío, un usuario, un problema o el concurso
@@ -173,7 +180,8 @@ problema esté en verde.
   notificación en el panel; ver [seguridad](seguridad.md).
 - Página de la **participación**: tiempo extra, ajuste manual de puntaje con
   motivo (auditado), sesiones, "ver como el concursante".
-- **Extender el concurso** para todos desde su página de Configuración;
+- **Extender el concurso** o **pausar los envíos** desde su página de
+  Configuración; **cerrar envíos** de un solo problema en Problemas;
   **Globos** e **Impresión** para concursos ICPC y presenciales.
 
 ## 7. Después del concurso

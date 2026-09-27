@@ -58,7 +58,17 @@ programs) and `make test-sandbox` are green.
   one-file self-verifying backups (scheduled, rotated, optional S3) and
   restore, external workers through a blob server, goroutine dumps on
   SIGUSR1, Prometheus metrics and `/healthz` everywhere.
-- **Documentation** (es/en): deployment, verify host, administrator's
+- **SPEC_MIN** (the owner's second round, `AUDIT.md` §11): one minimal
+  interface for the three sites (plain menus and tables, preferences at the
+  foot), problems with Statement and Submissions tabs, verdicts with PA and
+  a coloured block per subtask, a wait between submissions, one
+  Clarifications page, live updates with a polling fallback, a server-wide
+  time zone, scoreboard settings as questions, problems built step by step
+  (testcases typed one by one, outputs from a reference solution,
+  generators judged by the workers). Checked in a field review on a native
+  stack with a real judge.
+- **Documentation** (es/en): getting started, creating a problem, contestant
+  guide, clarifications, glossary, troubleshooting, deployment, verify host, administrator's
   guide with every problem type step by step, contest settings, task types,
   problem packages, languages, ranking, backups, external worker,
   contest-day runbook, and a drill with a checklist (the drill's steps are

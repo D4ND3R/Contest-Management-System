@@ -2,23 +2,38 @@
 
 Three places show a ranking:
 
-- **Admin panel** (contest → Ranking): always complete and unfrozen, with
+- **Admin panel** (contest → Scoreboard): always complete and unfrozen, with
   CSV/JSON export and a site filter.
-- **Contest web server** (contest → Ranking in the contestant menu): what
+- **Contest web server** (Standings in the contestant menu): what
   contestants may see, per contest settings.
 - **Ranking web server** (`cms ranking-web`, RWS): the public live
   scoreboard, with per-participant score history, flags and live updates.
 
-## Settings (contest Settings → Ranking)
+## Settings (contest Settings → Scoreboard)
 
-| setting | values |
-|---------|--------|
-| Who sees it | everybody (public scoreboard) · only contestants · only administrators (and a secret link, e.g. for a projector) · nobody (admin panel only) |
-| What contestants see | the whole ranking · only their position · nothing |
-| When | during and after the contest · only after the end |
-| Freeze | the last N minutes (or at a given time); later submissions show as `?` |
-| Show | subtask scores · flags · photos · institutions · hidden users · anonymous (no names) |
-| Ties | share the place (the IOI rule, default) · broken by time |
+The form asks four questions; the rest is under **More scoreboard
+options**.
+
+1. **Who sees the scoreboard**:
+
+   | Answer | What happens |
+   |--------|--------------|
+   | everybody: contestants and the public scoreboard | the ranking server publishes it and contestants see all of it |
+   | only the contestants | they see all of it on the contest site; no public scoreboard |
+   | each contestant sees only their own position | the contest site shows "Your position: 3 of 40" |
+   | only the organizers (and whoever has the secret link) | for a projector: the public scoreboard asks for a key |
+   | nobody (only in this panel) | only the administration sees it |
+
+   An older contest whose combination is none of these offers *keep the
+   current setting*.
+2. **Shown**: during and after the contest, or only after the end.
+3. **Freeze it during the last N minutes** (0: never): later submissions
+   show as `?` until you unfreeze it.
+4. **Columns**: subtask scores, institutions, flags, photos.
+
+Under **More scoreboard options**: freeze at an exact time, ties, medals,
+ICPC penalty, decimals, show hidden users and an anonymous scoreboard (no
+names).
 
 **Photos** are the participants' photos (user page → Photo), off by
 default: contestants are often minors, so turn them on only with consent.
