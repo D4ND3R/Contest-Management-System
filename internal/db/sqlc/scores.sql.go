@@ -65,7 +65,7 @@ func (q *Queries) CreateScoreAdjustment(ctx context.Context, arg CreateScoreAdju
 }
 
 const getParticipationTaskScore = `-- name: GetParticipationTaskScore :one
-SELECT participation_id, task_id, score, subtask_scores, icpc_solved, icpc_attempts, icpc_solved_at, pending, last_submission_at, updated_at, adjustment FROM participation_task_scores WHERE participation_id = $1 AND task_id = $2
+SELECT participation_id, task_id, score, subtask_scores, icpc_solved, icpc_attempts, icpc_solved_at, pending, last_submission_at, updated_at, adjustment, score_reached_at FROM participation_task_scores WHERE participation_id = $1 AND task_id = $2
 `
 
 type GetParticipationTaskScoreParams struct {
@@ -88,6 +88,7 @@ func (q *Queries) GetParticipationTaskScore(ctx context.Context, arg GetParticip
 		&i.LastSubmissionAt,
 		&i.UpdatedAt,
 		&i.Adjustment,
+		&i.ScoreReachedAt,
 	)
 	return i, err
 }
@@ -134,7 +135,7 @@ func (q *Queries) ListContestScoreAdjustments(ctx context.Context, contestID int
 }
 
 const listParticipationTaskScoresByContest = `-- name: ListParticipationTaskScoresByContest :many
-SELECT s.participation_id, s.task_id, s.score, s.subtask_scores, s.icpc_solved, s.icpc_attempts, s.icpc_solved_at, s.pending, s.last_submission_at, s.updated_at, s.adjustment FROM participation_task_scores s
+SELECT s.participation_id, s.task_id, s.score, s.subtask_scores, s.icpc_solved, s.icpc_attempts, s.icpc_solved_at, s.pending, s.last_submission_at, s.updated_at, s.adjustment, s.score_reached_at FROM participation_task_scores s
 JOIN participations p ON p.id = s.participation_id
 WHERE p.contest_id = $1
 `
@@ -160,6 +161,7 @@ func (q *Queries) ListParticipationTaskScoresByContest(ctx context.Context, cont
 			&i.LastSubmissionAt,
 			&i.UpdatedAt,
 			&i.Adjustment,
+			&i.ScoreReachedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -229,12 +231,13 @@ func (q *Queries) ListScoreAdjustments(ctx context.Context, participationIds []i
 
 const upsertParticipationTaskScore = `-- name: UpsertParticipationTaskScore :one
 INSERT INTO participation_task_scores (participation_id, task_id, score, subtask_scores, icpc_solved,
-    icpc_attempts, icpc_solved_at, pending, last_submission_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+    icpc_attempts, icpc_solved_at, pending, last_submission_at, score_reached_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
 ON CONFLICT (participation_id, task_id) DO UPDATE SET
     score = EXCLUDED.score + participation_task_scores.adjustment, subtask_scores = EXCLUDED.subtask_scores,
     icpc_solved = EXCLUDED.icpc_solved, icpc_attempts = EXCLUDED.icpc_attempts, icpc_solved_at = EXCLUDED.icpc_solved_at,
-    pending = EXCLUDED.pending, last_submission_at = EXCLUDED.last_submission_at, updated_at = now()
+    pending = EXCLUDED.pending, last_submission_at = EXCLUDED.last_submission_at,
+    score_reached_at = EXCLUDED.score_reached_at, updated_at = now()
 RETURNING score
 `
 
@@ -248,6 +251,7 @@ type UpsertParticipationTaskScoreParams struct {
 	IcpcSolvedAt     *time.Time      `json:"icpc_solved_at"`
 	Pending          int32           `json:"pending"`
 	LastSubmissionAt *time.Time      `json:"last_submission_at"`
+	ScoreReachedAt   *time.Time      `json:"score_reached_at"`
 }
 
 // Stores the score computed from the submissions plus the manual
@@ -263,6 +267,7 @@ func (q *Queries) UpsertParticipationTaskScore(ctx context.Context, arg UpsertPa
 		arg.IcpcSolvedAt,
 		arg.Pending,
 		arg.LastSubmissionAt,
+		arg.ScoreReachedAt,
 	)
 	var score float64
 	err := row.Scan(&score)

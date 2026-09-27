@@ -1,6 +1,6 @@
 {{define "content"}}{{$d := .Data}}{{$b := .Board}}
 <p><a class="button secondary" href="/{{.Name}}/">{{icon "chevron-left"}} {{.T "Back to the ranking"}}</a></p>
-<h1><bdi>{{$d.Row.Name}}</bdi> <small class="muted">#{{$d.Row.Rank}}{{with $d.Row.Institution}} · <bdi>{{.}}</bdi>{{end}}</small></h1>
+<h1>{{if and $b.Photos $d.Row.Photo}}<img src="/assets/{{$d.Row.Photo}}" alt="" class="photo big" width="64" height="64"> {{end}}<bdi>{{$d.Row.Name}}</bdi> <small class="muted">#{{$d.Row.Rank}}{{with $d.Row.Institution}} · <bdi>{{.}}</bdi>{{end}}</small></h1>
 <section class="card">
 <h2>{{.T "Score history"}}</h2>
 {{if $d.Points}}

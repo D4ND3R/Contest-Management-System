@@ -90,7 +90,8 @@
   <label>{{.T "Score mode of new tasks"}} <select name="default_score_mode">
     <option value="max_subtask" {{if eq $c.DefaultScoreMode "max_subtask"}}selected{{end}}>{{.T "best per subtask (IOI 2017+)"}}</option>
     <option value="max" {{if eq $c.DefaultScoreMode "max"}}selected{{end}}>{{.T "best submission"}}</option>
-    <option value="max_tokened_last" {{if eq $c.DefaultScoreMode "max_tokened_last"}}selected{{end}}>{{.T "max of tokened and last"}}</option></select></label>
+    <option value="max_tokened_last" {{if eq $c.DefaultScoreMode "max_tokened_last"}}selected{{end}}>{{.T "max of tokened and last"}}</option>
+    <option value="last" {{if eq $c.DefaultScoreMode "last"}}selected{{end}}>{{.T "last submission"}}</option></select></label>
 </div>
 <p class="checks">
   <label><input type="checkbox" name="team_mode" {{if $c.TeamMode}}checked{{end}}> {{.T "Team contest (members share submissions, limits and scores)"}}</label>
@@ -118,6 +119,7 @@
 <p class="checks">
   <label><input type="checkbox" name="ranking_show_subtasks" {{if $c.RankingShowSubtasks}}checked{{end}}> {{.T "subtask scores"}}</label>
   <label><input type="checkbox" name="ranking_show_flags" {{if $c.RankingShowFlags}}checked{{end}}> {{.T "flags"}}</label>
+  <label><input type="checkbox" name="ranking_show_photos" {{if $c.RankingShowPhotos}}checked{{end}}> {{.T "photos"}}</label>
   <label><input type="checkbox" name="ranking_show_institutions" {{if $c.RankingShowInstitutions}}checked{{end}}> {{.T "institutions"}}</label>
   <label><input type="checkbox" name="ranking_show_hidden" {{if $c.RankingShowHidden}}checked{{end}}> {{.T "hidden users"}}</label>
   <label><input type="checkbox" name="ranking_anonymous" {{if $c.RankingAnonymous}}checked{{end}}> {{.T "anonymous (no names)"}}</label>
@@ -127,6 +129,11 @@
   <option value="admins" {{if eq $c.Medals "admins"}}selected{{end}}>{{.T "cutoffs for the administrators"}}</option>
   <option value="public" {{if eq $c.Medals "public"}}selected{{end}}>{{.T "cutoffs also on the public scoreboards"}}</option>
 </select></label>
+<label>{{.T "Ties"}} <select name="ranking_tie_break">
+  <option value="shared" {{if eq $c.RankingTieBreak "shared"}}selected{{end}}>{{.T "share the place (IOI)"}}</option>
+  <option value="time" {{if eq $c.RankingTieBreak "time"}}selected{{end}}>{{.T "broken by time: who got there first ranks higher"}}</option>
+</select></label>
+<p class="muted small">{{.T "Tie-break by time: the moment the participant's total was reached, counted from their own start (in ICPC mode, the last problem solved after equal problems and penalty). Manual adjustments do not change it."}}</p>
 <p class="muted small">{{.T "IOI rule: at most a twelfth of the official participants get gold, a quarter gold or silver, half a medal; a tie is never split and a zero score wins nothing. Unofficial and hidden participants take no place and no medal."}}</p>
 <p class="muted small">{{.T "Team contests are ranked by team. The public scoreboard is served by the ranking web server; the freeze hides later results until you unfreeze it from the ranking page."}}</p>
 </fieldset>

@@ -264,7 +264,7 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 	}
 	c.ScoringMode = f.oneOf("scoring_mode", "Scoring mode", "ioi", "icpc")
 	if f.str("default_score_mode") != "" {
-		c.DefaultScoreMode = f.oneOf("default_score_mode", "Score mode of new tasks", "max_subtask", "max", "max_tokened_last")
+		c.DefaultScoreMode = f.oneOf("default_score_mode", "Score mode of new tasks", "max_subtask", "max", "max_tokened_last", "last")
 	}
 	c.TeamMode = f.check("team_mode")
 	c.MaxTeamSize = f.optInt32("max_team_size", "Maximum team size")
@@ -286,6 +286,7 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 		}
 		c.RankingShowSubtasks = f.check("ranking_show_subtasks")
 		c.RankingShowFlags = f.check("ranking_show_flags")
+		c.RankingShowPhotos = f.check("ranking_show_photos")
 		c.RankingShowInstitutions = f.check("ranking_show_institutions")
 		c.RankingShowHidden = f.check("ranking_show_hidden")
 		c.RankingAnonymous = f.check("ranking_anonymous")
@@ -294,6 +295,11 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 		c.Medals = f.oneOf("medals", "Medals", "none", "admins", "public")
 	} else if c.Medals == "" {
 		c.Medals = "none" // a new contest
+	}
+	if f.str("ranking_tie_break") != "" {
+		c.RankingTieBreak = f.oneOf("ranking_tie_break", "Ties", "shared", "time")
+	} else if c.RankingTieBreak == "" {
+		c.RankingTieBreak = "shared"
 	}
 	c.MaxPrintJobs = f.int32("max_print_jobs", "Maximum print jobs", 10)
 	c.MaxPrintPages = f.int32("max_print_pages", "Maximum pages per job", 20)

@@ -89,8 +89,10 @@ problema:
    lenguajes (ninguno marcado = los del concurso).
 2. **Puntuación y retroalimentación**: modo de puntuación (mejor por
    subtarea, como en la IOI desde 2017; mejor envío; o máximo entre los
-   envíos con token y el último), precisión, retroalimentación (completa, o
-   solo el primer fallo por subtarea).
+   envíos con token y el último; o el último envío que compiló, sea mejor o
+   peor), precisión, retroalimentación (completa, o solo el primer fallo
+   por subtarea), y si los concursantes ven los mensajes propios del
+   checker o solo el mensaje estándar de cada resultado.
 3. **Datasets → Nuevo dataset** (copia uno existente o empieza vacío). En la
    página del dataset:
    - **Tipo de problema** y sus opciones (abajo), **Límites** (tiempo,

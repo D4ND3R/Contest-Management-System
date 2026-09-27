@@ -57,7 +57,7 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger, need Need) 
 		}
 	}
 	if need.Redis {
-		rc, err := redisx.Open(ctx, cfg.Redis.URL, cfg.Redis.PoolSize)
+		rc, err := redisx.Open(ctx, cfg.Redis)
 		if err != nil {
 			d.Close()
 			return nil, err

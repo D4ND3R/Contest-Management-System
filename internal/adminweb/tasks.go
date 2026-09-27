@@ -214,11 +214,14 @@ func parseTask(f *form, u sqlc.UpdateTaskParams) sqlc.UpdateTaskParams {
 	u.MinSubmissionIntervalS = f.optInt64("min_submission_interval_s", "Minimum interval between submissions")
 	u.MinUserTestIntervalS = f.optInt64("min_user_test_interval_s", "Minimum interval between user tests")
 	u.FeedbackLevel = f.oneOf("feedback_level", "Feedback level", "full", "restricted")
+	if v := f.str("checker_messages"); v != "" {
+		u.HideCheckerMessages = f.oneOf("checker_messages", "Checker messages", "show", "hide") == "hide"
+	}
 	u.ScorePrecision = f.int32("score_precision", "Score precision", 0)
 	if u.ScorePrecision < 0 || u.ScorePrecision > 6 {
 		f.fail("score precision must be between 0 and 6")
 	}
-	u.ScoreMode = f.oneOf("score_mode", "Score mode", "max_subtask", "max", "max_tokened_last")
+	u.ScoreMode = f.oneOf("score_mode", "Score mode", "max_subtask", "max", "max_tokened_last", "last")
 	u.Languages = f.multi("languages")
 	return u
 }

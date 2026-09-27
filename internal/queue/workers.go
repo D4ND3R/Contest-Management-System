@@ -41,6 +41,9 @@ type WorkerStatus struct {
 	// Warmed of WarmTotal published blobs are in the worker's cache.
 	Warmed    int `json:"warmed,omitempty"`
 	WarmTotal int `json:"warm_total,omitempty"`
+	// Toolchains are the compiler and interpreter versions of the
+	// worker's machine, by language id (each language's version_command).
+	Toolchains map[string]string `json:"toolchains,omitempty"`
 }
 
 func (q *Queue) workerKey(name string) string { return q.Key("worker", name) }
@@ -118,6 +121,46 @@ func WorkerOfConsumer(consumer string) string {
 		return consumer[:i]
 	}
 	return consumer
+}
+
+// Toolchain is a version of a language's toolchain and the live workers
+// reporting it.
+type Toolchain struct {
+	Version string
+	Workers []string
+}
+
+// Toolchains groups the versions reported by the live workers per
+// language, the most common first: every machine should judge with the
+// same compilers (SPEC_IOI §3), so more than one version is a problem.
+func Toolchains(ws []WorkerStatus) map[string][]Toolchain {
+	out := map[string][]Toolchain{}
+	for _, w := range ws {
+		if !w.Alive {
+			continue
+		}
+		for lang, v := range w.Toolchains {
+			list := out[lang]
+			i := 0
+			for i < len(list) && list[i].Version != v {
+				i++
+			}
+			if i == len(list) {
+				list = append(list, Toolchain{Version: v})
+			}
+			list[i].Workers = append(list[i].Workers, w.Name)
+			out[lang] = list
+		}
+	}
+	for _, list := range out {
+		sort.SliceStable(list, func(i, j int) bool {
+			if len(list[i].Workers) != len(list[j].Workers) {
+				return len(list[i].Workers) > len(list[j].Workers)
+			}
+			return list[i].Version < list[j].Version
+		})
+	}
+	return out
 }
 
 func itoa(v int64) string {

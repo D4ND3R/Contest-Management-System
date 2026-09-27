@@ -185,6 +185,23 @@ func uiLanguages(allowed []string) []langOption {
 
 // translateOutcome maps judge messages ("Output is correct", "Execution
 // killed by signal 11") to the contestant's language.
+// standardMessages are the outcome texts of the system (sandbox, task
+// types, standard checkers), which every interface language translates.
+var standardMessages = func() map[string]bool {
+	m := map[string]bool{}
+	for _, msg := range i18n.ContestantMessages() {
+		m[msg] = true
+	}
+	return m
+}()
+
+// standardMessage reports whether an outcome text comes from the system
+// rather than from a task's own checker.
+func standardMessage(text string) bool {
+	return standardMessages[text] || strings.HasPrefix(text, "Execution killed by signal ") ||
+		strings.HasPrefix(text, "Evaluation didn't produce file ")
+}
+
 func translateOutcome(lang, text string) string {
 	if strings.HasPrefix(text, "Execution killed by signal ") {
 		return i18n.T(lang, "Execution killed by signal %s", strings.TrimPrefix(text, "Execution killed by signal "))

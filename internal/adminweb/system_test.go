@@ -25,7 +25,10 @@ func TestSystemPanel(t *testing.T) {
 	// that died.
 	var hs hoststat.Sampler
 	host := hs.Sample([2]string{"work", t.TempDir()})
-	q.Heartbeat(bg, &queue.WorkerStatus{Name: "w-live", Hostname: "judge1", Host: &host}, time.Minute)
+	q.Heartbeat(bg, &queue.WorkerStatus{Name: "w-live", Hostname: "judge1", Host: &host,
+		Toolchains: map[string]string{"c11": "gcc 12.2.0", "python3": "Python 3.11.2"}}, time.Minute)
+	q.Heartbeat(bg, &queue.WorkerStatus{Name: "w-other", Hostname: "judge2",
+		Toolchains: map[string]string{"c11": "gcc 13.1.0", "python3": "Python 3.11.2"}}, time.Minute)
 	q.Enqueue(bg, queue.PriorityEvaluate, &jobs.Job{ID: "ev-1", Kind: jobs.KindEvaluate, SubmissionID: f.subs[1]})
 	if d, err := q.Next(bg, "w-ghost/0", 100*time.Millisecond, nil); err != nil || d == nil {
 		t.Fatalf("next: %v", err)
@@ -43,6 +46,14 @@ func TestSystemPanel(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("system page lacks %q", want)
 		}
+	}
+	// Two machines judging C with different compilers.
+	if !strings.Contains(body, "different compiler versions: c11.") {
+		t.Error("system page lacks the toolchain warning")
+	}
+	if code, body := a.Get("/languages"); code != 200 || !strings.Contains(body, "different versions") ||
+		!strings.Contains(body, "gcc 13.1.0 <span class=\"muted\">(w-other)") || !strings.Contains(body, "Python 3.11.2 <span class=\"muted\">(w-live, w-other)") {
+		t.Fatalf("languages = %d\n%s", code, body)
 	}
 	if _, body := a.Get("/system/status"); !strings.Contains(body, "stuck?") {
 		t.Error("the polled status lacks the stuck job")

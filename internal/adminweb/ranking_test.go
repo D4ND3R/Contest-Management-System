@@ -20,22 +20,27 @@ func TestRankingSettings(t *testing.T) {
 		"token_mode": {"disabled"}, "scoring_mode": {"ioi"}})
 	webtest.MustOK(t, "create contest", code, body)
 	c, _ := f.q.GetContestByName(bg, "rk")
-	if c.RankingVisibility != "public" || c.RankingContestantView != "full" || !c.RankingShowSubtasks || c.QuestionsPerMinute != 3 {
+	if c.RankingVisibility != "public" || c.RankingContestantView != "full" || !c.RankingShowSubtasks || c.QuestionsPerMinute != 3 ||
+		c.RankingTieBreak != "shared" {
 		t.Fatalf("defaults %+v", c)
 	}
 	code, body = b.Post(fmt.Sprintf("/contests/%d", c.ID), url.Values{"name": {"rk"}, "start_time": {"2030-05-01T09:00"},
 		"stop_time": {"2030-05-01T14:00"}, "token_mode": {"disabled"}, "scoring_mode": {"ioi"},
 		"ranking_visibility": {"admins"}, "ranking_contestant_view": {"own"}, "ranking_when": {"after"}, "ranking_freeze_minutes": {"60"},
-		"ranking_show_flags": {"on"}, "ranking_anonymous": {"on"}})
+		"ranking_show_flags": {"on"}, "ranking_anonymous": {"on"}, "ranking_tie_break": {"time"}, "ranking_show_photos": {"on"}})
 	webtest.MustOK(t, "save ranking settings", code, body)
 	c, _ = f.q.GetContestByName(bg, "rk")
 	if c.RankingVisibility != "admins" || c.RankingContestantView != "own" || c.RankingWhen != "after" || c.RankingFreezeMinutes != 60 ||
-		c.RankingShowSubtasks || !c.RankingShowFlags || !c.RankingAnonymous {
+		c.RankingShowSubtasks || !c.RankingShowFlags || !c.RankingAnonymous || c.RankingTieBreak != "time" || !c.RankingShowPhotos {
 		t.Fatalf("settings %+v", c)
 	}
 	if code, _ = b.Post(fmt.Sprintf("/contests/%d", c.ID), url.Values{"name": {"rk"}, "start_time": {"2030-05-01T09:00"},
 		"stop_time": {"2030-05-01T14:00"}, "token_mode": {"disabled"}, "scoring_mode": {"ioi"}, "ranking_visibility": {"everyone"}}); code != 422 {
 		t.Fatalf("invalid visibility = %d", code)
+	}
+	if code, _ = b.Post(fmt.Sprintf("/contests/%d", c.ID), url.Values{"name": {"rk"}, "start_time": {"2030-05-01T09:00"},
+		"stop_time": {"2030-05-01T14:00"}, "token_mode": {"disabled"}, "scoring_mode": {"ioi"}, "ranking_tie_break": {"coin"}}); code != 422 {
+		t.Fatalf("invalid tie-break = %d", code)
 	}
 	// The ranking page: the secret scoreboard link and the unfreeze button.
 	_, body = b.Get(fmt.Sprintf("/contests/%d/ranking", c.ID))

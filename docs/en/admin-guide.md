@@ -84,8 +84,10 @@ By hand, **Tasks → Create task** and then, on the task page:
    (`sol.%l` — `%l` becomes the language extension), languages (none
    ticked = the contest's).
 2. **Scoring and feedback**: score mode (best per subtask as at the IOI
-   since 2017, best submission, or tokened and last), precision, feedback
-   (full, or only the first failure per subtask).
+   since 2017, best submission, tokened and last, or the last submission
+   that compiled, better or worse), precision, feedback (full, or only the
+   first failure per subtask), and whether contestants see the checker's
+   own messages or only the standard one of each outcome.
 3. **Datasets → New dataset** (copy an existing one or start empty). On the
    dataset page:
    - **Task type** and its options (below), **Limits** (time, memory,

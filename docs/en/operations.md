@@ -175,6 +175,30 @@ their own submission immediately).
 If the replica stops, the pages that read from it fail until it is back or
 `replica_url` is removed: judging and the contest site are not affected.
 
+## Several contest web servers
+
+The contest web server keeps nothing of its own: sessions are signed
+cookies checked against the database, and rate limits, live notifications
+and results go through Valkey. When one machine is not enough for the
+contestants, run `cms contest-web` on more machines with the same
+`cms.yaml` (the same `secret`, database and Valkey, and the blobs through
+the blob server or S3, as for [an external worker](external-worker.md)),
+and list them all in the proxy:
+
+```
+contest.example.org {
+    reverse_proxy 10.0.0.11:8888 10.0.0.12:8888 {
+        lb_policy least_conn
+        health_uri /healthz
+    }
+}
+```
+
+A contestant can land on any of them, from one request to the next. The
+admin and ranking servers are separate processes and scale on their own
+(the ranking server is fed by the pusher; several ranking servers are
+listed in `dispatcher.ranking_urls`).
+
 ## Failover
 
 When the primary database machine is lost:
@@ -194,9 +218,38 @@ missing. What the old primary had written but not yet sent to the replica
 lost; the audit log's hash chain (`cmsctl audit-verify`) shows where the
 history ends.
 
-Valkey keeps the queues on disk (append-only file) and survives restarts;
-a lost Valkey machine means installing a new one and restarting the
-services: the dispatcher enqueues again everything not judged.
+Valkey keeps the queues on disk (append-only file) and survives restarts.
+To survive losing its machine, run a replica and three Sentinels (on three
+machines, e.g. the main server, the database replica and a worker) and
+point CMS at the Sentinels:
+
+```
+# on the replica machine, valkey.conf
+replicaof 10.0.0.1 6379
+masterauth <the Valkey password>
+requirepass <the Valkey password>
+
+# sentinel.conf on each of the three machines (valkey-sentinel)
+sentinel monitor cms 10.0.0.1 6379 2
+sentinel auth-pass cms <the Valkey password>
+sentinel down-after-milliseconds cms 5000
+sentinel failover-timeout cms 30000
+```
+
+```yaml
+# cms.yaml of every service and worker
+redis:
+  url: redis://:<the Valkey password>@unused/0
+  sentinels: ["10.0.0.1:26379", "10.0.0.2:26379", "10.0.0.3:26379"]
+  sentinel_master: cms
+```
+
+When the primary dies the Sentinels promote the replica and every service
+follows it by itself. Replication is asynchronous, so the last instant of
+queue activity can be lost: jobs are idempotent and the dispatcher's sweep
+enqueues again every submission not judged, so nothing is lost for good.
+Without Sentinels, a lost Valkey machine means installing a new one and
+restarting the services, with the same sweep.
 
 ## Rehearsals
 

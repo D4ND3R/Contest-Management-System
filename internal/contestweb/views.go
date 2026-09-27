@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/checkers"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/scoring"
 )
@@ -310,7 +311,12 @@ func (s *Server) detailData(r *http.Request, p *page, rc *reqCtx, t *taskView, r
 		return "warn"
 	}
 	mkRow := func(tc scoring.TestcaseDetail) detailRow {
-		r := detailRow{Codename: tc.Codename, Text: translateOutcome(p.Lang, tc.Text), Class: classOf(tc.Outcome), Time: tc.Time, Memory: tc.Memory}
+		text := tc.Text
+		if t.HideCheckerMessages && !standardMessage(text) {
+			// The checker's own words stay with the staff.
+			text = checkers.TranslateMessage("", tc.Outcome)
+		}
+		r := detailRow{Codename: tc.Codename, Text: translateOutcome(p.Lang, text), Class: classOf(tc.Outcome), Time: tc.Time, Memory: tc.Memory}
 		if tc.Text == scoring.MsgSkipped {
 			r.Class = "muted" // not run: the subtask had failed already
 		}

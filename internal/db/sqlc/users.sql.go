@@ -481,7 +481,7 @@ func (q *Queries) ListExistingUsernames(ctx context.Context, usernames []string)
 
 const listParticipationsByContest = `-- name: ListParticipationsByContest :many
 SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, p.communication_seen_at, p.approved, p.unofficial, u.username, u.first_name, u.last_name, u.timezone AS user_timezone,
-       u.institution, u.country, u.disabled, t.code AS team_code, t.name AS team_name,
+       u.institution, u.country, u.disabled, u.photo_digest AS user_photo, t.code AS team_code, t.name AS team_name,
        t.flag_digest AS team_flag, t.institution AS team_institution,
        st.name AS site_name, st.start_time AS site_start_time
 FROM participations p
@@ -501,6 +501,7 @@ type ListParticipationsByContestRow struct {
 	Institution     string        `json:"institution"`
 	Country         string        `json:"country"`
 	Disabled        bool          `json:"disabled"`
+	UserPhoto       *string       `json:"user_photo"`
 	TeamCode        *string       `json:"team_code"`
 	TeamName        *string       `json:"team_name"`
 	TeamFlag        *string       `json:"team_flag"`
@@ -542,6 +543,7 @@ func (q *Queries) ListParticipationsByContest(ctx context.Context, contestID int
 			&i.Institution,
 			&i.Country,
 			&i.Disabled,
+			&i.UserPhoto,
 			&i.TeamCode,
 			&i.TeamName,
 			&i.TeamFlag,

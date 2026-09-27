@@ -147,10 +147,14 @@
   <label>{{.T "Score mode"}} <select name="score_mode">
     <option value="max_subtask" {{if eq $t.ScoreMode "max_subtask"}}selected{{end}}>{{.T "best per subtask (IOI 2017+)"}}</option>
     <option value="max" {{if eq $t.ScoreMode "max"}}selected{{end}}>{{.T "best submission"}}</option>
-    <option value="max_tokened_last" {{if eq $t.ScoreMode "max_tokened_last"}}selected{{end}}>{{.T "max of tokened and last"}}</option></select></label>
+    <option value="max_tokened_last" {{if eq $t.ScoreMode "max_tokened_last"}}selected{{end}}>{{.T "max of tokened and last"}}</option>
+    <option value="last" {{if eq $t.ScoreMode "last"}}selected{{end}}>{{.T "last submission"}}</option></select></label>
   <label>{{.T "Feedback"}} <select name="feedback_level">
     <option value="full" {{if eq $t.FeedbackLevel "full"}}selected{{end}}>{{.T "full"}}</option>
     <option value="restricted" {{if eq $t.FeedbackLevel "restricted"}}selected{{end}}>{{.T "restricted (first failure per subtask)"}}</option></select></label>
+  <label>{{.T "Checker messages"}} <select name="checker_messages">
+    <option value="show" {{if not $t.HideCheckerMessages}}selected{{end}}>{{.T "shown to contestants"}}</option>
+    <option value="hide" {{if $t.HideCheckerMessages}}selected{{end}}>{{.T "hidden (standard message per outcome)"}}</option></select></label>
   <label>{{.T "Score precision"}} <input name="score_precision" value="{{$t.ScorePrecision}}" inputmode="numeric"></label>
 </div>
 </fieldset>

@@ -29,6 +29,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/logging"
+	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 	"github.com/D4ND3R/Contest-Management-System/internal/testutil"
 	"github.com/D4ND3R/Contest-Management-System/web"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -241,8 +242,13 @@ func TestLoginAndPages(t *testing.T) {
 	if code, _ := f.get(c, "/nope/"); code != 404 {
 		t.Fatalf("unknown contest = %d", code)
 	}
+	// The toolchain versions the judging machines report (the most common).
+	wq := queue.New(f.rdb, f.ns)
+	for i, v := range []string{"gcc (Debian 12.2.0-14) 12.2.0", "gcc (Debian 12.2.0-14) 12.2.0", "gcc 13.1"} {
+		wq.Heartbeat(bg, &queue.WorkerStatus{Name: fmt.Sprint("w", i), Toolchains: map[string]string{"c11": v}}, time.Minute)
+	}
 	code, body = f.get(c, "/ioi/documentation")
-	if code != 200 || !strings.Contains(body, "gnu11") {
+	if code != 200 || !strings.Contains(body, "gnu11") || !strings.Contains(body, "gcc (Debian 12.2.0-14) 12.2.0") || strings.Contains(body, "gcc 13.1") {
 		t.Fatalf("documentation: %d\n%s", code, body)
 	}
 	// Logout.
@@ -343,6 +349,36 @@ func TestScoredSubmissionShowsPublicScore(t *testing.T) {
 	_, body = f.get(c, fmt.Sprintf("/ioi/submissions/%d", id), "Accept-Language", "es")
 	if !strings.Contains(body, "La salida es correcta") || !strings.Contains(body, "Compilación exitosa") || !strings.Contains(body, "Sólo se muestran los casos públicos.") {
 		t.Fatalf("details in Spanish:\n%s", body)
+	}
+}
+
+// TestHiddenCheckerMessages (SPEC_IOI §5): a checker's own message reaches
+// contestants unless the task hides it; they then see the standard,
+// translated message of the outcome. System messages always show.
+func TestHiddenCheckerMessages(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	c := f.client()
+	_, page := f.login(c, "ana", "secret")
+	f.submit(c, csrfOf(t, page), "c11", "int main(){}", true)
+	subs, _ := f.q.ListSubmissionsByParticipationTask(bg, sqlc.ListSubmissionsByParticipationTaskParams{ParticipationID: f.part.ID, TaskID: f.task.ID})
+	id := subs[0].ID
+	f.q.EnsureSubmissionResult(bg, sqlc.EnsureSubmissionResultParams{SubmissionID: id, DatasetID: f.ds.ID})
+	ok := "ok"
+	f.q.SetCompilationResult(bg, sqlc.SetCompilationResultParams{SubmissionID: id, DatasetID: f.ds.ID, CompilationOutcome: &ok, CompilationText: "Compilation succeeded", TestcasesTotal: 2})
+	score := 25.0
+	det := json.RawMessage(`{"type":"sum","max_score":100,"testcases":[
+		{"codename":"0","public":true,"outcome":0.5,"text":"Answer 17 is not minimal (expected 12)","status":"ok"},
+		{"codename":"1","public":true,"outcome":0,"text":"Execution timed out","status":"timeout"}]}`)
+	f.q.SetScore(bg, sqlc.SetScoreParams{SubmissionID: id, DatasetID: f.ds.ID, Score: &score, ScoreDetails: det, PublicScore: &score, PublicScoreDetails: det, RankingScoreDetails: json.RawMessage(`[25]`)})
+	path := fmt.Sprintf("/ioi/submissions/%d", id)
+	if _, body := f.get(c, path); !strings.Contains(body, "Answer 17 is not minimal (expected 12)") {
+		t.Fatalf("checker message not shown:\n%s", body)
+	}
+	f.pool.Exec(bg, "UPDATE tasks SET hide_checker_messages = true WHERE id = $1", f.task.ID)
+	f.srv.cache.invalidateContest(f.contest.ID)
+	_, body := f.get(c, path, "Accept-Language", "es")
+	if strings.Contains(body, "not minimal") || !strings.Contains(body, "La salida es parcialmente correcta") || !strings.Contains(body, "Tiempo límite excedido") {
+		t.Fatalf("hidden checker message:\n%s", body)
 	}
 }
 

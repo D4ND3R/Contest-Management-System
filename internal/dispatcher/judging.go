@@ -585,7 +585,7 @@ func (d *Dispatcher) aggregate(ctx context.Context, q *sqlc.Queries, participati
 	score, err := q.UpsertParticipationTaskScore(ctx, sqlc.UpsertParticipationTaskScoreParams{
 		ParticipationID: participationID, TaskID: di.task.ID, Score: ts.Score, SubtaskScores: st,
 		IcpcSolved: icpc.Solved, IcpcAttempts: int32(icpc.Attempts), IcpcSolvedAt: icpc.SolvedAt,
-		Pending: int32(ts.Pending), LastSubmissionAt: ts.LastSubmission,
+		Pending: int32(ts.Pending), LastSubmissionAt: ts.LastSubmission, ScoreReachedAt: ts.Reached,
 	})
 	if err != nil {
 		return nil, err

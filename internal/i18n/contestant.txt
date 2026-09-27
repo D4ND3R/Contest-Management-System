@@ -299,6 +299,7 @@
 "Unsolved"
 "Username"
 "Verdict"
+"Version"
 "View all"
 "Waiting for an answer."
 "Waiting for the printer"

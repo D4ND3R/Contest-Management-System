@@ -91,8 +91,18 @@ const expect = (ok, what) => { if (!ok) failures.push(what); };
     await page.setViewportSize({ width: 600, height: 900 });
     await page.focus('#nav');
     await page.keyboard.press('Space');
-    const shown = await page.locator('nav.sidebar').evaluate(n => getComputedStyle(n).transform);
-    expect(shown === 'none' || shown === 'matrix(1, 0, 0, 1, 0, 0)', 'the menu did not open from the keyboard: ' + shown);
+    // The menu slides in: wait for the transition to end rather than
+    // sampling its position mid-way (slow under a loaded machine).
+    let shown = '';
+    try {
+      await page.waitForFunction(() => {
+        const t = getComputedStyle(document.querySelector('nav.sidebar')).transform;
+        return t === 'none' || t === 'matrix(1, 0, 0, 1, 0, 0)';
+      }, null, { timeout: 5000 });
+    } catch (e) {
+      shown = await page.locator('nav.sidebar').evaluate(n => getComputedStyle(n).transform);
+    }
+    expect(shown === '', 'the menu did not open from the keyboard: ' + shown);
   } catch (e) {
     failures.push(String(e && e.stack || e));
   } finally {

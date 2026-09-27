@@ -57,6 +57,9 @@ type inFlightJob struct {
 // monitor requeues it after its job timeout anyway).
 const stuckAfter = 2 * time.Minute
 
+// workerForget: workers silent for longer are no longer listed.
+const workerForget = 10 * time.Minute
+
 // storageCache keeps the storage figures for a while: counting blobs and
 // sizing the database is not for every poll.
 type storageCache struct {
@@ -91,7 +94,7 @@ func (s *Server) systemStatus(r *http.Request, rc *reqCtx) *systemStatus {
 		st.QueueError = err.Error()
 		st.Queues = &queue.Stats{Waiting: map[string]int64{}, Pending: map[string]int64{}}
 	}
-	if st.Workers, err = s.queue.Workers(ctx, 10*time.Minute); err != nil && st.QueueError == "" {
+	if st.Workers, err = s.queue.Workers(ctx, workerForget); err != nil && st.QueueError == "" {
 		st.QueueError = err.Error()
 	}
 	alive := map[string]bool{}
@@ -157,6 +160,8 @@ type systemPage struct {
 	// median, as "12.5"); Uneven when above the tolerance.
 	Spread string
 	Uneven bool
+	// ToolchainsDiffer lists the languages judged with different versions.
+	ToolchainsDiffer []string
 }
 
 // calibrationView is a worker's calibration as the Judges page shows it.
@@ -244,6 +249,9 @@ func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request, rc *reqCtx
 	if all, err := s.queue.Calibrations(r.Context()); err == nil {
 		d.Calibrations, d.Spread, d.Uneven = calibrations(all)
 	}
+	if d.Status != nil {
+		d.ToolchainsDiffer = toolchainsDiffer(d.Status.Workers)
+	}
 	s.render(w, "system", http.StatusOK, s.newPage(w, r, rc, "Workers and queues", "system", d))
 }
 
@@ -253,10 +261,33 @@ func (s *Server) handleSystemStatus(w http.ResponseWriter, r *http.Request, rc *
 	s.renderPartial(w, "system-status", s.systemStatus(r, rc))
 }
 
+type languagesPage struct {
+	Languages []*langs.Language
+	// Toolchains are the versions the live workers report, by language.
+	Toolchains map[string][]queue.Toolchain
+}
+
 func (s *Server) handleLanguages(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	all := s.langs.All()
 	sort.Slice(all, func(i, j int) bool { return all[i].ID < all[j].ID })
-	s.render(w, "languages", http.StatusOK, s.newPage(w, r, rc, "Languages", "system", struct{ Languages []*langs.Language }{all}))
+	d := languagesPage{Languages: all}
+	if ws, err := s.queue.Workers(r.Context(), workerForget); err == nil {
+		d.Toolchains = queue.Toolchains(ws)
+	}
+	s.render(w, "languages", http.StatusOK, s.newPage(w, r, rc, "Languages", "system", d))
+}
+
+// toolchainsDiffer lists the languages the live workers judge with
+// different toolchain versions.
+func toolchainsDiffer(ws []queue.WorkerStatus) []string {
+	var out []string
+	for lang, list := range queue.Toolchains(ws) {
+		if len(list) > 1 {
+			out = append(out, lang)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ---------------------------------------------------------------- audit

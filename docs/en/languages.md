@@ -23,8 +23,13 @@ commands.
 | `haskell` | Haskell | GHC 9.4 (`-O2`) |
 
 Versions are those of the worker's operating system packages; pin them by
-pinning the worker image or packages. The exact version is shown by each
-file's `version_command`.
+pinning the worker image or packages. Each worker runs every language's
+`version_command` when it starts and reports the first line: the admin
+**Languages** page lists what every judging machine has (and says when they
+differ, as does the **Judges** page), and the contestants' **Documentation**
+page shows the version next to each language's commands, so contestants
+know the exact toolchain before the contest. Restart the workers after
+upgrading a compiler.
 
 ## File format
 

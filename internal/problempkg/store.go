@@ -146,6 +146,7 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 			}
 			tp.Languages = nonNil(c.Languages)
 			tp.FeedbackLevel, tp.ScoreMode, tp.ScorePrecision = c.Feedback, c.ScoreMode, int32(c.Precision())
+			tp.HideCheckerMessages = c.CheckerMessages == "hide"
 			if o.ContestID != nil {
 				// What the package leaves unset comes from the contest.
 				ct, err := q.GetContest(ctx, *o.ContestID)
@@ -279,7 +280,8 @@ func syncTask(ctx context.Context, q *sqlc.Queries, t sqlc.Task, c *Config, stat
 		TokenGenNumber: t.TokenGenNumber, TokenGenIntervalS: t.TokenGenIntervalS, TokenGenMax: t.TokenGenMax,
 		MaxSubmissionNumber: t.MaxSubmissionNumber, MaxUserTestNumber: t.MaxUserTestNumber,
 		MinSubmissionIntervalS: t.MinSubmissionIntervalS, MinUserTestIntervalS: t.MinUserTestIntervalS,
-		FeedbackLevel: c.Feedback, ScorePrecision: t.ScorePrecision, ScoreMode: t.ScoreMode, Languages: nonNil(c.Languages)}
+		FeedbackLevel: c.Feedback, ScorePrecision: t.ScorePrecision, ScoreMode: t.ScoreMode, Languages: nonNil(c.Languages),
+		HideCheckerMessages: c.CheckerMessages == "hide"}
 	if c.SubmissionFormat != nil {
 		up.SubmissionFormat = c.SubmissionFormat
 	}

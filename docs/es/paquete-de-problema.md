@@ -62,7 +62,8 @@ código en KiB).
 | `submission_format` | `<name>.%l` | archivos del envío; `%l` = extensión del lenguaje |
 | `primary_statements` | ninguno | idiomas de enunciado marcados como oficiales |
 | `feedback` | `full` | `full` o `restricted` (primer fallo por subtarea) |
-| `score_mode` | `max_subtask` | `max_subtask`, `max`, `max_tokened_last` |
+| `checker_messages` | `show` | `hide`: los concursantes ven el mensaje estándar de cada resultado en lugar del texto del checker |
+| `score_mode` | `max_subtask` | `max_subtask`, `max`, `max_tokened_last`, `last` |
 | `score_precision` | 0 | decimales |
 | `dataset` | `Default` | descripción del dataset |
 

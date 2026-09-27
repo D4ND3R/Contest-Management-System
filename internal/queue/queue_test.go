@@ -191,6 +191,25 @@ func TestHeartbeats(t *testing.T) {
 	}
 }
 
+// TestToolchains: the versions the live workers report, grouped per
+// language with the most common first; dead workers do not count.
+func TestToolchains(t *testing.T) {
+	ws := []WorkerStatus{
+		{Name: "a", Alive: true, Toolchains: map[string]string{"cpp17": "g++ 13.2", "rust": ""}},
+		{Name: "b", Alive: true, Toolchains: map[string]string{"cpp17": "g++ 12.1", "rust": ""}},
+		{Name: "c", Alive: true, Toolchains: map[string]string{"cpp17": "g++ 12.1"}},
+		{Name: "d", Toolchains: map[string]string{"cpp17": "g++ 11.0"}},
+	}
+	got := Toolchains(ws)
+	if c := got["cpp17"]; len(c) != 2 || c[0].Version != "g++ 12.1" || strings.Join(c[0].Workers, ",") != "b,c" ||
+		c[1].Version != "g++ 13.2" || strings.Join(c[1].Workers, ",") != "a" {
+		t.Fatalf("cpp17 %+v", c)
+	}
+	if r := got["rust"]; len(r) != 1 || r[0].Version != "" || len(r[0].Workers) != 2 {
+		t.Fatalf("rust %+v", r)
+	}
+}
+
 func TestLeaseExclusive(t *testing.T) {
 	q := newQueue(t)
 	ctx, cancel := context.WithCancel(context.Background())

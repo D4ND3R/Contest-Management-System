@@ -1559,3 +1559,120 @@ fair under load. What was built, and the choices behind it:
   ARIA references, no positive tabindex), and a Playwright script drives
   the real contest site through the editor, keyboard use, right to left,
   high contrast and large text.
+
+## D92. Ranking tie-break by time (SPEC_IOI §10)
+
+- **A contest setting, `shared` by default.** The IOI rule is that equal
+  totals share the place (and the medal), so that stays the default;
+  `time` is for olympiads and ICPC-style contests that rank who got there
+  first. It lives on the contest (`ranking_tie_break`), so contest.yaml,
+  the clone and the archive carry it without extra code.
+- **What "first" means.** IOI mode: the moment the total was reached, i.e.
+  the latest, over the tasks with points, of the submission that last
+  changed the task score to its current value. That is "the first
+  submission with the best score" for `max`, "the latest of the first
+  submissions reaching each subtask's best" for `max_subtask`, and a replay
+  of the prefixes for `max_tokened_last` (its score can go down and up
+  again; a participant has few submissions per task, so O(n²) on n is
+  negligible next to judging). ICPC mode: the last accepted problem, after
+  problems and penalty — the usual ICPC third criterion — in seconds rather
+  than minutes, so fewer ties survive.
+- **Counted from each participant's own start** (site start, delay, or
+  per-user window), like the ICPC minutes: a contestant who started late is
+  not behind. Manual adjustments never move the time (an administrator's
+  action says nothing about who solved first); a cell whose points only
+  come from an adjustment has no time, and rows without a time rank after
+  equal rows with one.
+- **Stored with the aggregate.** `participation_task_scores.score_reached_at`
+  is computed by the dispatcher with the rest of the row, so `Compute`
+  (every admin view, export and the pushers) stays one query with no scan
+  of submissions; `Replay` (frozen boards) computes the same value from the
+  submissions it already reads. Rows aggregated before the upgrade have no
+  time until the task is scored again; they fall back to the last
+  submission, an upper bound.
+- **Team boards** keep, per task, the first member to reach the team's best
+  score; with "best per subtask" scoring, per subtask the member holding
+  the best value, using that member's own time for the task (an upper
+  bound when the member's later submissions improved other subtasks).
+  Keeping per-subtask times in the database was not worth it for a rare
+  combination.
+- **Places, medals and certificates** all use the same comparison, so with
+  time tie-breaks nothing is shared and the medal rule's "never split a
+  tie" applies only to rows equal in both total and time.
+
+## D93. The "last" score mode and the toolchains the judges report (SPEC_IOI §3, §6)
+
+- **`last` counts the latest scored submission that compiled**, better or
+  worse than the earlier ones. A compilation error does not replace a
+  working program (a mistaken upload in the last minute should not erase a
+  contest), and a submission still being judged does not count until it is
+  scored — the same rules the other modes follow. Its tie-break time is the
+  last change of the score, found by replaying the prefixes like
+  `max_tokened_last`. The CHECK constraints of `tasks.score_mode` and
+  `contests.default_score_mode` gained the value (migration 0023).
+- **Toolchain versions come from the workers**, not from the languages
+  directory of the web servers: the compilers that matter are those of the
+  machines that judge. Each worker runs every `version_command` once at
+  start (outside the sandbox: the command is the administrator's), keeps
+  the first line of its output (standard output or error, since
+  `java -version` writes to the latter) and sends it with every heartbeat.
+  No database table: the value is as fresh as the heartbeat and vanishes
+  with the worker. The admin Languages page lists each version with the
+  workers reporting it and flags a language judged with more than one; the
+  Judges page repeats the warning; the contestants' Documentation page
+  shows the most common version, which is what "published to contestants
+  before the contest" needs.
+
+## D94. Participants' photos on the scoreboards (SPEC_IOI §10)
+
+- **Opt-in per contest** (`ranking_show_photos`, off): olympiad contestants
+  are mostly minors, and a public page with their faces needs the
+  organizers' decision. Anonymous boards never show them, and team rows
+  keep their flag.
+- **Thumbnails, not originals.** A photo may be 16 MiB; the scoreboard shows
+  it at 2em to hundreds of spectators. The ranking pusher crops the centre
+  square and scales it to 128 px (a JPEG of a few KiB), stores it in the
+  blob store and sends that digest to the ranking servers with the flags.
+  The scaling averages a 4×4 grid of samples per pixel, stdlib only: no
+  image dependency, and a 12-megapixel photo costs one decode.
+- **In the background.** Thumbnails are made one at a time by a goroutine of
+  the active pusher and cached by the original's digest (a new photo is a
+  new digest). A board omits a photo whose thumbnail is not ready and is
+  pushed again when thumbnails complete, so publishing a contest with 400
+  photos never delays the scores. Formats Go cannot decode (WebP, HEIC)
+  are simply not shown.
+
+## D95. No single point of failure: Valkey through Sentinel, several contest web servers (SPEC_IOI §1.1, §12)
+
+- **Valkey failover through Sentinel**, not Valkey Cluster: the queues use
+  streams, consumer groups and Lua over several keys of one namespace,
+  which a cluster would scatter across slots; one primary with replicas is
+  what the data model needs, and Sentinel is the standard way to promote a
+  replica. `redis.sentinels` + `redis.sentinel_master` switch every service
+  to go-redis's failover client (the same client type, so nothing else
+  changes). Replication is asynchronous; what a failover can lose is
+  covered by what already covers a Valkey restart: idempotent jobs and the
+  dispatcher's sweep that enqueues every unjudged submission again. The
+  test runs a real primary, replica and Sentinel, kills the primary and
+  checks that the same client writes again and still reads older data.
+- **Several contest web servers** needed no code: sessions are signed
+  cookies checked against the database, and rate limits, notifications and
+  results go through Valkey. A test now proves it (log in on one server,
+  submit on another), and the operations guide shows the proxy
+  configuration. The dispatcher, monitor, ranking pusher and backups
+  already fail over between instances with Valkey leases.
+
+## D96. Hiding a checker's own messages (SPEC_IOI §5)
+
+- **Per task, off by default** (`hide_checker_messages`; `checker_messages:
+  hide` in packages). Some checkers print the expected answer or hints
+  ("expected 12"), which the organizers may not want contestants to read;
+  others print useful feedback. With it on, contestants see the standard
+  message of each outcome (correct, partially correct, wrong), translated
+  into their language; the staff still see the checker's words.
+- **What counts as the checker's text**: anything that is not one of the
+  system's own messages (the contestant message catalogue, which every
+  shipped language translates, plus the two parameterised ones). So time
+  and memory limits, crashes and security violations keep their message.
+- **Stored as "hide", not "show"**, so the zero value of every existing
+  creation path (forms, packages, clones, imports) keeps today's behaviour.

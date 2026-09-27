@@ -67,11 +67,14 @@ type Config struct {
 	PointsPerTest *float64  `yaml:"points_per_test,omitempty"`
 	Subtasks      []Subtask `yaml:"subtasks,omitempty"`
 	PublicTests   []string  `yaml:"public_tests,omitempty"` // regexes of public testcases
-	ScoreMode     string    `yaml:"score_mode,omitempty"`   // max_subtask|max|max_tokened_last
+	ScoreMode     string    `yaml:"score_mode,omitempty"`   // max_subtask|max|max_tokened_last|last
 	// ScorePrecision and ScoreMode default to the contest's (when imported
 	// into one) or to 0 and max_subtask.
 	ScorePrecision *int   `yaml:"score_precision,omitempty"`
 	Feedback       string `yaml:"feedback,omitempty"` // full|restricted
+	// CheckerMessages: "hide" shows contestants the standard message of
+	// each outcome instead of the checker's own text (default "show").
+	CheckerMessages string `yaml:"checker_messages,omitempty"`
 
 	Languages         []string `yaml:"languages,omitempty"`
 	SubmissionFormat  []string `yaml:"submission_format,omitempty"`
@@ -209,14 +212,19 @@ func (c *Config) Check() []string {
 		bad("score_precision must be between 0 and 6")
 	}
 	switch c.ScoreMode {
-	case "", "max_subtask", "max", "max_tokened_last":
+	case "", "max_subtask", "max", "max_tokened_last", "last":
 	default:
-		bad("score_mode %q: use max_subtask, max or max_tokened_last", c.ScoreMode)
+		bad("score_mode %q: use max_subtask, max, max_tokened_last or last", c.ScoreMode)
 	}
 	switch c.Feedback {
 	case "full", "restricted":
 	default:
 		bad("feedback %q: use full or restricted", c.Feedback)
+	}
+	switch c.CheckerMessages {
+	case "", "show", "hide":
+	default:
+		bad("checker_messages %q: use show or hide", c.CheckerMessages)
 	}
 	if c.Scoring == "sum" && len(c.Subtasks) > 0 {
 		bad("subtasks need a group scoring (group_min, group_mul or group_threshold)")

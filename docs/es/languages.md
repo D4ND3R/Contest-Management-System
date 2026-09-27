@@ -23,8 +23,14 @@ siempre los mismos comandos.
 | `haskell` | Haskell | GHC 9.4 (`-O2`) |
 
 Las versiones son las de los paquetes del sistema del worker; se fijan
-fijando la imagen o los paquetes del worker. `version_command` muestra la
-versión exacta.
+fijando la imagen o los paquetes del worker. Cada worker ejecuta el
+`version_command` de cada lenguaje al iniciar e informa la primera línea:
+la página **Lenguajes** del panel muestra lo que tiene cada máquina de
+evaluación (y avisa cuando difieren, igual que la página **Jueces**), y la
+página **Documentación** de los concursantes muestra la versión junto a
+los comandos de cada lenguaje, así los concursantes conocen el compilador
+exacto antes del concurso. Reinicia los workers después de actualizar un
+compilador.
 
 ## Formato
 

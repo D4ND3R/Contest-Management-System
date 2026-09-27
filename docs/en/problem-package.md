@@ -59,7 +59,8 @@ sizes in MiB (source size in KiB).
 | `submission_format` | `<name>.%l` | submitted files; `%l` = language extension |
 | `primary_statements` | none | statement languages marked as official |
 | `feedback` | `full` | `full` or `restricted` (first failure per subtask) |
-| `score_mode` | `max_subtask` | `max_subtask`, `max`, `max_tokened_last` |
+| `checker_messages` | `show` | `hide`: contestants see the standard message of each outcome instead of the checker's own text |
+| `score_mode` | `max_subtask` | `max_subtask`, `max`, `max_tokened_last`, `last` |
 | `score_precision` | 0 | decimals |
 | `dataset` | `Default` | dataset description |
 

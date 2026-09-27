@@ -1015,7 +1015,7 @@ Skipping skills: immersive-web-design, master skill.
   not write is kept aside and restored on uninstall. Verified in a 26.04
   container that mimics that server.
 
-## SPEC_IOI — the perfect CMS for IOI-level workloads (in progress)
+## SPEC_IOI — the perfect CMS for IOI-level workloads (done)
 Skipping skills: immersive-web-design, master skill.
 
 `SPEC_IOI.md` records the owner's third specification, the problems found
@@ -1199,3 +1199,32 @@ localization, H8 audit (`AUDIT.md` §10) and summary.
   Ctrl+Enter, a browser draft, and checks before sending
   (`TestEditorSubmission`, `TestContestantUIInBrowser`).
 - Docs: interface languages and accessibility (en/es).
+
+### H8 — audit and the last gaps (done)
+The audit (`AUDIT.md` §10, 87 requirements, every cited test and file
+checked to exist) found these still missing, now done:
+- **Tie-break by time** (D92): `ranking_tie_break` shared (IOI, default) or
+  by the moment the total was reached, counted from each participant's own
+  start (ICPC: the last accepted problem); stored with the aggregate, in
+  places, medals, team boards and frozen replays (`TestTieBreakByTime`,
+  `TestTieBreakReplayAndTeams`, `TestReached`).
+- **"last" score mode** (D93): the latest submission that compiled counts
+  (`TestScoreModes`, `TestReached`).
+- **Toolchain versions** (D93): workers run each `version_command` and
+  report it; the contestants' Documentation page shows it, the Languages
+  and Judges pages flag machines that differ (`TestProbeToolchains`,
+  `TestToolchains`).
+- **Photos on the scoreboard** (D94): opt-in, as 128 px thumbnails made in
+  the background by the pusher (`TestScoreboardPhotos`, `TestThumbnail`).
+- **Valkey failover through Sentinel** and **several contest web servers**
+  (D95): a real primary/replica/Sentinel failover in the suite
+  (`TestSentinelFailover`), a session moving between two contest servers
+  (`TestSeveralContestWebServers`); operations guide (en/es).
+- **Hidden checker messages** per task (D96, `TestHiddenCheckerMessages`).
+- Docs: ranking, languages, operations, problem package, admin guide
+  (en/es).
+- Open: the repository owner deleted `LICENSE`; `cli.TestReleaseConfiguration`
+  and `cli.TestDocsLinks` fail until the owner chooses a license (or none).
+  Pending on real hardware (**hw** in the audit): the host check on the
+  owner's server, the load and failover drills on the contest machines,
+  and a native speaker's review of each shipped translation.

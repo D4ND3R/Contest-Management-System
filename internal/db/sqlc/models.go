@@ -190,6 +190,8 @@ type Contest struct {
 	PauseMessage                string     `json:"pause_message"`
 	Medals                      string     `json:"medals"`
 	AppealsUntil                *time.Time `json:"appeals_until"`
+	RankingTieBreak             string     `json:"ranking_tie_break"`
+	RankingShowPhotos           bool       `json:"ranking_show_photos"`
 }
 
 type Dataset struct {
@@ -289,6 +291,7 @@ type ParticipationTaskScore struct {
 	LastSubmissionAt *time.Time      `json:"last_submission_at"`
 	UpdatedAt        time.Time       `json:"updated_at"`
 	Adjustment       float64         `json:"adjustment"`
+	ScoreReachedAt   *time.Time      `json:"score_reached_at"`
 }
 
 type PrintJob struct {
@@ -433,6 +436,7 @@ type Task struct {
 	UpdatedAt              time.Time `json:"updated_at"`
 	Languages              []string  `json:"languages"`
 	SubmissionsClosed      bool      `json:"submissions_closed"`
+	HideCheckerMessages    bool      `json:"hide_checker_messages"`
 }
 
 type TaskExample struct {

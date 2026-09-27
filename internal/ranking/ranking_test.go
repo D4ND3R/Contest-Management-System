@@ -67,9 +67,13 @@ func setup(t *testing.T, mode string, users map[string][2]*cell, hidden string) 
 				solvedAt = &at
 			}
 			last := start.Add(cl.at)
+			var reached *time.Time
+			if cl.score > 0 {
+				reached = &last
+			}
 			if _, err := q.UpsertParticipationTaskScore(bg, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: p.ID, TaskID: tasks[i].ID,
 				Score: cl.score, SubtaskScores: json.RawMessage(`[]`), IcpcSolved: cl.solved, IcpcAttempts: cl.attempts,
-				IcpcSolvedAt: solvedAt, LastSubmissionAt: &last}); err != nil {
+				IcpcSolvedAt: solvedAt, LastSubmissionAt: &last, ScoreReachedAt: reached}); err != nil {
 				t.Fatal(err)
 			}
 		}

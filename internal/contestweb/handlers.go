@@ -705,14 +705,24 @@ type docLanguage struct {
 	Extensions string
 	Compile    []string
 	Run        string
+	// Version is the toolchain the judging machines report (the most
+	// common one; "" when none reports it).
+	Version string
 }
 
 func (s *Server) handleDocumentation(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	p := s.newPage(rc, "", "documentation")
 	p.Title = p.T("Documentation")
+	var tcs map[string][]queue.Toolchain
+	if ws, err := s.queue.Workers(r.Context(), 10*time.Minute); err == nil {
+		tcs = queue.Toolchains(ws)
+	}
 	var ls []docLanguage
 	for _, l := range rc.contest.Languages {
 		d := docLanguage{ID: l.ID, Name: l.Name, Extensions: strings.Join(l.SourceExtensions, " ")}
+		if list := tcs[l.ID]; len(list) > 0 {
+			d.Version = list[0].Version
+		}
 		v := langs.Vars{Sources: []string{"sol" + l.SourceExtension()}, MainSource: "sol" + l.SourceExtension(), Main: "sol",
 			Executable: l.ExecutableName("sol"), Memory: 256 << 20}
 		for _, c := range l.Compile {

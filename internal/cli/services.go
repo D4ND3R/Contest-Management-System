@@ -186,6 +186,13 @@ func runWorker(ctx context.Context, cfg *config.Config, log *slog.Logger) error 
 	if err != nil {
 		return err
 	}
+	// The compilers this machine judges with, for the Languages page and
+	// the contestants' documentation.
+	if reg, err := langs.Load(cfg.LanguagesDir); err != nil {
+		log.Warn("toolchain versions not reported", "error", err)
+	} else {
+		svc.SetToolchains(worker.ProbeToolchains(ctx, reg))
+	}
 	g, _ := app.NewGroup(ctx)
 	g.Go(svc.Run)
 	g.Go(func(ctx context.Context) error {

@@ -164,6 +164,23 @@ var esIOI = map[string]string{
 	"cutoffs also on the public scoreboards": "cortes también en las tablas públicas",
 	"IOI rule: at most a twelfth of the official participants get gold, a quarter gold or silver, half a medal; a tie is never split and a zero score wins nothing. Unofficial and hidden participants take no place and no medal.": "Regla de la IOI: como máximo una doceava parte de los participantes oficiales recibe oro, una cuarta parte oro o plata y la mitad una medalla; un empate nunca se divide y un puntaje de cero no gana nada. Los participantes no oficiales y ocultos no ocupan puesto ni reciben medalla.",
 	"Unofficial (ranked, but no place and no medal)": "No oficial (aparece en la clasificación, sin puesto ni medalla)",
+	// H8: toolchain versions reported by the workers.
+	"On the judges":      "En los jueces",
+	"different versions": "versiones distintas",
+	"not installed":      "no instalado",
+	"not reported":       "sin informar",
+	"Each worker runs the version_command of every language when it starts; every judging machine should report the same versions.": "Cada worker ejecuta el version_command de cada lenguaje al iniciar; todas las máquinas de evaluación deberían informar las mismas versiones.",
+	"The workers judge these languages with different compiler versions: %s.":                                                       "Los workers evalúan estos lenguajes con versiones distintas del compilador: %s.",
+	// H8: ranking tie-break and the "last" score mode.
+	"last submission":                       "último envío",
+	"Checker messages":                      "Mensajes del checker",
+	"shown to contestants":                  "visibles para los concursantes",
+	"hidden (standard message per outcome)": "ocultos (mensaje estándar según el resultado)",
+	"photos":                                "fotos",
+	"Ties":                                  "Empates",
+	"share the place (IOI)":                 "comparten el puesto (IOI)",
+	"broken by time: who got there first ranks higher": "se desempatan por tiempo: quien llegó primero queda más arriba",
+	"Tie-break by time: the moment the participant's total was reached, counted from their own start (in ICPC mode, the last problem solved after equal problems and penalty). Manual adjustments do not change it.": "Desempate por tiempo: el momento en que el participante alcanzó su total, contado desde su propio inicio (en modo ICPC, el último problema resuelto, a igualdad de problemas y penalización). Los ajustes manuales no lo cambian.",
 	// H5: clarification desk.
 	"taken by":             "tomada por",
 	"give back":            "devolver",

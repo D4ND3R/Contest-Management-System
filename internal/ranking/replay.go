@@ -148,10 +148,12 @@ func Replay(ctx context.Context, q *sqlc.Queries, contestID int64, cutoff *time.
 		ts := scoring.Aggregate(task.scoreMode, prefix, task.Precision)
 		icpc := scoring.ICPC(prefix, task.MaxScore)
 		cell := Cell{Score: ts.Score + adjusted, Subtasks: ts.Subtasks, Submitted: len(prefix)+after > 0 || adjusted != 0,
-			Pending: ts.Pending + after, Solved: icpc.Solved, Attempts: icpc.Attempts, SolvedAt: icpc.SolvedAt, Adjustment: adjusted}
+			Pending: ts.Pending + after, Solved: icpc.Solved, Attempts: icpc.Attempts, SolvedAt: icpc.SolvedAt, Adjustment: adjusted,
+			ReachedAt: ts.Reached}
 		if cell.Solved {
 			cell.SolvedMinute = b.solvedMinute(k.pid, cell.SolvedAt)
 		}
+		b.setElapsed(k.pid, &cell)
 		b.r.Rows[ri].Cells[ti] = cell
 	}
 	history := map[int64][]Point{}

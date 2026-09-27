@@ -95,6 +95,6 @@ func (r *Ranking) Anonymize() {
 	for i := range r.Rows {
 		row := &r.Rows[i]
 		row.Username = "user" + strconv.FormatInt(row.UserID, 10)
-		row.FirstName, row.LastName, row.Institution = "", "", ""
+		row.FirstName, row.LastName, row.Institution, row.Photo = "", "", "", ""
 	}
 }

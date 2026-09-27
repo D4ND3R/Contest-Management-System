@@ -183,6 +183,31 @@ Si la réplica se detiene, las páginas que leen de ella fallan hasta que
 vuelva o se quite `replica_url`: la evaluación y el sitio del concurso no se
 ven afectados.
 
+## Varios servidores de concursantes
+
+El servidor de concursantes no guarda nada propio: las sesiones son cookies
+firmadas que se comprueban contra la base de datos, y los límites de
+frecuencia, las notificaciones en vivo y los resultados pasan por Valkey.
+Cuando una máquina no alcanza para los concursantes, ejecuta
+`cms contest-web` en más máquinas con el mismo `cms.yaml` (el mismo
+`secret`, la misma base de datos y Valkey, y los blobs a través del
+servidor de blobs o S3, como para [un worker externo](worker-externo.md)),
+y lístalas todas en el proxy:
+
+```
+contest.example.org {
+    reverse_proxy 10.0.0.11:8888 10.0.0.12:8888 {
+        lb_policy least_conn
+        health_uri /healthz
+    }
+}
+```
+
+Un concursante puede caer en cualquiera de ellas, de una petición a la
+siguiente. Los servidores de administración y de ranking son procesos
+aparte y escalan por su cuenta (el de ranking lo alimenta el publicador;
+se listan varios servidores de ranking en `dispatcher.ranking_urls`).
+
 ## Failover
 
 Si se pierde la máquina de la base de datos primaria:
@@ -204,8 +229,38 @@ menos de un segundo) se pierde; la cadena de hashes del registro de
 auditoría (`cmsctl audit-verify`) muestra dónde termina la historia.
 
 Valkey guarda las colas en disco (archivo append-only) y sobrevive a los
-reinicios; perder la máquina de Valkey significa instalar uno nuevo y
-reiniciar los servicios: el dispatcher vuelve a encolar todo lo no evaluado.
+reinicios. Para sobrevivir a la pérdida de su máquina, ejecuta una réplica
+y tres Sentinels (en tres máquinas, p. ej. el servidor principal, la
+réplica de la base de datos y un worker) y apunta CMS a los Sentinels:
+
+```
+# en la máquina de la réplica, valkey.conf
+replicaof 10.0.0.1 6379
+masterauth <la contraseña de Valkey>
+requirepass <la contraseña de Valkey>
+
+# sentinel.conf en cada una de las tres máquinas (valkey-sentinel)
+sentinel monitor cms 10.0.0.1 6379 2
+sentinel auth-pass cms <la contraseña de Valkey>
+sentinel down-after-milliseconds cms 5000
+sentinel failover-timeout cms 30000
+```
+
+```yaml
+# cms.yaml de cada servicio y worker
+redis:
+  url: redis://:<la contraseña de Valkey>@unused/0
+  sentinels: ["10.0.0.1:26379", "10.0.0.2:26379", "10.0.0.3:26379"]
+  sentinel_master: cms
+```
+
+Cuando el primario muere, los Sentinels promueven la réplica y cada
+servicio la sigue por sí solo. La replicación es asíncrona, así que se
+puede perder el último instante de actividad de las colas: los trabajos son
+idempotentes y el barrido del dispatcher vuelve a encolar cada envío no
+evaluado, así que nada se pierde del todo. Sin Sentinels, perder la
+máquina de Valkey significa instalar uno nuevo y reiniciar los servicios,
+con el mismo barrido.
 
 ## Ensayos
 

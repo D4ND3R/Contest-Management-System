@@ -6,6 +6,7 @@
 </section>{{end}}
 {{template "system-status" .Data.Status}}
 <p class="muted small">{{.T "Queues are served in priority order: evaluate, compile, deferred (older submissions of a contestant who already sent a newer one to the task), user tests, background (rejudges and non-live datasets). A job running longer than the monitor's job timeout, or on a worker whose heartbeat stopped, is requeued automatically."}} <a href="/languages">{{.T "Languages"}}</a>.</p>
+{{with .Data.ToolchainsDiffer}}<p class="alert">{{$.T "The workers judge these languages with different compiler versions: %s." (join . ", ")}} <a href="/languages">{{$.T "Languages"}}</a></p>{{end}}
 <h2>{{.T "Calibration"}}</h2>
 {{if .Data.Calibrations}}
 {{if .Data.Uneven}}<p class="alert">{{.T "The machines are not equally fast: the slowest takes %s%% longer than the fastest. Contestants would get different times depending on where they are judged." .Data.Spread}}</p>{{end}}

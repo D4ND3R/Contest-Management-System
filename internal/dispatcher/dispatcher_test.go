@@ -321,6 +321,10 @@ func TestEndToEndScoring(t *testing.T) {
 	if ts.Score != 100 || ts.Pending != 0 {
 		t.Fatalf("task score %+v", ts)
 	}
+	// The ranking tie-break time is the AC's (later submissions scored less).
+	if acSub, err := sqlc.New(e.pool).GetSubmission(ctx, ac); err != nil || ts.ScoreReachedAt == nil || !ts.ScoreReachedAt.Equal(acSub.SubmittedAt) {
+		t.Fatalf("score reached at %v, AC submitted at %v (%v)", ts.ScoreReachedAt, acSub.SubmittedAt, err)
+	}
 	// Ranking updates were pushed.
 	n, _ := e.rdb.XLen(ctx, e.q.RankingStream()).Result()
 	if n < 3 {
