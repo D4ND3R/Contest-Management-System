@@ -21,8 +21,8 @@ func TestTestcasesOneByOne(t *testing.T) {
 	f := newFixture(t)
 	b := f.login("task_setter")
 	ds := fmt.Sprintf("/datasets/%d", f.ds.ID)
-	code, page := b.Get(ds)
-	webtest.MustOK(t, "dataset", code, page)
+	code, page := b.Get(fmt.Sprintf("/tasks/%d/tests", f.task.ID))
+	webtest.MustOK(t, "testcases window", code, page)
 	if !strings.Contains(page, `name="codename" value="2"`) || !strings.Contains(page, "Generate with a program") {
 		t.Fatalf("dataset page lacks the testcase tools:\n%s", page)
 	}
@@ -88,7 +88,7 @@ func TestTestcasesOneByOne(t *testing.T) {
 	}
 	// Failed jobs can be forgotten.
 	f.pool.Exec(bg, "UPDATE testcase_jobs SET state = 'failed', error = 'boom' WHERE codename = 'g10'")
-	if _, page := b.Get(ds); !strings.Contains(page, "boom") || !strings.Contains(page, "forget the failed ones") {
+	if _, page := b.Get(fmt.Sprintf("/tasks/%d/tests", f.task.ID)); !strings.Contains(page, "boom") || !strings.Contains(page, "forget the failed ones") {
 		t.Fatal("failed job not shown")
 	}
 	if code, _ := b.Post(ds+"/testcase-jobs/clear", url.Values{}); code != 200 {
@@ -101,12 +101,11 @@ func TestTestcasesOneByOne(t *testing.T) {
 	if code, _ := f.login("read_only").PostMultipart(ds+"/testcases", map[string]string{"input_text": "1", "output_text": "1"}); code != http.StatusForbidden {
 		t.Fatalf("read-only: %d", code)
 	}
-	// The task page shows what is done and what is missing.
+	// Both windows say what is still missing, with links to where it is done.
 	_, page = b.Get(fmt.Sprintf("/tasks/%d", f.task.ID))
-	for _, w := range []string{`<ol class="steps">`, `<li class="done"><a href="/tasks/` + fmt.Sprint(f.task.ID) + `#statements">Statement</a>`,
-		`#add-testcases">Testcases</a> <span class="muted">(4)</span>`, `<li class="todo"><a href="/tasks/` + fmt.Sprint(f.task.ID) + `#tester">Reference solution with the full score</a>`} {
-		if !strings.Contains(page, w) {
-			t.Errorf("task page lacks %s", w)
-		}
+	id := fmt.Sprint(f.task.ID)
+	if !strings.Contains(page, "Still missing:") || !strings.Contains(page, `<a href="/tasks/`+id+`/tests#runs">Reference solution with the full score</a>`) ||
+		strings.Contains(page, `#files">Statement</a>`) || strings.Contains(page, `/tests#add">Testcases</a>`) {
+		t.Errorf("setup line of the task:\n%s", page)
 	}
 }

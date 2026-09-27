@@ -46,7 +46,7 @@ func TestSetUpContestFromAdminUI(t *testing.T) {
 	code, body = a.Post("/tasks", url.Values{"name": {"sum"}, "title": {"Suma"}, "contest_id": {contestID}})
 	webtest.MustOK(t, "create task", code, body)
 	taskPath := strings.TrimPrefix(a.Last, s.awsURL)
-	m := regexp.MustCompile(`href="/datasets/(\d+)"`).FindStringSubmatch(body)
+	m := regexp.MustCompile(`action="/datasets/(\d+)/rename"`).FindStringSubmatch(body)
 	if m == nil {
 		t.Fatalf("no dataset link on the task page:\n%s", body)
 	}
@@ -74,8 +74,11 @@ func TestSetUpContestFromAdminUI(t *testing.T) {
 	code, body = a.PostMultipart(dsPath+"/testcases/archive", map[string]string{"input_template": "*.in", "output_template": "*.out", "public": "on"},
 		webtest.File{Field: "archive", Name: "tests.zip", Data: zbuf.Bytes()})
 	webtest.MustOK(t, "testcases", code, body)
-	if !strings.Contains(body, "Imported 4 testcases") || !strings.Contains(body, "Maximum score <b>100</b>") {
-		t.Fatalf("dataset page after import:\n%s", body)
+	if !strings.Contains(body, "Imported 4 testcases") {
+		t.Fatalf("testcases after import:\n%s", body)
+	}
+	if _, cfg := a.Get(taskPath); !strings.Contains(cfg, "Maximum score <b>100</b>") {
+		t.Fatalf("configuration after import:\n%s", cfg)
 	}
 
 	// 5. Team and users (CSV, generated passwords) in the contest.

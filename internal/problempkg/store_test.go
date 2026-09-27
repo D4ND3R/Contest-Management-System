@@ -145,3 +145,113 @@ func TestImportExportRoundTrip(t *testing.T) {
 		t.Fatalf("%d testcases", n)
 	}
 }
+
+// TestFillAndApplyConfig fills a blank task from a package in place and
+// then edits its problem.yaml: the task keeps its dataset, and everything
+// the package describes replaces what the task had.
+func TestFillAndApplyConfig(t *testing.T) {
+	pool := testutil.DB(t)
+	q := sqlc.New(pool)
+	store := blob.NewMem()
+	o := options(t)
+	blank := func(name string) (sqlc.Task, sqlc.Dataset) {
+		t.Helper()
+		task, err := q.CreateTask(bg, db.NewTaskParams(name, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ds, err := q.CreateDataset(bg, db.NewDatasetParams(task.ID, "Default"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := q.SetActiveDataset(bg, sqlc.SetActiveDatasetParams{ID: task.ID, ActiveDatasetID: &ds.ID}); err != nil {
+			t.Fatal(err)
+		}
+		info, _ := store.PutBytes(bg, []byte("old\n"))
+		q.UpsertTestcase(bg, sqlc.UpsertTestcaseParams{DatasetID: ds.ID, Codename: "old", InputDigest: info.Digest, OutputDigest: info.Digest})
+		q.UpsertManager(bg, sqlc.UpsertManagerParams{DatasetID: ds.ID, Filename: "junk.txt", Digest: info.Digest})
+		q.UpsertStatement(bg, sqlc.UpsertStatementParams{TaskID: task.ID, Language: "fr", Digest: info.Digest, ContentType: "text/markdown"})
+		task, _ = q.GetTask(bg, task.ID)
+		return task, ds
+	}
+	p := Read(zipDir(t, filepath.Join(examples, "batch-suma"), ""), o)
+	if !p.OK() {
+		t.Fatal(p.Errors)
+	}
+	task, ds := blank("nuevo")
+	res, err := Fill(bg, pool, store, p, task.ID, ds.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, _ = q.GetTask(bg, task.ID)
+	ds, _ = q.GetDataset(bg, ds.ID)
+	if res.KeptName || task.Name != "suma" || task.Title != p.Config.Title || !reflect.DeepEqual(task.SubmissionFormat, []string{"suma.%l"}) ||
+		!reflect.DeepEqual(task.Languages, p.Config.Languages) || *task.ActiveDatasetID != ds.ID {
+		t.Fatalf("task %+v (%+v)", task, res)
+	}
+	if ds.ScoreType != "GroupMin" || *ds.TimeLimitMs != 1000 || ds.Description != "Default" {
+		t.Fatalf("dataset %+v", ds)
+	}
+	tcs, _ := q.ListTestcases(bg, ds.ID)
+	stmts, _ := q.ListStatements(bg, task.ID)
+	managers, _ := q.ListManagers(bg, ds.ID)
+	exs, _ := q.ListTaskExamples(bg, task.ID)
+	if len(tcs) != len(p.Tests) || tcs[0].Codename == "old" || len(stmts) != len(p.Statements) || stmts[0].Language == "fr" ||
+		len(managers) != len(p.Managers) || len(exs) != len(p.Examples) {
+		t.Fatalf("%d testcases, %v statements, %d managers, %d examples", len(tcs), stmts, len(managers), len(exs))
+	}
+	for _, tc := range tcs {
+		if tc.Public != (tc.Codename == "1_01") {
+			t.Fatalf("testcase %s public %v", tc.Codename, tc.Public)
+		}
+	}
+
+	// Another task: the name is taken, so it keeps its own.
+	other, ods := blank("otro")
+	res, err = Fill(bg, pool, store, p, other.ID, ods.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, _ = q.GetTask(bg, other.ID)
+	if !res.KeptName || other.Name != "otro" || !reflect.DeepEqual(other.SubmissionFormat, []string{"otro.%l"}) {
+		t.Fatalf("kept name: %+v %+v", res, other)
+	}
+	if _, err := Fill(bg, pool, store, p, other.ID, ds.ID); err == nil {
+		t.Fatal("a dataset of another task was filled")
+	}
+
+	// problem.yaml edited in the administration.
+	codes, pub := make([]string, len(tcs)), make([]bool, len(tcs))
+	for i, tc := range tcs {
+		codes[i], pub[i] = tc.Codename, tc.Public
+	}
+	c, err := ConfigFromCMS(task, ds, codes, pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.TimeLimit, c.PublicTests, c.ShortCircuit = 2.5, []string{"2_.*"}, true
+	if errs := c.Validate(codes); len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	if err := ApplyConfig(bg, q, task, ds, c, codes); err != nil {
+		t.Fatal(err)
+	}
+	ds, _ = q.GetDataset(bg, ds.ID)
+	tcs, _ = q.ListTestcases(bg, ds.ID)
+	if *ds.TimeLimitMs != 2500 || !ds.ShortCircuit {
+		t.Fatalf("dataset %+v", ds)
+	}
+	for _, tc := range tcs {
+		if tc.Public != (tc.Codename[0] == '2') {
+			t.Fatalf("testcase %s public %v", tc.Codename, tc.Public)
+		}
+	}
+	c.Name = "otro"
+	if err := ApplyConfig(bg, q, task, ds, c, codes); !errors.Is(err, ErrNameTaken) {
+		t.Fatalf("taken name: %v", err)
+	}
+	c.Name, c.Subtasks = "suma", []Subtask{{Points: 100, Tests: Tests{Regex: "("}}}
+	if errs := c.Validate(codes); len(errs) == 0 {
+		t.Fatal("an invalid subtask regex passed")
+	}
+}

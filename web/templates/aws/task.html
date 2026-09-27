@@ -1,160 +1,110 @@
-{{define "content"}}
-{{$t := .Data.T}}{{$task := .Data.Task}}
-<h1>{{.T "Task %s" $task.Name}} <small class="muted">{{$task.Title}}{{with .Data.Contest}} · {{$.T "in"}} <a href="/contests/{{.ID}}">{{.Name}}</a>{{end}}</small></h1>
-<p class="actions"><a href="/tasks/{{$task.ID}}/export.zip">{{.T "Export as a package"}}</a> · <a href="/tasks/{{$task.ID}}/validation">{{.T "Validation report"}}</a>{{if .CanEditTasks}} · <a href="/tasks/import?task={{$task.ID}}">{{.T "Import a dataset from a package"}}</a>{{end}}</p>
-<nav aria-label="{{.T "Task"}}"><ul class="tabs">
-  <li><a href="#setup">{{.T "Setup"}}</a></li><li><a href="#statements">{{.T "Statements"}}</a></li><li><a href="#datasets">{{.T "Datasets and testcases"}}</a></li>
-  <li><a href="#examples">{{.T "Examples"}}</a></li><li><a href="#attachments">{{.T "Attachments"}}</a></li><li><a href="#tester">{{.T "Task tester"}}</a></li><li><a href="#general">{{.T "Settings"}}</a></li>
-</ul></nav>
+{{define "content"}}{{$d := .Data}}{{$h := $d.Head}}{{$task := $h.Task}}{{$ds := $h.Dataset}}{{$t := $d.T}}{{$dd := $d.D}}{{$tf := $d.TF}}
+{{template "problem-head" .}}
+<p class="actions"><a href="/tasks/{{$task.ID}}/export.zip{{if not $h.Live}}?dataset={{$ds.ID}}{{end}}">{{.T "Export as a package"}}</a> ·
+  <a href="/tasks/{{$task.ID}}/problem.yaml{{$h.Query}}">{{.T "Download problem.yaml"}}</a> ·
+  <a href="/tasks/{{$task.ID}}/validation">{{.T "Validation report"}}</a></p>
 
-<section class="section" id="setup">
-<h2>{{.T "Setup"}}</h2>
-<p class="help">{{.T "Each part can be done at any moment and in any order; this list shows what is still missing."}}</p>
-<ol class="steps">
-{{range .Data.Steps}}<li class="{{if .Done}}done{{else}}todo{{end}}"><a href="{{.URL}}">{{$.T .Title}}</a>{{with .State}} <span class="muted">({{.}})</span>{{end}}
-  — {{if .Done}}<span class="ok">{{$.T "done"}}</span>{{else}}<span class="warn">{{$.T "to do"}}</span>{{end}}</li>{{end}}
-</ol>
-</section>
-
-<section class="section" id="datasets">
-<h2>{{.T "Datasets"}}</h2>
-<table>
-<thead><tr><th>{{.T "Description"}}</th><th>{{.T "Type"}}</th><th>{{.T "Score type"}}</th><th>{{.T "Limits"}}</th><th></th></tr></thead>
-<tbody>
-{{range .Data.Datasets}}
-<tr>
-  <td><a href="/datasets/{{.ID}}">{{.Description}}</a> {{if and $task.ActiveDatasetID (eq .ID (deref64 $task.ActiveDatasetID))}}<span class="tag ok">{{$.T "live"}}</span>{{end}}{{if .Autojudge}}<span class="tag">{{$.T "autojudge"}}</span>{{end}}</td>
-  <td>{{.TaskType}}</td><td>{{.ScoreType}}</td>
-  <td>{{msToS .TimeLimitMs}} s · {{bytes .MemoryLimitBytes}}</td>
-  <td>{{if not (and $task.ActiveDatasetID (eq .ID (deref64 $task.ActiveDatasetID)))}}<a href="/tasks/{{$task.ID}}/compare?b={{.ID}}">{{$.T "compare with live"}}</a>{{end}}
-    {{if and $.CanWrite (not (and $task.ActiveDatasetID (eq .ID (deref64 $task.ActiveDatasetID))))}}
-    <form method="post" action="/datasets/{{.ID}}/activate" class="inline" data-confirm="{{$.T "Make %s the live dataset? Scores will change." .Description}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "make live"}}</button></form>{{end}}</td>
-</tr>
-{{end}}
-</tbody>
-</table>
 {{if .CanEditTasks}}
-<form method="post" action="/tasks/{{$task.ID}}/datasets" class="inline-form">
-  {{template "csrf" .CSRF}}
-  <label>{{.T "New dataset"}} <input name="description" placeholder="{{.T "description"}}" required></label>
-  <label>{{.T "copy from"}} <select name="clone_from"><option value="">{{.T "nothing (defaults)"}}</option>{{range .Data.Datasets}}<option value="{{.ID}}">{{.Description}}</option>{{end}}</select></label>
-  <button>{{.T "Create"}}</button>
+<section class="section" id="package">
+<h2>{{.T "Import a package"}}</h2>
+<form method="post" action="/tasks/import" enctype="multipart/form-data" class="inline-form">
+  {{template "csrf" .CSRF}}<input type="hidden" name="step" value="preview"><input type="hidden" name="mode" value="fill">
+  <input type="hidden" name="task_id" value="{{$task.ID}}"><input type="hidden" name="dataset_id" value="{{$ds.ID}}"><input type="hidden" name="run_solutions" value="on">
+  <label>{{.T "Package (.zip)"}} <input type="file" name="package" accept=".zip,application/zip" required></label>
+  <button>{{.T "Check the package"}}</button>
 </form>
-{{end}}
+<p class="help">{{.T "A zip with problem.yaml, statement/, tests/, the checker, graders/, attachments/ and solutions/ (or a CMS or Polygon package) fills everything: the options, the files and the testcases. You see what it contains before anything changes."}}</p>
 </section>
+{{end}}
 
-<section class="section" id="tester">
-<h2>{{.T "Task tester"}} <small class="muted">{{.T "reference solutions, judged on every dataset; never counted"}}</small></h2>
-{{with .Data.Tester}}
-{{if $.CanEditTasks}}
-<form method="post" action="/tasks/{{$task.ID}}/tester" enctype="multipart/form-data" class="inline-form">
-  {{template "csrf" $.CSRF}}
-  {{if .NeedsLanguage}}<label>{{$.T "Language"}} <select name="language">{{range .Languages}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
-  {{range .Formats}}<label>{{.}} <input type="file" name="{{.}}"></label>{{end}}
-  {{if .OutputOnly}}<label>{{$.T "or a zip"}} <input type="file" name="zip" accept=".zip"></label>{{end}}
-  <button>{{$.T "Test"}}</button>
-</form>
-{{end}}
-<table>
-<thead><tr><th>{{$.T "Run"}}</th><th>{{$.T "Time"}}</th><th>{{$.T "By"}}</th><th>{{$.T "Language"}}</th><th>{{$.T "Results per dataset"}}</th></tr></thead>
-<tbody>
-{{range .Runs}}
-<tr><td><a href="/submissions/{{.ID}}">#{{.ID}}</a></td><td>{{dt .Time}}</td><td>{{.Admin}}</td><td>{{.Language}}</td>
-<td>{{range .Results}}<span class="tag {{.Class}}">{{.Dataset}}: {{if eq .Status "evaluating"}}{{$.T "evaluating %d/%d" .Done .Total}}{{else}}{{$.T .Status}}{{end}}{{if .Score}} {{score .Score 2}}{{end}}</span> {{end}}</td></tr>
-{{else}}
-<tr><td colspan="5" class="muted">{{$.T "No test runs yet."}}</td></tr>
-{{end}}
-</tbody>
-</table>
-{{end}}
-</section>
-
-<section class="section" id="statements">
-<h2>{{.T "Statements"}}</h2>
-<p class="muted">{{.T "Write statements in Markdown or LaTeX (formulas with $...$): contestants read them on the task page and download them as PDF, with the limits and the examples typeset in. An uploaded PDF is shown as it is."}}</p>
-<table>
-<tr><th>{{.T "Language"}}</th><th>{{.T "Format"}}</th><th></th></tr>
-{{range .Data.Statements}}<tr><td>{{.Language}}{{if has $task.PrimaryStatements .Language}} <span class="tag">{{$.T "primary"}}</span>{{end}}</td>
-  <td>{{stformat .ContentType}}</td>
-  <td><a href="/tasks/{{$task.ID}}/statements/{{.Language}}/edit">{{if stsource .ContentType}}{{$.T "edit"}}{{else}}{{$.T "view"}}{{end}}</a> ·
-  <a href="/tasks/{{$task.ID}}/statements/{{.Language}}/pdf" target="_blank" rel="noopener">PDF</a> ·
-  <a href="/tasks/{{$task.ID}}/statements/{{.Language}}">{{$.T "file"}}</a>
-  {{if $.CanEditTasks}} · <form method="post" action="/tasks/{{$task.ID}}/statements/{{.Language}}/delete" class="inline" data-confirm="{{$.T "Delete the %s statement?" .Language}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
-{{else}}<tr><td colspan="3" class="muted">{{.T "None."}}</td></tr>{{end}}
-</table>
-{{if .CanEditTasks}}
-<p><a class="button" href="/tasks/{{$task.ID}}/statements/new/edit">{{.T "Write a statement"}}</a></p>
-<form method="post" action="/tasks/{{$task.ID}}/statements" enctype="multipart/form-data">
-  {{template "csrf" .CSRF}}
-  <div class="grid"><label>{{.T "Language"}} <input name="language" placeholder="es" required size="6"></label>
-  <label>{{.T "File (PDF, Markdown, LaTeX or HTML)"}} <input type="file" name="file" accept=".pdf,.md,.markdown,.tex,.html,.htm,.txt" required></label></div>
-  <p class="checks"><label><input type="checkbox" name="primary"> {{.T "Primary"}}</label></p>
-  <button>{{.T "Upload statement"}}</button>
-</form>
-{{end}}
-</section>
-<section class="section" id="attachments">
-<h2>{{.T "Attachments"}}</h2>
-<ul>{{range .Data.Attachments}}<li><a href="/tasks/{{$task.ID}}/attachments/{{.Filename}}">{{.Filename}}</a>
-  {{if $.CanEditTasks}}<form method="post" action="/tasks/{{$task.ID}}/attachments/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
-{{else}}<li class="muted">{{.T "None."}}</li>{{end}}</ul>
-{{if .CanEditTasks}}
-<form method="post" action="/tasks/{{$task.ID}}/attachments" enctype="multipart/form-data">
-  {{template "csrf" .CSRF}}
-  <input type="file" name="file" required aria-label="{{.T "Upload attachment"}}"> <button>{{.T "Upload attachment"}}</button>
-</form>
-{{end}}
-</section>
-
-<section class="section" id="examples">
-<h2>{{.T "Examples"}}</h2>
-<p class="muted">{{.T "Shown in every statement of the task, on the page and in the PDF (not as downloads). A testcase can be added from its dataset page."}}</p>
-{{range $i, $e := .Data.Examples}}
-<div class="example-admin">
-  <h3>{{$.T "Example %d" (inc $i)}}</h3>
-  <div class="io"><div><div class="io-label">{{$.T "Input"}}</div><pre>{{$e.Input}}</pre></div><div><div class="io-label">{{$.T "Output"}}</div><pre>{{$e.Output}}</pre></div></div>
-  {{if $e.Truncated}}<p class="muted">{{$.T "Long example: only the beginning is shown here."}}</p>{{end}}
-  {{if $.CanEditTasks}}
-  <form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/note">{{template "csrf" $.CSRF}}
-    <label>{{$.T "Explanation (Markdown, optional)"}} <textarea name="note" rows="2">{{$e.Note}}</textarea></label>
-    <button>{{$.T "Save"}}</button></form>
-  <p>{{if $i}}<form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/up" class="inline">{{template "csrf" $.CSRF}}<button class="link">↑ {{$.T "up"}}</button></form> · {{end}}
-  <form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/down" class="inline">{{template "csrf" $.CSRF}}<button class="link">↓ {{$.T "down"}}</button></form> ·
-  <form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/delete" class="inline" data-confirm="{{$.T "Delete this example?"}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form></p>
-  {{else}}{{with $e.Note}}<p class="pre">{{.}}</p>{{end}}{{end}}
-</div>
-{{else}}<p class="muted">{{.T "None."}}</p>{{end}}
-{{if .CanEditTasks}}
-<details><summary>{{.T "Add an example"}}</summary>
-<form method="post" action="/tasks/{{$task.ID}}/examples" enctype="multipart/form-data">
-  {{template "csrf" .CSRF}}
-  <div class="grid">
-  <label>{{.T "Input"}} <textarea name="input" rows="5" class="mono"></textarea></label>
-  <label>{{.T "Output"}} <textarea name="output" rows="5" class="mono"></textarea></label>
-  </div>
-  <div class="grid"><label>{{.T "or an input file"}} <input type="file" name="input_file"></label>
-  <label>{{.T "or an output file"}} <input type="file" name="output_file"></label></div>
-  <label>{{.T "Explanation (Markdown, optional)"}} <textarea name="note" rows="2"></textarea></label>
-  <button>{{.T "Add example"}}</button>
-</form>
-</details>
-{{end}}
-</section>
-
-<form method="post" action="/tasks/{{$task.ID}}" class="section" id="general">
-{{template "csrf" .CSRF}}
+<form method="post" action="/tasks/{{$task.ID}}/options" class="section" id="options">
+{{template "csrf" .CSRF}}<input type="hidden" name="dataset_id" value="{{$ds.ID}}">
+<h2>{{.T "Options"}} <small class="muted">problem.yaml</small></h2>
 <fieldset class="bare" {{if not .CanEditTasks}}disabled{{end}}>
-<fieldset><legend>{{.T "General"}}</legend>
+<fieldset><legend>{{.T "Problem"}}</legend>
 <div class="grid">
   <label>{{.T "Name"}} <input name="name" value="{{$t.Name}}" required pattern="[A-Za-z0-9_.\-]+"></label>
   <label>{{.T "Title"}} <input name="title" value="{{$t.Title}}" required></label>
+  <label>{{.T "Task type"}} <select name="task_type" data-type-switch="task">{{range $d.TaskTypes}}<option {{if eq . $dd.TaskType}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+</div>
+<p class="muted small">{{.T "The name is short and without spaces (it appears in addresses and in the name of the file contestants send); the title is what people read."}}</p>
+</fieldset>
+<fieldset><legend>{{.T "Limits"}}</legend>
+<div class="grid">
+  <label>{{.T "Time limit (s)"}} <input name="time_limit" value="{{msToS $dd.TimeLimitMs}}" inputmode="decimal"></label>
+  <label>{{.T "Wall time limit (s)"}} <input name="wall_time_limit" value="{{msToS $dd.WallTimeLimitMs}}" inputmode="decimal" placeholder="max(2×TL, TL+1s)"></label>
+  <label>{{.T "Memory limit (MiB)"}} <input name="memory_limit_mib" value="{{mib $dd.MemoryLimitBytes}}" inputmode="decimal"></label>
+  <label>{{.T "Output limit (MiB)"}} <input name="output_limit_mib" value="{{mib (ptr64 $dd.OutputLimitBytes)}}" inputmode="decimal"></label>
+  <label>{{.T "Processes"}} <input name="process_limit" value="{{$dd.ProcessLimit}}" inputmode="numeric"></label>
+  <label>{{.T "Source size limit (KiB)"}} <input name="source_size_limit_kib" value="{{kib $dd.SourceSizeLimitBytes}}" inputmode="decimal" placeholder="{{.T "none"}}"></label>
+</div>
+</fieldset>
+<fieldset data-group="task" data-for="Batch"><legend>Batch</legend>
+  <div class="grid">
+  <label>{{.T "Compilation"}} <select name="tt_compilation"><option value="alone" {{if ne $tf.Compilation "grader"}}selected{{end}}>{{.T "the submission alone"}}</option><option value="grader" {{if eq $tf.Compilation "grader"}}selected{{end}}>{{.T "with the grader (manager grader.<ext> + headers)"}}</option></select></label>
+  <label>{{.T "Input file"}} <input name="tt_input_file" value="{{$tf.InputFile}}" placeholder="{{.T "standard input"}}"></label>
+  <label>{{.T "Output file"}} <input name="tt_output_file" value="{{$tf.OutputFile}}" placeholder="{{.T "standard output"}}"></label>
+  </div>
+</fieldset>
+<fieldset data-group="task" data-for="OutputOnly"><legend>{{.T "Output only"}}</legend>
+  <label>{{.T "Output file names"}} <input name="tt_output_pattern" value="{{$tf.OutputPattern}}" placeholder="{{.T "output_%s.txt (%s = testcase codename)"}}"></label>
+  <p class="checks"><label><input type="checkbox" name="tt_merge_previous" {{if $tf.MergePrevious}}checked{{end}}> {{.T "Missing outputs take the best previous result of each testcase"}}</label></p>
+</fieldset>
+<fieldset data-group="task" data-for="TwoSteps"><legend>{{.T "Two steps"}}</legend>
+  <label>{{.T "Manager source name"}} <input name="tt_manager" value="{{$tf.Manager}}" placeholder="manager (manager.&lt;ext&gt;)"></label>
+</fieldset>
+<fieldset data-group="task" data-for="Communication"><legend>{{.T "Communication"}}</legend>
+  <div class="grid">
+  <label>{{.T "Contestant processes"}} <input name="tt_num_processes" value="{{if $tf.NumProcesses}}{{$tf.NumProcesses}}{{else}}1{{end}}" inputmode="numeric"></label>
+  <label>{{.T "Compilation"}} <select name="tt_comm_compilation"><option value="stub" {{if ne $tf.Compilation "alone"}}selected{{end}}>{{.T "with the stub (stub.<ext>)"}}</option><option value="alone" {{if eq $tf.Compilation "alone"}}selected{{end}}>{{.T "alone"}}</option></select></label>
+  <label>{{.T "Contestant I/O"}} <select name="tt_user_io"><option value="fifos" {{if ne $tf.UserIO "std_io"}}selected{{end}}>{{.T "FIFO paths as arguments"}}</option><option value="std_io" {{if eq $tf.UserIO "std_io"}}selected{{end}}>{{.T "standard input/output"}}</option></select></label>
+  <label>{{.T "Limits"}} <select name="tt_limits_mode"><option value="per_process" {{if ne $tf.LimitsMode "total"}}selected{{end}}>{{.T "per process"}}</option><option value="total" {{if eq $tf.LimitsMode "total"}}selected{{end}}>{{.T "summed over the processes"}}</option></select></label>
+  <label>{{.T "Manager time limit (ms)"}} <input name="tt_manager_time_limit_ms" value="{{if $tf.ManagerTimeLimitMs}}{{$tf.ManagerTimeLimitMs}}{{end}}" placeholder="{{.T "default"}}" inputmode="numeric"></label>
+  <label>{{.T "Manager memory (MiB)"}} <input name="tt_manager_memory_mib" value="{{if $tf.ManagerMemoryBytes}}{{$tf.ManagerMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
+  </div>
+  <p class="muted small">{{.T "Managers: manager (binary, .c or .cpp); stubs per language: stub.c, stub.cpp, stub.py, stub.java…"}}</p>
+</fieldset>
+<fieldset data-group="task" data-for="Interactive"><legend>{{.T "Interactive"}}</legend>
+  <div class="grid">
+  <label>{{.T "Interactor time limit (ms)"}} <input name="tt_interactor_time_limit_ms" value="{{if $tf.InteractorTimeLimitMs}}{{$tf.InteractorTimeLimitMs}}{{end}}" placeholder="{{.T "10 s + time limit"}}" inputmode="numeric"></label>
+  <label>{{.T "Interactor memory (MiB)"}} <input name="tt_interactor_memory_mib" value="{{if $tf.InteractorMemoryBytes}}{{$tf.InteractorMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
+  </div>
+  <p class="muted small">{{.T "Upload the interactor as the manager interactor (binary, .c or .cpp, testlib allowed with testlib.h). It is run as “interactor input output answer”, talks to the contestant through its standard input/output and decides the verdict with testlib exit codes."}}</p>
+</fieldset>
+<fieldset data-group="task" data-for="Batch OutputOnly TwoSteps"><legend>{{.T "Checker"}}</legend>
+  <div class="grid">
+  <label>{{.T "Comparison"}} <select name="tt_checker">
+    <option value="white_diff" {{if or (eq $tf.Checker "") (eq $tf.Checker "white_diff")}}selected{{end}}>{{.T "ignore whitespace"}}</option>
+    <option value="exact" {{if eq $tf.Checker "exact"}}selected{{end}}>{{.T "exact"}}</option>
+    <option value="float" {{if eq $tf.Checker "float"}}selected{{end}}>{{.T "reals with tolerance"}}</option>
+    <option value="custom" {{if eq $tf.Checker "custom"}}selected{{end}}>{{.T "custom checker (CMS protocol)"}}</option>
+    <option value="testlib" {{if eq $tf.Checker "testlib"}}selected{{end}}>{{.T "custom checker (testlib)"}}</option></select></label>
+  <label>{{.T "Absolute tolerance"}} <input name="tt_float_abs_tol" value="{{if $tf.FloatAbsTol}}{{$tf.FloatAbsTol}}{{end}}" placeholder="0" inputmode="decimal"></label>
+  <label>{{.T "Relative tolerance"}} <input name="tt_float_rel_tol" value="{{if $tf.FloatRelTol}}{{$tf.FloatRelTol}}{{end}}" placeholder="0" inputmode="decimal"></label>
+  <label>{{.T "Checker time limit (ms)"}} <input name="tt_checker_time_limit_ms" value="{{if $tf.CheckerTimeLimitMs}}{{$tf.CheckerTimeLimitMs}}{{end}}" placeholder="10000" inputmode="numeric"></label>
+  <label>{{.T "Checker memory (MiB)"}} <input name="tt_checker_memory_mib" value="{{if $tf.CheckerMemoryBytes}}{{$tf.CheckerMemMiB}}{{end}}" placeholder="1024" inputmode="numeric"></label>
+  </div>
+  <p class="muted small">{{.T "A custom checker is uploaded under Files as checker (binary, .c or .cpp)."}}</p>
+</fieldset>
+<details><summary>{{.T "Advanced: raw parameters (JSON)"}}</summary>
+  <p class="checks"><label><input type="checkbox" name="raw_params"> {{.T "Use this JSON instead of the fields above"}}</label></p>
+  <textarea name="task_type_params" rows="6" class="code" aria-label="{{.T "Advanced: raw parameters (JSON)"}}">{{$d.ParamsJSON}}</textarea>
+</details>
+<fieldset id="scoring"><legend>{{.T "Scoring and subtasks"}}</legend>
+{{with $d.ScoreError}}<p class="alert">{{$.T "Score type:"}} {{.}}</p>{{else}}<p>{{.T "Maximum score"}} <b>{{score $d.MaxScore $task.ScorePrecision}}</b>{{if gt (len $d.Subtasks) 1}} ({{.T "subtasks:"}} {{range $i, $x := $d.Subtasks}}{{if $i}}, {{end}}{{score $x $task.ScorePrecision}}{{end}}){{end}}.</p>{{end}}
+<label>{{.T "Score type"}} <select name="score_type" data-type-switch="score">{{range $d.ScoreTypes}}<option {{if eq . $dd.ScoreType}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+{{template "score-editor" (part $ $d.Editor)}}
+<p class="checks" data-group="score" data-for="GroupMin GroupMul"><label><input type="checkbox" name="short_circuit" {{if $dd.ShortCircuit}}checked{{end}}> {{.T "Short-circuit: skip the rest of a subtask once one of its testcases scores 0"}}</label></p>
+<details {{if $d.Editor.Raw}}open{{end}}><summary>{{.T "Advanced: raw score parameters (JSON)"}}</summary>
+  <p class="checks"><label><input type="checkbox" name="raw_score" {{if $d.Editor.Raw}}checked{{end}}> {{.T "Use this JSON instead of the editor"}}</label></p>
+  <textarea name="score_type_params" id="score_type_params" rows="7" class="code" aria-label="{{.T "Advanced: raw score parameters (JSON)"}}">{{$d.ScoreJSON}}</textarea>
+  <small class="muted">{{.T "Sum: points per testcase (e.g. 10). Group*: one entry per subtask with its maximum score and testcases (regex, count or list) and an optional threshold, e.g."}} <code>[[40, "1_.*"], [60, 5]]</code></small>
+</details>
+</fieldset>
+<fieldset><legend>{{.T "Submissions and results"}}</legend>
+<div class="grid">
   <label>{{.T "Submission files"}} <input name="submission_format" value="{{join $t.SubmissionFormat " "}}" placeholder="{{$t.Name}}.%l"></label>
   <label>{{.T "Primary statements"}} <input name="primary_statements" value="{{join $t.PrimaryStatements " "}}" placeholder="es en"></label>
-</div>
-<p class="muted small">{{.T "Submission files: .%l is replaced by the language extension; OutputOnly tasks list output_001.txt… files."}}</p>
-</fieldset>
-<fieldset><legend>{{.T "Scoring and feedback"}}</legend>
-<div class="grid">
   <label>{{.T "Score mode"}} <select name="score_mode">
     <option value="max_subtask" {{if eq $t.ScoreMode "max_subtask"}}selected{{end}}>{{.T "best per subtask (IOI 2017+)"}}</option>
     <option value="max" {{if eq $t.ScoreMode "max"}}selected{{end}}>{{.T "best submission"}}</option>
@@ -168,21 +118,107 @@
     <option value="hide" {{if $t.HideCheckerMessages}}selected{{end}}>{{.T "hidden (standard message per outcome)"}}</option></select></label>
   <label>{{.T "Score precision"}} <input name="score_precision" value="{{$t.ScorePrecision}}" inputmode="numeric"></label>
 </div>
-</fieldset>
-<fieldset><legend>{{.T "Languages"}}</legend>
-<p class="checks">{{range .Data.Languages}}<label><input type="checkbox" name="languages" value="{{.ID}}" {{if has $t.Languages .ID}}checked{{end}}> {{.Name}}</label>{{end}}</p>
+<p class="muted small">{{.T "Submission files: .%l is replaced by the language extension; OutputOnly tasks list output_001.txt… files."}}</p>
+<p class="checks">{{range $d.Languages}}<label><input type="checkbox" name="languages" value="{{.ID}}" {{if has $t.Languages .ID}}checked{{end}}> {{.Name}}</label>{{end}}</p>
 <p class="muted small">{{.T "No language checked: the task accepts every language of its contest. Otherwise only the checked languages that the contest also allows."}}</p>
 </fieldset>
+<details class="more"><summary>{{.T "Contest rules: tokens and submission limits"}}</summary>
 {{template "token-fields" (part $ $t)}}
 {{template "limit-fields" (part $ $t)}}
-{{if .CanEditTasks}}<button>{{.T "Save"}}</button>{{end}}
+</details>
+{{if $h.Live}}{{if $dd.Autojudge}}<input type="hidden" name="autojudge" value="on">{{end}}{{else}}
+<p class="checks"><label><input type="checkbox" name="autojudge" {{if $dd.Autojudge}}checked{{end}}> {{.T "Judge new submissions on this dataset in the background (to compare with the live one)"}}</label></p>{{end}}
+{{if .CanEditTasks}}<p><button class="primary">{{.T "Save"}}</button></p>{{end}}
 </fieldset>
 </form>
 
+<section class="section" id="yaml">
+<details {{if $d.YAMLError}}open{{end}}><summary>{{.T "Edit problem.yaml as text"}}</summary>
+<form method="post" action="/tasks/{{$task.ID}}/problem.yaml">
+  {{template "csrf" .CSRF}}<input type="hidden" name="dataset_id" value="{{$ds.ID}}">
+  {{with $d.YAMLError}}<p class="alert">{{.}}</p>{{end}}
+  <textarea name="yaml" rows="24" class="code" spellcheck="false" aria-label="problem.yaml" {{if not .CanEditTasks}}readonly{{end}}>{{$d.YAML}}</textarea>
+  <p class="help">{{.T "The same options as the form above, as a problem package writes them (docs/en/problem-package.md); public_tests says which testcases are public."}}</p>
+  {{if .CanEditTasks}}<button>{{.T "Save problem.yaml"}}</button>{{end}}
+</form>
+</details>
+</section>
+
+<section class="section" id="files">
+<h2>{{.T "Files"}}</h2>
+<table>
+<thead><tr><th>{{.T "File"}}</th><th>{{.T "What it is"}}</th><th></th></tr></thead>
+<tbody>
+{{range $d.Statements}}<tr><td><a href="/tasks/{{$task.ID}}/statements/{{.Language}}">{{.Language}}</a></td>
+  <td>{{$.T "Statement"}} · {{stformat .ContentType}}{{if has $task.PrimaryStatements .Language}} · {{$.T "primary"}}{{end}}</td>
+  <td><a href="/tasks/{{$task.ID}}/statements/{{.Language}}/edit">{{if stsource .ContentType}}{{$.T "edit"}}{{else}}{{$.T "view"}}{{end}}</a> ·
+  <a href="/tasks/{{$task.ID}}/statements/{{.Language}}/pdf" target="_blank" rel="noopener">PDF</a>
+  {{if $.CanEditTasks}} · <form method="post" action="/tasks/{{$task.ID}}/statements/{{.Language}}/delete" class="inline" data-confirm="{{$.T "Delete the %s statement?" .Language}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
+{{end}}
+{{range $d.Managers}}<tr><td><a href="/datasets/{{$ds.ID}}/managers/{{.Filename}}">{{.Filename}}</a></td><td>{{$.T (managerKind .Filename)}}</td>
+  <td>{{if $.CanEditTasks}}<form method="post" action="/datasets/{{$ds.ID}}/managers/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
+{{end}}
+{{range $d.Missing}}<tr><td class="warn">{{.}}</td><td class="warn">{{$.T "needed by the options, not uploaded yet"}}</td><td></td></tr>{{end}}
+{{range $d.Attachments}}<tr><td><a href="/tasks/{{$task.ID}}/attachments/{{.Filename}}">{{.Filename}}</a></td><td>{{$.T "Attachment for contestants"}}</td>
+  <td>{{if $.CanEditTasks}}<form method="post" action="/tasks/{{$task.ID}}/attachments/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
+{{end}}
+{{if not (or $d.Statements $d.Managers $d.Missing $d.Attachments)}}<tr><td colspan="3" class="muted">{{.T "No files yet."}}</td></tr>{{end}}
+</tbody>
+</table>
+{{if .CanEditTasks}}
+<form method="post" action="/tasks/{{$task.ID}}/files" enctype="multipart/form-data" class="inline-form">
+  {{template "csrf" .CSRF}}<input type="hidden" name="dataset_id" value="{{$ds.ID}}">
+  <label>{{.T "File"}} <input type="file" name="files" multiple required></label>
+  <label>{{.T "It is"}} <select name="kind">
+    <option value="auto">{{.T "known by its name"}}</option>
+    <option value="statement">{{.T "a statement"}}</option>
+    <option value="manager">{{.T "a checker, grader, stub, interactor or header"}}</option>
+    <option value="attachment">{{.T "an attachment for contestants"}}</option></select></label>
+  <label>{{.T "Language of a statement"}} <input name="language" size="5" placeholder="es"></label>
+  <button>{{.T "Upload"}}</button>
+</form>
+<p class="help">{{.T "Known by its name: checker, grader, stub, interactor and manager (with any extension) and headers (.h) judge; es.md, en.pdf… are statements; anything else is an attachment. A file with the same name is replaced."}}
+  <a href="/tasks/{{$task.ID}}/statements/new/edit">{{.T "Write a statement"}}</a></p>
+{{end}}
+</section>
+
+<details class="section more" id="datasets" {{if not $h.Live}}open{{end}}>
+<summary>{{.T "Datasets"}} ({{len $h.Datasets}})</summary>
+<p class="help">{{.T "A dataset is a whole judging setup: options, judging files and testcases. The live one judges the contest; another one lets you prepare a change and compare it before making it live."}}</p>
+<table>
+<thead><tr><th>{{.T "Description"}}</th><th>{{.T "Type"}}</th><th>{{.T "Limits"}}</th><th></th></tr></thead>
+<tbody>
+{{range $h.Datasets}}{{$live := and $task.ActiveDatasetID (eq .ID (deref64 $task.ActiveDatasetID))}}
+<tr>
+  <td><a href="/tasks/{{$task.ID}}?dataset={{.ID}}">{{.Description}}</a> {{if $live}}<span class="tag ok">{{$.T "live"}}</span>{{end}}{{if .Autojudge}}<span class="tag">{{$.T "autojudge"}}</span>{{end}}</td>
+  <td>{{.TaskType}} · {{.ScoreType}}</td><td>{{msToS .TimeLimitMs}} s · {{bytes .MemoryLimitBytes}}</td>
+  <td>{{if not $live}}<a href="/tasks/{{$task.ID}}/compare?b={{.ID}}">{{$.T "compare with live"}}</a>
+    {{if $.CanWrite}} · <form method="post" action="/datasets/{{.ID}}/activate" class="inline" data-confirm="{{$.T "Make %s the live dataset? Scores will change." .Description}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "make live"}}</button></form>{{end}}
+    {{if $.CanEditTasks}} · <form method="post" action="/datasets/{{.ID}}/delete" class="inline" data-confirm="{{$.T "Delete this dataset and its results?"}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}{{end}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+{{if .CanEditTasks}}
+<form method="post" action="/datasets/{{$ds.ID}}/rename" class="inline-form">
+  {{template "csrf" .CSRF}}
+  <label>{{.T "Rename the dataset shown"}} <input name="description" value="{{$ds.Description}}" required></label> <button>{{.T "Rename"}}</button>
+</form>
+<form method="post" action="/tasks/{{$task.ID}}/datasets" class="inline-form">
+  {{template "csrf" .CSRF}}
+  <label>{{.T "New dataset"}} <input name="description" placeholder="{{.T "description"}}" required></label>
+  <label>{{.T "copy from"}} <select name="clone_from"><option value="">{{.T "nothing (defaults)"}}</option>{{range $h.Datasets}}<option value="{{.ID}}" {{if eq .ID $ds.ID}}selected{{end}}>{{.Description}}</option>{{end}}</select></label>
+  <button>{{.T "Create"}}</button>
+</form>
+<p><a href="/tasks/import?task={{$task.ID}}">{{.T "Import a package as a new dataset"}}</a></p>
+{{end}}
+</details>
+
 {{if .CanWrite}}
 <section class="section danger-zone">
-<h2>{{.T "Reevaluate this task"}}</h2>
-{{template "reevaluate" (reeval $ "task_id" $task.ID (printf "/tasks/%d" $task.ID))}}
+<h2>{{.T "Reevaluate"}}</h2>
+{{if $h.Live}}{{template "reevaluate" (reeval $ "task_id" $task.ID (printf "/tasks/%d" $task.ID))}}
+{{else}}{{.T "Reevaluate on this dataset:"}} {{template "reevaluate" (reeval $ "dataset_id" $ds.ID (printf "/tasks/%d?dataset=%d" $task.ID $ds.ID))}}{{end}}
 <h2>{{.T "Delete"}}</h2>
 <form method="post" action="/tasks/{{$task.ID}}/delete" data-confirm="{{.T "Delete the task and ALL its submissions?"}}">
   {{template "csrf" .CSRF}}

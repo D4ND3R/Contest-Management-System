@@ -495,7 +495,7 @@ func (s *Server) handleExampleAdd(w http.ResponseWriter, r *http.Request, rc *re
 	rc.target("task", t.ID)
 	rc.note("example", e.ID)
 	s.examplesChanged(r.Context(), t)
-	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#examples", "Example added.")
+	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"/tests#examples", "Example added.")
 }
 
 // handleExampleFromTestcase makes a testcase an example of its task.
@@ -525,7 +525,7 @@ func (s *Server) handleExampleFromTestcase(w http.ResponseWriter, r *http.Reques
 	rc.note("example", e.ID)
 	rc.note("testcase", tc.Codename)
 	s.examplesChanged(r.Context(), t)
-	s.done(w, r, "/datasets/"+strconv.FormatInt(ds.ID, 10)+"#testcases", "Testcase "+tc.Codename+" added to the statement's examples.")
+	s.done(w, r, problemURL(t, ds.ID, "tests")+"#testcases", "Testcase %s added to the statement's examples.", tc.Codename)
 }
 
 func (s *Server) handleExampleUpdate(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -582,7 +582,7 @@ func (s *Server) handleExampleUpdate(w http.ResponseWriter, r *http.Request, rc 
 	rc.target("task", t.ID)
 	rc.note("example", eid)
 	s.examplesChanged(r.Context(), t)
-	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#examples", "Examples updated.")
+	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"/tests#examples", "Examples updated.")
 }
 
 // examplesChanged tells the contest pages to reload the task.

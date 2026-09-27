@@ -42,7 +42,7 @@ submission's state changes.
 
 In a *GroupMin* subtask (and *GroupMul*), one testcase scoring 0 makes the
 whole subtask 0: the other testcases cannot change it. With **Short-circuit**
-ticked on the dataset page (score section), the dispatcher marks those
+ticked in the task's options (Scoring and subtasks), the dispatcher marks those
 testcases as *skipped* as soon as the zero arrives, and the workers do not
 run the ones still waiting. The score is the same as with a full
 evaluation; the time saved goes to the other contestants.

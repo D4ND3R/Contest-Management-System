@@ -30,8 +30,8 @@ Las demás guías profundizan: [crear un problema](crear-un-problema.md),
 
 **Administradores**: agrega a cada persona con su rol: *all* (todo),
 *messaging* (preguntas, anuncios, globos, impresión; lectura del resto),
-*task setter* (prepara problemas: enunciados, datasets, casos, graders, el
-probador; poner un dataset en vivo, reevaluar y borrar quedan para *all*),
+*task setter* (prepara problemas: enunciados, datasets, casos, graders,
+envíos de prueba; poner un dataset en vivo, reevaluar y borrar quedan para *all*),
 *read only* (solo lectura) o *leader* para líderes de delegación: vinculado
 a un equipo, ve solo los envíos, el código y los resultados que ven sus
 concursantes (**Mi delegación**), y no puede enviar. Cada administrador puede activar un segundo
@@ -82,56 +82,52 @@ otro. Todo cambio queda en el **Registro de auditoría**.
 
 ## 4. Problemas
 
-Un problema se arma por partes, en cualquier orden:
-**Problemas → Nuevo problema** con solo un nombre, y después, en su página,
-la lista **Preparación** dice qué falta (enunciado, casos, checker,
-puntuación, una solución de referencia con el puntaje completo). Los casos
-se agregan **uno por uno** (entrada escrita o subida; salida escrita,
-subida, vacía o escrita por la solución de referencia) o con un
-**generador** que se ejecuta una vez por línea de parámetros. Todo esto se
-explica paso a paso en [crear un problema](crear-un-problema.md).
+Cada problema tiene dos ventanas (pestañas arriba de su página); todo se
+explica paso a paso en [crear un problema](crear-un-problema.md):
 
-También se puede importar un **paquete de problema**: **Banco de problemas →
-Importar un paquete de problema**, suelta el zip, revisa la vista previa
-(tipo, límites, subtareas, casos, enunciados, soluciones de referencia) y
-confirma. Las soluciones de referencia se evalúan enseguida y el reporte de
-validación dice si cada una obtiene el veredicto que anuncia su nombre. Los
-paquetes de CMS (italy_yaml) y de Polygon se convierten. El formato y un
-ejemplo por tipo están en [paquetes de problema](paquete-de-problema.md).
+1. **Configuración**:
+   - **Importar un paquete**: un zip (el formato de este sistema, italy_yaml
+     de CMS o Polygon) rellena las opciones, los archivos y los casos
+     después de una vista previa; sus soluciones de referencia se envían
+     como envíos de prueba.
+   - **Opciones**, que son el `problem.yaml` del problema como formulario:
+     nombre, título, tipo de problema y sus opciones (abajo), límites,
+     checker, **puntuación y subtareas** (*Sum*, *GroupMin*, *GroupMul*,
+     *GroupThreshold*; el editor de subtareas pide los puntos y los casos
+     de cada subtarea: una expresión regular sobre los nombres, una
+     cantidad o una lista; con GroupMin/GroupMul, **Cortocircuito** omite
+     el resto de una subtarea en cuanto un caso obtiene 0, ver
+     [evaluación](evaluacion.md)), archivos del envío (`sol.%l`: `%l` se
+     reemplaza por la extensión del lenguaje), lenguajes (ninguno marcado =
+     los del concurso), modo de puntuación (mejor por subtarea, como en la
+     IOI desde 2017; mejor envío; máximo entre los envíos con token y el
+     último; o el último envío que compiló), precisión, retroalimentación,
+     mensajes del checker, tokens y límites de envíos. **Editar
+     problem.yaml como texto** edita las mismas opciones en el formato de
+     los paquetes.
+   - **Archivos**: enunciados, archivos de evaluación (checker, graders,
+     stubs, cabeceras, interactor, manager) y adjuntos, subidos uno por uno
+     (cada uno se reconoce por su nombre); los que piden las opciones y
+     faltan aparecen en amarillo ([enunciados](enunciados.md)).
+   - **Datasets**: el que está *en vivo* puntúa los envíos; se puede
+     preparar una copia, evaluarla en segundo plano, **compararla con el
+     vivo** y **ponerla en vivo**.
+2. **Casos de prueba**: agregarlos uno por uno (entrada escrita o subida;
+   salida escrita, subida, vacía o escrita por la solución de referencia),
+   con un **generador** que se ejecuta una vez por línea de parámetros, o
+   desde un zip; la lista de casos con el veredicto de los últimos cuatro
+   **envíos de prueba** en cada uno; el formulario de envíos de prueba
+   (cualquier fuente, se evalúa sin contar en ningún lado); y los
+   **Ejemplos** del enunciado. El **Reporte de validación** evalúa las
+   soluciones de referencia de un paquete y dice si cada una obtiene el
+   veredicto que anuncia su nombre.
 
-Lo que hay en la página del problema y en la de cada dataset:
-
-1. **Configuración** del problema: título, archivos del envío (`sol.%l`:
-   `%l` se reemplaza por la extensión del lenguaje), lenguajes (ninguno
-   marcado = los del concurso), modo de puntuación (mejor por subtarea,
-   como en la IOI desde 2017; mejor envío; máximo entre los envíos con
-   token y el último; o el último envío que compiló), precisión,
-   retroalimentación, y si los concursantes ven los mensajes propios del
-   checker o solo el mensaje estándar de cada resultado.
-2. **Enunciados**, **Ejemplos** y **Adjuntos** ([enunciados](enunciados.md)).
-3. **Datasets**: el que está *en vivo* puntúa los envíos. En su página:
-   - **Tipo, límites y checker**: tipo de problema y sus opciones (abajo),
-     tiempo, memoria, salida, tamaño del fuente.
-   - **Puntuación y subtareas**: *Sum* (puntos por caso), *GroupMin* (una
-     subtarea puntúa solo si pasan todos sus casos), *GroupMul*,
-     *GroupThreshold*; el editor de subtareas pide los puntos y los casos de
-     cada subtarea (una expresión regular sobre los nombres, una cantidad o
-     una lista). Con GroupMin/GroupMul, **Cortocircuito** omite el resto de
-     una subtarea en cuanto un caso obtiene 0 (ver [evaluación](evaluacion.md)).
-   - **Managers**: checker, graders, stubs, headers, interactor; la página
-     indica los que todavía faltan.
-   - **Agregar casos** y **Casos de prueba**.
-   - **Poner en vivo** un dataset nuevo cuando esté correcto; un segundo
-     dataset puede evaluar los envíos nuevos en segundo plano para comparar
-     antes de cambiar; **comparar con el vivo** lista los puntajes que
-     cambiarían.
-4. **Probador de problemas**: envía cualquier fuente como administrador y ve
-   el veredicto por caso sin que cuente en ningún lado; el **Reporte de
-   validación** evalúa las soluciones de referencia en cada dataset.
+Un paquete también puede crear un problema nuevo: **Banco de problemas →
+Importar un paquete de problema** ([paquetes de problema](paquete-de-problema.md)).
 
 ### Cada tipo de problema, paso a paso
 
-| Tipo | Tipo de problema y opciones | Managers a subir |
+| Tipo | Tipo de problema y opciones | Archivos de evaluación a subir |
 |------|-----------------------------|------------------|
 | Entrada/salida estándar | *Batch*, compilación *solo*, comparación *ignorar espacios* (o *exacta*, *reales con tolerancia* con tolerancia absoluta/relativa) | ninguno |
 | Checker propio | *Batch*, comparación *checker propio (protocolo CMS)* o *(testlib)* | `checker` (binario), `checker.cpp` o `checker.c`; `testlib.h` para testlib |
@@ -144,8 +140,8 @@ Lo que hay en la página del problema y en la de cada dataset:
 
 Los protocolos (argumentos, códigos de salida, qué imprime el checker o el
 interactor) están en [tipos de problema](task-types.md). Antes del
-concurso evalúa siempre una solución correcta y una incorrecta con el
-probador (o con soluciones de referencia).
+concurso evalúa siempre una solución correcta y una incorrecta con envíos
+de prueba (o con soluciones de referencia).
 
 ## 5. Antes del concurso
 

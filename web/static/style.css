@@ -333,3 +333,14 @@ img.photo.big{width:3.2rem;height:3.2rem}
   main table{display:block;max-width:100%;overflow-x:auto}
 }
 @media print{.head,.foot,.no-print,#notifications{display:none!important}main{padding:0}}
+/* Task windows: Configuration and Testcases (D105) */
+.setup{margin:.2rem 0 .8rem}
+.dataset-pick{margin:.2rem 0 .5rem}
+html.js .dataset-pick button{display:none}
+.scroll{overflow-x:auto}
+label>input[type=file]{display:block;margin-top:.2rem}
+table.testcases th.run,table.testcases td.run{text-align:center;white-space:nowrap}
+.tc .io{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.6rem}
+.tc pre{max-height:36rem;overflow:auto}
+@media (max-width:640px){.tc .io{grid-template-columns:minmax(0,1fr)}}
+button.link.danger{color:var(--bad)}

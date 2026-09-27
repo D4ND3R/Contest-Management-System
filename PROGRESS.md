@@ -1258,3 +1258,23 @@ and tests.
 - Docs (es/en): getting started, creating a problem, contestant guide,
   clarifications, glossary, troubleshooting; the admin guide, contest
   settings, rankings and interface pages rewritten for the new interface.
+
+### P — Problem windows: Configuration and Testcases (done)
+The owner's rules for making problems (D105):
+- **Configuration** (`/tasks/{id}`): **Import a package** fills the task
+  in place after a preview (`problempkg.Fill`, `TestFillAndApplyConfig`,
+  `TestFillFromPackage`); **Options**, one form for the task and its
+  dataset that is problem.yaml in the browser, also editable and
+  downloadable as text (`problempkg.ApplyConfig`, `TestConfigurationWindow`);
+  **Files** uploaded one by one, each known by its name; datasets folded.
+- **Testcases** (`/tasks/{id}/tests`): one testcase by form, a generator, a
+  zip; the list with sizes, public and example toggles, a page per
+  testcase, "delete all"; test submissions with each testcase's verdict in
+  the list for the newest four, refreshing while judged (`TestTestsWindow`).
+- The dataset page redirects to the windows; the setup checklist is one
+  line on top ("Still missing: …").
+- Field check on the dev stack: a package filled a new task, its five
+  reference solutions ran and showed AC/WA/TLE per testcase.
+- Docs (es/en): creating a problem rewritten around the two windows;
+  getting started, admin guide, packages, statements, evaluation, glossary
+  and troubleshooting updated.

@@ -52,10 +52,12 @@ their own zone (remote contestants) on their page.
 
 ## A task does not give the expected score
 
-- The task's **Setup** list says what is missing.
-- Send the reference solution with the **Task tester** and open the
-  submission: the per-testcase detail says what fails.
-- If you changed testcases or subtasks, **reevaluate** (dataset page).
+- The line on top of the task's windows says what is missing.
+- Send the reference solution under **Testcases → Test submissions**: the
+  testcase list shows its verdict on each testcase, and its number opens
+  the whole detail.
+- If you changed testcases or subtasks, **reevaluate** (bottom of the
+  Configuration window).
 
 ## An upgrade failed with a database error
 

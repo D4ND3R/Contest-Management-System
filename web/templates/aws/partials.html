@@ -191,7 +191,24 @@
 </div>
 {{end}}
 
+{{define "problem-head"}}{{$h := .Data.Head}}{{$t := $h.Task}}
+<h1>{{$t.Name}} <small class="muted">{{$t.Title}}{{with $h.Contest}} · {{$.T "in"}} <a href="/contests/{{.ID}}">{{.Name}}</a>{{end}}</small></h1>
+<nav aria-label="{{.T "Task"}}"><ul class="tabs">
+  <li><a href="/tasks/{{$t.ID}}{{$h.Query}}"{{if eq $h.Window "config"}} aria-current="page"{{end}}>{{.T "Configuration"}}</a></li>
+  <li><a href="/tasks/{{$t.ID}}/tests{{$h.Query}}"{{if eq $h.Window "tests"}} aria-current="page"{{end}}>{{.T "Testcases"}} ({{$h.Tests}})</a></li>
+</ul></nav>
+{{if gt (len $h.Datasets) 1}}<form method="get" action="/tasks/{{$t.ID}}{{if eq $h.Window "tests"}}/tests{{end}}" class="dataset-pick"><label>{{.T "Dataset"}} <select name="dataset" data-autosubmit>{{range $h.Datasets}}<option value="{{.ID}}" {{if eq .ID $h.Dataset.ID}}selected{{end}}>{{.Description}}{{if and $t.ActiveDatasetID (eq .ID (deref64 $t.ActiveDatasetID))}} ({{$.T "live"}}){{end}}</option>{{end}}</select></label> <button class="secondary">{{.T "Show"}}</button></form>{{end}}
+{{if not $h.Live}}<p class="alert">{{.T "This is the dataset %s, not the live one: contestants are judged on the live dataset." $h.Dataset.Description}}</p>{{end}}
+<p class="setup">{{if $h.Todo}}{{.T "Still missing:"}} {{range $i, $s := $h.Todo}}{{if $i}} · {{end}}<a href="{{$s.URL}}">{{$.T $s.Title}}</a>{{end}}{{else}}<span class="ok">{{.T "Ready: nothing is missing."}}</span>{{end}}</p>
+{{end}}
+
 {{define "package-target"}}{{$d := .Data}}
+{{if eq $d.Mode "fill"}}
+<input type="hidden" name="mode" value="fill"><input type="hidden" name="task_id" value="{{$d.TaskID}}"><input type="hidden" name="dataset_id" value="{{$d.DatasetID}}">
+{{with $d.Target}}<p>{{$.T "Into the task %s" .Name}}{{with $d.Dataset}} ({{$.T "dataset %s" .Description}}){{end}}: <b>{{$.T "its options, statements, files, examples and testcases are replaced by the package's."}}</b></p>{{end}}
+{{if and $d.KeepName $d.Package $d.Package.Config}}<p class="alert">{{.T "The package calls the task %s, but another task has that name: this one keeps the name %s." $d.Package.Config.Name $d.Target.Name}}</p>{{end}}
+<p class="checks"><label><input type="checkbox" name="run_solutions" {{if $d.Run}}checked{{end}}> {{.T "Run the reference solutions (solutions/) and show the validation report"}}</label></p>
+{{else}}
 <fieldset><legend>{{.T "Where"}}</legend>
   <p class="checks"><label><input type="radio" name="mode" value="task" {{if ne $d.Mode "dataset"}}checked{{end}}> {{.T "A new task"}}</label>
   <label>{{.T "in the contest"}} <select name="contest_id"><option value="">{{.T "none (publish it later)"}}</option>{{range $d.Contests}}<option value="{{.ID}}" {{if eq .ID $d.ContestID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label></p>
@@ -200,9 +217,10 @@
   <p class="checks"><label><input type="checkbox" name="run_solutions" {{if $d.Run}}checked{{end}}> {{.T "Run the reference solutions (solutions/) and show the validation report"}}</label></p>
 </fieldset>
 {{end}}
+{{end}}
 
 {{define "solution-select"}}{{$tt := .V}}
-{{if $tt.Solutions}}<label>{{.T "Reference solution"}} <select name="solution_id">{{range $tt.Solutions}}<option value="{{.ID}}">#{{.ID}} · {{.Language}} · {{dt .Time}}</option>{{end}}</select></label>
+{{if $tt.Solutions}}<label>{{.T "Reference solution"}} <select name="solution_id">{{range $tt.Solutions}}<option value="{{.ID}}">#{{.ID}}{{with .Name}} {{.}}{{end}} · {{.Language}}{{if .Full}} · {{$.T "full score"}}{{end}} · {{dt .Time}}</option>{{end}}</select></label>
 {{else}}<p class="help">{{.T "To have outputs written for you, first send a reference solution with the task tester (on the task page)."}}</p>{{end}}{{end}}
 
 {{define "question-count"}}<span id="q-count" class="badge" data-src="/questions/count" title="{{.T "unanswered questions"}}" {{if not .Pending}}hidden{{end}}>{{.Pending}}</span>{{end}}

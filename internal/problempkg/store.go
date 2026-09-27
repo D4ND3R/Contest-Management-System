@@ -43,15 +43,19 @@ type ImportResult struct {
 	Dataset           string
 }
 
-// Import stores a package that has no errors. Files go to the blob store
-// first (content-addressed, so an aborted import only leaves unreferenced
-// blobs for the garbage collector); every row is then written in one
-// transaction, so nothing is half-created.
-func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Package, o ImportOptions) (*ImportResult, error) {
-	if !p.OK() || p.Config == nil {
-		return nil, errors.New("the package has errors")
-	}
-	c := p.Config
+// stored are the rows of a package whose files are already in the blob
+// store.
+type stored struct {
+	tests       []sqlc.CreateTestcasesParams
+	managers    []sqlc.CreateManagersParams
+	statements  []sqlc.UpsertStatementParams
+	attachments []sqlc.UpsertAttachmentParams
+	examples    []sqlc.InsertTaskExampleParams
+}
+
+// storeFiles puts the package's files in the blob store: the testcases and
+// managers, and with content the statements, attachments and examples.
+func storeFiles(ctx context.Context, store blob.Store, p *Package, withContent bool) (*stored, error) {
 	put := func(f File) (string, error) {
 		rd, err := f.Open()
 		if err != nil {
@@ -64,7 +68,7 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 		}
 		return info.Digest, nil
 	}
-	tests := make([]sqlc.CreateTestcasesParams, len(p.Tests))
+	s := &stored{tests: make([]sqlc.CreateTestcasesParams, len(p.Tests)), managers: make([]sqlc.CreateManagersParams, len(p.Managers))}
 	for i, t := range p.Tests {
 		in, err := put(t.Input)
 		if err != nil {
@@ -74,59 +78,109 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 		if err != nil {
 			return nil, err
 		}
-		tests[i] = sqlc.CreateTestcasesParams{Codename: t.Codename, Public: t.Public, InputDigest: in, OutputDigest: out}
+		s.tests[i] = sqlc.CreateTestcasesParams{Codename: t.Codename, Public: t.Public, InputDigest: in, OutputDigest: out}
 	}
-	managers := make([]sqlc.CreateManagersParams, len(p.Managers))
 	for i, m := range p.Managers {
 		d, err := put(m)
 		if err != nil {
 			return nil, err
 		}
-		managers[i] = sqlc.CreateManagersParams{Filename: m.Name, Digest: d}
+		s.managers[i] = sqlc.CreateManagersParams{Filename: m.Name, Digest: d}
 	}
+	if !withContent {
+		return s, nil
+	}
+	for _, e := range p.Examples {
+		in, err := put(e.Input)
+		if err != nil {
+			return nil, err
+		}
+		out, err := put(e.Output)
+		if err != nil {
+			return nil, err
+		}
+		ex := sqlc.InsertTaskExampleParams{InputDigest: in, OutputDigest: out}
+		if e.Note != nil {
+			note, err := readAll(e.Note.src, 64<<10)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", e.Note.Path, err)
+			}
+			ex.Note = strings.TrimSpace(string(note))
+		}
+		s.examples = append(s.examples, ex)
+	}
+	for _, st := range p.Statements {
+		d, err := put(st.File)
+		if err != nil {
+			return nil, err
+		}
+		s.statements = append(s.statements, sqlc.UpsertStatementParams{Language: st.Language, Digest: d, ContentType: st.ContentType})
+	}
+	for _, a := range p.Attachments {
+		d, err := put(a)
+		if err != nil {
+			return nil, err
+		}
+		s.attachments = append(s.attachments, sqlc.UpsertAttachmentParams{Filename: a.Name, Digest: d})
+	}
+	return s, nil
+}
+
+// writeDataset stores the testcases and managers of a dataset without any.
+func (s *stored) writeDataset(ctx context.Context, q *sqlc.Queries, datasetID int64) error {
+	for i := range s.tests {
+		s.tests[i].DatasetID = datasetID
+	}
+	if _, err := q.CreateTestcases(ctx, s.tests); err != nil {
+		return err
+	}
+	for i := range s.managers {
+		s.managers[i].DatasetID = datasetID
+	}
+	_, err := q.CreateManagers(ctx, s.managers)
+	return err
+}
+
+// writeContent stores the statements, attachments and examples of a task.
+func (s *stored) writeContent(ctx context.Context, q *sqlc.Queries, taskID int64) error {
+	for _, st := range s.statements {
+		st.TaskID = taskID
+		if _, err := q.UpsertStatement(ctx, st); err != nil {
+			return err
+		}
+	}
+	for _, a := range s.attachments {
+		a.TaskID = taskID
+		if _, err := q.UpsertAttachment(ctx, a); err != nil {
+			return err
+		}
+	}
+	for _, e := range s.examples {
+		e.TaskID = taskID
+		if _, err := q.InsertTaskExample(ctx, e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Import stores a package that has no errors. Files go to the blob store
+// first (content-addressed, so an aborted import only leaves unreferenced
+// blobs for the garbage collector); every row is then written in one
+// transaction, so nothing is half-created.
+func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Package, o ImportOptions) (*ImportResult, error) {
+	if !p.OK() || p.Config == nil {
+		return nil, errors.New("the package has errors")
+	}
+	c := p.Config
 	newTask := o.TaskID == 0
 	withContent := newTask || o.Sync
-	var statements []sqlc.UpsertStatementParams
-	var attachments []sqlc.UpsertAttachmentParams
-	var examples []sqlc.InsertTaskExampleParams
-	if withContent {
-		for _, e := range p.Examples {
-			in, err := put(e.Input)
-			if err != nil {
-				return nil, err
-			}
-			out, err := put(e.Output)
-			if err != nil {
-				return nil, err
-			}
-			ex := sqlc.InsertTaskExampleParams{InputDigest: in, OutputDigest: out}
-			if e.Note != nil {
-				note, err := readAll(e.Note.src, 64<<10)
-				if err != nil {
-					return nil, fmt.Errorf("%s: %w", e.Note.Path, err)
-				}
-				ex.Note = strings.TrimSpace(string(note))
-			}
-			examples = append(examples, ex)
-		}
-		for _, s := range p.Statements {
-			d, err := put(s.File)
-			if err != nil {
-				return nil, err
-			}
-			statements = append(statements, sqlc.UpsertStatementParams{Language: s.Language, Digest: d, ContentType: s.ContentType})
-		}
-		for _, a := range p.Attachments {
-			d, err := put(a)
-			if err != nil {
-				return nil, err
-			}
-			attachments = append(attachments, sqlc.UpsertAttachmentParams{Filename: a.Name, Digest: d})
-		}
+	files, err := storeFiles(ctx, store, p, withContent)
+	if err != nil {
+		return nil, err
 	}
-
 	res := &ImportResult{NewTask: newTask}
-	err := db.InTx(ctx, pool, func(tx pgx.Tx, q *sqlc.Queries) error {
+	err = db.InTx(ctx, pool, func(tx pgx.Tx, q *sqlc.Queries) error {
 		var task sqlc.Task
 		var err error
 		if newTask {
@@ -186,47 +240,18 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 			desc = o.Description
 		}
 		res.Dataset = uniqueDescription(desc, existing)
+		u := c.DatasetUpdate(sqlc.UpdateDatasetParams{}, len(p.Tests))
 		dp := db.NewDatasetParams(task.ID, res.Dataset)
-		tl := int32(ms(c.TimeLimit))
-		dp.TimeLimitMs = &tl
-		if c.TimeLimit == 0 {
-			dp.TimeLimitMs = nil
-		}
-		if c.WallTimeLimit > 0 {
-			wl := int32(ms(c.WallTimeLimit))
-			dp.WallTimeLimitMs = &wl
-		}
-		if c.MemoryLimit > 0 {
-			m := mib(c.MemoryLimit)
-			dp.MemoryLimitBytes = &m
-		} else {
-			dp.MemoryLimitBytes = nil
-		}
-		if c.OutputLimit > 0 {
-			dp.OutputLimitBytes = mib(c.OutputLimit)
-		}
-		if c.SourceSizeLimit > 0 {
-			sz := int64(c.SourceSizeLimit * 1024)
-			dp.SourceSizeLimitBytes = &sz
-		}
-		dp.ProcessLimit = int32(c.ProcessLimit)
-		dp.TaskType, dp.TaskTypeParams = c.TaskType(), c.TaskTypeParams()
-		dp.ScoreType, dp.ScoreTypeParams = c.ScoreType(), c.ScoreTypeParams(len(p.Tests))
+		dp.TimeLimitMs, dp.WallTimeLimitMs, dp.MemoryLimitBytes = u.TimeLimitMs, u.WallTimeLimitMs, u.MemoryLimitBytes
+		dp.OutputLimitBytes, dp.SourceSizeLimitBytes, dp.ProcessLimit = u.OutputLimitBytes, u.SourceSizeLimitBytes, u.ProcessLimit
+		dp.TaskType, dp.TaskTypeParams, dp.ScoreType, dp.ScoreTypeParams = u.TaskType, u.TaskTypeParams, u.ScoreType, u.ScoreTypeParams
+		dp.ShortCircuit = u.ShortCircuit
 		ds, err := q.CreateDataset(ctx, dp)
 		if err != nil {
 			return err
 		}
 		res.DatasetID = ds.ID
-		for i := range tests {
-			tests[i].DatasetID = ds.ID
-		}
-		if _, err := q.CreateTestcases(ctx, tests); err != nil {
-			return err
-		}
-		for i := range managers {
-			managers[i].DatasetID = ds.ID
-		}
-		if _, err := q.CreateManagers(ctx, managers); err != nil {
+		if err := files.writeDataset(ctx, q, ds.ID); err != nil {
 			return err
 		}
 		if !withContent {
@@ -236,27 +261,16 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 			return nil
 		}
 		if !newTask {
-			if err := syncTask(ctx, q, task, c, statements, attachments); err != nil {
+			up := c.TaskUpdate(task, true)
+			if _, err := q.UpdateTask(ctx, up); err != nil {
+				return err
+			}
+			if err := files.clearContent(ctx, q, task.ID); err != nil {
 				return err
 			}
 		}
-		for _, s := range statements {
-			s.TaskID = task.ID
-			if _, err := q.UpsertStatement(ctx, s); err != nil {
-				return err
-			}
-		}
-		for _, a := range attachments {
-			a.TaskID = task.ID
-			if _, err := q.UpsertAttachment(ctx, a); err != nil {
-				return err
-			}
-		}
-		for _, e := range examples {
-			e.TaskID = task.ID
-			if _, err := q.InsertTaskExample(ctx, e); err != nil {
-				return err
-			}
+		if err := files.writeContent(ctx, q, task.ID); err != nil {
+			return err
 		}
 		if !newTask && !o.Live {
 			return nil
@@ -269,62 +283,40 @@ func Import(ctx context.Context, pool *pgxpool.Pool, store blob.Store, p *Packag
 	return res, nil
 }
 
-// syncTask applies problem.yaml's task settings to an existing task and
-// removes the statements, attachments and examples the package no longer
-// has (the caller then stores the package's).
-func syncTask(ctx context.Context, q *sqlc.Queries, t sqlc.Task, c *Config, statements []sqlc.UpsertStatementParams,
-	attachments []sqlc.UpsertAttachmentParams) error {
-	up := sqlc.UpdateTaskParams{ID: t.ID, ContestID: t.ContestID, Num: t.Num, Name: t.Name, Title: c.Title,
-		PrimaryStatements: nonNil(c.PrimaryStatements), SubmissionFormat: t.SubmissionFormat, TokenMode: t.TokenMode,
-		TokenMaxNumber: t.TokenMaxNumber, TokenMinIntervalS: t.TokenMinIntervalS, TokenGenInitial: t.TokenGenInitial,
-		TokenGenNumber: t.TokenGenNumber, TokenGenIntervalS: t.TokenGenIntervalS, TokenGenMax: t.TokenGenMax,
-		MaxSubmissionNumber: t.MaxSubmissionNumber, MaxUserTestNumber: t.MaxUserTestNumber,
-		MinSubmissionIntervalS: t.MinSubmissionIntervalS, MinUserTestIntervalS: t.MinUserTestIntervalS,
-		FeedbackLevel: c.Feedback, ScorePrecision: t.ScorePrecision, ScoreMode: t.ScoreMode, Languages: nonNil(c.Languages),
-		HideCheckerMessages: c.CheckerMessages == "hide"}
-	if c.SubmissionFormat != nil {
-		up.SubmissionFormat = c.SubmissionFormat
-	}
-	if c.ScoreMode != "" {
-		up.ScoreMode = c.ScoreMode
-	}
-	if c.ScorePrecision != nil {
-		up.ScorePrecision = int32(c.Precision())
-	}
-	if _, err := q.UpdateTask(ctx, up); err != nil {
-		return err
-	}
+// clearContent removes the statements, attachments and examples of a task
+// that the package does not have (writeContent then stores the package's).
+func (s *stored) clearContent(ctx context.Context, q *sqlc.Queries, taskID int64) error {
 	keep := map[string]bool{}
-	for _, s := range statements {
-		keep[s.Language] = true
+	for _, st := range s.statements {
+		keep[st.Language] = true
 	}
-	old, err := q.ListStatements(ctx, t.ID)
+	old, err := q.ListStatements(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	for _, s := range old {
-		if !keep[s.Language] {
-			if err := q.DeleteStatement(ctx, sqlc.DeleteStatementParams{TaskID: t.ID, Language: s.Language}); err != nil {
+	for _, st := range old {
+		if !keep[st.Language] {
+			if err := q.DeleteStatement(ctx, sqlc.DeleteStatementParams{TaskID: taskID, Language: st.Language}); err != nil {
 				return err
 			}
 		}
 	}
 	keep = map[string]bool{}
-	for _, a := range attachments {
+	for _, a := range s.attachments {
 		keep[a.Filename] = true
 	}
-	atts, err := q.ListAttachments(ctx, t.ID)
+	atts, err := q.ListAttachments(ctx, taskID)
 	if err != nil {
 		return err
 	}
 	for _, a := range atts {
 		if !keep[a.Filename] {
-			if err := q.DeleteAttachment(ctx, sqlc.DeleteAttachmentParams{TaskID: t.ID, Filename: a.Filename}); err != nil {
+			if err := q.DeleteAttachment(ctx, sqlc.DeleteAttachmentParams{TaskID: taskID, Filename: a.Filename}); err != nil {
 				return err
 			}
 		}
 	}
-	return q.DeleteTaskExamples(ctx, t.ID)
+	return q.DeleteTaskExamples(ctx, taskID)
 }
 
 func nonNil(xs []string) []string {

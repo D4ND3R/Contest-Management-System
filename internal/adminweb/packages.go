@@ -26,17 +26,22 @@ type packagePage struct {
 	Package  *problempkg.Package
 	Digest   string
 	FileName string
-	// Where the package goes: a new task (optionally in a contest) or a new
-	// dataset of an existing task.
+	// Where the package goes: a new task (optionally in a contest), a new
+	// dataset of an existing task, or ("fill") an existing task and one of
+	// its datasets, replaced in place (the Configuration window).
 	Mode      string
 	ContestID int64
 	TaskID    int64
+	DatasetID int64
+	Dataset   *sqlc.Dataset
 	Run       bool // run solutions/ after importing (K20)
 	Contests  []sqlc.Contest
 	Tasks     []sqlc.Task
 	// Conflict is the existing task with the package's name (new task mode).
-	Conflict  *sqlc.Task
-	Target    *sqlc.Task
+	Conflict *sqlc.Task
+	Target   *sqlc.Task
+	// KeepName: filling a task whose package name belongs to another task.
+	KeepName  bool
 	CanImport bool
 	Public    int
 	Verdicts  map[string]string
@@ -130,11 +135,12 @@ func (s *Server) handlePackageImport(w http.ResponseWriter, r *http.Request, rc 
 	}
 	f := newForm(r)
 	d.Mode = f.str("mode")
-	if d.Mode != "dataset" {
+	if d.Mode != "dataset" && d.Mode != "fill" {
 		d.Mode = "task"
 	}
 	d.ContestID, _ = strconv.ParseInt(f.str("contest_id"), 10, 64)
 	d.TaskID, _ = strconv.ParseInt(f.str("task_id"), 10, 64)
+	d.DatasetID, _ = strconv.ParseInt(f.str("dataset_id"), 10, 64)
 	d.Run = f.check("run_solutions")
 	confirm := f.str("step") == "confirm"
 	tr := adminTr(r)
@@ -172,22 +178,39 @@ func (s *Server) handlePackageImport(w http.ResponseWriter, r *http.Request, rc 
 			d.Public++
 		}
 	}
-	if p.Config != nil {
-		if d.Mode == "task" {
-			if t, err := s.q.GetTaskByName(r.Context(), p.Config.Name); err == nil {
-				d.Conflict = &t
-			}
-		} else if t, err := s.q.GetTask(r.Context(), d.TaskID); err == nil {
+	if d.Mode != "task" {
+		if t, err := s.q.GetTask(r.Context(), d.TaskID); err == nil {
 			d.Target = &t
+			if d.DatasetID == 0 && t.ActiveDatasetID != nil {
+				d.DatasetID = *t.ActiveDatasetID
+			}
+			if ds, err := s.q.GetDataset(r.Context(), d.DatasetID); err == nil && ds.TaskID == t.ID {
+				d.Dataset = &ds
+			}
 		}
 	}
-	d.CanImport = p.OK() && ((d.Mode == "task" && d.Conflict == nil) || (d.Mode == "dataset" && d.Target != nil))
+	if p.Config != nil && d.Mode == "task" {
+		if t, err := s.q.GetTaskByName(r.Context(), p.Config.Name); err == nil {
+			d.Conflict = &t
+		}
+	}
+	if p.Config != nil && d.Mode == "fill" && d.Target != nil && p.Config.Name != d.Target.Name {
+		if t, err := s.q.GetTaskByName(r.Context(), p.Config.Name); err == nil && t.ID != d.Target.ID {
+			d.KeepName = true
+		}
+	}
+	d.CanImport = p.OK() && ((d.Mode == "task" && d.Conflict == nil) || (d.Mode == "dataset" && d.Target != nil) ||
+		(d.Mode == "fill" && d.Dataset != nil))
 	if !confirm || !d.CanImport {
 		status := http.StatusOK
 		if confirm {
 			status = http.StatusUnprocessableEntity
 		}
 		render(status)
+		return
+	}
+	if d.Mode == "fill" {
+		s.fillFromPackage(w, r, rc, d, p)
 		return
 	}
 	opts := problempkg.ImportOptions{TaskID: d.TaskID}
@@ -226,6 +249,50 @@ func (s *Server) handlePackageImport(w http.ResponseWriter, r *http.Request, rc 
 		}
 		rc.note("solutions", ran)
 		to += "/validation"
+		msg += " " + tr("%d reference solutions are being judged.", ran)
+		if len(skipped) > 0 {
+			msg += " " + tr("Not run (they do not fit the submission format): %s.", strings.Join(skipped, "; "))
+		}
+	}
+	s.done(w, r, to, "%s", msg)
+}
+
+// fillFromPackage replaces a task and one of its datasets with a checked
+// package: options, statements, files, examples and testcases.
+func (s *Server) fillFromPackage(w http.ResponseWriter, r *http.Request, rc *reqCtx, d *packagePage, p *problempkg.Package) {
+	res, err := problempkg.Fill(r.Context(), s.pool, s.blobs, p, d.Target.ID, d.Dataset.ID)
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	tr := adminTr(r)
+	rc.target("task", res.TaskID)
+	rc.note("dataset", res.DatasetID)
+	rc.note("package", d.Digest)
+	rc.note("tests", len(p.Tests))
+	t, err := s.q.GetTask(r.Context(), res.TaskID)
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	if t.ContestID != nil {
+		s.contestChanged(r.Context(), *t.ContestID, 0)
+		s.statementChanged(r.Context(), t)
+	}
+	s.datasetChanged(r.Context(), t.ID, res.DatasetID)
+	msg := tr("The task was filled from the package: %d testcases. Existing submissions keep their results until you reevaluate them.", len(p.Tests))
+	if res.KeptName {
+		msg += " " + tr("It keeps the name %s: another task is called %s.", t.Name, p.Config.Name)
+	}
+	to := problemURL(t, res.DatasetID, "config")
+	if d.Run && len(p.Solutions) > 0 {
+		ran, skipped, err := s.runPackageSolutions(r.Context(), rc.admin.ID, t.ID, p)
+		if err != nil {
+			s.internalError(w, r, rc, err)
+			return
+		}
+		rc.note("solutions", ran)
+		to = problemURL(t, res.DatasetID, "tests") + "#runs"
 		msg += " " + tr("%d reference solutions are being judged.", ran)
 		if len(skipped) > 0 {
 			msg += " " + tr("Not run (they do not fit the submission format): %s.", strings.Join(skipped, "; "))

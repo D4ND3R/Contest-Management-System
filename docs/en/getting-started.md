@@ -77,25 +77,28 @@ shortest path for a standard input/output problem.
 
 1. In the contest: **Problems → New task**. A short **name** (`sum`) and a
    **title** ("Sum of two numbers") are enough. **Create task**.
-2. You land on the task's page. At the top the **Setup** list shows what
-   is done (green) and what is missing (yellow), with a link to each part.
-   They can be done in any order and on different days.
-3. **Statements → Write a statement**: language `en`, the text in Markdown
+2. You land on the task's **Configuration** window; the **Testcases**
+   window is the other tab. A line on top says what is still missing, with
+   a link to each part. They can be done in any order and on different
+   days. (With a ready problem package, **Import a package** fills
+   everything at once.)
+3. **Files → Write a statement**: language `en`, the text in Markdown
    (formulas with `$...$`) and **Save**. The preview is on the right.
-4. **Datasets and testcases → Default** (the live dataset). In **Add
-   testcases → One testcase**: type the input (`1 2`), the output (`3`),
-   tick **Public** if contestants should see its result, and **Add
-   testcase**. Repeat for each testcase; the codename is proposed (1, 2,
-   3...).
-5. If you have a correct solution, send it with the **Task tester** (on the
-   task page). Then you can type only the inputs and pick *Output: written
-   by the reference solution*; or generate many testcases with a program
-   (**Generate with a program**).
-6. **Scoring and subtasks** (in the dataset): by default each testcase is
-   worth one point (*Sum*). For subtasks choose *GroupMin* and give each
-   subtask its points and its testcases.
-7. Back on the task page, the **Setup** list should be complete. Send the
-   solution again with the tester to check it gets the full score.
+4. **Testcases** window, **One testcase**: type the input (`1 2`), the
+   output (`3`), tick **Public** if contestants should see its result, and
+   **Add testcase**. Repeat for each testcase; the codename is proposed (1,
+   2, 3...).
+5. If you have a correct solution, send it under **Test submissions** (same
+   window). Then you can type only the inputs and pick *Output: written by
+   the reference solution*; or generate many testcases with a program
+   (**Generate with a program**). The testcase list shows the verdict of
+   each test submission on each testcase.
+6. **Configuration → Options**: limits, checker and **Scoring and
+   subtasks**. By default each testcase is worth one point (*Sum*). For
+   subtasks choose *GroupMin* and give each subtask its points and its
+   testcases. **Save**.
+7. The missing line should now only ask for a contest (or say *Ready*).
+   Send the solution again to check it gets the full score.
 
 ## 5. Register contestants
 

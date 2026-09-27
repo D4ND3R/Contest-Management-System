@@ -121,8 +121,8 @@ const createDataset = `-- name: CreateDataset :one
 INSERT INTO datasets (
     task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes,
     output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params,
-    score_type, score_type_params
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    score_type, score_type_params, short_circuit
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 RETURNING id, task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes, output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params, score_type, score_type_params, created_at, short_circuit
 `
 
@@ -140,6 +140,7 @@ type CreateDatasetParams struct {
 	TaskTypeParams       json.RawMessage `json:"task_type_params"`
 	ScoreType            string          `json:"score_type"`
 	ScoreTypeParams      json.RawMessage `json:"score_type_params"`
+	ShortCircuit         bool            `json:"short_circuit"`
 }
 
 func (q *Queries) CreateDataset(ctx context.Context, arg CreateDatasetParams) (Dataset, error) {
@@ -157,6 +158,7 @@ func (q *Queries) CreateDataset(ctx context.Context, arg CreateDatasetParams) (D
 		arg.TaskTypeParams,
 		arg.ScoreType,
 		arg.ScoreTypeParams,
+		arg.ShortCircuit,
 	)
 	var i Dataset
 	err := row.Scan(
@@ -200,6 +202,25 @@ DELETE FROM datasets WHERE id = $1
 
 func (q *Queries) DeleteDataset(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, deleteDataset, id)
+	return err
+}
+
+const deleteDatasetManagers = `-- name: DeleteDatasetManagers :exec
+DELETE FROM managers WHERE dataset_id = $1
+`
+
+func (q *Queries) DeleteDatasetManagers(ctx context.Context, datasetID int64) error {
+	_, err := q.db.Exec(ctx, deleteDatasetManagers, datasetID)
+	return err
+}
+
+const deleteDatasetTestcases = `-- name: DeleteDatasetTestcases :exec
+DELETE FROM testcases WHERE dataset_id = $1
+`
+
+// Every testcase of a dataset (a package filling it replaces them).
+func (q *Queries) DeleteDatasetTestcases(ctx context.Context, datasetID int64) error {
+	_, err := q.db.Exec(ctx, deleteDatasetTestcases, datasetID)
 	return err
 }
 
@@ -560,6 +581,56 @@ func (q *Queries) ListTestcasesByDatasets(ctx context.Context, ids []int64) ([]T
 	return items, nil
 }
 
+const listTestcasesWithSizes = `-- name: ListTestcasesWithSizes :many
+SELECT t.id, t.dataset_id, t.codename, t.public, t.input_digest, t.output_digest, COALESCE(bi.size, -1)::bigint AS input_size, COALESCE(bo.size, -1)::bigint AS output_size
+FROM testcases t
+LEFT JOIN blobs bi ON bi.digest = t.input_digest
+LEFT JOIN blobs bo ON bo.digest = t.output_digest
+WHERE t.dataset_id = $1
+ORDER BY t.codename
+`
+
+type ListTestcasesWithSizesRow struct {
+	ID           int64  `json:"id"`
+	DatasetID    int64  `json:"dataset_id"`
+	Codename     string `json:"codename"`
+	Public       bool   `json:"public"`
+	InputDigest  string `json:"input_digest"`
+	OutputDigest string `json:"output_digest"`
+	InputSize    int64  `json:"input_size"`
+	OutputSize   int64  `json:"output_size"`
+}
+
+// The testcases window: sizes come from the blob registry (primary key).
+func (q *Queries) ListTestcasesWithSizes(ctx context.Context, datasetID int64) ([]ListTestcasesWithSizesRow, error) {
+	rows, err := q.db.Query(ctx, listTestcasesWithSizes, datasetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTestcasesWithSizesRow{}
+	for rows.Next() {
+		var i ListTestcasesWithSizesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DatasetID,
+			&i.Codename,
+			&i.Public,
+			&i.InputDigest,
+			&i.OutputDigest,
+			&i.InputSize,
+			&i.OutputSize,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWarmDigests = `-- name: ListWarmDigests :many
 SELECT DISTINCT x.digest::text AS digest FROM (
     SELECT tc.input_digest AS digest
@@ -598,6 +669,22 @@ func (q *Queries) ListWarmDigests(ctx context.Context, until time.Time) ([]strin
 		return nil, err
 	}
 	return items, nil
+}
+
+const setDatasetPublicTestcases = `-- name: SetDatasetPublicTestcases :exec
+UPDATE testcases SET public = (codename = ANY($1::text[]))
+WHERE dataset_id = $2::bigint AND public <> (codename = ANY($1::text[]))
+`
+
+type SetDatasetPublicTestcasesParams struct {
+	Public    []string `json:"public"`
+	DatasetID int64    `json:"dataset_id"`
+}
+
+// problem.yaml edited in the administration: exactly @public are public.
+func (q *Queries) SetDatasetPublicTestcases(ctx context.Context, arg SetDatasetPublicTestcasesParams) error {
+	_, err := q.db.Exec(ctx, setDatasetPublicTestcases, arg.Public, arg.DatasetID)
+	return err
 }
 
 const setTestcasePublic = `-- name: SetTestcasePublic :exec

@@ -42,10 +42,14 @@ The words the system and this documentation use, in alphabetical order.
 - **Site**: a place with its own start time (contests in several cities).
 - **Submission**: the code a contestant sends for a task. **Official** when
   it counts; **unofficial** in practice or when invalidated.
+- **problem.yaml**: the options of a task (type, limits, checker, scoring,
+  submission rules) in the format of problem packages; the Options form of
+  the Configuration window edits it.
 - **Subtask**: a group of testcases with their own points.
 - **Task library**: every task of the server, in a contest or not.
-- **Task tester**: sends a solution as an organizer; it is judged on every
-  dataset and never counts. Such a run is a **reference solution**.
+- **Test submission**: a solution an organizer sends from the Testcases
+  window of a task; it is judged on every dataset and never counts. A
+  correct one is a **reference solution**.
 - **Testcase**: an input and its expected output. **Public**: the
   contestant sees its result one by one.
 - **Token**: shows a submission's full result during a contest that hides

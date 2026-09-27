@@ -19,7 +19,7 @@
   <p class="checks"><label><input type="checkbox" name="primary" {{if $d.Primary}}checked{{end}}> {{.T "Primary"}}</label></p>
   {{if .CanEditTasks}}<button>{{.T "Save"}}</button>{{end}}
   <button formaction="/tasks/{{$t.ID}}/statement-preview.pdf" formtarget="_blank" class="secondary">{{.T "PDF preview"}}</button>
-  <a href="/tasks/{{$t.ID}}#statements">{{.T "Back to the task"}}</a>
+  <a href="/tasks/{{$t.ID}}#files">{{.T "Back to the task"}}</a>
   <details class="help"><summary>{{.T "Syntax"}}</summary>
   <ul class="syntax">
   <li><b>Markdown</b>: <code># Title</code>, <code>## Section</code>, <code>**bold**</code>, <code>*italic*</code>, <code>`code`</code>, <code>- item</code>, <code>1. item</code>, <code>| a | b |</code>, <code>![text](figure.png)</code></li>

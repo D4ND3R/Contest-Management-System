@@ -17,7 +17,7 @@ dropped, and their `$...$` formulas are laid out.
 
 ## Writing a statement
 
-Task page → **Statements → Write a statement** (or **edit** next to an
+Configuration window → **Files → Write a statement** (or **edit** next to an
 existing one). The editor shows the result as you type, lists what it did
 not understand, and **PDF preview** opens the PDF without saving. Tick
 **Primary** for the official language (several languages may be primary).
@@ -85,9 +85,9 @@ Anything else is shown as written (in red) and listed by the editor.
 Examples belong to the task, not to a dataset, and appear in **every
 statement**, on the page and in the PDF (not as downloads):
 
-- task page → **Examples → Add an example**: type the input and output, or
-  upload the two files, with an optional explanation (Markdown);
-- dataset page → **use as example** next to a testcase;
+- Testcases window → **Examples → Add an example**: type the input and
+  output, or upload the two files, with an optional explanation (Markdown);
+- Testcases window → **use as example** next to a testcase;
 - in a problem package, `statement/examples/NAME.in`, `NAME.out` and an
   optional `NAME.md` explanation.
 

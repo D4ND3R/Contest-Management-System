@@ -513,9 +513,10 @@ func (s *Server) funcs() template.FuncMap {
 			}
 			return "PDF"
 		},
-		"stsource": statement.IsSource,
-		"deref":    derefStr,
-		"ptr64":    func(v int64) *int64 { return &v },
+		"stsource":    statement.IsSource,
+		"managerKind": managerKind,
+		"deref":       derefStr,
+		"ptr64":       func(v int64) *int64 { return &v },
 		"deref32": func(v *int32) int32 {
 			if v == nil {
 				return 0

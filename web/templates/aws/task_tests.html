@@ -1,0 +1,151 @@
+{{define "content"}}{{$d := .Data}}{{$h := $d.Head}}{{$task := $h.Task}}{{$ds := $h.Dataset}}{{$tt := $d.Tools}}
+{{template "problem-head" .}}
+
+{{if .CanEditTasks}}
+<section class="section" id="add">
+<h2>{{.T "Add testcases"}}</h2>
+<div class="grid-2">
+<form method="post" action="/datasets/{{$ds.ID}}/testcases" enctype="multipart/form-data">
+  {{template "csrf" .CSRF}}
+  <h3>{{.T "One testcase"}}</h3>
+  <div class="row"><label>{{.T "Codename"}} <input name="codename" value="{{$tt.Next}}" size="10"></label>
+    <label class="inline"><input type="checkbox" name="public"> {{.T "Public (contestants see its result)"}}</label></div>
+  <label>{{.T "Input"}} <textarea name="input_text" rows="5" class="code" spellcheck="false"></textarea></label>
+  <p class="help">{{.T "or a file:"}} <input type="file" name="input" aria-label="{{.T "Input"}}"></p>
+  <p class="checks">{{.T "Output:"}}
+    <label><input type="radio" name="output_mode" value="given" checked> {{.T "typed or uploaded"}}</label>
+    {{if $tt.Solve}}<label><input type="radio" name="output_mode" value="solution" {{if not $tt.Solutions}}disabled{{end}}> {{.T "written by the reference solution"}}</label>{{end}}
+    <label><input type="radio" name="output_mode" value="empty"> {{.T "empty"}}</label></p>
+  <label>{{.T "Output"}} <textarea name="output_text" rows="4" class="code" spellcheck="false"></textarea></label>
+  <p class="help">{{.T "or a file:"}} <input type="file" name="output" aria-label="{{.T "Output"}}"></p>
+  {{if $tt.Solve}}{{template "solution-select" (part $ $tt)}}{{end}}
+  <p><button class="primary">{{.T "Add testcase"}}</button></p>
+</form>
+<form method="post" action="/datasets/{{$ds.ID}}/testcases/generate" enctype="multipart/form-data">
+  {{template "csrf" .CSRF}}
+  <h3>{{.T "Generate with a program"}}</h3>
+  <p class="help">{{.T "The generator reads one line of parameters on standard input and writes a whole input on standard output. It runs once per line below, in the judging sandbox (at least 10 s and 1 GiB)."}}</p>
+  <div class="row">
+    <label>{{.T "Generator source"}} <input type="file" name="generator" required></label>
+    <label>{{.T "Language"}} <select name="language">{{range $tt.Languages}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
+  </div>
+  <label>{{.T "Parameters, one testcase per line"}} <textarea name="lines" rows="5" class="code" spellcheck="false" placeholder="10 1&#10;1000 2&#10;100000 3" required></textarea></label>
+  <div class="row"><label>{{.T "Codename prefix"}} <input name="prefix" size="6" placeholder="g"></label>
+    <label>{{.T "First number"}} <input name="start" value="1" size="4" inputmode="numeric"></label></div>
+  <p class="checks">{{.T "Output:"}}
+    {{if $tt.Solve}}<label><input type="radio" name="output_mode" value="solution" {{if $tt.Solutions}}checked{{else}}disabled{{end}}> {{.T "written by the reference solution"}}</label>{{end}}
+    <label><input type="radio" name="output_mode" value="empty" {{if or (not $tt.Solve) (not $tt.Solutions)}}checked{{end}}> {{.T "empty"}}</label></p>
+  {{if $tt.Solve}}{{template "solution-select" (part $ $tt)}}{{end}}
+  <p><button class="primary">{{.T "Generate"}}</button></p>
+</form>
+</div>
+<form method="post" action="/datasets/{{$ds.ID}}/testcases/archive" enctype="multipart/form-data" class="section">
+  {{template "csrf" .CSRF}}
+  <h3>{{.T "Import testcases from a zip"}}</h3>
+  <div class="row"><label>{{.T "Archive"}} <input type="file" name="archive" accept=".zip,application/zip" required></label>
+  <label>{{.T "Input names"}} <input name="input_template" value="*.in" size="10"></label><label>{{.T "Output names"}} <input name="output_template" value="*.out" size="10"></label></div>
+  <p class="checks"><label><input type="checkbox" name="overwrite"> {{.T "Overwrite existing"}}</label> <label><input type="checkbox" name="public"> {{.T "Public"}}</label></p>
+  <p class="help">{{.T "Inputs and outputs are paired by the part of the name that replaces the *: 1.in with 1.out, input07.txt with output07.txt."}}</p>
+  <button>{{.T "Import"}}</button>
+</form>
+</section>
+{{end}}
+
+<div id="live"{{if $d.Pending}} hx-get="/tasks/{{$task.ID}}/tests{{$h.Query}}" hx-select="#live" hx-select-oob="#runs-live" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+<section class="section" id="testcases">
+<h2>{{.T "Testcases"}} <small class="muted">{{len $d.Rows}}</small></h2>
+{{with $tt.Jobs}}
+<table>
+<thead><tr><th>{{$.T "Codename"}}</th><th>{{$.T "State"}}</th></tr></thead>
+<tbody>
+{{range .}}<tr><td>{{.Codename}}</td><td>{{if eq .State "input"}}<span class="pending">{{$.T "the generator is writing the input…"}}</span>{{else if eq .State "output"}}<span class="pending">{{$.T "the reference solution is writing the output…"}}</span>{{else}}<span class="bad">{{$.T "failed:"}}</span> <span class="pre">{{.Error}}</span>{{end}}</td></tr>{{end}}
+</tbody>
+</table>
+{{if and $.CanEditTasks (lt $tt.Running (len .))}}<form method="post" action="/datasets/{{$ds.ID}}/testcase-jobs/clear" class="inline">{{template "csrf" $.CSRF}}<button class="link">{{$.T "forget the failed ones"}}</button></form>{{end}}
+{{end}}
+<div class="scroll">
+<table class="testcases">
+<thead><tr><th>#</th><th>{{.T "Codename"}}</th><th>{{.T "Input"}}</th><th>{{.T "Output"}}</th><th>{{.T "Public"}}</th><th>{{.T "Example"}}</th>
+  {{range $d.Columns}}<th class="run"><a href="/submissions/{{.ID}}" title="{{.Admin}} · {{dt .Time}}">{{if .Name}}{{.Name}}{{else}}#{{.ID}}{{end}}</a><br><small class="muted">{{.Language}}</small></th>{{end}}<th></th></tr></thead>
+<tbody>
+{{range $i, $r := $d.Rows}}
+<tr><td class="muted">{{inc $i}}</td><td><a href="/testcases/{{$r.ID}}">{{$r.Codename}}</a></td>
+<td><a href="/testcases/{{$r.ID}}/input">{{if ge $r.InputSize 0}}{{bytes $r.InputSize}}{{else}}{{$.T "input"}}{{end}}</a></td>
+<td><a href="/testcases/{{$r.ID}}/output">{{if ge $r.OutputSize 0}}{{bytes $r.OutputSize}}{{else}}{{$.T "output"}}{{end}}</a></td>
+<td>{{if $.CanEditTasks}}<form method="post" action="/testcases/{{$r.ID}}/public" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="public" value="{{if $r.Public}}0{{else}}1{{end}}"><button class="link">{{if $r.Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}</button></form>{{else}}{{if $r.Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}{{end}}</td>
+<td>{{if $r.Example}}{{$.T "yes"}}{{else if $.CanEditTasks}}<form method="post" action="/testcases/{{$r.ID}}/example" class="inline">{{template "csrf" $.CSRF}}<button class="link" title="{{$.T "Show it in the statement, on the page and in the PDF"}}">{{$.T "use as example"}}</button></form>{{end}}</td>
+{{range $r.Cells}}<td class="run">{{if .Verdict}}<span class="v {{.Class}}" title="{{.Text}}">{{.Verdict}}</span>{{with .Time}} <small class="muted">{{secs .}}</small>{{end}}{{end}}</td>{{end}}
+<td>{{if $.CanEditTasks}}<form method="post" action="/testcases/{{$r.ID}}/delete" class="inline" data-confirm="{{$.T "Delete testcase %s?" $r.Codename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
+{{else}}
+<tr><td colspan="{{add 7 (len $d.Columns)}}" class="muted">{{.T "No testcases yet: add them above, or import a package in the Configuration window."}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{if and .CanEditTasks $d.Rows}}<form method="post" action="/datasets/{{$ds.ID}}/testcases/clear" class="inline" data-confirm="{{.T "Delete all %d testcases?" (len $d.Rows)}}">{{template "csrf" .CSRF}}<button class="link danger">{{.T "delete all testcases"}}</button></form>{{end}}
+</section>
+</div>
+
+<section class="section" id="runs">
+<h2>{{.T "Test submissions"}} <small class="muted">{{.T "judged like a submission on these testcases; they never count"}}</small></h2>
+{{with $d.Tester}}
+{{if $.CanEditTasks}}
+<form method="post" action="/tasks/{{$task.ID}}/tester" enctype="multipart/form-data" class="inline-form">
+  {{template "csrf" $.CSRF}}<input type="hidden" name="dataset_id" value="{{if not $h.Live}}{{$ds.ID}}{{end}}">
+  {{if .NeedsLanguage}}<label>{{$.T "Language"}} <select name="language">{{range .Languages}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>{{end}}
+  {{range .Formats}}<label>{{.}} <input type="file" name="{{.}}"></label>{{end}}
+  {{if .OutputOnly}}<label>{{$.T "or a zip"}} <input type="file" name="zip" accept=".zip"></label>{{end}}
+  <button class="primary">{{$.T "Test"}}</button>
+</form>
+{{end}}
+{{end}}
+<div id="runs-live">
+<table>
+<thead><tr><th>{{.T "Run"}}</th><th>{{.T "Time"}}</th><th>{{.T "By"}}</th><th>{{.T "Language"}}</th><th>{{.T "Result"}}</th></tr></thead>
+<tbody>
+{{range $d.Runs}}{{$res := .Result}}
+<tr><td><a href="/submissions/{{.ID}}">#{{.ID}}</a>{{with .Name}} {{.}}{{end}}</td><td>{{dt .Time}}</td><td>{{.Admin}}</td><td>{{.Language}}</td>
+<td><span class="{{.Class}}">{{if eq $res.Status "evaluating"}}{{$.T "evaluating %d/%d" $res.Done $res.Total}}{{else}}{{$.T $res.Status}}{{end}}{{if $res.Score}} <b>{{score $res.Score $task.ScorePrecision}}</b>{{end}}</span></td></tr>
+{{else}}
+<tr><td colspan="5" class="muted">{{.T "No test submissions yet. The reference solution sent here also writes outputs for new testcases."}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</div>
+</section>
+
+<section class="section" id="examples">
+<h2>{{.T "Examples"}}</h2>
+<p class="muted">{{.T "Shown in every statement of the task, on the page and in the PDF (not as downloads). A testcase becomes one with “use as example” above."}}</p>
+{{range $i, $e := $d.Examples}}
+<div class="example-admin">
+  <h3>{{$.T "Example %d" (inc $i)}}</h3>
+  <div class="io"><div><div class="io-label">{{$.T "Input"}}</div><pre>{{$e.Input}}</pre></div><div><div class="io-label">{{$.T "Output"}}</div><pre>{{$e.Output}}</pre></div></div>
+  {{if $e.Truncated}}<p class="muted">{{$.T "Long example: only the beginning is shown here."}}</p>{{end}}
+  {{if $.CanEditTasks}}
+  <form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/note">{{template "csrf" $.CSRF}}
+    <label>{{$.T "Explanation (Markdown, optional)"}} <textarea name="note" rows="2">{{$e.Note}}</textarea></label>
+    <button>{{$.T "Save"}}</button></form>
+  <p>{{if $i}}<form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/up" class="inline">{{template "csrf" $.CSRF}}<button class="link">{{$.T "up"}}</button></form> · {{end}}
+  <form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/down" class="inline">{{template "csrf" $.CSRF}}<button class="link">{{$.T "down"}}</button></form> ·
+  <form method="post" action="/tasks/{{$task.ID}}/examples/{{$e.ID}}/delete" class="inline" data-confirm="{{$.T "Delete this example?"}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form></p>
+  {{else}}{{with $e.Note}}<p class="pre">{{.}}</p>{{end}}{{end}}
+</div>
+{{else}}<p class="muted">{{.T "None."}}</p>{{end}}
+{{if .CanEditTasks}}
+<details><summary>{{.T "Add an example"}}</summary>
+<form method="post" action="/tasks/{{$task.ID}}/examples" enctype="multipart/form-data">
+  {{template "csrf" .CSRF}}
+  <div class="grid">
+  <label>{{.T "Input"}} <textarea name="input" rows="5" class="mono"></textarea></label>
+  <label>{{.T "Output"}} <textarea name="output" rows="5" class="mono"></textarea></label>
+  </div>
+  <div class="grid"><label>{{.T "or an input file"}} <input type="file" name="input_file"></label>
+  <label>{{.T "or an output file"}} <input type="file" name="output_file"></label></div>
+  <label>{{.T "Explanation (Markdown, optional)"}} <textarea name="note" rows="2"></textarea></label>
+  <button>{{.T "Add example"}}</button>
+</form>
+</details>
+{{end}}
+</section>
+{{end}}

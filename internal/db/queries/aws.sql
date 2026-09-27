@@ -84,7 +84,7 @@ WHERE s.id = $1;
 -- name: AdminListTesterRuns :many
 -- Task tester runs of a task (newest first) with their result on every
 -- dataset (index: submissions_tester_idx).
-SELECT s.id, s.submitted_at, s.language, COALESCE(a.username, '')::text AS admin_username,
+SELECT s.id, s.submitted_at, s.language, s.comment, COALESCE(a.username, '')::text AS admin_username,
        sr.dataset_id, d.description AS dataset_description, sr.compilation_outcome, sr.testcases_done,
        sr.testcases_total, sr.score, sr.scored_at, sr.system_error
 FROM (SELECT * FROM submissions WHERE task_id = @task_id::bigint AND tester ORDER BY id DESC LIMIT 30) s
@@ -92,6 +92,15 @@ LEFT JOIN admins a ON a.id = s.tester_admin_id
 LEFT JOIN submission_results sr ON sr.submission_id = s.id
 LEFT JOIN datasets d ON d.id = sr.dataset_id
 ORDER BY s.id DESC, sr.dataset_id;
+
+-- name: TesterFullScore :one
+-- Whether a task tester run reached @max_score on a dataset (the setup
+-- list; submissions_tester_idx, then the results' primary key).
+SELECT EXISTS (
+    SELECT 1 FROM submissions s
+    JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = @dataset_id::bigint
+    WHERE s.task_id = @task_id::bigint AND s.tester AND sr.scored_at IS NOT NULL AND sr.score >= @max_score::float8
+)::boolean AS solved;
 
 -- name: CreateTesterSubmission :one
 INSERT INTO submissions (participation_id, task_id, submitted_at, language, official, tester, tester_admin_id, comment)

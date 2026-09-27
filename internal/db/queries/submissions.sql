@@ -62,6 +62,13 @@ SELECT * FROM executables WHERE submission_id = $1 AND dataset_id = $2 ORDER BY 
 -- name: ListEvaluations :many
 SELECT * FROM evaluations WHERE submission_id = $1 AND dataset_id = $2;
 
+-- name: ListEvaluationsBySubmissions :many
+-- The testcases window: the per-testcase results of a few task tester
+-- runs on one dataset (primary key of evaluations).
+SELECT submission_id, testcase_id, outcome, text, execution_time, execution_memory, exit_status
+FROM evaluations
+WHERE submission_id = ANY(@ids::bigint[]) AND dataset_id = @dataset_id::bigint;
+
 -- name: ListEvaluationsWithTestcase :many
 SELECT e.*, t.codename, t.public
 FROM evaluations e JOIN testcases t ON t.id = e.testcase_id

@@ -2,11 +2,11 @@ package problempkg
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
@@ -25,14 +25,23 @@ func NewWriter(w io.Writer) *Writer { return &Writer{zw: zip.NewWriter(w), now: 
 
 const header = "# Problem package (format 1): see docs/en/problem-package.md\n"
 
-// WriteConfig writes problem.yaml.
-func (w *Writer) WriteConfig(c *Config) error {
+// Marshal is problem.yaml as a package carries it.
+func (c *Config) Marshal() ([]byte, error) {
 	c.Format = Version
 	b, err := yaml.Marshal(c)
 	if err != nil {
+		return nil, err
+	}
+	return append([]byte(header), b...), nil
+}
+
+// WriteConfig writes problem.yaml.
+func (w *Writer) WriteConfig(c *Config) error {
+	b, err := c.Marshal()
+	if err != nil {
 		return err
 	}
-	return w.Add("problem.yaml", strings.NewReader(header+string(b)))
+	return w.Add("problem.yaml", bytes.NewReader(b))
 }
 
 // Add writes one file.
@@ -80,7 +89,8 @@ func ConfigFromCMS(t sqlc.Task, d sqlc.Dataset, codes []string, public []bool) (
 	c := &Config{Format: Version, Name: t.Name, Title: t.Title, Type: inverse(TaskTypes, d.TaskType),
 		Scoring: inverse(ScoreTypes, d.ScoreType), ProcessLimit: int(d.ProcessLimit), ScoreMode: t.ScoreMode,
 		ScorePrecision: ptrInt(int(t.ScorePrecision)), Feedback: t.FeedbackLevel, Languages: t.Languages,
-		SubmissionFormat: t.SubmissionFormat, PrimaryStatements: t.PrimaryStatements, Dataset: d.Description}
+		SubmissionFormat: t.SubmissionFormat, PrimaryStatements: t.PrimaryStatements, Dataset: d.Description,
+		ShortCircuit: d.ShortCircuit && (d.ScoreType == "GroupMin" || d.ScoreType == "GroupMul")}
 	if t.HideCheckerMessages {
 		c.CheckerMessages = "hide"
 	}

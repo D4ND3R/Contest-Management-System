@@ -77,7 +77,7 @@ func TestTaskSetterRole(t *testing.T) {
 	b := f.login("task_setter")
 	ds := fmt.Sprint(f.ds.ID)
 	code, body := b.Get("/datasets/" + ds)
-	if code != 200 || !strings.Contains(body, `action="/datasets/`+ds+`/managers"`) || strings.Contains(body, `action="/datasets/`+ds+`/activate"`) {
+	if code != 200 || !strings.Contains(body, `action="/tasks/`+fmt.Sprint(f.task.ID)+`/files"`) || strings.Contains(body, `/activate"`) {
 		t.Fatalf("dataset page: %d", code)
 	}
 	form := url.Values{"description": {"Default"}, "time_limit": {"2"}, "memory_limit_mib": {"256"}, "process_limit": {"1"},

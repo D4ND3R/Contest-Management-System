@@ -8,7 +8,6 @@ import (
 	"path"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -38,16 +37,21 @@ type testerRun struct {
 	Time     time.Time
 	Language string
 	Admin    string
-	Results  []testerResult
+	// Name is the package solution the run judges (solutions/NAME), if any.
+	Name    string
+	Results []testerResult
+	// Full: the run got the full score on the dataset shown.
+	Full bool
 }
 
 type testerResult struct {
-	Dataset string
-	Status  string // an i18n key; "evaluating" uses Done/Total
-	Class   string
-	Done    int32
-	Total   int32
-	Score   *float64
+	DatasetID int64
+	Dataset   string
+	Status    string // an i18n key; "evaluating" uses Done/Total
+	Class     string
+	Done      int32
+	Total     int32
+	Score     *float64
 }
 
 // submissionFormats returns the files a submission to the task consists
@@ -92,12 +96,13 @@ func (s *Server) testerForm(ctx context.Context, t sqlc.Task) (*testerForm, erro
 	}
 	for _, row := range rows {
 		if len(f.Runs) == 0 || f.Runs[len(f.Runs)-1].ID != row.ID {
-			f.Runs = append(f.Runs, testerRun{ID: row.ID, Time: row.SubmittedAt, Language: derefStr(row.Language), Admin: row.AdminUsername})
+			f.Runs = append(f.Runs, testerRun{ID: row.ID, Time: row.SubmittedAt, Language: derefStr(row.Language), Admin: row.AdminUsername,
+				Name: strings.TrimPrefix(row.Comment, "solutions/")})
 		}
 		if row.DatasetID == nil {
 			continue
 		}
-		res := testerResult{Dataset: derefStr(row.DatasetDescription), Score: row.Score}
+		res := testerResult{DatasetID: *row.DatasetID, Dataset: derefStr(row.DatasetDescription), Score: row.Score}
 		switch {
 		case row.SystemError != nil:
 			res.Status, res.Class = "system error", "bad"
@@ -221,7 +226,7 @@ func (s *Server) handleTesterSubmit(w http.ResponseWriter, r *http.Request, rc *
 	}
 	rc.target("submission", id)
 	rc.note("task", t.Name)
-	s.done(w, r, "/submissions/"+strconv.FormatInt(id, 10), "Test run submitted: it is judged on every dataset and never counts as a submission.")
+	s.done(w, r, problemURL(t, wantedDataset(r), "tests")+"#runs", "Test submission #%d sent: its result appears below, testcase by testcase. It never counts as a submission.", id)
 }
 
 // taskLanguages returns the languages a task accepts: its own list when it

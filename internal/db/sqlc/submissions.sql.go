@@ -441,6 +441,57 @@ func (q *Queries) ListEvaluations(ctx context.Context, arg ListEvaluationsParams
 	return items, nil
 }
 
+const listEvaluationsBySubmissions = `-- name: ListEvaluationsBySubmissions :many
+SELECT submission_id, testcase_id, outcome, text, execution_time, execution_memory, exit_status
+FROM evaluations
+WHERE submission_id = ANY($1::bigint[]) AND dataset_id = $2::bigint
+`
+
+type ListEvaluationsBySubmissionsParams struct {
+	Ids       []int64 `json:"ids"`
+	DatasetID int64   `json:"dataset_id"`
+}
+
+type ListEvaluationsBySubmissionsRow struct {
+	SubmissionID    int64    `json:"submission_id"`
+	TestcaseID      int64    `json:"testcase_id"`
+	Outcome         float64  `json:"outcome"`
+	Text            string   `json:"text"`
+	ExecutionTime   *float64 `json:"execution_time"`
+	ExecutionMemory *int64   `json:"execution_memory"`
+	ExitStatus      string   `json:"exit_status"`
+}
+
+// The testcases window: the per-testcase results of a few task tester
+// runs on one dataset (primary key of evaluations).
+func (q *Queries) ListEvaluationsBySubmissions(ctx context.Context, arg ListEvaluationsBySubmissionsParams) ([]ListEvaluationsBySubmissionsRow, error) {
+	rows, err := q.db.Query(ctx, listEvaluationsBySubmissions, arg.Ids, arg.DatasetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEvaluationsBySubmissionsRow{}
+	for rows.Next() {
+		var i ListEvaluationsBySubmissionsRow
+		if err := rows.Scan(
+			&i.SubmissionID,
+			&i.TestcaseID,
+			&i.Outcome,
+			&i.Text,
+			&i.ExecutionTime,
+			&i.ExecutionMemory,
+			&i.ExitStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEvaluationsWithTestcase = `-- name: ListEvaluationsWithTestcase :many
 SELECT e.submission_id, e.dataset_id, e.testcase_id, e.outcome, e.text, e.execution_time, e.execution_wall_time, e.execution_memory, e.exit_status, e.exit_code, e.signal, e.worker, e.created_at, t.codename, t.public
 FROM evaluations e JOIN testcases t ON t.id = e.testcase_id

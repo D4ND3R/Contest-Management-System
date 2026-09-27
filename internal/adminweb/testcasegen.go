@@ -37,16 +37,13 @@ type testcaseTools struct {
 	Next string
 }
 
-func (s *Server) testcaseTools(ctx context.Context, d sqlc.Dataset, t sqlc.Task, tcs []sqlc.Testcase) (*testcaseTools, error) {
+func (s *Server) testcaseTools(ctx context.Context, d sqlc.Dataset, codes []string, runs []testerRun) (*testcaseTools, error) {
 	jobs, err := s.q.ListTestcaseJobs(ctx, d.ID)
 	if err != nil {
 		return nil, err
 	}
 	tt := &testcaseTools{Jobs: jobs, Solve: d.TaskType == "Batch", Languages: s.langs.All()}
-	names := make([]string, 0, len(tcs)+len(jobs))
-	for _, tc := range tcs {
-		names = append(names, tc.Codename)
-	}
+	names := append([]string(nil), codes...)
 	for _, j := range jobs {
 		names = append(names, j.Codename)
 		if j.State != "failed" {
@@ -55,11 +52,7 @@ func (s *Server) testcaseTools(ctx context.Context, d sqlc.Dataset, t sqlc.Task,
 	}
 	tt.Next = nextCodename(names, "")
 	if tt.Solve {
-		f, err := s.testerForm(ctx, t)
-		if err != nil {
-			return nil, err
-		}
-		tt.Solutions = f.Runs
+		tt.Solutions = runs
 	}
 	return tt, nil
 }
@@ -141,7 +134,7 @@ func (s *Server) handleTestcaseUpload(w http.ResponseWriter, r *http.Request, rc
 		s.errorPage(w, r, rc, http.StatusBadRequest, "Upload failed: "+err.Error())
 		return
 	}
-	back := "/datasets/" + strconv.FormatInt(d.ID, 10) + "#testcases"
+	back := s.datasetURL(r.Context(), d, "tests") + "#testcases"
 	code := strings.TrimSpace(r.FormValue("codename"))
 	if code == "" {
 		tcs, err := s.q.ListTestcases(r.Context(), d.ID)
@@ -371,7 +364,7 @@ func (s *Server) handleTestcaseGenerate(w http.ResponseWriter, r *http.Request, 
 	}
 	s.notifyRuns(r.Context(), runs)
 	rc.note("testcases", len(list))
-	s.done(w, r, "/datasets/"+strconv.FormatInt(d.ID, 10)+"#testcases", "Generating %d testcases: they appear below as they are ready.", len(list))
+	s.done(w, r, s.datasetURL(r.Context(), d, "tests")+"#testcases", "Generating %d testcases: they appear below as they are ready.", len(list))
 }
 
 // handleTestcaseJobsClear forgets the failed jobs of a dataset.
@@ -384,5 +377,5 @@ func (s *Server) handleTestcaseJobsClear(w http.ResponseWriter, r *http.Request,
 		s.internalError(w, r, rc, err)
 		return
 	}
-	s.done(w, r, "/datasets/"+strconv.FormatInt(d.ID, 10)+"#testcases", "")
+	s.done(w, r, s.datasetURL(r.Context(), d, "tests")+"#testcases", "")
 }
