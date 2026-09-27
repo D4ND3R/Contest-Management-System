@@ -379,7 +379,7 @@ func (s *Server) handleSubmission(w http.ResponseWriter, r *http.Request, rc *re
 	}
 	if sub.Tester {
 		s.render(w, "submission", http.StatusOK, s.newPage(w, r, rc, "Test run "+strconv.FormatInt(sub.ID, 10), "tasks", d).
-			crumb("Tasks", "/tasks").crumb(sub.TaskName, "/tasks/"+strconv.FormatInt(sub.TaskID, 10)+"#tester"))
+			crumb("Tasks", "/tasks").crumb(sub.TaskName, "/tasks/"+strconv.FormatInt(sub.TaskID, 10)+"/tests#runs"))
 		return
 	}
 	c, err := s.q.GetContest(r.Context(), sub.ContestID)

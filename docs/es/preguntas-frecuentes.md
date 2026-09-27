@@ -54,10 +54,12 @@ Un usuario puede tener su propia zona (concursantes remotos) en su página.
 
 ## El problema no da el puntaje esperado
 
-- La lista **Preparación** del problema dice qué falta.
-- Envía la solución de referencia con el **Probador de problemas** y abre el
-  envío: el detalle por caso dice qué falla.
-- Si cambiaste casos o subtareas, **reevalúa** (página del dataset).
+- La línea arriba de las ventanas del problema dice qué falta.
+- Envía la solución de referencia en **Casos de prueba → Envíos de
+  prueba**: la lista de casos muestra su veredicto en cada caso, y su
+  número abre el detalle completo.
+- Si cambiaste casos o subtareas, **reevalúa** (al final de la ventana
+  Configuración).
 
 ## Una actualización falló con un error de la base de datos
 

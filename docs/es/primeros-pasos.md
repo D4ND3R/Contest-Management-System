@@ -84,26 +84,29 @@ camino más corto para un problema de entrada y salida estándar.
 1. En el concurso: **Problemas → Nuevo problema**. Basta un **nombre**
    corto (`suma`) y un **título** ("Suma de dos números"). **Crear
    problema**.
-2. Llegas a la página del problema. Arriba está la lista **Preparación**:
-   qué está hecho (verde) y qué falta (amarillo), con un enlace a cada
-   parte. Puedes hacerlas en cualquier orden y en días distintos.
-3. **Enunciado → Escribir un enunciado**: idioma `es`, el texto en Markdown
+2. Llegas a la ventana **Configuración** del problema; la otra pestaña es
+   la ventana **Casos de prueba**. Una línea arriba dice qué falta, con un
+   enlace a cada parte. Puedes hacerlas en cualquier orden y en días
+   distintos. (Con un paquete de problema listo, **Importar un paquete**
+   lo rellena todo de una vez.)
+3. **Archivos → Escribir un enunciado**: idioma `es`, el texto en Markdown
    (fórmulas con `$...$`) y **Guardar**. La vista previa se ve a la derecha.
-4. **Datasets y casos → Default** (el dataset en vivo). En **Agregar
-   casos → Un caso**: escribe la entrada (`1 2`), la salida (`3`), marca
-   **Público** si quieres que los concursantes vean su resultado, y
-   **Agregar caso**. Repite para cada caso. El nombre del caso se propone
-   solo (1, 2, 3...).
-5. Si tienes una solución correcta, envíala en **Probador de problemas**
-   (en la página del problema). Con ella puedes escribir solo las entradas
-   y elegir *Salida: escrita por la solución de referencia*; o generar
-   muchos casos con un programa (**Generar con un programa**).
-6. **Puntuación y subtareas** (en el dataset): por defecto cada caso vale
-   un punto (*Sum*). Para subtareas, elige *GroupMin* y define cada subtarea
-   con sus puntos y sus casos.
-7. Vuelve a la página del problema: la lista **Preparación** debe estar
-   completa. Envía de nuevo la solución con el probador para comprobar que
-   obtiene el puntaje completo.
+4. Ventana **Casos de prueba**, **Un caso**: escribe la entrada (`1 2`), la
+   salida (`3`), marca **Público** si quieres que los concursantes vean su
+   resultado, y **Agregar caso**. Repite para cada caso; el nombre se
+   propone solo (1, 2, 3...).
+5. Si tienes una solución correcta, envíala en **Envíos de prueba** (en la
+   misma ventana). Con ella puedes escribir solo las entradas y elegir
+   *Salida: escrita por la solución de referencia*; o generar muchos casos
+   con un programa (**Generar con un programa**). La lista de casos muestra
+   el veredicto de cada envío de prueba en cada caso.
+6. **Configuración → Opciones**: límites, checker y **Puntuación y
+   subtareas**. Por defecto cada caso vale un punto (*Sum*). Para
+   subtareas, elige *GroupMin* y define cada subtarea con sus puntos y sus
+   casos. **Guardar**.
+7. La línea de lo que falta solo debe pedir un concurso (o decir *Listo*).
+   Envía de nuevo la solución para comprobar que obtiene el puntaje
+   completo.
 
 ## 5. Inscribir concursantes
 

@@ -794,7 +794,7 @@ func (q *Queries) AdminListSystemErrors(ctx context.Context) ([]AdminListSystemE
 }
 
 const adminListTesterRuns = `-- name: AdminListTesterRuns :many
-SELECT s.id, s.submitted_at, s.language, COALESCE(a.username, '')::text AS admin_username,
+SELECT s.id, s.submitted_at, s.language, s.comment, COALESCE(a.username, '')::text AS admin_username,
        sr.dataset_id, d.description AS dataset_description, sr.compilation_outcome, sr.testcases_done,
        sr.testcases_total, sr.score, sr.scored_at, sr.system_error
 FROM (SELECT id, participation_id, task_id, submitted_at, language, comment, official, tester, tester_admin_id, invalidated_at, invalidated_reason, invalidated_by FROM submissions WHERE task_id = $1::bigint AND tester ORDER BY id DESC LIMIT 30) s
@@ -808,6 +808,7 @@ type AdminListTesterRunsRow struct {
 	ID                 int64      `json:"id"`
 	SubmittedAt        time.Time  `json:"submitted_at"`
 	Language           *string    `json:"language"`
+	Comment            string     `json:"comment"`
 	AdminUsername      string     `json:"admin_username"`
 	DatasetID          *int64     `json:"dataset_id"`
 	DatasetDescription *string    `json:"dataset_description"`
@@ -834,6 +835,7 @@ func (q *Queries) AdminListTesterRuns(ctx context.Context, taskID int64) ([]Admi
 			&i.ID,
 			&i.SubmittedAt,
 			&i.Language,
+			&i.Comment,
 			&i.AdminUsername,
 			&i.DatasetID,
 			&i.DatasetDescription,
@@ -1538,4 +1540,27 @@ func (q *Queries) SetSubmissionInvalidated(ctx context.Context, arg SetSubmissio
 		&i.InvalidatedBy,
 	)
 	return i, err
+}
+
+const testerFullScore = `-- name: TesterFullScore :one
+SELECT EXISTS (
+    SELECT 1 FROM submissions s
+    JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = $1::bigint
+    WHERE s.task_id = $2::bigint AND s.tester AND sr.scored_at IS NOT NULL AND sr.score >= $3::float8
+)::boolean AS solved
+`
+
+type TesterFullScoreParams struct {
+	DatasetID int64   `json:"dataset_id"`
+	TaskID    int64   `json:"task_id"`
+	MaxScore  float64 `json:"max_score"`
+}
+
+// Whether a task tester run reached @max_score on a dataset (the setup
+// list; submissions_tester_idx, then the results' primary key).
+func (q *Queries) TesterFullScore(ctx context.Context, arg TesterFullScoreParams) (bool, error) {
+	row := q.db.QueryRow(ctx, testerFullScore, arg.DatasetID, arg.TaskID, arg.MaxScore)
+	var solved bool
+	err := row.Scan(&solved)
+	return solved, err
 }

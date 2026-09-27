@@ -1,0 +1,11 @@
+{{define "content"}}{{$v := .Data}}{{$h := $v.Head}}{{$task := $h.Task}}{{$tc := $v.Testcase}}
+{{template "problem-head" .}}
+<h2>{{.T "Testcase %s" $tc.Codename}} {{if $tc.Public}}<span class="tag">{{.T "public"}}</span>{{end}}</h2>
+<p class="actions">{{with $v.Prev}}<a href="/testcases/{{.ID}}">{{$.T "previous"}} ({{.Codename}})</a> · {{end}}<a href="/tasks/{{$task.ID}}/tests{{$h.Query}}#testcases">{{.T "all testcases"}}</a>{{with $v.Next}} · <a href="/testcases/{{.ID}}">{{$.T "next"}} ({{.Codename}})</a>{{end}}</p>
+<div class="tc"><div class="io">
+<div><div class="io-label">{{.T "Input"}} · <a href="/testcases/{{$tc.ID}}/input">{{.T "download"}}</a></div><pre>{{$v.Input}}</pre>
+  {{if $v.InputCut}}<p class="muted small">{{.T "Only the first 64 KiB are shown."}}</p>{{end}}</div>
+<div><div class="io-label">{{.T "Output"}} · <a href="/testcases/{{$tc.ID}}/output">{{.T "download"}}</a></div><pre>{{$v.Output}}</pre>
+  {{if $v.OutputCut}}<p class="muted small">{{.T "Only the first 64 KiB are shown."}}</p>{{end}}</div>
+</div></div>
+{{end}}

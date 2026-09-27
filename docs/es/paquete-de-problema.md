@@ -1,12 +1,15 @@
 # Paquetes de problema
 
 Un paquete de problema es un zip con todo lo que necesita un problema. El
-panel de administración lo importa (**Problemas → Importar un paquete**),
-muestra lo que encontró y cada error por archivo antes de crear nada, ejecuta
-las soluciones de referencia e informa si cada una obtiene el veredicto que
-anuncia su nombre. Cualquier problema se exporta en el mismo formato
-(**Exportar como paquete** en la página del problema o del dataset), así que
-un problema pasa de una instalación a otra sin cambios.
+panel de administración lo importa como problema nuevo (**Banco de problemas
+→ Importar un paquete de problema**) o dentro de un problema existente
+(**Importar un paquete** en su ventana Configuración, que reemplaza sus
+opciones, archivos y casos), muestra lo que encontró y cada error por
+archivo antes de cambiar nada, ejecuta las soluciones de referencia e
+informa si cada una obtiene el veredicto que anuncia su nombre. Cualquier
+problema se exporta en el mismo formato (**Exportar como paquete** en su
+ventana Configuración; **Descargar problem.yaml** para las opciones solas),
+así que un problema pasa de una instalación a otra sin cambios.
 
 Hay ejemplos completos, uno por tipo de problema, en
 [`docs/examples/packages/`](../examples/packages/): comprime una de las
@@ -98,6 +101,7 @@ subtasks:
     tests: 5             # o los siguientes N casos en orden de nombre
     threshold: 0.5       # solo group_threshold
 public_tests: ["1_01"]   # regex de los casos cuyo resultado ven los concursantes
+short_circuit: true      # group_min/group_mul: cortar la subtarea en su primer 0
 ```
 
 Un caso que no está en ninguna subtarea se informa como advertencia (nunca
@@ -137,8 +141,8 @@ El lenguaje sale de la extensión: el primer lenguaje del problema (o, sin
 `languages`, de la configuración) que la usa. En problemas de solo salida una
 solución es una carpeta (`solutions/ac_todas/output_01.txt`, …) o un zip.
 
-Después de importar, las soluciones se ejecutan con el probador de problemas
-en todos los datasets (nunca son envíos) y el **Reporte de validación**
+Después de importar, las soluciones se ejecutan como envíos de prueba en
+todos los datasets (nunca son envíos) y el **Reporte de validación**
 muestra, por solución y dataset, ✓ o ✗ con lo que ocurrió (`ac`,
 `pa 30/100 wa`, `tle`, …). Un checker, interactor o manager que no compila
 aparece como error del sistema. El problema queda fuera de todo concurso

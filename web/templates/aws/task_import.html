@@ -61,8 +61,8 @@
   <input type="hidden" name="digest" value="{{$d.Digest}}">
   <input type="hidden" name="file_name" value="{{$d.FileName}}">
   {{template "package-target" $}}
-  <p>{{if $d.CanImport}}<button>{{if eq $d.Mode "dataset"}}{{.T "Add the dataset"}}{{else}}{{.T "Create the task"}}{{end}}</button>{{else if $p.OK}}<button class="secondary">{{.T "Check again with these options"}}</button>{{end}}
-  <a href="/tasks/import">{{.T "Upload another package"}}</a></p>
+  <p>{{if $d.CanImport}}<button>{{if eq $d.Mode "fill"}}{{.T "Fill the task"}}{{else if eq $d.Mode "dataset"}}{{.T "Add the dataset"}}{{else}}{{.T "Create the task"}}{{end}}</button>{{else if $p.OK}}<button class="secondary">{{.T "Check again with these options"}}</button>{{end}}
+  {{if eq $d.Mode "fill"}}<a href="/tasks/{{$d.TaskID}}{{with $d.Dataset}}?dataset={{.ID}}{{end}}">{{.T "Back to the task"}}</a>{{else}}<a href="/tasks/import">{{.T "Upload another package"}}</a>{{end}}</p>
 </form>
 {{end}}
 {{end}}

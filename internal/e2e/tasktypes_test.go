@@ -95,8 +95,8 @@ func TestEveryTaskTypeFromAdminUI(t *testing.T) {
 			tests: [][2]string{{"x\n", "1\n"}, {"y\n", "2\n"}}, zip: true,
 			ac: zipFiles(map[string]string{"out_01.txt": "1\n", "out_02.txt": "2\n"}), wa: zipFiles(map[string]string{"out_01.txt": "1\n", "out_02.txt": "3\n"})},
 	}
-	dsRe := regexp.MustCompile(`href="/datasets/(\d+)"`)
-	runRe := regexp.MustCompile(`/submissions/(\d+)$`)
+	dsRe := regexp.MustCompile(`action="/datasets/(\d+)/rename"`)
+	runRe := regexp.MustCompile(`Test submission #(\d+) sent`)
 	type pending struct {
 		name, kind string
 		id, ds     int64
@@ -155,9 +155,9 @@ func TestEveryTaskTypeFromAdminUI(t *testing.T) {
 			}
 			code, body = a.PostMultipart(taskPath+"/tester", fields, file)
 			webtest.MustOK(t, c.name+": tester "+kind, code, body)
-			m := runRe.FindStringSubmatch(a.Last)
-			if m == nil || !strings.Contains(body, "Task tester run") {
-				t.Fatalf("%s: tester did not open the run page (%s)", c.name, a.Last)
+			m := runRe.FindStringSubmatch(body)
+			if m == nil || !strings.Contains(a.Last, "/tests") {
+				t.Fatalf("%s: the test submission did not return to the testcases (%s)", c.name, a.Last)
 			}
 			id, _ := strconv.ParseInt(m[1], 10, 64)
 			runs = append(runs, pending{c.name, kind, id, dsID})

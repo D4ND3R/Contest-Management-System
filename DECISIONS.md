@@ -1828,3 +1828,59 @@ fair under load. What was built, and the choices behind it:
   directory, to absolute paths at start. Installed systems were not
   affected (the installer and the Docker configuration use absolute
   paths).
+
+## D105. Two windows per task: Configuration and Testcases
+
+The owner fixed how problems are made: a zip that fills everything, files
+one by one, the options as a plain form ("it edits problem.yaml from the
+browser"), and per task one configuration window and one testcases window
+where testcases are imported, added by hand, listed and tried with test
+submissions.
+
+- **Two pages, not two sections.** `/tasks/{id}` is Configuration and
+  `/tasks/{id}/tests` is Testcases, as tabs on top (the Polygon/Codeforces
+  way). The dataset page is gone: `/datasets/{id}` redirects to the
+  Configuration window with `?dataset={id}`, and every POST route of
+  datasets, managers and testcases stays (scripts and tests keep working)
+  but returns to the window that shows the change.
+- **The windows show one dataset**: the live one, or `?dataset=N` picked in
+  a selector that only appears when a task has several; a non-live dataset
+  carries a notice. Most tasks have a single dataset, so datasets fold
+  into a section of Configuration instead of a level of navigation.
+- **Options = problem.yaml.** One form saves the task and the dataset in
+  one transaction (`POST /tasks/{id}/options`). The same options are shown
+  as problem.yaml (`problempkg.ConfigFromCMS` + `Config.Marshal`) and can
+  be edited as text; the text is parsed strictly and validated like a
+  package (`Config.Validate`: values, task type parameters, scoring over
+  the dataset's testcases) and applied by `problempkg.ApplyConfig`, which
+  also sets which testcases are public from `public_tests`. problem.yaml
+  gained `short_circuit` (ignored with other scorings) so the form and the
+  file say the same thing.
+- **A zip fills the task in place** (`problempkg.Fill`): the task's
+  settings, statements, attachments and examples, and the shown dataset's
+  settings, testcases and managers are replaced in one transaction, after
+  the same preview as any package. In place, not as a new live dataset,
+  because the window is "this problem" and extra datasets would pile up on
+  every re-import; it is what editing by hand would do, so existing
+  submissions keep their results until reevaluated, as the message says.
+  The package's name is taken when free; otherwise the task keeps its own
+  (the preview warns). A default submission format (`name.%l`) follows the
+  name. Importing as a new, not live dataset stays for careful changes.
+- **Files in one table** with one upload form: statements, judging files
+  and attachments. "Known by its name" is the default: checker, grader,
+  stub, interactor and manager (any extension) and headers are judging
+  files; a Markdown/LaTeX/PDF/HTML file named after a language code is a
+  statement; everything else is an attachment. The form can say otherwise.
+- **Test submissions next to the testcases.** The tester form moved to the
+  Testcases window and returns there; the testcase list has one column per
+  newest test submission (four) with each testcase's verdict and time,
+  read in one query on the evaluations' primary key
+  (`ListEvaluationsBySubmissions`); package solutions show by name. The
+  list refreshes (one request every 2 s, the runs table swapped out of
+  band) only while a run is judged or a testcase is being generated.
+  Reference outputs are proposed from runs with the full score first.
+- **The setup checklist became one line** on top of both windows ("Still
+  missing: …", or "Ready"), checked on the live dataset; the full-score
+  check is one EXISTS query on the tester index.
+- Sizes of inputs and outputs come from the blob registry (a join on its
+  primary key); a testcase page shows the first 64 KiB of each.

@@ -44,9 +44,12 @@ Las palabras que usan el sistema y esta documentación, en orden alfabético.
   un problema: mejor por subtarea (IOI), mejor envío, el último...
 - **Participación**: la inscripción de un usuario en un concurso (con sus
   ajustes: tiempo extra, IP, oculto...).
-- **Probador de problemas**: envía una solución como organizador; se evalúa
-  en todos los datasets y nunca cuenta. Esa ejecución es una **solución de
-  referencia**.
+- **Envío de prueba**: una solución que un organizador envía desde la
+  ventana Casos de prueba de un problema; se evalúa en todos los datasets y
+  nunca cuenta. Uno correcto es una **solución de referencia**.
+- **problem.yaml**: las opciones de un problema (tipo, límites, checker,
+  puntuación, reglas de envío) en el formato de los paquetes de problema; el
+  formulario Opciones de la ventana Configuración lo edita.
 - **Sandbox**: el entorno aislado donde corren los programas, con límites de
   tiempo, memoria y procesos, y un filtro de llamadas al sistema.
 - **Sede**: un lugar con su propia hora de inicio (concursos en varias

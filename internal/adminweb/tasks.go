@@ -1,7 +1,6 @@
 package adminweb
 
 import (
-	"context"
 	"errors"
 	"io"
 	"mime"
@@ -14,10 +13,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
-	"github.com/D4ND3R/Contest-Management-System/internal/langs"
-	"github.com/D4ND3R/Contest-Management-System/internal/scoring"
 	"github.com/D4ND3R/Contest-Management-System/internal/statement"
-	"github.com/D4ND3R/Contest-Management-System/internal/tasktypes"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -119,130 +115,6 @@ func (s *Server) handleTaskCreate(w http.ResponseWriter, r *http.Request, rc *re
 	s.done(w, r, "/tasks/"+strconv.FormatInt(taskID, 10), "Task created with a default dataset.")
 }
 
-// taskPage is the data of the task page.
-type taskPage struct {
-	T           sqlc.UpdateTaskParams
-	Task        sqlc.Task
-	Contest     *sqlc.Contest
-	Contests    []sqlc.Contest
-	Statements  []sqlc.Statement
-	Attachments []sqlc.Attachment
-	Datasets    []sqlc.Dataset
-	Tester      *testerForm
-	Languages   []*langs.Language
-	Examples    []exampleView
-	// Steps is the setup checklist at the top of the page (SPEC_MIN §13).
-	Steps []setupStep
-}
-
-// setupStep is one step of making a task ready: what, whether it is
-// done, a short state and where to do it.
-type setupStep struct {
-	Title, State, URL string
-	Done              bool
-}
-
-func (s *Server) taskPage(ctx context.Context, t sqlc.Task, u sqlc.UpdateTaskParams) (*taskPage, error) {
-	d := &taskPage{T: u, Task: t, Languages: s.langs.All()}
-	var err error
-	if d.Contests, err = s.q.ListContests(ctx); err != nil {
-		return nil, err
-	}
-	for i := range d.Contests {
-		if t.ContestID != nil && d.Contests[i].ID == *t.ContestID {
-			d.Contest = &d.Contests[i]
-		}
-	}
-	if d.Statements, err = s.q.ListStatements(ctx, t.ID); err != nil {
-		return nil, err
-	}
-	if d.Attachments, err = s.q.ListAttachments(ctx, t.ID); err != nil {
-		return nil, err
-	}
-	if d.Datasets, err = s.q.ListDatasetsByTask(ctx, t.ID); err != nil {
-		return nil, err
-	}
-	if d.Tester, err = s.testerForm(ctx, t); err != nil {
-		return nil, err
-	}
-	if d.Examples, err = s.exampleViews(ctx, t.ID); err != nil {
-		return nil, err
-	}
-	if d.Steps, err = s.setupSteps(ctx, d); err != nil {
-		return nil, err
-	}
-	return d, nil
-}
-
-// setupSteps checks, in order, what a task needs before a contest: a
-// title, a statement, testcases, a complete judging configuration, a
-// scoring, a reference solution with the full score, and a contest. The
-// words are translation keys with their arguments.
-func (s *Server) setupSteps(ctx context.Context, d *taskPage) ([]setupStep, error) {
-	t := d.Task
-	id := strconv.FormatInt(t.ID, 10)
-	steps := []setupStep{
-		{Title: "Name and title", Done: t.Title != "", URL: "/tasks/" + id + "#general"},
-		{Title: "Statement", Done: len(d.Statements) > 0, URL: "/tasks/" + id + "#statements"},
-	}
-	if len(d.Statements) > 0 {
-		steps[1].State = strconv.Itoa(len(d.Statements))
-	}
-	if t.ActiveDatasetID == nil {
-		return append(steps, setupStep{Title: "Testcases", URL: "/tasks/" + id + "#datasets"}), nil
-	}
-	ds, err := s.q.GetDataset(ctx, *t.ActiveDatasetID)
-	if err != nil {
-		return nil, err
-	}
-	dsURL := "/datasets/" + strconv.FormatInt(ds.ID, 10)
-	tcs, err := s.q.ListTestcases(ctx, ds.ID)
-	if err != nil {
-		return nil, err
-	}
-	steps = append(steps, setupStep{Title: "Testcases", Done: len(tcs) > 0, State: strconv.Itoa(len(tcs)), URL: dsURL + "#add-testcases"})
-	managers, err := s.q.ListManagers(ctx, ds.ID)
-	if err != nil {
-		return nil, err
-	}
-	have := map[string]bool{}
-	for _, m := range managers {
-		have[strings.TrimSuffix(m.Filename, path.Ext(m.Filename))], have[m.Filename] = true, true
-	}
-	missing := 0
-	for _, req := range tasktypes.RequiredManagers(ds.TaskType, ds.TaskTypeParams) {
-		if base := strings.TrimSuffix(req, ".<ext>"); !have[base] && !have[req] {
-			missing++
-		}
-	}
-	steps = append(steps, setupStep{Title: "Type, limits and checker", Done: missing == 0, State: ds.TaskType, URL: dsURL})
-	codes, pub := make([]string, len(tcs)), make([]bool, len(tcs))
-	for i, tc := range tcs {
-		codes[i], pub[i] = tc.Codename, tc.Public
-	}
-	maxScore := 0.0
-	score := setupStep{Title: "Scoring and subtasks", URL: dsURL + "#score"}
-	if st, err := scoring.New(ds.ScoreType, ds.ScoreTypeParams, codes, pub, int(t.ScorePrecision)); err == nil {
-		maxScore = st.MaxScore()
-		score.Done, score.State = maxScore > 0, strconv.FormatFloat(maxScore, 'f', -1, 64)
-	}
-	steps = append(steps, score)
-	solved := false
-	for _, run := range d.Tester.Runs {
-		for _, res := range run.Results {
-			if res.Dataset == ds.Description && res.Status == "scored" && res.Score != nil && maxScore > 0 && *res.Score >= maxScore-1e-9 {
-				solved = true
-			}
-		}
-	}
-	steps = append(steps, setupStep{Title: "Reference solution with the full score", Done: solved, URL: "/tasks/" + id + "#tester"})
-	contest := setupStep{Title: "In a contest", Done: d.Contest != nil, URL: "/tasks/" + id + "#general"}
-	if d.Contest != nil {
-		contest.State, contest.URL = d.Contest.Name, "/contests/"+strconv.FormatInt(d.Contest.ID, 10)+"/tasks"
-	}
-	return append(steps, contest), nil
-}
-
 func (s *Server) loadTask(w http.ResponseWriter, r *http.Request, rc *reqCtx) (sqlc.Task, bool) {
 	id, _ := pathID(r, "id")
 	t, err := s.q.GetTask(r.Context(), id)
@@ -255,28 +127,6 @@ func (s *Server) loadTask(w http.ResponseWriter, r *http.Request, rc *reqCtx) (s
 		return t, false
 	}
 	return t, true
-}
-
-func (s *Server) taskCrumbs(p *page, d *taskPage) *page {
-	if d.Contest != nil {
-		p.crumb("Contests", "/contests").crumb(d.Contest.Name, "/contests/"+strconv.FormatInt(d.Contest.ID, 10))
-	} else {
-		p.crumb("Tasks", "/tasks")
-	}
-	return p
-}
-
-func (s *Server) handleTask(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	t, ok := s.loadTask(w, r, rc)
-	if !ok {
-		return
-	}
-	d, err := s.taskPage(r.Context(), t, db.TaskToUpdate(t))
-	if err != nil {
-		s.internalError(w, r, rc, err)
-		return
-	}
-	s.render(w, "task", http.StatusOK, s.taskCrumbs(s.newPage(w, r, rc, t.Name, "tasks", d), d))
 }
 
 func parseTask(f *form, u sqlc.UpdateTaskParams) sqlc.UpdateTaskParams {
@@ -309,30 +159,23 @@ func parseTask(f *form, u sqlc.UpdateTaskParams) sqlc.UpdateTaskParams {
 	return u
 }
 
+// handleTaskUpdate saves the task's settings alone (the options form
+// saves them with the dataset's; this is the form-less API).
 func (s *Server) handleTaskUpdate(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	t, ok := s.loadTask(w, r, rc)
+	h, ok := s.loadProblem(w, r, rc, "config")
 	if !ok {
 		return
 	}
+	t := h.Task
 	f := newForm(r)
-	u := parseTask(f, db.TaskToUpdate(t))
-	for _, l := range u.Languages {
-		if _, ok := s.langs.Get(l); !ok {
-			f.fail("unknown language %q", l)
-		}
-	}
-	if f.err == nil && u.Name != t.Name {
-		if _, err := s.q.GetTaskByName(r.Context(), u.Name); err == nil {
-			f.fail("a task named %q already exists", u.Name)
-		}
-	}
+	u := s.parseTaskForm(r.Context(), f, t)
 	if f.err != nil {
-		d, err := s.taskPage(r.Context(), t, u)
+		p, err := s.configPage(r.Context(), h, u, db.DatasetToUpdate(h.Dataset), "", "")
 		if err != nil {
 			s.internalError(w, r, rc, err)
 			return
 		}
-		s.formError(w, r, rc, "task", s.taskCrumbs(s.newPage(w, r, rc, t.Name, "tasks", d), d), f.err.Error())
+		s.renderConfig(w, r, rc, p, f.err.Error())
 		return
 	}
 	if _, err := s.q.UpdateTask(r.Context(), u); err != nil {
@@ -340,16 +183,8 @@ func (s *Server) handleTaskUpdate(w http.ResponseWriter, r *http.Request, rc *re
 		return
 	}
 	rc.target("task", t.ID)
-	if t.ContestID != nil {
-		s.contestChanged(r.Context(), *t.ContestID, 0)
-	}
-	// Score mode and precision change aggregated scores.
-	if u.ScoreMode != t.ScoreMode || u.ScorePrecision != t.ScorePrecision {
-		if t.ActiveDatasetID != nil {
-			s.datasetChangedWithAggregate(r.Context(), t.ID, *t.ActiveDatasetID)
-		}
-	}
-	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10), "Task saved.")
+	s.taskSaved(r.Context(), t, u, 0)
+	s.done(w, r, problemURL(t, 0, "config"), "Task saved.")
 }
 
 func (s *Server) handleTaskDelete(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -442,7 +277,7 @@ func (s *Server) handleStatementUpload(w http.ResponseWriter, r *http.Request, r
 	if t.ContestID != nil {
 		s.statementChanged(r.Context(), t)
 	}
-	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#statements", "Statement ("+lang+") uploaded.")
+	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#files", "Statement ("+lang+") uploaded.")
 }
 
 func (s *Server) handleStatementDownload(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -480,7 +315,7 @@ func (s *Server) handleStatementDelete(w http.ResponseWriter, r *http.Request, r
 	if t.ContestID != nil {
 		s.statementChanged(r.Context(), t)
 	}
-	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#statements", "Statement ("+lang+") deleted.")
+	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#files", "Statement ("+lang+") deleted.")
 }
 
 var safeFileRe = regexp.MustCompile(`^[A-Za-z0-9_.+-][A-Za-z0-9_.+ -]*$`)
@@ -514,7 +349,7 @@ func (s *Server) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, 
 	if t.ContestID != nil {
 		s.statementChanged(r.Context(), t)
 	}
-	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#attachments", "Attachment "+name+" uploaded.")
+	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#files", "Attachment "+name+" uploaded.")
 }
 
 func (s *Server) handleAttachmentDownload(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -550,7 +385,7 @@ func (s *Server) handleAttachmentDelete(w http.ResponseWriter, r *http.Request, 
 	if t.ContestID != nil {
 		s.statementChanged(r.Context(), t)
 	}
-	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#attachments", "Attachment "+name+" deleted.")
+	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#files", "Attachment "+name+" deleted.")
 }
 
 // serveBlob streams a blob. Downloads are forced as attachments except for

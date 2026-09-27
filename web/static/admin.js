@@ -124,6 +124,11 @@
     });
   }
 
+  // Selects that navigate at once (the dataset shown in a task window).
+  document.addEventListener("change", function (e) {
+    if (e.target.matches && e.target.matches("select[data-autosubmit]")) e.target.form.submit();
+  });
+
   document.documentElement.classList.add("js");
   function init() { switches(); dropzones(); }
   document.addEventListener("DOMContentLoaded", function () { connect(); init(); countdowns(); prefs(); });

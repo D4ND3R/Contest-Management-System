@@ -17,7 +17,7 @@ y todo lo activo, y sus fórmulas `$...$` se dibujan.
 
 ## Escribir un enunciado
 
-Página del problema → **Enunciados → Escribir un enunciado** (o **editar**
+Ventana Configuración → **Archivos → Escribir un enunciado** (o **editar**
 junto a uno existente). El editor muestra el resultado mientras escribes,
 lista lo que no entendió y **Vista previa en PDF** abre el PDF sin guardar.
 Marca **Principal** para el idioma oficial (puede haber varios).
@@ -87,10 +87,10 @@ escrito (en rojo) y el editor lo lista.
 Los ejemplos son del problema, no de un dataset, y aparecen en **todos los
 enunciados**, en la página y en el PDF (no como descargas):
 
-- página del problema → **Ejemplos → Agregar un ejemplo**: escribe la
+- ventana Casos de prueba → **Ejemplos → Agregar un ejemplo**: escribe la
   entrada y la salida, o sube los dos archivos, con una explicación
   opcional (Markdown);
-- página del dataset → **usar como ejemplo** junto a un caso de prueba;
+- ventana Casos de prueba → **usar como ejemplo** junto a un caso;
 - en un paquete de problema, `statement/examples/NOMBRE.in`, `NOMBRE.out` y
   una explicación opcional `NOMBRE.md`.
 

@@ -29,7 +29,7 @@ in the [glossary](glossary.md).
 
 **Admins → New admin**. Roles: *all* (everything), *messaging* (questions,
 announcements, balloons, printing; read the rest), *task setter* (prepare
-tasks: statements, datasets, testcases, graders, the task tester; making a
+tasks: statements, datasets, testcases, graders, test submissions; making a
 dataset live, rejudging and deleting stay with *all*), *read only*, and
 *leader* for delegation leaders: linked to a team, they see only their
 contestants' submissions, sources and the results the contestants see
@@ -78,53 +78,48 @@ another's lost device. Every change is in the **Audit log**.
 
 ## 4. Tasks
 
-A task is built in parts, in any order: **Problems → New task** with just a
-name, and then, on its page, the **Setup** list says what is missing
-(statement, testcases, checker, scoring, a reference solution with the
-full score). Testcases are added **one by one** (input typed or uploaded;
-output typed, uploaded, empty or written by the reference solution) or with
-a **generator** run once per line of parameters. All of it is explained
-step by step in [creating a problem](creating-a-problem.md).
+Each task has two windows (tabs on top of its page); everything is
+explained step by step in [creating a problem](creating-a-problem.md):
 
-A **problem package** can be imported too: **Task library → Import a
-problem package**, drop the zip, check the preview (type, limits,
-subtasks, testcases, statements, reference solutions) and confirm. The
-reference solutions are judged at once and the validation report says
-whether each gets the verdict its name announces. Packages from CMS
-(italy_yaml) and Polygon are converted. The format and one example per type
-are in [problem packages](problem-package.md).
+1. **Configuration**:
+   - **Import a package**: a zip (this system's format, CMS italy_yaml or
+     Polygon) fills the options, the files and the testcases after a
+     preview; its reference solutions are sent as test submissions.
+   - **Options**, which are the task's `problem.yaml` as a form: name,
+     title, task type and its options (below), limits, checker, **scoring
+     and subtasks** (*Sum*, *GroupMin*, *GroupMul*, *GroupThreshold*; the
+     subtask editor asks for the points and the testcases of each subtask:
+     a regular expression over the codenames, a count or a list; with
+     GroupMin/GroupMul, **Short-circuit** skips the rest of a subtask once
+     a testcase scores 0, see [evaluation](evaluation.md)), submission
+     files (`sol.%l` — `%l` becomes the language extension), languages
+     (none ticked = the contest's), score mode (best per subtask as at the
+     IOI since 2017, best submission, tokened and last, or the last
+     submission that compiled), precision, feedback, checker messages,
+     tokens and submission limits. **Edit problem.yaml as text** edits the
+     same options in the package format.
+   - **Files**: statements, judging files (checker, graders, stubs,
+     headers, interactor, manager) and attachments, uploaded one by one
+     (each is known by its name); the files the options need and are
+     missing show in yellow ([statements](statements.md)).
+   - **Datasets**: the *live* one scores submissions; a copy can be
+     prepared, judged in the background, **compared with live** and **made
+     live**.
+2. **Testcases**: add them one by one (input typed or uploaded; output
+   typed, uploaded, empty or written by the reference solution), with a
+   **generator** run once per line of parameters, or from a zip; the list
+   of testcases with the verdict of the last four **test submissions** on
+   each one; the test submission form (any source, judged without counting
+   anywhere); and the statement's **Examples**. The **Validation report**
+   judges a package's reference solutions and says whether each gets the
+   verdict its name announces.
 
-What is on the task page and on each dataset's page:
-
-1. The task's **Settings**: title, submission files (`sol.%l` — `%l`
-   becomes the language extension), languages (none ticked = the
-   contest's), score mode (best per subtask as at the IOI since 2017, best
-   submission, tokened and last, or the last submission that compiled),
-   precision, feedback, and whether contestants see the checker's own
-   messages or only the standard one of each outcome.
-2. **Statements**, **Examples** and **Attachments** ([statements](statements.md)).
-3. **Datasets**: the *live* one scores submissions. On its page:
-   - **Type, limits and checker**: task type and its options (below), time,
-     memory, output, source size.
-   - **Scoring and subtasks**: *Sum* (points per testcase), *GroupMin* (a
-     subtask scores only if all its testcases pass), *GroupMul*,
-     *GroupThreshold*; the subtask editor asks for the points and the
-     testcases of each subtask (a regular expression over the codenames, a
-     count or a list). With GroupMin/GroupMul, **Short-circuit** skips the
-     rest of a subtask once a testcase scores 0 (see [evaluation](evaluation.md)).
-   - **Managers**: checker, graders, stubs, headers, interactor; the page
-     lists the ones still missing.
-   - **Add testcases** and **Testcases**.
-   - **Make live** a new dataset when it is right; a second dataset can
-     judge new submissions in the background to compare before switching;
-     **compare with live** lists the scores that would change.
-4. **Task tester**: submit any source as an administrator and see the
-   verdict per testcase without it counting anywhere; **Validation report**
-   judges the reference solutions on every dataset.
+A package can also create a new task: **Task library → Import a problem
+package** ([problem packages](problem-package.md)).
 
 ### Each problem type, step by step
 
-| Type | Task type and options | Managers to upload |
+| Type | Task type and options | Judging files to upload |
 |------|-----------------------|--------------------|
 | Standard input/output | *Batch*, compilation *alone*, comparison *ignore whitespace* (or *exact*, *reals with tolerance* with absolute/relative tolerance) | none |
 | Custom checker | *Batch*, comparison *custom checker (CMS protocol)* or *(testlib)* | `checker` (binary), `checker.cpp` or `checker.c`; `testlib.h` for testlib |
@@ -137,7 +132,7 @@ What is on the task page and on each dataset's page:
 
 The protocols (arguments, exit codes, what the checker or interactor prints)
 are in [task types](task-types.md). Always judge a correct and a wrong
-solution with the task tester (or reference solutions) before the contest.
+solution with a test submission (or reference solutions) before the contest.
 
 ## 5. Before the contest
 

@@ -2,8 +2,8 @@
 INSERT INTO datasets (
     task_id, description, autojudge, time_limit_ms, wall_time_limit_ms, memory_limit_bytes,
     output_limit_bytes, process_limit, source_size_limit_bytes, task_type, task_type_params,
-    score_type, score_type_params
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    score_type, score_type_params, short_circuit
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 RETURNING *;
 
 -- name: GetDataset :one
@@ -87,6 +87,27 @@ UPDATE testcases SET public = $2 WHERE id = $1;
 
 -- name: DeleteTestcase :exec
 DELETE FROM testcases WHERE id = $1;
+
+-- name: DeleteDatasetTestcases :exec
+-- Every testcase of a dataset (a package filling it replaces them).
+DELETE FROM testcases WHERE dataset_id = $1;
+
+-- name: DeleteDatasetManagers :exec
+DELETE FROM managers WHERE dataset_id = $1;
+
+-- name: SetDatasetPublicTestcases :exec
+-- problem.yaml edited in the administration: exactly @public are public.
+UPDATE testcases SET public = (codename = ANY(@public::text[]))
+WHERE dataset_id = @dataset_id::bigint AND public <> (codename = ANY(@public::text[]));
+
+-- name: ListTestcasesWithSizes :many
+-- The testcases window: sizes come from the blob registry (primary key).
+SELECT t.*, COALESCE(bi.size, -1)::bigint AS input_size, COALESCE(bo.size, -1)::bigint AS output_size
+FROM testcases t
+LEFT JOIN blobs bi ON bi.digest = t.input_digest
+LEFT JOIN blobs bo ON bo.digest = t.output_digest
+WHERE t.dataset_id = $1
+ORDER BY t.codename;
 
 -- name: CountTestcases :one
 SELECT count(*) FROM testcases WHERE dataset_id = $1;

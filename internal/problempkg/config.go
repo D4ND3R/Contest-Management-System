@@ -67,7 +67,10 @@ type Config struct {
 	PointsPerTest *float64  `yaml:"points_per_test,omitempty"`
 	Subtasks      []Subtask `yaml:"subtasks,omitempty"`
 	PublicTests   []string  `yaml:"public_tests,omitempty"` // regexes of public testcases
-	ScoreMode     string    `yaml:"score_mode,omitempty"`   // max_subtask|max|max_tokened_last|last
+	// ShortCircuit stops judging a group_min or group_mul subtask at its
+	// first testcase scoring 0 (ignored with other scorings).
+	ShortCircuit bool   `yaml:"short_circuit,omitempty"`
+	ScoreMode    string `yaml:"score_mode,omitempty"` // max_subtask|max|max_tokened_last|last
 	// ScorePrecision and ScoreMode default to the contest's (when imported
 	// into one) or to 0 and max_subtask.
 	ScorePrecision *int   `yaml:"score_precision,omitempty"`

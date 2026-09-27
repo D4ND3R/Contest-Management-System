@@ -42,7 +42,7 @@ del envío.
 
 En una subtarea *GroupMin* (y *GroupMul*), un caso con 0 deja toda la
 subtarea en 0: los demás casos no pueden cambiarlo. Con **Cortocircuito**
-marcado en la página del dataset (sección de puntaje), el dispatcher marca
+marcado en las opciones del problema (Puntuación y subtareas), el dispatcher marca
 esos casos como *omitidos* en cuanto llega el cero, y los workers no corren
 los que aún esperan. El puntaje es el mismo que con la evaluación completa;
 el tiempo ahorrado queda para los demás concursantes.

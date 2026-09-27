@@ -32,7 +32,7 @@
   {{else}}
     <li><a href="/" {{if eq .Path "/"}}aria-current="page"{{end}}>{{.T "Dashboard"}}</a></li>
     <li><a href="/contests" {{if or (eq .Path "/contests") (eq .Path "/contests/new")}}aria-current="page"{{end}}>{{.T "Contests"}}</a></li>
-    <li><a href="/tasks" {{if or (.On "/tasks") (.On "/datasets")}}aria-current="page"{{end}}>{{.T "Task library"}}</a></li>
+    <li><a href="/tasks" {{if or (.On "/tasks") (.On "/datasets") (.On "/testcases")}}aria-current="page"{{end}}>{{.T "Task library"}}</a></li>
     <li><a href="/users" {{if .On "/users"}}aria-current="page"{{end}}>{{.T "Users"}}</a></li>
     <li><a href="/teams" {{if .On "/teams"}}aria-current="page"{{end}}>{{.T "Teams"}}</a></li>
     <li><a href="/questions" {{if .On "/questions"}}aria-current="page"{{end}}>{{.T "Clarifications"}}{{if .Pending}}<span class="count">{{.Pending}}</span>{{end}}</a></li>

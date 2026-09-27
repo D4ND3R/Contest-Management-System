@@ -58,7 +58,8 @@ func (s *Server) handleDatasetCreate(w http.ResponseWriter, r *http.Request, rc 
 			p = sqlc.CreateDatasetParams{TaskID: t.ID, Description: desc, TimeLimitMs: src.TimeLimitMs,
 				WallTimeLimitMs: src.WallTimeLimitMs, MemoryLimitBytes: src.MemoryLimitBytes, OutputLimitBytes: src.OutputLimitBytes,
 				ProcessLimit: src.ProcessLimit, SourceSizeLimitBytes: src.SourceSizeLimitBytes, TaskType: src.TaskType,
-				TaskTypeParams: src.TaskTypeParams, ScoreType: src.ScoreType, ScoreTypeParams: src.ScoreTypeParams}
+				TaskTypeParams: src.TaskTypeParams, ScoreType: src.ScoreType, ScoreTypeParams: src.ScoreTypeParams,
+				ShortCircuit: src.ShortCircuit}
 		}
 		d, err := q.CreateDataset(r.Context(), p)
 		if err != nil {
@@ -75,93 +76,10 @@ func (s *Server) handleDatasetCreate(w http.ResponseWriter, r *http.Request, rc 
 		return
 	}
 	rc.target("dataset", newID)
-	s.done(w, r, "/datasets/"+strconv.FormatInt(newID, 10), "Dataset created.")
-}
-
-// datasetPage is the data of the dataset page.
-type datasetPage struct {
-	D          sqlc.UpdateDatasetParams
-	Dataset    sqlc.Dataset
-	Task       sqlc.Task
-	Live       bool
-	Managers   []sqlc.Manager
-	Testcases  []sqlc.Testcase
-	TaskTypes  []string
-	ScoreTypes []string
-	Defaults   string
-	ParamsJSON string
-	ScoreJSON  string
-	ScoreError string
-	MaxScore   float64
-	Subtasks   []float64
-	Required   []string
-	Missing    []string
-	OtherSets  []sqlc.Dataset
-	TF         typeFields
-	Editor     *scoreEditor
-	Tools      *testcaseTools
+	s.done(w, r, problemURL(t, newID, "config")+"#datasets", "Dataset created.")
 }
 
 var scoreTypes = []string{"Sum", "GroupMin", "GroupMul", "GroupThreshold"}
-
-func (s *Server) datasetPage(ctx context.Context, d sqlc.Dataset, u sqlc.UpdateDatasetParams, paramsText, scoreText string) (*datasetPage, error) {
-	t, err := s.q.GetTask(ctx, d.TaskID)
-	if err != nil {
-		return nil, err
-	}
-	p := &datasetPage{D: u, Dataset: d, Task: t, Live: t.ActiveDatasetID != nil && *t.ActiveDatasetID == d.ID,
-		TaskTypes: tasktypes.SortedNames(), ScoreTypes: scoreTypes, ParamsJSON: paramsText, ScoreJSON: scoreText}
-	defaults, _ := json.Marshal(tasktypes.DefaultParams)
-	p.Defaults = string(defaults)
-	if p.ParamsJSON == "" {
-		p.ParamsJSON = prettyJSON(u.TaskTypeParams)
-	}
-	if p.ScoreJSON == "" {
-		p.ScoreJSON = prettyJSON(u.ScoreTypeParams)
-	}
-	p.TF = typeFieldsOf(u.TaskTypeParams)
-	if p.Managers, err = s.q.ListManagers(ctx, d.ID); err != nil {
-		return nil, err
-	}
-	if p.Testcases, err = s.q.ListTestcases(ctx, d.ID); err != nil {
-		return nil, err
-	}
-	if p.Tools, err = s.testcaseTools(ctx, d, t, p.Testcases); err != nil {
-		return nil, err
-	}
-	all, err := s.q.ListDatasetsByTask(ctx, t.ID)
-	if err != nil {
-		return nil, err
-	}
-	for _, o := range all {
-		if o.ID != d.ID {
-			p.OtherSets = append(p.OtherSets, o)
-		}
-	}
-	codes, pub := make([]string, len(p.Testcases)), make([]bool, len(p.Testcases))
-	for i, tc := range p.Testcases {
-		codes[i], pub[i] = tc.Codename, tc.Public
-	}
-	p.Editor = editorFromParams(d.ID, u.ScoreType, u.ScoreTypeParams, codes)
-	if st, err := scoring.New(d.ScoreType, d.ScoreTypeParams, codes, pub, int(t.ScorePrecision)); err != nil {
-		p.ScoreError = err.Error()
-	} else {
-		p.MaxScore, p.Subtasks = st.MaxScore(), st.SubtaskMaxScores()
-	}
-	p.Required = tasktypes.RequiredManagers(d.TaskType, d.TaskTypeParams)
-	have := map[string]bool{}
-	for _, m := range p.Managers {
-		have[strings.TrimSuffix(m.Filename, path.Ext(m.Filename))] = true
-		have[m.Filename] = true
-	}
-	for _, req := range p.Required {
-		base := strings.TrimSuffix(req, ".<ext>")
-		if !have[base] && !have[req] {
-			p.Missing = append(p.Missing, req)
-		}
-	}
-	return p, nil
-}
 
 func prettyJSON(raw json.RawMessage) string {
 	var v any
@@ -186,27 +104,24 @@ func (s *Server) loadDataset(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 	return d, true
 }
 
-func (s *Server) datasetCrumbs(p *page, d *datasetPage) *page {
-	return p.crumb("Tasks", "/tasks").crumb(d.Task.Name, "/tasks/"+strconv.FormatInt(d.Task.ID, 10))
-}
-
+// handleDataset shows a dataset: the Configuration window of its task
+// with that dataset.
 func (s *Server) handleDataset(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	d, ok := s.loadDataset(w, r, rc)
 	if !ok {
 		return
 	}
-	p, err := s.datasetPage(r.Context(), d, db.DatasetToUpdate(d), "", "")
-	if err != nil {
-		s.internalError(w, r, rc, err)
-		return
-	}
-	s.render(w, "dataset", http.StatusOK, s.datasetCrumbs(s.newPage(w, r, rc, p.Task.Name+" · "+d.Description, "tasks", p), p))
+	http.Redirect(w, r, s.datasetURL(r.Context(), d, "config"), http.StatusSeeOther)
 }
 
 // parseDataset reads the dataset form; codes are the dataset's testcases
 // (for the score editor, which is returned when it was used).
 func parseDataset(f *form, u sqlc.UpdateDatasetParams, codes []string) (sqlc.UpdateDatasetParams, string, string, *scoreEditor) {
-	u.Description = f.required("description", "Description")
+	// The options form of the task has no description (it is renamed in
+	// the list of datasets).
+	if f.r.FormValue("description"); f.r.Form.Has("description") {
+		u.Description = f.required("description", "Description")
+	}
 	u.Autojudge = f.check("autojudge")
 	u.TimeLimitMs = f.secondsToMs("time_limit", "Time limit")
 	u.WallTimeLimitMs = f.secondsToMs("wall_time_limit", "Wall time limit")
@@ -290,7 +205,17 @@ func (s *Server) handleDatasetUpdate(w http.ResponseWriter, r *http.Request, rc 
 		}
 	}
 	if f.err != nil {
-		p, err := s.datasetPage(r.Context(), d, u, paramsText, scoreText)
+		t, err := s.q.GetTask(r.Context(), d.TaskID)
+		if err != nil {
+			s.internalError(w, r, rc, err)
+			return
+		}
+		h, err := s.problemHead(r.Context(), t, d.ID, "config")
+		if err != nil {
+			s.internalError(w, r, rc, err)
+			return
+		}
+		p, err := s.configPage(r.Context(), h, db.TaskToUpdate(h.Task), u, paramsText, scoreText)
 		if err != nil {
 			s.internalError(w, r, rc, err)
 			return
@@ -298,7 +223,7 @@ func (s *Server) handleDatasetUpdate(w http.ResponseWriter, r *http.Request, rc 
 		if editor != nil {
 			p.Editor = editor
 		}
-		s.formError(w, r, rc, "dataset", s.datasetCrumbs(s.newPage(w, r, rc, p.Task.Name+" · "+d.Description, "tasks", p), p), f.err.Error())
+		s.renderConfig(w, r, rc, p, f.err.Error())
 		return
 	}
 	if _, err := s.q.UpdateDataset(r.Context(), u); err != nil {
@@ -307,8 +232,30 @@ func (s *Server) handleDatasetUpdate(w http.ResponseWriter, r *http.Request, rc 
 	}
 	rc.target("dataset", d.ID)
 	s.datasetChanged(r.Context(), d.TaskID, d.ID)
-	s.done(w, r, "/datasets/"+strconv.FormatInt(d.ID, 10),
+	s.done(w, r, s.datasetURL(r.Context(), d, "config")+"#options",
 		"Dataset saved. Existing submissions keep their results until you reevaluate them.")
+}
+
+// handleDatasetRename changes a dataset's description.
+func (s *Server) handleDatasetRename(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	d, ok := s.loadDataset(w, r, rc)
+	if !ok {
+		return
+	}
+	desc := strings.TrimSpace(r.FormValue("description"))
+	if desc == "" {
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "A description is required.")
+		return
+	}
+	u := db.DatasetToUpdate(d)
+	u.Description = desc
+	if _, err := s.q.UpdateDataset(r.Context(), u); err != nil {
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "Could not save: "+err.Error())
+		return
+	}
+	rc.target("dataset", d.ID)
+	rc.note("description", desc)
+	s.done(w, r, s.datasetURL(r.Context(), d, "config")+"#datasets", "Dataset renamed.")
 }
 
 func (s *Server) handleDatasetActivate(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -322,7 +269,7 @@ func (s *Server) handleDatasetActivate(w http.ResponseWriter, r *http.Request, r
 	}
 	rc.target("dataset", d.ID)
 	s.datasetChanged(r.Context(), d.TaskID, d.ID)
-	s.done(w, r, "/datasets/"+strconv.FormatInt(d.ID, 10),
+	s.done(w, r, "/tasks/"+strconv.FormatInt(d.TaskID, 10)+"#datasets",
 		"Dataset is now live: scores are recomputed and missing results are being judged.")
 }
 
@@ -392,7 +339,7 @@ func (s *Server) handleManagerUpload(w http.ResponseWriter, r *http.Request, rc 
 	}
 	rc.target("dataset", d.ID)
 	s.datasetChanged(r.Context(), d.TaskID, d.ID)
-	s.done(w, r, "/datasets/"+strconv.FormatInt(d.ID, 10)+"#managers", "Uploaded "+strings.Join(names, ", ")+".")
+	s.done(w, r, s.datasetURL(r.Context(), d, "config")+"#files", "Uploaded %s.", strings.Join(names, ", "))
 }
 
 func (s *Server) handleManagerDownload(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -426,7 +373,7 @@ func (s *Server) handleManagerDelete(w http.ResponseWriter, r *http.Request, rc 
 	}
 	rc.target("dataset", d.ID)
 	s.datasetChanged(r.Context(), d.TaskID, d.ID)
-	s.done(w, r, "/datasets/"+strconv.FormatInt(d.ID, 10)+"#managers", "Deleted "+name+".")
+	s.done(w, r, s.datasetURL(r.Context(), d, "config")+"#files", "Deleted %s.", name)
 }
 
 // ---------------------------------------------------------------- testcases
@@ -466,7 +413,7 @@ func (s *Server) handleTestcaseArchive(w http.ResponseWriter, r *http.Request, r
 			rc.target("dataset", d.ID)
 			rc.note("imported", n)
 			s.datasetChanged(r.Context(), d.TaskID, d.ID)
-			s.done(w, r, "/datasets/"+strconv.FormatInt(d.ID, 10)+"#testcases", msg)
+			s.done(w, r, s.datasetURL(r.Context(), d, "tests")+"#testcases", "%s", msg)
 			return
 		}
 	}
@@ -596,6 +543,15 @@ func (s *Server) loadTestcase(w http.ResponseWriter, r *http.Request, rc *reqCtx
 	return tc, true
 }
 
+// testcaseBack is where a change to a testcase returns: the testcase list.
+func (s *Server) testcaseBack(ctx context.Context, tc sqlc.Testcase) string {
+	d, err := s.q.GetDataset(ctx, tc.DatasetID)
+	if err != nil {
+		return "/tasks"
+	}
+	return s.datasetURL(ctx, d, "tests") + "#testcases"
+}
+
 func (s *Server) handleTestcasePublic(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	tc, ok := s.loadTestcase(w, r, rc)
 	if !ok {
@@ -610,7 +566,7 @@ func (s *Server) handleTestcasePublic(w http.ResponseWriter, r *http.Request, rc
 	if d, err := s.q.GetDataset(r.Context(), tc.DatasetID); err == nil {
 		s.datasetChanged(r.Context(), d.TaskID, d.ID)
 	}
-	s.done(w, r, "/datasets/"+strconv.FormatInt(tc.DatasetID, 10)+"#testcases", "")
+	s.done(w, r, s.testcaseBack(r.Context(), tc), "")
 }
 
 func (s *Server) handleTestcaseDelete(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -627,7 +583,7 @@ func (s *Server) handleTestcaseDelete(w http.ResponseWriter, r *http.Request, rc
 	if d, err := s.q.GetDataset(r.Context(), tc.DatasetID); err == nil {
 		s.datasetChanged(r.Context(), d.TaskID, d.ID)
 	}
-	s.done(w, r, "/datasets/"+strconv.FormatInt(tc.DatasetID, 10)+"#testcases", "Testcase "+tc.Codename+" deleted.")
+	s.done(w, r, s.testcaseBack(r.Context(), tc), "Testcase %s deleted.", tc.Codename)
 }
 
 func (s *Server) handleTestcaseDownload(w http.ResponseWriter, r *http.Request, rc *reqCtx) {

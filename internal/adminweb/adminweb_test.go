@@ -397,8 +397,11 @@ func TestTaskAndDatasetManagement(t *testing.T) {
 	code, body = b.PostMultipart(dsPath+"/testcases/archive", map[string]string{"input_template": "*.in", "output_template": "*.out", "public": "on"},
 		webtest.File{Field: "archive", Name: "tests.zip", Data: archive})
 	webtest.MustOK(t, "import archive", code, body)
-	if !strings.Contains(body, "Imported 3 testcases") || !strings.Contains(body, "Maximum score <b>100</b>") {
+	if !strings.Contains(body, "Imported 3 testcases") || !strings.Contains(body, `<a href="/testcases/`) {
 		t.Fatalf("after import:\n%s", body)
+	}
+	if _, cfg := b.Get(fmt.Sprintf("/tasks/%d", task.ID)); !strings.Contains(cfg, "Maximum score <b>100</b>") {
+		t.Fatalf("configuration after import:\n%s", cfg)
 	}
 	// Re-import without overwrite keeps the existing ones.
 	code, body = b.PostMultipart(dsPath+"/testcases/archive", map[string]string{"input_template": "*.in", "output_template": "*.out"},

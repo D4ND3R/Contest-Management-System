@@ -38,7 +38,8 @@ func TestTaskLanguages(t *testing.T) {
 		t.Fatal("the form does not show the stored languages")
 	}
 	// The tester offers the task's languages only.
-	if i := strings.Index(body, `id="tester"`); i < 0 || strings.Contains(body[i:], `<option value="c11">`) {
+	_, tests := b.Get(path + "/tests")
+	if i := strings.Index(tests, `id="runs"`); i < 0 || strings.Contains(tests[i:], `<option value="c11">`) || !strings.Contains(tests[i:], `<option value="cpp17">`) {
 		t.Fatal("tester language choices")
 	}
 	code, _ = b.Post(path, taskForm(f, url.Values{"languages": {"brainfuck"}}))

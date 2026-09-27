@@ -1,11 +1,14 @@
 # Problem packages
 
 A problem package is a zip with everything a task needs. The admin panel
-imports it (**Tasks → Import a package**), shows what it found and every
-problem per file before creating anything, runs the reference solutions and
-reports whether each gets the verdict its name announces. Any task can be
-exported back in the same format (**Export as a package** on the task or
-dataset page), so a task moves between installations unchanged.
+imports it as a new task (**Task library → Import a problem package**) or
+into an existing task (**Import a package** in its Configuration window,
+which replaces the task's options, files and testcases), shows what it
+found and every problem per file before changing anything, runs the
+reference solutions and reports whether each gets the verdict its name
+announces. Any task can be exported back in the same format (**Export as a
+package** in its Configuration window; **Download problem.yaml** for the
+options alone), so a task moves between installations unchanged.
 
 Complete examples, one per problem type, are in
 [`docs/examples/packages/`](../examples/packages/): zip one of the folders
@@ -95,6 +98,7 @@ subtasks:
     tests: 5             # or the next N testcases in name order
     threshold: 0.5       # group_threshold only
 public_tests: ["1_01"]   # regexes of testcases whose results contestants see
+short_circuit: true      # group_min/group_mul: stop a subtask at its first 0
 ```
 
 A testcase in no subtask is reported as a warning (it never counts).
@@ -133,7 +137,7 @@ The language comes from the extension: the first language of the task (or,
 without `languages`, of the configuration) that uses it. For output-only
 tasks a solution is a folder (`solutions/ac_all/output_01.txt`, …) or a zip.
 
-After importing, the solutions run through the task tester on every dataset
+After importing, the solutions run as test submissions on every dataset
 (they are never submissions) and **Validation report** shows, per solution
 and dataset, ✓ or ✗ with what happened (`ac`, `pa 30/100 wa`, `tle`, …).
 A checker, interactor or manager that does not compile appears as a system
