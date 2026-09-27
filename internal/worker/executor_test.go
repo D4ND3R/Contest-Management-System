@@ -10,6 +10,7 @@ import (
 
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
 	"github.com/D4ND3R/Contest-Management-System/internal/jobs"
+	"github.com/D4ND3R/Contest-Management-System/internal/scoring"
 )
 
 // TestPinnedToSlotCore checks that sandboxed programs run on the slot's core.
@@ -71,4 +72,21 @@ func mustCache(t *testing.T, s blob.Store, dir string) *blob.Cache {
 		t.Fatal(err)
 	}
 	return c
+}
+
+// TestSkippedTestcases (SPEC_IOI H4): a testcase the dispatcher marked as
+// skipped (short-circuit) is not run; the others are.
+func TestSkippedTestcases(t *testing.T) {
+	h := newHarness(t)
+	h.exec.Skip = func(_ context.Context, _ *jobs.Job, tc jobs.Testcase) bool { return tc.ID == 2 }
+	src := []byte("#include <stdio.h>\nint main(void){long a,b;scanf(\"%ld %ld\",&a,&b);printf(\"%ld\\n\",a+b);return 0;}")
+	tcs := []jobs.Testcase{h.testcase(1, "1 2\n", "3\n"), h.testcase(2, "5 5\n", "10\n"), h.testcase(3, "2 2\n", "4\n")}
+	_, evs, err := h.compileAndRun("Batch", batchJob{lang: "c11", files: map[string][]byte{"s.c": src}, limits: defaultLimits()}, tcs)
+	if err != nil || len(evs) != 3 {
+		t.Fatalf("%+v %v", evs, err)
+	}
+	if evs[0].Outcome != 1 || evs[2].Outcome != 1 || evs[1].ExitStatus != scoring.StatusSkipped || evs[1].Outcome != 0 ||
+		evs[1].Text != scoring.MsgSkipped || evs[1].TestcaseID != 2 || evs[1].Time != 0 {
+		t.Fatalf("evaluations %+v", evs)
+	}
 }

@@ -229,8 +229,11 @@ func TestRegistrationSettings(t *testing.T) {
 		p, _ = f.q.SetParticipationApproved(bg, sqlc.SetParticipationApprovedParams{ID: p.ID, Approved: false})
 		pending = append(pending, p)
 	}
-	if _, body := a.Get(path); !strings.Contains(body, "2 waiting for approval") {
-		t.Errorf("pending count missing on the contest page")
+	if _, body := a.Get(path); !strings.Contains(body, "2 registrations waiting for approval") {
+		t.Errorf("pending count missing on the contest dashboard")
+	}
+	if _, body := a.Get(path + "/settings"); !strings.Contains(body, "2 waiting for approval") {
+		t.Errorf("pending count missing on the contest settings")
 	}
 	if _, body := a.Get(path + "/participations"); !strings.Contains(body, "2 registrations wait") ||
 		!strings.Contains(body, fmt.Sprintf("/participations/%d/approve", pending[0].ID)) {

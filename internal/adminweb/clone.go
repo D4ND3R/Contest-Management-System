@@ -114,7 +114,7 @@ func cloneContest(ctx context.Context, tx pgx.Tx, id int64, o cloneOptions) (int
 			return 0, cloneErr(err, "task "+t.Name+o.TaskSuffix)
 		}
 		nt := ids[0]
-		for _, table := range []string{"statements", "attachments"} {
+		for _, table := range []string{"statements", "attachments", "task_examples"} {
 			if _, err := copyRows(ctx, tx, table, "task_id = $1", map[string]string{"task_id": "$2"}, t.ID, nt); err != nil {
 				return 0, err
 			}

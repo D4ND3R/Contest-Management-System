@@ -2,6 +2,7 @@ package adminweb
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"net/url"
 	"sort"
@@ -10,11 +11,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/alerts"
+	"github.com/D4ND3R/Contest-Management-System/internal/auditlog"
 	"github.com/D4ND3R/Contest-Management-System/internal/auth"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/hoststat"
 	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
+	"github.com/D4ND3R/Contest-Management-System/internal/monitor"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 )
 
@@ -53,6 +57,9 @@ type inFlightJob struct {
 // monitor requeues it after its job timeout anyway).
 const stuckAfter = 2 * time.Minute
 
+// workerForget: workers silent for longer are no longer listed.
+const workerForget = 10 * time.Minute
+
 // storageCache keeps the storage figures for a while: counting blobs and
 // sizing the database is not for every poll.
 type storageCache struct {
@@ -87,7 +94,7 @@ func (s *Server) systemStatus(r *http.Request, rc *reqCtx) *systemStatus {
 		st.QueueError = err.Error()
 		st.Queues = &queue.Stats{Waiting: map[string]int64{}, Pending: map[string]int64{}}
 	}
-	if st.Workers, err = s.queue.Workers(ctx, 10*time.Minute); err != nil && st.QueueError == "" {
+	if st.Workers, err = s.queue.Workers(ctx, workerForget); err != nil && st.QueueError == "" {
 		st.QueueError = err.Error()
 	}
 	alive := map[string]bool{}
@@ -143,55 +150,90 @@ func (s *Server) handleJobRequeue(w http.ResponseWriter, r *http.Request, rc *re
 	s.done(w, r, "/system", "Job queued again.")
 }
 
-type dashboard struct {
-	Contests []contestListItem
-	Status   *systemStatus
-	Errors   []sqlc.AdminListSystemErrorsRow
-}
-
-func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	list, err := s.q.ListContests(r.Context())
-	if err != nil {
-		s.internalError(w, r, rc, err)
-		return
-	}
-	counts, err := s.q.AdminContestCounts(r.Context())
-	if err != nil {
-		s.internalError(w, r, rc, err)
-		return
-	}
-	byID := map[int64]sqlc.AdminContestCountsRow{}
-	for _, c := range counts {
-		byID[c.ID] = c
-	}
-	d := &dashboard{Status: s.systemStatus(r, rc)}
-	now := s.now()
-	for _, c := range list {
-		// Current and upcoming contests first; old ones are on /contests.
-		if c.StopTime.Before(now.Add(-7 * 24 * time.Hour)) {
-			continue
-		}
-		it := contestListItem{Contest: c, Participations: byID[c.ID].Participations, Tasks: byID[c.ID].Tasks, Submissions: byID[c.ID].Submissions}
-		switch {
-		case now.Before(c.StartTime):
-			it.Phase = "upcoming"
-		case now.Before(c.StopTime):
-			it.Phase = "running"
-		default:
-			it.Phase = "finished"
-		}
-		d.Contests = append(d.Contests, it)
-	}
-	if d.Errors, err = s.q.AdminListSystemErrors(r.Context()); err != nil {
-		s.internalError(w, r, rc, err)
-		return
-	}
-	s.render(w, "dashboard", http.StatusOK, s.newPage(w, r, rc, "Overview", "home", d))
-}
-
 type systemPage struct {
-	Status *systemStatus
-	Errors []sqlc.AdminListSystemErrorsRow
+	// Alerts are the health rules failing now (SPEC_IOI §12).
+	Alerts       []alerts.Alert
+	Status       *systemStatus
+	Errors       []sqlc.AdminListSystemErrorsRow
+	Calibrations []calibrationView
+	// Spread is how far apart the machines are (slowest over fastest
+	// median, as "12.5"); Uneven when above the tolerance.
+	Spread string
+	Uneven bool
+	// ToolchainsDiffer lists the languages judged with different versions.
+	ToolchainsDiffer []string
+}
+
+// calibrationView is a worker's calibration as the Judges page shows it.
+type calibrationView struct {
+	queue.Calibration
+	Cores []calibrationCore
+	// Diff is this machine against the median of all machines ("+1.2");
+	// Outlier when beyond the tolerance. Tolerance is as "3".
+	Diff      string
+	Outlier   bool
+	Tolerance string
+}
+
+type calibrationCore struct {
+	CPU  int
+	Sec  float64
+	Diff string
+	Off  bool
+}
+
+// signed writes a fraction as a percentage with its sign ("+1.2").
+func signed(f float64) string {
+	v := strconv.FormatFloat(100*f, 'f', 1, 64)
+	if v[0] != '-' {
+		v = "+" + v
+	}
+	return v
+}
+
+// calibrations compares the stored worker calibrations: each core with
+// its machine and each machine with the others (SPEC_IOI §11: the same
+// program must take the same time on every core).
+func calibrations(all map[string]queue.Calibration) ([]calibrationView, string, bool) {
+	var out []calibrationView
+	var medians []float64
+	tol := 0.0
+	for _, c := range all {
+		v := calibrationView{Calibration: c, Tolerance: strconv.FormatFloat(100*c.Tolerance, 'f', -1, 64)}
+		for i, sec := range c.Slots {
+			cc := calibrationCore{CPU: i, Sec: sec}
+			if i < len(c.Cores) {
+				cc.CPU = c.Cores[i]
+			}
+			if c.Median > 0 {
+				d := (sec - c.Median) / c.Median
+				cc.Diff, cc.Off = signed(d), math.Abs(d) > c.Tolerance
+			}
+			v.Cores = append(v.Cores, cc)
+		}
+		out = append(out, v)
+		if c.Median > 0 {
+			medians = append(medians, c.Median)
+		}
+		tol = math.Max(tol, c.Tolerance)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Worker < out[j].Worker })
+	if len(medians) == 0 {
+		return out, "", false
+	}
+	sort.Float64s(medians)
+	mid := medians[len(medians)/2]
+	if len(medians)%2 == 0 {
+		mid = (medians[len(medians)/2-1] + mid) / 2
+	}
+	for i := range out {
+		if c := out[i].Calibration; c.Median > 0 {
+			d := (c.Median - mid) / mid
+			out[i].Diff, out[i].Outlier = signed(d), math.Abs(d) > c.Tolerance
+		}
+	}
+	spread := medians[len(medians)-1]/medians[0] - 1
+	return out, strconv.FormatFloat(100*spread, 'f', 1, 64), spread > tol
 }
 
 func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -200,6 +242,15 @@ func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request, rc *reqCtx
 	if d.Errors, err = s.q.AdminListSystemErrors(r.Context()); err != nil {
 		s.internalError(w, r, rc, err)
 		return
+	}
+	if a, err := alerts.Active(r.Context(), s.rdb, monitor.AlertsKey(s.queue)); err == nil {
+		d.Alerts = a
+	}
+	if all, err := s.queue.Calibrations(r.Context()); err == nil {
+		d.Calibrations, d.Spread, d.Uneven = calibrations(all)
+	}
+	if d.Status != nil {
+		d.ToolchainsDiffer = toolchainsDiffer(d.Status.Workers)
 	}
 	s.render(w, "system", http.StatusOK, s.newPage(w, r, rc, "Workers and queues", "system", d))
 }
@@ -210,10 +261,33 @@ func (s *Server) handleSystemStatus(w http.ResponseWriter, r *http.Request, rc *
 	s.renderPartial(w, "system-status", s.systemStatus(r, rc))
 }
 
+type languagesPage struct {
+	Languages []*langs.Language
+	// Toolchains are the versions the live workers report, by language.
+	Toolchains map[string][]queue.Toolchain
+}
+
 func (s *Server) handleLanguages(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	all := s.langs.All()
 	sort.Slice(all, func(i, j int) bool { return all[i].ID < all[j].ID })
-	s.render(w, "languages", http.StatusOK, s.newPage(w, r, rc, "Languages", "system", struct{ Languages []*langs.Language }{all}))
+	d := languagesPage{Languages: all}
+	if ws, err := s.queue.Workers(r.Context(), workerForget); err == nil {
+		d.Toolchains = queue.Toolchains(ws)
+	}
+	s.render(w, "languages", http.StatusOK, s.newPage(w, r, rc, "Languages", "system", d))
+}
+
+// toolchainsDiffer lists the languages the live workers judge with
+// different toolchain versions.
+func toolchainsDiffer(ws []queue.WorkerStatus) []string {
+	var out []string
+	for lang, list := range queue.Toolchains(ws) {
+		if len(list) > 1 {
+			out = append(out, lang)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ---------------------------------------------------------------- audit
@@ -227,6 +301,10 @@ type auditPage struct {
 	Action, From, To string
 	Actions          []string
 	Next             string
+	// Head is the latest entry of the hash chain; Verify the result of a
+	// full verification (/audit/verify).
+	Head   *sqlc.AuditHeadRow
+	Verify *auditlog.Report
 }
 
 func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -282,12 +360,37 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 		s.internalError(w, r, rc, err)
 		return
 	}
+	if h, err := s.q.AuditHead(r.Context()); err == nil {
+		d.Head = &h
+	}
+	if r.URL.Path == "/audit/verify" {
+		if d.Verify, err = auditlog.Verify(r.Context(), s.q); err != nil {
+			s.internalError(w, r, rc, err)
+			return
+		}
+	}
 	s.render(w, "audit", http.StatusOK, s.newPage(w, r, rc, "Audit log", "admins", d))
 }
 
 // ---------------------------------------------------------------- admins
 
-var roles = []string{"all", "messaging", "read_only"}
+var roles = []string{"all", "messaging", "task_setter", "read_only", "leader"}
+
+// adminTeam reads the team of a delegation leader (required for them,
+// ignored for other roles).
+func (s *Server) adminTeam(r *http.Request, f *form, role string) *int64 {
+	if role != "leader" {
+		return nil
+	}
+	id, err := strconv.ParseInt(r.FormValue("team_id"), 10, 64)
+	if err == nil {
+		if _, err = s.q.GetTeam(r.Context(), id); err == nil {
+			return &id
+		}
+	}
+	f.fail("a delegation leader needs a team")
+	return nil
+}
 
 func (s *Server) handleAdmins(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	list, err := s.q.ListAdmins(r.Context())
@@ -295,10 +398,16 @@ func (s *Server) handleAdmins(w http.ResponseWriter, r *http.Request, rc *reqCtx
 		s.internalError(w, r, rc, err)
 		return
 	}
+	teams, err := s.q.ListTeams(r.Context())
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
 	s.render(w, "admins", http.StatusOK, s.newPage(w, r, rc, "Administrators", "admins", struct {
 		Admins []sqlc.Admin
 		Roles  []string
-	}{list, roles}))
+		Teams  []sqlc.Team
+	}{list, roles, teams}))
 }
 
 func (s *Server) handleAdminCreate(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -306,6 +415,7 @@ func (s *Server) handleAdminCreate(w http.ResponseWriter, r *http.Request, rc *r
 	username := f.required("username", "Username")
 	name := f.str("name")
 	role := f.oneOf("role", "Role", roles...)
+	team := s.adminTeam(r, f, role)
 	password := r.FormValue("password")
 	if len(password) < 8 {
 		f.fail("the password must have at least 8 characters")
@@ -329,7 +439,7 @@ func (s *Server) handleAdminCreate(w http.ResponseWriter, r *http.Request, rc *r
 		s.internalError(w, r, rc, err)
 		return
 	}
-	a, err := s.q.CreateAdmin(r.Context(), sqlc.CreateAdminParams{Name: name, Username: username, PasswordHash: hash, Enabled: true, Role: role})
+	a, err := s.q.CreateAdmin(r.Context(), sqlc.CreateAdminParams{Name: name, Username: username, PasswordHash: hash, Enabled: true, Role: role, TeamID: team})
 	if err != nil {
 		s.internalError(w, r, rc, err)
 		return
@@ -357,10 +467,16 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 	if !ok {
 		return
 	}
+	teams, err := s.q.ListTeams(r.Context())
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
 	s.render(w, "admin", http.StatusOK, s.newPage(w, r, rc, a.Username, "admins", struct {
 		A     sqlc.Admin
 		Roles []string
-	}{a, roles}).crumb("Administrators", "/admins"))
+		Teams []sqlc.Team
+	}{a, roles, teams}).crumb("Administrators", "/admins"))
 }
 
 // otherFullAdmins counts enabled "all" administrators other than id, so
@@ -387,6 +503,7 @@ func (s *Server) handleAdminUpdate(w http.ResponseWriter, r *http.Request, rc *r
 	f := newForm(r)
 	u := sqlc.UpdateAdminParams{ID: a.ID, Name: f.str("name"), Username: f.required("username", "Username"),
 		Enabled: f.check("enabled"), Role: f.oneOf("role", "Role", roles...)}
+	u.TeamID = s.adminTeam(r, f, u.Role)
 	password := r.FormValue("password")
 	if password != "" && len(password) < 8 {
 		f.fail("the password must have at least 8 characters")

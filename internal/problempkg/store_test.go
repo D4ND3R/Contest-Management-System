@@ -46,6 +46,13 @@ func fileDigests(t *testing.T, p *Package) []string {
 	for _, a := range p.Attachments {
 		add("attachment/", a)
 	}
+	for _, e := range p.Examples {
+		add("example/in/", e.Input)
+		add("example/out/", e.Output)
+		if e.Note != nil {
+			add("example/note/", *e.Note)
+		}
+	}
 	sort.Strings(out)
 	return out
 }

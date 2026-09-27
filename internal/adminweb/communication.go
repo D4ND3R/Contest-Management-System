@@ -28,6 +28,9 @@ type questionsPage struct {
 	Query     string
 	Quick     []string
 	CanAnswer bool
+	// Mine: only the questions the viewer took; Me is the viewer.
+	Mine bool
+	Me   int64
 }
 
 func (s *Server) publish(ctx context.Context, e events.Event) {
@@ -38,7 +41,8 @@ func (s *Server) publish(ctx context.Context, e events.Event) {
 
 func (s *Server) questionsData(r *http.Request, rc *reqCtx) (*questionsPage, error) {
 	q := r.URL.Query()
-	d := &questionsPage{All: q.Get("all") != "", Quick: contest.QuickAnswers, CanAnswer: roleAllows(rc.admin.Role, permMessaging)}
+	d := &questionsPage{All: q.Get("all") != "", Quick: contest.QuickAnswers, CanAnswer: roleAllows(rc.admin.Role, permMessaging),
+		Mine: q.Get("mine") != "", Me: rc.admin.ID}
 	d.Contest, _ = strconv.ParseInt(q.Get("contest"), 10, 64)
 	d.Task, _ = strconv.ParseInt(q.Get("task"), 10, 64)
 	v := url.Values{}
@@ -53,6 +57,10 @@ func (s *Server) questionsData(r *http.Request, rc *reqCtx) (*questionsPage, err
 	}
 	if d.All {
 		v.Set("all", "1")
+	}
+	if d.Mine {
+		p.AssignedTo = &rc.admin.ID
+		v.Set("mine", "1")
 	}
 	d.Query = v.Encode()
 	var err error
@@ -121,7 +129,7 @@ func (s *Server) questionDone(w http.ResponseWriter, r *http.Request, rc *reqCtx
 		return
 	}
 	p := s.newPage(w, r, rc, "", "", nil)
-	s.renderPartial(w, "question", wrap{P: p, V: questionCard{Q: rows[0], Quick: contest.QuickAnswers, CanAnswer: true}})
+	s.renderPartial(w, "question", wrap{P: p, V: questionCard{Q: rows[0], Quick: contest.QuickAnswers, CanAnswer: true, Me: rc.admin.ID}})
 }
 
 // questionCard is one question of the inbox.
@@ -130,6 +138,35 @@ type questionCard struct {
 	Quick     []string
 	CanAnswer bool
 	Back      string
+	// Me is the viewer (who may take or give back the question).
+	Me int64
+}
+
+// Taken reports whether the viewer took the question.
+func (c questionCard) Taken() bool { return c.Q.AssignedAdminID != nil && *c.Q.AssignedAdminID == c.Me }
+
+// handleQuestionAssign takes a question for the viewer (take=1) or gives
+// it back (SPEC_IOI §9.3: several staff members share the desk).
+func (s *Server) handleQuestionAssign(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	q, ok := s.loadQuestion(w, r, rc)
+	if !ok {
+		return
+	}
+	var who *int64
+	if r.FormValue("take") == "1" {
+		who = &rc.admin.ID
+	}
+	if err := s.q.AssignQuestion(r.Context(), sqlc.AssignQuestionParams{ID: q.ID, AdminID: who}); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	rc.target("question", q.ID)
+	rc.note("taken", who != nil)
+	if who != nil {
+		s.questionDone(w, r, rc, q.ID, "You took the question.")
+		return
+	}
+	s.questionDone(w, r, rc, q.ID, "Question given back.")
 }
 
 func (s *Server) handleQuestionReply(w http.ResponseWriter, r *http.Request, rc *reqCtx) {

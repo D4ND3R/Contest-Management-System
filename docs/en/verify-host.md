@@ -26,6 +26,7 @@ they must not belong to a running worker).
 | isolate | missing, not setuid root, no configuration, unsafe `box_root` | `scripts/install-isolate.sh`, `chown`/`chmod` |
 | control groups | cgroup v1 with isolate 2, missing controllers (cpuset, memory, pids), `isolate.service` stopped | kernel parameter, `systemctl enable --now isolate.service` |
 | sandbox | `isolate --cg --init` / `--run` fails | the isolate error |
+| seccomp | never (warning without kernel support or a C compiler) | `apt-get install gcc libc6-dev` |
 | CPUs, SMT, turbo, governor, swap, NTP, ASLR, huge pages | never (warnings) | how to make times stable |
 | judge self-test | any verdict unexpected, any host check failing, any verdict different between runs | see below |
 
@@ -33,6 +34,23 @@ Warnings do not block the contest but make running times less stable
 (hyperthreading, turbo boost, frequency scaling, swap, address space
 randomisation, transparent huge pages); on a dedicated judging machine fix
 them all. On a VPS most of them are not visible from inside the VM.
+
+`sudo cms-host-tuning enable` (or the installer's `--tune-host`) sets the
+performance governor, turns turbo boost and transparent huge pages off, now
+and at every boot; `sudo cms-host-tuning status` shows the state. Address
+space randomisation and SMT are changed only when set to `off` in
+`/etc/cms/host-tuning.conf`: turning ASLR off weakens every program on the
+machine, so do it only on a dedicated judging machine. These settings also
+affect any other service on the machine.
+
+**Hyperthreading.** Two hyperthreads of one physical core share its
+execution units: a program on one slows down whatever runs on the other.
+Since 0.3 the installer judges on one CPU per physical core and leaves the
+siblings idle (it prints them: "idle hyperthreads: 5 6 7"), and an existing
+`cms.yaml` still on the old layout is moved to it. The self-test prints a
+`WARNING` when two configured judging CPUs are siblings.
+`--judge-all-threads` judges on every hyperthread (more throughput, less
+stable times).
 
 ## The judge self-test
 
@@ -43,7 +61,10 @@ as the workers and on the configured judging cores:
   host files, network access, writing outside the box, sleeping forever,
   memory and output hogs, huge stderr, `#include </dev/random>` and
   `</dev/zero>` at compile time, threads with and without allowance,
-  `kill(-1)`, stack overflow, privilege escalation. Besides the verdict it
+  `kill(-1)`, stack overflow, privilege escalation, and the calls the
+  [seccomp filter](security.md) forbids (user namespaces, `clone` into a new
+  network, `bpf`, `io_uring`, `ptrace`, `keyctl`, `perf_event_open`), which
+  must end in a security violation. Besides the verdict it
   checks the host: no process of the sandbox users survives, no file
   appears outside the box, a listener on the host receives no connection;
 - the **sample solutions** (AC, WA, TLE, MLE, RE, CE) in every language
@@ -53,3 +74,20 @@ Everything is judged `--runs` times (2 by default) and every verdict must
 be the same in every run (both time limits count as TLE). A security case
 failing means the sandbox is not safe; a verdict changing between runs
 means the timings are not stable enough to judge fairly.
+
+A security case passes on any outcome that shows the sandbox held, and
+runs are compared on that. The fork bombs, for example, may be stopped by
+the time limit or by the memory limit: every fork the process limit refuses
+still allocates the child's kernel structures, charged to the box and freed
+only after an RCU grace period, so with 64 processes forking in a loop they
+can reach the memory limit first. Either way the whole box is killed and no
+process survives, which is checked.
+
+The installer pauses `cms-worker` while it runs the verification, so that
+queued jobs do not disturb the timings.
+
+## Calibration
+
+The self-test checks verdicts; `cms ctl calibrate` checks that every
+judging core, and every worker machine, runs the same program in the same
+time. See [calibrating the judging machines](evaluation.md#calibrating-the-judging-machines).

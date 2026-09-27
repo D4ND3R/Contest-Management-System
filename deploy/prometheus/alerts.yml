@@ -1,0 +1,40 @@
+# Prometheus alerting rules for CMS (SPEC_IOI §12). The monitor service
+# evaluates the same checks itself (admin notifications and an optional
+# webhook, see docs/en/operations.md); these rules are for installations
+# that already run Prometheus and Alertmanager.
+groups:
+  - name: cms
+    rules:
+      - alert: CMSQueueBacklog
+        expr: sum(cms_queue_jobs{state="waiting", queue=~"evaluate|compile|deferred"}) > 500
+        for: 2m
+        annotations:
+          summary: "{{ $value }} jobs waiting to be judged"
+      - alert: CMSNoWorkers
+        expr: cms_workers{state="alive"} == 0
+        for: 1m
+        annotations:
+          summary: "no worker is alive"
+      - alert: CMSJobsRequeued
+        expr: increase(cms_monitor_requeued_jobs_total[10m]) > 5
+        annotations:
+          summary: "jobs keep being taken back from workers (dead or stuck workers)"
+      - alert: CMSHTTPErrors
+        expr: sum by (service) (rate(cms_http_request_duration_seconds_count{code="5xx"}[5m])) > 0.1
+        for: 5m
+        annotations:
+          summary: "{{ $labels.service }} answers with server errors"
+      - alert: CMSSlowPages
+        expr: histogram_quantile(0.95, sum by (le, service) (rate(cms_http_request_duration_seconds_bucket[5m]))) > 0.2
+        for: 5m
+        annotations:
+          summary: "{{ $labels.service }}: p95 page time above 200 ms"
+      - alert: CMSBackupStale
+        expr: time() - cms_backup_last_success_timestamp_seconds > 2 * 86400
+        annotations:
+          summary: "no successful backup for two days"
+      - alert: CMSServiceDown
+        expr: up{job=~"cms.*"} == 0
+        for: 1m
+        annotations:
+          summary: "{{ $labels.instance }} does not answer"

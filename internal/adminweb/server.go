@@ -39,10 +39,12 @@ import (
 
 // Server is the admin web server.
 type Server struct {
-	cfg      config.AdminWeb
-	log      *slog.Logger
-	pool     *pgxpool.Pool
-	q        *sqlc.Queries
+	cfg  config.AdminWeb
+	log  *slog.Logger
+	pool *pgxpool.Pool
+	q    *sqlc.Queries
+	// rq reads from the replica, when there is one (reports only).
+	rq       *sqlc.Queries
 	rdb      *redis.Client
 	queue    *queue.Queue
 	ns       string
@@ -77,13 +79,16 @@ type Server struct {
 
 // Deps are the dependencies of the server.
 type Deps struct {
-	Pool   *pgxpool.Pool
-	Redis  *redis.Client
-	Blobs  blob.Store
-	Langs  *langs.Registry
-	Secret []byte
-	NS     string
-	Checks []httpx.Check
+	Pool *pgxpool.Pool
+	// ReadPool, when set, is a read replica for the heavy reports
+	// (statistics, exports, plagiarism).
+	ReadPool *pgxpool.Pool
+	Redis    *redis.Client
+	Blobs    blob.Store
+	Langs    *langs.Registry
+	Secret   []byte
+	NS       string
+	Checks   []httpx.Check
 	// ContestListen is the contest web server's listen address, used to
 	// build links when admin_web.contest_url is not set.
 	ContestListen string
@@ -107,8 +112,12 @@ func New(cfg config.AdminWeb, d Deps, log *slog.Logger) (*Server, error) {
 		return nil, err
 	}
 	q := sqlc.New(d.Pool)
+	rq := q
+	if d.ReadPool != nil {
+		rq = sqlc.New(d.ReadPool)
+	}
 	s := &Server{
-		cfg: cfg, log: log, pool: d.Pool, q: q, rdb: d.Redis, queue: queue.New(d.Redis, d.NS), ns: d.NS,
+		cfg: cfg, log: log, pool: d.Pool, q: q, rq: rq, rdb: d.Redis, queue: queue.New(d.Redis, d.NS), ns: d.NS,
 		blobs: d.Blobs, langs: d.Langs, static: static, csrf: webkit.NewCSRF(d.Secret),
 		signer: webkit.NewSigner(d.Secret, "aws-session"), flash: webkit.NewSigner(d.Secret, "aws-flash"),
 		ips: ips, limiter: webkit.NewLimiter(d.Redis, d.NS), admins: &adminCache{q: q, m: map[int64]adminEntry{}},
@@ -123,7 +132,13 @@ func New(cfg config.AdminWeb, d Deps, log *slog.Logger) (*Server, error) {
 }
 
 func (s *Server) loadTemplates() error {
-	base, err := template.New("").Funcs(s.funcs()).ParseFS(web.Templates, "aws/layout.html", "aws/partials.html")
+	funcs := s.funcs()
+	for k, v := range webkit.UIFuncs() {
+		if _, ok := funcs[k]; !ok {
+			funcs[k] = v
+		}
+	}
+	base, err := template.New("").Funcs(funcs).ParseFS(web.Templates, "aws/layout.html", "aws/partials.html")
 	if err != nil {
 		return err
 	}
@@ -151,19 +166,31 @@ func (s *Server) loadTemplates() error {
 type perm int
 
 const (
-	permRead      perm = iota // every enabled administrator
+	permRead      perm = iota // every administrator but delegation leaders
 	permMessaging             // "messaging" and "all"
 	permAll                   // "all" only
+	permTasks                 // "task_setter" and "all": tasks, datasets, statements
+	permSelf                  // everybody, leaders included: their own account
+	permLeader                // a delegation's contestants (leaders, and whoever reads everything)
 )
 
+// roleAllows is the permission matrix (SPEC_IOI §9.4). Delegation leaders
+// reach only their own account and their delegation's pages.
 func roleAllows(role string, p perm) bool {
+	if p == permSelf {
+		return true
+	}
 	switch role {
 	case "all":
 		return true
 	case "messaging":
-		return p <= permMessaging
+		return p == permRead || p == permMessaging || p == permLeader
+	case "task_setter":
+		return p == permRead || p == permTasks || p == permLeader
 	case "read_only":
-		return p == permRead
+		return p == permRead || p == permLeader
+	case "leader":
+		return p == permLeader
 	}
 	return false
 }
@@ -193,24 +220,33 @@ func (s *Server) Handler() http.Handler {
 	get := func(pattern string, h handler) { route("GET "+pattern, permRead, "", h) }
 	post := func(pattern string, p perm, action string, h handler) { route("POST "+pattern, p, action, h) }
 
-	post("/logout", permRead, "", s.handleLogout)
-	get("/account", s.handleAccount)
-	post("/account/2fa/start", permRead, "", s.handle2FAStart)
-	post("/account/2fa/enable", permRead, "account.2fa_enable", s.handle2FAEnable)
-	post("/account/2fa/disable", permRead, "account.2fa_disable", s.handle2FADisable)
-	post("/account/password", permRead, "account.password", s.handleAccountPassword)
-	get("/{$}", s.handleDashboard)
+	post("/logout", permSelf, "", s.handleLogout)
+	route("GET /account", permSelf, "", s.handleAccount)
+	post("/account/2fa/start", permSelf, "", s.handle2FAStart)
+	post("/account/2fa/enable", permSelf, "account.2fa_enable", s.handle2FAEnable)
+	post("/account/2fa/disable", permSelf, "account.2fa_disable", s.handle2FADisable)
+	post("/account/password", permSelf, "account.password", s.handleAccountPassword)
+	route("GET /{$}", permSelf, "", s.handleDashboard)
+	route("GET /delegation", permLeader, "", s.handleDelegation)
+	route("GET /delegation/submissions/{id}", permLeader, "", s.handleDelegationSubmission)
 	get("/events", s.handleEvents)
 
 	get("/contests", s.handleContests)
 	get("/contests/new", s.handleContestNew)
 	post("/contests", permAll, "contest.create", s.handleContestCreate)
 	post("/contests/import", permAll, "contest.import", s.handleContestImport)
-	get("/contests/{id}", s.handleContest)
+	get("/contests/{id}", s.handleContestDashboard)
+	get("/contests/{id}/live", s.handleContestLive)
+	get("/contests/{id}/settings", s.handleContestSettings)
+	get("/contests/{id}/tasks", s.handleContestTasks)
+	get("/contests/{id}/banner", s.handleContestBanner)
+	post("/contests/{id}/banner", permAll, "contest.banner", s.handleContestBannerUpload)
 	post("/contests/{id}", permAll, "contest.update", s.handleContestUpdate)
 	post("/contests/{id}/delete", permAll, "contest.delete", s.handleContestDelete)
 	post("/contests/{id}/clone", permAll, "contest.clone", s.handleContestClone)
 	get("/contests/{id}/balloons", s.handleBalloons)
+	get("/contests/{id}/appeals", s.handleAppealsList)
+	post("/appeals/{id}", permMessaging, "appeal.answer", s.handleAppealAnswer)
 	post("/contests/{id}/balloons/deliver", permMessaging, "balloon.deliver", s.handleBalloonDeliver)
 	get("/contests/{id}/printing", s.handlePrintQueue)
 	// Bulk downloads are audited.
@@ -219,6 +255,7 @@ func (s *Server) Handler() http.Handler {
 	get("/print-jobs/{id}/pdf", s.handlePrintJobPDF)
 	post("/print-jobs/{id}/{action}", permMessaging, "print_job.action", s.handlePrintJobAction)
 	post("/contests/{id}/extend", permAll, "contest.extend", s.handleContestExtend)
+	post("/contests/{id}/pause", permAll, "contest.pause", s.handleContestPause)
 	post("/contests/{id}/tasks", permAll, "contest.add_task", s.handleContestAddTask)
 	post("/contests/{id}/tasks/{task}/move", permAll, "contest.move_task", s.handleContestMoveTask)
 	post("/contests/{id}/tasks/{task}/remove", permAll, "contest.remove_task", s.handleContestRemoveTask)
@@ -247,6 +284,7 @@ func (s *Server) Handler() http.Handler {
 	get("/questions/count", s.handleQuestionCount)
 	post("/questions/{id}/reply", permMessaging, "question.reply", s.handleQuestionReply)
 	post("/questions/{id}/ignore", permMessaging, "question.ignore", s.handleQuestionIgnore)
+	post("/questions/{id}/assign", permMessaging, "question.assign", s.handleQuestionAssign)
 	get("/contests/{id}/communication", s.handleContestCommunication)
 	post("/contests/{id}/announcements", permMessaging, "announcement.create", s.handleAnnouncementCreate)
 	post("/announcements/{id}/delete", permMessaging, "announcement.delete", s.handleAnnouncementDelete)
@@ -263,36 +301,47 @@ func (s *Server) Handler() http.Handler {
 	post("/participations/{id}/view-as", permRead, "participation.view_as", s.handleViewAs)
 
 	get("/tasks", s.handleTasks)
-	post("/tasks", permAll, "task.create", s.handleTaskCreate)
+	post("/tasks", permTasks, "task.create", s.handleTaskCreate)
 	get("/tasks/import", s.handlePackageForm)
-	post("/tasks/import", permAll, "task.import", s.handlePackageImport)
+	post("/tasks/import", permTasks, "task.import", s.handlePackageImport)
 	get("/tasks/{id}/export.zip", s.handlePackageExport)
 	get("/tasks/{id}/validation", s.handleValidation)
-	post("/tasks/{id}/validation/rerun", permAll, "task.validation_rerun", s.handleValidationRerun)
+	get("/tasks/{id}/compare", s.handleDatasetCompare)
+	post("/tasks/{id}/validation/rerun", permTasks, "task.validation_rerun", s.handleValidationRerun)
 	get("/tasks/{id}", s.handleTask)
-	post("/tasks/{id}", permAll, "task.update", s.handleTaskUpdate)
+	post("/tasks/{id}", permTasks, "task.update", s.handleTaskUpdate)
 	post("/tasks/{id}/delete", permAll, "task.delete", s.handleTaskDelete)
-	post("/tasks/{id}/statements", permAll, "statement.upload", s.handleStatementUpload)
+	post("/tasks/{id}/close", permAll, "task.close", s.handleTaskClose)
+	post("/tasks/{id}/statements", permTasks, "statement.upload", s.handleStatementUpload)
 	get("/tasks/{id}/statements/{lang}", s.handleStatementDownload)
-	post("/tasks/{id}/statements/{lang}/delete", permAll, "statement.delete", s.handleStatementDelete)
-	post("/tasks/{id}/attachments", permAll, "attachment.upload", s.handleAttachmentUpload)
+	get("/tasks/{id}/statements/{lang}/edit", s.handleStatementEdit)
+	get("/tasks/{id}/statements/{lang}/pdf", s.handleStatementPDF)
+	post("/tasks/{id}/statements/{lang}/source", permTasks, "statement.edit", s.handleStatementSave)
+	// Previews change nothing: any administrator may render them.
+	post("/tasks/{id}/statement-preview", permRead, "", s.handleStatementPreview)
+	post("/tasks/{id}/statement-preview.pdf", permRead, "", s.handleStatementPreviewPDF)
+	post("/tasks/{id}/examples", permTasks, "example.add", s.handleExampleAdd)
+	post("/tasks/{id}/examples/{eid}/{action}", permTasks, "example.update", s.handleExampleUpdate)
+	post("/testcases/{id}/example", permTasks, "example.from_testcase", s.handleExampleFromTestcase)
+	post("/tasks/{id}/statements/{lang}/delete", permTasks, "statement.delete", s.handleStatementDelete)
+	post("/tasks/{id}/attachments", permTasks, "attachment.upload", s.handleAttachmentUpload)
 	get("/tasks/{id}/attachments/{file}", s.handleAttachmentDownload)
-	post("/tasks/{id}/attachments/{file}/delete", permAll, "attachment.delete", s.handleAttachmentDelete)
-	post("/tasks/{id}/datasets", permAll, "dataset.create", s.handleDatasetCreate)
-	post("/tasks/{id}/tester", permAll, "task.test", s.handleTesterSubmit)
+	post("/tasks/{id}/attachments/{file}/delete", permTasks, "attachment.delete", s.handleAttachmentDelete)
+	post("/tasks/{id}/datasets", permTasks, "dataset.create", s.handleDatasetCreate)
+	post("/tasks/{id}/tester", permTasks, "task.test", s.handleTesterSubmit)
 
 	get("/datasets/{id}", s.handleDataset)
-	post("/datasets/{id}", permAll, "dataset.update", s.handleDatasetUpdate)
-	post("/datasets/{id}/score-editor", permAll, "", s.handleScoreEditor)
+	post("/datasets/{id}", permTasks, "dataset.update", s.handleDatasetUpdate)
+	post("/datasets/{id}/score-editor", permTasks, "", s.handleScoreEditor)
 	post("/datasets/{id}/activate", permAll, "dataset.activate", s.handleDatasetActivate)
-	post("/datasets/{id}/delete", permAll, "dataset.delete", s.handleDatasetDelete)
-	post("/datasets/{id}/managers", permAll, "manager.upload", s.handleManagerUpload)
+	post("/datasets/{id}/delete", permTasks, "dataset.delete", s.handleDatasetDelete)
+	post("/datasets/{id}/managers", permTasks, "manager.upload", s.handleManagerUpload)
 	get("/datasets/{id}/managers/{file}", s.handleManagerDownload)
-	post("/datasets/{id}/managers/{file}/delete", permAll, "manager.delete", s.handleManagerDelete)
-	post("/datasets/{id}/testcases", permAll, "testcase.upload", s.handleTestcaseUpload)
-	post("/datasets/{id}/testcases/archive", permAll, "testcase.upload_archive", s.handleTestcaseArchive)
-	post("/testcases/{id}/public", permAll, "testcase.set_public", s.handleTestcasePublic)
-	post("/testcases/{id}/delete", permAll, "testcase.delete", s.handleTestcaseDelete)
+	post("/datasets/{id}/managers/{file}/delete", permTasks, "manager.delete", s.handleManagerDelete)
+	post("/datasets/{id}/testcases", permTasks, "testcase.upload", s.handleTestcaseUpload)
+	post("/datasets/{id}/testcases/archive", permTasks, "testcase.upload_archive", s.handleTestcaseArchive)
+	post("/testcases/{id}/public", permTasks, "testcase.set_public", s.handleTestcasePublic)
+	post("/testcases/{id}/delete", permTasks, "testcase.delete", s.handleTestcaseDelete)
 	get("/testcases/{id}/{which}", s.handleTestcaseDownload)
 
 	get("/backups", s.handleBackups)
@@ -338,6 +387,7 @@ func (s *Server) Handler() http.Handler {
 	post("/system/jobs/requeue", permAll, "job.requeue", s.handleJobRequeue)
 	get("/languages", s.handleLanguages)
 	get("/audit", s.handleAudit)
+	get("/audit/verify", s.handleAudit)
 	s.registerExtra(route)
 
 	var h http.Handler = mux
@@ -370,6 +420,10 @@ type reqCtx struct {
 	admin sqlc.Admin
 	sess  *webkit.Session
 	audit *auditEntry
+	// contest is the contest the page is about (the sidebar and the top
+	// bar follow it); contestID names it when the handler did not load it.
+	contest   *sqlc.Contest
+	contestID *int64
 }
 
 func (s *Server) cookie() *webkit.CookieCodec {

@@ -9,10 +9,17 @@
 - [Contest settings: status, practice, access, registration, feedback, certificates](contest-settings.md)
 - [Task types and checkers](task-types.md)
 - [Problem packages: format, import (also italy_yaml and Polygon), validation and export](problem-package.md)
+- [Statements: Markdown and LaTeX with formulas, the PDF, examples](statements.md)
 - [Rankings: settings, freeze and the ranking web server](ranking.md)
 - [Backups, restore and contest archives](backups.md)
+- [Operations: alerts, point-in-time recovery, read replica, failover, rehearsals](operations.md)
+- [Contest configuration in Git](contest-config.md)
+- [Provisioning with Ansible](ansible.md)
 - [Verifying a judging host](verify-host.md)
+- [Judging quickly and fairly: queues, short-circuit, compilation cache, pre-warming, time multipliers, calibration](evaluation.md)
+- [How the judge defends itself: sandbox, seccomp filter, suspicious submissions](security.md)
 - [Programming languages](languages.md)
+- [Interface languages and accessibility: 18 languages, right to left, themes, text size, keyboard, the code editor](interface.md)
 - [Example problem packages](../examples/packages/README.md)
 
 Documentación en español: [docs/es](../es/README.md).

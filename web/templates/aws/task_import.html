@@ -40,9 +40,10 @@
   <dt>{{$.T "Score type"}}</dt><dd>{{$c.ScoreType}} · {{$.T "maximum score %s" (num $p.MaxScore)}}</dd>
   {{if $c.Subtasks}}<dt>{{$.T "Subtasks"}}</dt><dd><ol>{{range $i, $st := $c.Subtasks}}<li>{{num $st.Points}} {{$.T "points"}}{{if lt $i (len $p.Coverage.Subtasks)}}{{with index $p.Coverage.Subtasks $i}} · {{if .Error}}<span class="bad">{{.Error}}</span>{{else}}{{joinHead .Testcases 12}}{{end}}{{end}}{{end}}</li>{{end}}</ol></dd>{{end}}
   <dt>{{$.T "Testcases"}}</dt><dd>{{len $p.Tests}} ({{$.T "%d public" $d.Public}})</dd>
-  <dt>{{$.T "Statements"}}</dt><dd>{{range $p.Statements}}<span class="tag">{{.Language}}</span> {{end}}</dd>
+  <dt>{{$.T "Statements"}}</dt><dd>{{range $p.Statements}}<span class="tag">{{.Language}} · {{stformat .ContentType}}</span> {{end}}</dd>
   <dt>{{$.T "Managers"}}</dt><dd>{{range $p.Managers}}<code>{{.Name}}</code> {{else}}—{{end}}</dd>
   <dt>{{$.T "Attachments"}}</dt><dd>{{range $p.Attachments}}<code>{{.Name}}</code> {{else}}—{{end}}</dd>
+  <dt>{{$.T "Examples"}}</dt><dd>{{with $p.Examples}}{{len .}}{{else}}—{{end}}</dd>
   <dt>{{$.T "Languages"}}</dt><dd>{{if $c.Languages}}{{join $c.Languages " "}}{{else}}{{$.T "those of the contest"}}{{end}}</dd>
 </dl>
 {{with $p.Solutions}}

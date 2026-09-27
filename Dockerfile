@@ -41,7 +41,7 @@ RUN git clone --depth 1 --branch ${ISOLATE_VERSION} https://github.com/ioi/isola
 FROM debian:trixie-slim AS cms
 LABEL org.opencontainers.image.title="cms" \
       org.opencontainers.image.description="Contest Management System: web servers, dispatcher, monitor, printing, cmsctl" \
-      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.licenses="LicenseRef-All-Rights-Reserved" \
       org.opencontainers.image.source="https://github.com/D4ND3R/Contest-Management-System"
 # The same cms user (uid/gid 2000) in both images: they share the blobs
 # volume. Named volumes start with the ownership of these directories.
@@ -60,7 +60,7 @@ ENTRYPOINT ["/usr/local/bin/cms"]
 FROM debian:trixie-slim AS worker
 LABEL org.opencontainers.image.title="cms-worker" \
       org.opencontainers.image.description="Contest Management System: sandboxed judge (isolate 2, cgroup v2) with compilers" \
-      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.licenses="LicenseRef-All-Rights-Reserved" \
       org.opencontainers.image.source="https://github.com/D4ND3R/Contest-Management-System"
 # LANGS=minimal installs C, C++, Python 3 and Java; LANGS=full installs all
 # twelve supported toolchains (several GB).

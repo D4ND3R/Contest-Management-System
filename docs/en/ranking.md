@@ -9,7 +9,7 @@ Three places show a ranking:
 - **Ranking web server** (`cms ranking-web`, RWS): the public live
   scoreboard, with per-participant score history, flags and live updates.
 
-## Settings (contest page → Ranking)
+## Settings (contest Settings → Ranking)
 
 | setting | values |
 |---------|--------|
@@ -17,7 +17,26 @@ Three places show a ranking:
 | What contestants see | the whole ranking · only their position · nothing |
 | When | during and after the contest · only after the end |
 | Freeze | the last N minutes (or at a given time); later submissions show as `?` |
-| Show | subtask scores · flags · institutions · hidden users · anonymous (no names) |
+| Show | subtask scores · flags · photos · institutions · hidden users · anonymous (no names) |
+| Ties | share the place (the IOI rule, default) · broken by time |
+
+**Photos** are the participants' photos (user page → Photo), off by
+default: contestants are often minors, so turn them on only with consent.
+The scoreboard shows a small square thumbnail next to each name and a
+larger one on the participant's page, never the original file; team rows
+show the team's flag, and anonymous boards show no photos. Thumbnails are
+made in the background by the ranking pusher (JPEG, PNG or GIF photos), so
+they appear a few seconds after the contest is published.
+
+**Ties.** By default equal totals share a place (in ICPC mode, equal
+problems and penalty). *Broken by time* ranks first whoever got there
+first: in IOI mode, the moment the participant's total was reached (the
+submission that last changed each task's score to its current value, the
+latest among the tasks); in ICPC mode, the last problem solved. Times count
+from each participant's own start, so a delayed start is no disadvantage;
+manual score adjustments do not change them. The JSON export shows the time
+as `reached_s` (seconds from the start). With time tie-breaks, medals and
+certificate awards follow the resulting places.
 
 Team contests are ranked by team: per task the best member score (with
 "best per subtask" scoring, the best member score of every subtask); in
@@ -28,6 +47,20 @@ ranking page (**Freeze again** undoes it). The admin ranking is never
 frozen. Open public scoreboards do not reload when unfreezing: the rows
 that changed are revealed one by one from the bottom up (half a minute at
 most), each highlighted as it moves.
+
+## Unofficial participants and medals
+
+- **Unofficial** (participant page): a guest or an extra contestant is
+  judged and shown like everybody else, marked *unofficial* (a * on the
+  public scoreboard), but takes no place and no medal: the official
+  places skip them. Hidden participants take no place either.
+- **Medals** (Settings → Ranking): *none*, *cutoffs for the
+  administrators* or *also on the public scoreboards*. The IOI rule: at most
+  a twelfth of the official participants get gold, a quarter gold or
+  silver, half a medal; a tie is never split (a tie group that does not
+  fit gets the next medal) and a zero score wins nothing. The ranking shows
+  the cutoffs (lowest total and number for each medal) and every
+  medallist; the CSV export has `official` and `medal` columns.
 
 ## Ranking web server
 

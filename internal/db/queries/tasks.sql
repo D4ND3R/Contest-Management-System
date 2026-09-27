@@ -3,9 +3,10 @@ INSERT INTO tasks (
     contest_id, num, name, title, primary_statements, submission_format,
     token_mode, token_max_number, token_min_interval_s, token_gen_initial, token_gen_number,
     token_gen_interval_s, token_gen_max, max_submission_number, max_user_test_number,
-    min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, languages
+    min_submission_interval_s, min_user_test_interval_s, feedback_level, score_precision, score_mode, languages,
+    hide_checker_messages
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
 ) RETURNING *;
 
 -- name: GetTask :one
@@ -27,7 +28,7 @@ UPDATE tasks SET
     token_gen_initial = $11, token_gen_number = $12, token_gen_interval_s = $13,
     token_gen_max = $14, max_submission_number = $15, max_user_test_number = $16,
     min_submission_interval_s = $17, min_user_test_interval_s = $18, feedback_level = $19,
-    score_precision = $20, score_mode = $21, languages = $22, updated_at = now()
+    score_precision = $20, score_mode = $21, languages = $22, hide_checker_messages = $23, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
@@ -67,3 +68,31 @@ SELECT a.* FROM attachments a JOIN tasks t ON t.id = a.task_id WHERE t.contest_i
 
 -- name: DeleteAttachment :exec
 DELETE FROM attachments WHERE task_id = $1 AND filename = $2;
+
+-- name: ListTaskExamples :many
+SELECT * FROM task_examples WHERE task_id = $1 ORDER BY position, id;
+
+-- name: ListTaskExamplesByContest :many
+SELECT e.* FROM task_examples e JOIN tasks t ON t.id = e.task_id WHERE t.contest_id = $1 ORDER BY e.task_id, e.position, e.id;
+
+-- name: InsertTaskExample :one
+INSERT INTO task_examples (task_id, position, input_digest, output_digest, note)
+VALUES (@task_id, COALESCE((SELECT max(position) + 1 FROM task_examples WHERE task_id = @task_id), 1), @input_digest, @output_digest, @note)
+RETURNING *;
+
+-- name: UpdateTaskExample :exec
+UPDATE task_examples SET input_digest = $3, output_digest = $4, note = $5 WHERE id = $1 AND task_id = $2;
+
+-- name: SetTaskExamplePosition :exec
+UPDATE task_examples SET position = $3 WHERE id = $1 AND task_id = $2;
+
+-- name: DeleteTaskExample :exec
+DELETE FROM task_examples WHERE id = $1 AND task_id = $2;
+
+-- name: DeleteTaskExamples :exec
+DELETE FROM task_examples WHERE task_id = $1;
+
+
+-- name: SetTaskSubmissionsClosed :exec
+-- Emergency control: one task stops accepting submissions (or reopens).
+UPDATE tasks SET submissions_closed = @closed::boolean WHERE id = @id::bigint;

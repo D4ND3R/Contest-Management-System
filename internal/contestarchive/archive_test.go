@@ -72,6 +72,8 @@ func seed(t *testing.T, pool *pgxpool.Pool, store blob.Store) int64 {
 		task := must[sqlc.Task](t)(q.CreateTask(ctx, tp))
 		must[sqlc.Statement](t)(q.UpsertStatement(ctx, sqlc.UpsertStatementParams{TaskID: task.ID, Language: "es", Digest: put("statement " + name), ContentType: "application/pdf"}))
 		must[sqlc.Attachment](t)(q.UpsertAttachment(ctx, sqlc.UpsertAttachmentParams{TaskID: task.ID, Filename: "sample.txt", Digest: put("sample " + name)}))
+		must[sqlc.TaskExample](t)(q.InsertTaskExample(ctx, sqlc.InsertTaskExampleParams{TaskID: task.ID, InputDigest: put("example in " + name),
+			OutputDigest: put("example out " + name), Note: "why"}))
 		var ds sqlc.Dataset
 		for _, desc := range []string{"v1", "v2"} {
 			ds = must[sqlc.Dataset](t)(q.CreateDataset(ctx, db.NewDatasetParams(task.ID, desc)))
@@ -114,6 +116,9 @@ func seed(t *testing.T, pool *pgxpool.Pool, store blob.Store) int64 {
 		s := must[sqlc.Submission](t)(q.CreateSubmission(ctx, sqlc.CreateSubmissionParams{ParticipationID: &p.ID, TaskID: tasks[ti].ID,
 			SubmittedAt: now.Add(-2 * time.Hour), Language: ptr("cpp17"), Official: true}))
 		must[int64](t)(q.CreateSubmissionFiles(ctx, []sqlc.CreateSubmissionFilesParams{{SubmissionID: s.ID, Filename: tasks[ti].Name + ".%l", Digest: put(src)}}))
+		if strings.Contains(src, "system(") {
+			check(t, q.InsertSubmissionFlag(ctx, sqlc.InsertSubmissionFlagParams{SubmissionID: s.ID, Kind: "source", Reason: "starts other programs"}))
+		}
 		key := sqlc.EnsureSubmissionResultParams{SubmissionID: s.ID, DatasetID: active[ti].ID}
 		check(t, q.EnsureSubmissionResult(ctx, key))
 		must[int64](t)(q.SetCompilationResult(ctx, sqlc.SetCompilationResultParams{SubmissionID: s.ID, DatasetID: active[ti].ID,
@@ -133,13 +138,18 @@ func seed(t *testing.T, pool *pgxpool.Pool, store blob.Store) int64 {
 	}
 	s1 := submit(pa, 0, "int main(){}", 100)
 	submit(pa, 1, "int main(){return 0;}", 50)
-	submit(pb, 0, "wrong", 0)
+	submit(pb, 0, "wrong system(1)", 0)
 	must[sqlc.Token](t)(q.CreateToken(ctx, sqlc.CreateTokenParams{SubmissionID: s1.ID, PlayedAt: now.Add(-90 * time.Minute)}))
 	check(t, func() error {
 		_, err := pool.Exec(ctx, "UPDATE submissions SET invalidated_by = $1 WHERE id = $2", admin.ID, s1.ID)
 		return err
 	}())
 	must[sqlc.ScoreAdjustment](t)(q.CreateScoreAdjustment(ctx, sqlc.CreateScoreAdjustmentParams{ParticipationID: pa.ID, TaskID: tasks[1].ID, Points: 5, Reason: "appeal", AdminID: &admin.ID}))
+	// An answered appeal and a question taken by an administrator (their
+	// references to administrators are emptied on import).
+	ap := must[sqlc.Appeal](t)(q.CreateAppeal(ctx, sqlc.CreateAppealParams{ParticipationID: pa.ID, TaskID: &tasks[1].ID, Text: "Testcase 2?"}))
+	check(t, q.AnswerAppeal(ctx, sqlc.AnswerAppealParams{ID: ap.ID, Status: "accepted", Response: "Yes.", HandledBy: &admin.ID}))
+	check(t, q.AssignQuestion(ctx, sqlc.AssignQuestionParams{ID: qu.ID, AdminID: &admin.ID}))
 	must[sqlc.PrintJob](t)(q.CreatePrintJob(ctx, sqlc.CreatePrintJobParams{ParticipationID: pa.ID, CreatedAt: now, Filename: "a.txt", Digest: put("print")}))
 	must[sqlc.UserTest](t)(q.CreateUserTest(ctx, sqlc.CreateUserTestParams{ParticipationID: pa.ID, TaskID: tasks[0].ID, SubmittedAt: now, InputDigest: put("user test")}))
 	return c.ID
@@ -222,9 +232,9 @@ func TestExportImportRoundTrip(t *testing.T) {
 	id := seed(t, src, srcStore)
 	h, arch := export(t, src, srcStore, id, Options{Submissions: true})
 	want := map[string]int64{"contests": 1, "sites": 1, "certificate_templates": 1, "users": 2, "teams": 1, "tasks": 2, "statements": 2, "attachments": 2,
-		"datasets": 4, "managers": 4, "testcases": 8, "participations": 2, "announcements": 1, "questions": 1, "messages": 1,
-		"submissions": 3, "submission_files": 3, "tokens": 1, "submission_results": 3, "evaluations": 6,
-		"participation_task_scores": 3, "score_adjustments": 1}
+		"task_examples": 2, "datasets": 4, "managers": 4, "testcases": 8, "participations": 2, "announcements": 1, "questions": 1, "messages": 1,
+		"submissions": 3, "submission_files": 3, "tokens": 1, "submission_results": 3, "evaluations": 6, "submission_flags": 1,
+		"participation_task_scores": 3, "score_adjustments": 1, "appeals": 1}
 	for name, n := range want {
 		if h.Rows(name) != n {
 			t.Errorf("%s: %d rows, want %d", name, h.Rows(name), n)
@@ -233,11 +243,11 @@ func TestExportImportRoundTrip(t *testing.T) {
 	if len(h.Tables) != len(want) || h.Contest != "ioi" || !h.Submissions || len(h.Missing) != 0 {
 		t.Fatalf("header = %+v", h)
 	}
-	// Files: logo, flag, photo, 2 statements, 2 attachments, 4 checkers,
-	// 16 testcase files, 3 sources; never executables, print jobs or user
-	// tests.
-	if h.Blobs != 30 {
-		t.Fatalf("%d files archived, want 30", h.Blobs)
+	// Files: logo, flag, photo, 2 statements, 2 attachments, 4 example
+	// files, 4 checkers, 16 testcase files, 3 sources; never executables,
+	// print jobs or user tests.
+	if h.Blobs != 34 {
+		t.Fatalf("%d files archived, want 34", h.Blobs)
 	}
 	zr := open(t, arch)
 	res := find(zr, resultsName)
@@ -259,7 +269,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 	for _, n := range want {
 		total += n
 	}
-	if r.Rows != total || r.Blobs != 30 || r.ReusedUsers != 0 {
+	if r.Rows != total || r.Blobs != 34 || r.ReusedUsers != 0 {
 		t.Fatalf("result = %+v, want %d rows", r, total)
 	}
 	c := must[sqlc.Contest](t)(sqlc.New(dst).GetContest(ctx, r.ContestID))
@@ -267,7 +277,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 		t.Fatalf("imported contest %s is %s", c.Name, c.Status)
 	}
 	h2, again := export(t, dst, dstStore, r.ContestID, Options{Submissions: true})
-	if h2.Blobs != 30 || len(h2.Missing) != 0 {
+	if h2.Blobs != 34 || len(h2.Missing) != 0 {
 		t.Fatalf("re-export: %+v", h2)
 	}
 	a, b := normalized(t, arch), normalized(t, again)
@@ -319,8 +329,8 @@ func TestExportWithoutSubmissions(t *testing.T) {
 	if h.Submissions || h.Rows("submissions") != 0 || h.Rows("tasks") != 2 || find(open(t, arch), resultsName) != nil {
 		t.Fatalf("header = %+v", h)
 	}
-	if h.Blobs != 27 {
-		t.Fatalf("%d files, want 27 (no sources)", h.Blobs)
+	if h.Blobs != 31 {
+		t.Fatalf("%d files, want 31 (no sources)", h.Blobs)
 	}
 	dst := testutil.DB(t)
 	r, err := Import(ctx, dst, newStore(t), open(t, arch), ImportOptions{})
@@ -453,4 +463,34 @@ WHERE c.contype = 'f' ORDER BY 1, 2`)
 		}
 	}
 	check(t, r.Err())
+}
+
+// TestAnonymizedExport (SPEC_IOI §14): names, e-mails, photos, IPs and
+// passwords leave the archive; ids, countries, teams and every result stay,
+// and the archive still imports.
+func TestAnonymizedExport(t *testing.T) {
+	src, store := testutil.DB(t), newStore(t)
+	id := seed(t, src, store)
+	h, arch := export(t, src, store, id, Options{Submissions: true, Anonymize: true})
+	if !h.Anonymized || h.Rows("users") != 2 || h.Rows("submissions") != 3 {
+		t.Fatalf("header %+v", h)
+	}
+	rows := normalized(t, arch)
+	all := strings.Join(rows["users"], "\n") + strings.Join(rows["participations"], "\n")
+	for _, gone := range []string{"alice", "Alice", "@", `"photo_digest":"`} {
+		if strings.Contains(all, gone) {
+			t.Errorf("anonymized rows still contain %q:\n%s", gone, all)
+		}
+	}
+	if !strings.Contains(all, `"username":"user`) || !strings.Contains(all, `"password_hash":"*"`) {
+		t.Fatalf("users:\n%s", all)
+	}
+	res := find(open(t, arch), resultsName)
+	rc := must[io.ReadCloser](t)(res.Open())
+	if csv := string(must[[]byte](t)(io.ReadAll(rc))); strings.Contains(csv, "alice") || !strings.Contains(csv, "user") {
+		t.Fatalf("results.csv:\n%s", csv)
+	}
+	if _, err := Import(ctx, testutil.DB(t), newStore(t), open(t, arch), ImportOptions{}); err != nil {
+		t.Fatalf("import: %v", err)
+	}
 }

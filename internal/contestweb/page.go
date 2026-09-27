@@ -10,6 +10,8 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/contest"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
+	"github.com/D4ND3R/Contest-Management-System/internal/version"
+	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 )
 
 // langOption is an entry of the UI language selector.
@@ -19,6 +21,7 @@ type langOption struct{ Code, Name string }
 // (translation, formatting) bound to the request's language and time zone.
 type page struct {
 	Lang        string
+	Display     webkit.Display
 	Title       string
 	CSRF        string
 	Base        string // "/<contest>/"
@@ -40,9 +43,13 @@ type page struct {
 	Unread int64
 	// Ranking is set when the contestant may see the ranking.
 	Ranking bool
+	// Appeals is set when the contest takes (or took) appeals.
+	Appeals bool
 	// RegisterOpen: the login page offers self-registration.
 	RegisterOpen bool
-	loc          *time.Location
+	// OOB marks a fragment swapped out of band (htmx).
+	OOB bool
+	loc *time.Location
 }
 
 // statusView adds template-friendly accessors to contest.Status.
@@ -53,6 +60,13 @@ func (s statusView) Running() bool { return s.Phase == contest.Running }
 
 // T translates a message.
 func (p *page) T(msg string, args ...any) string { return i18n.T(p.Lang, msg, args...) }
+
+// Dir is the writing direction of the page's language.
+func (p *page) Dir() string { return i18n.Dir(p.Lang) }
+
+// Themes and Sizes are the display preference choices.
+func (p *page) Themes() []webkit.Option { return webkit.ThemeOptions(p.T) }
+func (p *page) Sizes() []webkit.Option  { return webkit.SizeOptions(p.T) }
 
 // TZ is the time zone name used to display times.
 func (p *page) TZ() string { return p.loc.String() }
@@ -171,6 +185,23 @@ func uiLanguages(allowed []string) []langOption {
 
 // translateOutcome maps judge messages ("Output is correct", "Execution
 // killed by signal 11") to the contestant's language.
+// standardMessages are the outcome texts of the system (sandbox, task
+// types, standard checkers), which every interface language translates.
+var standardMessages = func() map[string]bool {
+	m := map[string]bool{}
+	for _, msg := range i18n.ContestantMessages() {
+		m[msg] = true
+	}
+	return m
+}()
+
+// standardMessage reports whether an outcome text comes from the system
+// rather than from a task's own checker.
+func standardMessage(text string) bool {
+	return standardMessages[text] || strings.HasPrefix(text, "Execution killed by signal ") ||
+		strings.HasPrefix(text, "Evaluation didn't produce file ")
+}
+
 func translateOutcome(lang, text string) string {
 	if strings.HasPrefix(text, "Execution killed by signal ") {
 		return i18n.T(lang, "Execution killed by signal %s", strings.TrimPrefix(text, "Execution killed by signal "))
@@ -179,4 +210,122 @@ func translateOutcome(lang, text string) string {
 		return i18n.T(lang, "Evaluation didn't produce file %s", strings.TrimPrefix(text, "Evaluation didn't produce file "))
 	}
 	return i18n.T(lang, text)
+}
+
+// Heading is the contest's display title: its title, else its description,
+// else its name.
+func (c *contestView) Heading() string {
+	switch {
+	case c.Title != "":
+		return c.Title
+	case c.Description != "":
+		return c.Description
+	}
+	return c.Name
+}
+
+// Subheading is the line under the heading (the description, unless it is
+// the heading already).
+func (c *contestView) Subheading() string {
+	if c.Title != "" {
+		return c.Description
+	}
+	return ""
+}
+
+// BannerURL is the versioned address of the banner image ("" = none).
+func (p *page) BannerURL() string {
+	if p.Contest == nil || p.Contest.BannerDigest == nil || len(*p.Contest.BannerDigest) < 20 {
+		return ""
+	}
+	return "/" + p.Contest.Name + "/banner?v=" + (*p.Contest.BannerDigest)[:20]
+}
+
+// PhaseClass and PhaseLabel describe the contest phase in a pill.
+func (p *page) PhaseClass() string {
+	switch p.Status.Phase {
+	case contest.Running:
+		return "ok live"
+	case contest.NotStarted, contest.WaitingStart:
+		return "info"
+	case contest.Analysis, contest.Practice:
+		return "warn"
+	}
+	return ""
+}
+
+func (p *page) PhaseLabel() string {
+	if p.Contest != nil && p.Contest.Status == "archived" {
+		return p.T("Archived")
+	}
+	switch p.Status.Phase {
+	case contest.Running:
+		return p.T("Contest in progress")
+	case contest.NotStarted:
+		return p.T("Not started")
+	case contest.WaitingStart:
+		return p.T("Ready to start")
+	case contest.Analysis:
+		return p.T("Analysis mode")
+	case contest.Practice:
+		return p.T("Practice mode")
+	}
+	return p.T("Finished")
+}
+
+// Version is the CMS version (sidebar footer).
+func (p *page) Version() string { return version.Version }
+
+// FullName is the contestant's name for the user menu.
+func (p *page) FullName() string {
+	if p.Part == nil {
+		return ""
+	}
+	if n := strings.TrimSpace(p.Part.FirstName + " " + p.Part.LastName); n != "" {
+		return n
+	}
+	return p.Part.Username
+}
+
+// DateRange formats the contest window compactly ("May 12, 09:00 – 14:00"
+// or across days).
+func (p *page) DateRange(a, b time.Time) string {
+	if a.IsZero() {
+		return ""
+	}
+	a, b = a.In(p.loc), b.In(p.loc)
+	if a.Year() == b.Year() && a.YearDay() == b.YearDay() {
+		return a.Format("2006-01-02 15:04") + " – " + b.Format("15:04")
+	}
+	return a.Format("2006-01-02 15:04") + " – " + b.Format("2006-01-02 15:04")
+}
+
+// Hours formats a duration as "5h" or "4h 30m".
+func (p *page) Hours(d time.Duration) string {
+	m := int64(d.Round(time.Minute) / time.Minute)
+	if m%60 == 0 {
+		return strconv.FormatInt(m/60, 10) + "h"
+	}
+	if m < 60 {
+		return strconv.FormatInt(m, 10) + "m"
+	}
+	return strconv.FormatInt(m/60, 10) + "h " + strconv.FormatInt(m%60, 10) + "m"
+}
+
+// TaskIndex is the position of a task in the contest (its letter).
+func (p *page) TaskIndex(name string) int {
+	for i, t := range p.Tasks {
+		if t.Name == name {
+			return i
+		}
+	}
+	return 0
+}
+
+// Approx writes a number of seconds roughly ("12 s", "3 min").
+func (p *page) Approx(sec int64) string {
+	if sec < 90 {
+		return strconv.FormatInt(max(sec, 1), 10) + " s"
+	}
+	return strconv.FormatInt((sec+30)/60, 10) + " min"
 }

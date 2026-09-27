@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/checkers"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/scoring"
 )
@@ -65,6 +66,7 @@ var verdictNames = map[string]string{
 	scoring.VerdictMemory:      "Memory limit exceeded",
 	scoring.VerdictRuntime:     "Runtime error",
 	scoring.VerdictOutputLimit: "Output limit exceeded",
+	scoring.VerdictSecurity:    "Security violation",
 }
 
 // icpcVerdict names the verdict of a scored submission; results scored
@@ -229,6 +231,7 @@ type detailRow struct {
 
 type detailGroup struct {
 	Title      string
+	Index      int // subtask number (group score types)
 	Score, Max float64
 	Class      string
 	Rows       []detailRow
@@ -308,12 +311,21 @@ func (s *Server) detailData(r *http.Request, p *page, rc *reqCtx, t *taskView, r
 		return "warn"
 	}
 	mkRow := func(tc scoring.TestcaseDetail) detailRow {
-		return detailRow{Codename: tc.Codename, Text: translateOutcome(p.Lang, tc.Text), Class: classOf(tc.Outcome), Time: tc.Time, Memory: tc.Memory}
+		text := tc.Text
+		if t.HideCheckerMessages && !standardMessage(text) {
+			// The checker's own words stay with the staff.
+			text = checkers.TranslateMessage("", tc.Outcome)
+		}
+		r := detailRow{Codename: tc.Codename, Text: translateOutcome(p.Lang, text), Class: classOf(tc.Outcome), Time: tc.Time, Memory: tc.Memory}
+		if tc.Text == scoring.MsgSkipped {
+			r.Class = "muted" // not run: the subtask had failed already
+		}
+		return r
 	}
 	switch det.Type {
 	case "group":
 		for _, st := range det.Subtasks {
-			g := detailGroup{Title: p.T("Subtask %d", st.Index), Score: st.Score, Max: st.MaxScore, Class: classOf(st.Fraction)}
+			g := detailGroup{Title: p.T("Subtask %d", st.Index), Index: st.Index, Score: st.Score, Max: st.MaxScore, Class: classOf(st.Fraction)}
 			for _, tc := range st.Testcases {
 				if restricted {
 					// Only the first testcase that did not pass is shown.

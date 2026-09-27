@@ -41,12 +41,20 @@ func (t *Tracked) PutBytes(ctx context.Context, b []byte) (Info, error) {
 // Unwrap returns the underlying store.
 func (t *Tracked) Unwrap() Store { return t.Store }
 
+// CompilationCacheTTL is how long an unused remembered compilation is kept.
+const CompilationCacheTTL = 7 * 24 * time.Hour
+
 // GC deletes blobs that no table references and that were registered before
 // olderThan (the grace period protects uploads whose rows are not committed
-// yet). It returns the number of blobs and bytes removed.
+// yet). Compilations remembered for reuse and unused for a week before
+// that are forgotten first, so their executables go too. It returns the
+// number of blobs and bytes removed.
 func GC(ctx context.Context, s Store, q *sqlc.Queries, olderThan time.Time, batch int32) (int, int64, error) {
 	var n int
 	var bytes int64
+	if _, err := q.PruneCompilationCache(ctx, olderThan.Add(-CompilationCacheTTL)); err != nil {
+		return 0, 0, err
+	}
 	for {
 		rows, err := q.ListUnreferencedBlobs(ctx, sqlc.ListUnreferencedBlobsParams{OlderThan: olderThan, Limit: batch})
 		if err != nil {

@@ -47,8 +47,9 @@ lint: ## gofmt + go vet
 fmt: ## format the code
 	gofmt -w cmd internal web
 
-generate: ## regenerate sqlc code
+generate: ## regenerate sqlc code and the list of contestant messages
 	cd internal/db && sqlc generate
+	go generate ./internal/i18n
 
 migrate: build ## apply migrations using $$CMS_CONFIG
 	bin/cmsctl migrate

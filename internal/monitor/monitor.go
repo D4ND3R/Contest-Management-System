@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/alerts"
 	"github.com/D4ND3R/Contest-Management-System/internal/jobs"
 	"github.com/D4ND3R/Contest-Management-System/internal/metrics"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
@@ -39,6 +40,10 @@ type Options struct {
 	// is reclaimed (covers the heartbeat of a worker that just started).
 	DeadGrace   time.Duration
 	MaxAttempts int
+	// Alerts, when set, are evaluated every AlertInterval (default 15 s)
+	// by the active monitor.
+	Alerts        *alerts.Manager
+	AlertInterval time.Duration
 }
 
 // Stats is the snapshot stored in Redis for the admin UI.
@@ -69,8 +74,14 @@ func New(q *queue.Queue, log *slog.Logger, opts Options) *Monitor {
 	if opts.MaxAttempts <= 0 {
 		opts.MaxAttempts = 3
 	}
+	if opts.AlertInterval <= 0 {
+		opts.AlertInterval = 15 * time.Second
+	}
 	return &Monitor{q: q, log: log, opts: opts}
 }
+
+// AlertsKey is the Redis hash of the alert states.
+func AlertsKey(q *queue.Queue) string { return q.Key("alerts") }
 
 // StatsKey is where the latest statistics are published.
 func StatsKey(q *queue.Queue) string { return q.Key("stats") }
@@ -85,9 +96,16 @@ func (m *Monitor) Run(ctx context.Context) error {
 		m.log.Info("monitor active")
 		t := time.NewTicker(m.opts.CheckInterval)
 		defer t.Stop()
+		var lastAlerts time.Time
 		for {
 			if _, err := m.Check(ctx); err != nil && ctx.Err() == nil {
 				m.log.Error("check", "error", err)
+			}
+			if a := m.opts.Alerts; a != nil && time.Since(lastAlerts) >= m.opts.AlertInterval {
+				lastAlerts = time.Now()
+				if err := a.Evaluate(ctx); err != nil && ctx.Err() == nil {
+					m.log.Warn("alert rules", "error", err)
+				}
 			}
 			select {
 			case <-ctx.Done():

@@ -9,10 +9,17 @@
 - [Configuración del concurso: estado, práctica, acceso, registro, retroalimentación, certificados](configuracion-del-concurso.md)
 - [Tipos de problema y checkers](task-types.md)
 - [Paquetes de problema: formato, importación (también italy_yaml y Polygon), validación y exportación](paquete-de-problema.md)
+- [Enunciados: Markdown y LaTeX con fórmulas, el PDF, ejemplos](enunciados.md)
 - [Rankings: configuración, congelamiento y servidor de ranking](ranking.md)
 - [Respaldos, restauración y archivos de concursos](respaldos.md)
+- [Operación: alertas, recuperación a un instante, réplica de lectura, failover, ensayos](operaciones.md)
+- [Configuración del concurso en Git](configuracion-en-git.md)
+- [Aprovisionamiento con Ansible](ansible.md)
 - [Verificar una máquina de evaluación](verificar-host.md)
+- [Evaluar rápido y con justicia: colas, cortocircuito, caché de compilación, precarga, multiplicadores de tiempo, calibración](evaluacion.md)
+- [Cómo se defiende el juez: sandbox, filtro seccomp, envíos sospechosos](seguridad.md)
 - [Lenguajes de programación](languages.md)
+- [Idiomas de la interfaz y accesibilidad: 18 idiomas, derecha a izquierda, temas, tamaño de texto, teclado, el editor de código](interfaz.md)
 - [Paquetes de ejemplo](../examples/packages/README.md)
 
 English documentation: [docs/en](../en/README.md).

@@ -190,10 +190,12 @@ func (it Interactive) interact(ctx context.Context, env *Env, job *jobs.Job, p *
 	return out, nil
 }
 
-// limitExceeded reports whether a run ended on a resource limit.
+// limitExceeded reports whether a run ended on a resource limit (or was
+// stopped by the seccomp filter): its verdict stands whatever the
+// interactor says.
 func limitExceeded(r *sandbox.Result) bool {
 	switch r.Status {
-	case sandbox.StatusTimeout, sandbox.StatusWallTimeout, sandbox.StatusMemory, sandbox.StatusOutputLimit:
+	case sandbox.StatusTimeout, sandbox.StatusWallTimeout, sandbox.StatusMemory, sandbox.StatusOutputLimit, sandbox.StatusSecurity:
 		return true
 	}
 	return false

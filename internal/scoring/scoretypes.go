@@ -369,6 +369,47 @@ func (g *group) MaxPublicScore() float64 {
 	return round(s, g.precision)
 }
 
+// Skipper is implemented by the score types where a subtask's score is
+// settled at 0 as soon as one of its testcases scores 0 (GroupMin,
+// GroupMul): the other testcases of that subtask cannot change the score
+// and need not run (short-circuit, SPEC_IOI §6).
+type Skipper interface {
+	// Skippable returns the testcases not in known (codename → outcome)
+	// whose every subtask already scores 0. A partial outcome settles
+	// nothing: a later testcase could still lower the subtask.
+	Skippable(known map[string]float64) []string
+}
+
+func (g *group) Skippable(known map[string]float64) []string {
+	if g.kind != "GroupMin" && g.kind != "GroupMul" {
+		return nil
+	}
+	dead := make([]bool, len(g.subtasks))
+	in := make([][]int, len(g.defs)) // subtasks of each testcase
+	for i, st := range g.subtasks {
+		for _, k := range st.members {
+			in[k] = append(in[k], i)
+			if o, ok := known[g.defs[k].codename]; ok && clamp01(o) == 0 {
+				dead[i] = true
+			}
+		}
+	}
+	var out []string
+	for k, d := range g.defs {
+		if _, ok := known[d.codename]; ok || len(in[k]) == 0 {
+			continue
+		}
+		all := true
+		for _, i := range in[k] {
+			all = all && dead[i]
+		}
+		if all {
+			out = append(out, d.codename)
+		}
+	}
+	return out
+}
+
 // fraction reduces the outcomes of a subtask.
 func (g *group) fraction(st groupDef, outcomes []float64) float64 {
 	switch g.kind {

@@ -22,76 +22,13 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/i18n"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
+	"github.com/D4ND3R/Contest-Management-System/internal/suspicious"
 	"github.com/D4ND3R/Contest-Management-System/internal/tasktypes"
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 	"github.com/jackc/pgx/v5"
 )
 
 // ---------------------------------------------------------------- overview
-
-type overviewRow struct {
-	Name, Title string
-	HasScore    bool
-	Score, Max  float64
-	Precision   int
-	Pending     bool
-	// ICPC contests: solved, and the rejected attempts (before solving).
-	Solved   bool
-	Attempts int32
-	// Adjustment by the organizers (included in Score), with the reasons.
-	Adjustment float64
-	Reasons    string
-}
-
-type overviewData struct {
-	Rows            []overviewRow
-	PerUserTime     time.Duration
-	ShowTotal       bool
-	Total, MaxTotal float64
-	// Hidden: the contest does not show scores now.
-	Hidden bool
-	// Certificate: the contestant may download a certificate.
-	Certificate bool
-}
-
-func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	p := s.newPage(rc, rc.contest.Name, "overview")
-	d := &overviewData{PerUserTime: rc.contest.Rules.PerUserTime}
-	scores, err := s.q.ListScoresByParticipations(r.Context(), rc.group)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	byTask := mergeScores(scores, rc.contest.TaskByID)
-	if !scoresVisible(rc) {
-		byTask = nil
-		d.Hidden = true
-	}
-	for _, t := range p.Tasks {
-		row := overviewRow{Name: t.Name, Title: t.Title, Max: t.MaxScore, Precision: t.Precision}
-		if sc, ok := byTask[t.ID]; ok {
-			row.HasScore, row.Score, row.Pending = true, sc.score, sc.pending > 0
-			row.Solved, row.Attempts, row.Adjustment = sc.solved, sc.attempts, sc.adjustment
-		}
-		d.Total += row.Score
-		d.MaxTotal += row.Max
-		d.Rows = append(d.Rows, row)
-	}
-	d.ShowTotal = len(d.Rows) > 1 && !d.Hidden && !rc.contest.ICPC()
-	// Only once the contestant's time is over (no query before).
-	cert, err := s.certificateTemplate(r.Context(), rc)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	d.Certificate = cert != nil
-	if err := s.adjustmentReasons(r, rc, d.Rows); err != nil {
-		s.fail(w, err)
-		return
-	}
-	p.Data = d
-	s.render(w, "overview", http.StatusOK, p)
-}
 
 func (s *Server) handleStart(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	if !rc.status.CanStart {
@@ -121,7 +58,12 @@ func (s *Server) visibleTask(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 
 // ---------------------------------------------------------------- task
 
-type langChoice struct{ ID, Name string }
+// langChoice is a language of the submission form; Exts are its source
+// extensions (the page checks a chosen file against them before sending).
+type langChoice struct {
+	ID, Name string
+	Exts     string
+}
 
 type taskData struct {
 	Task         *taskView
@@ -134,17 +76,51 @@ type taskData struct {
 	CannotSubmit string
 	Languages    []langChoice
 	LastLanguage string
+	// MaxFileBytes is the size limit of each file (checked in the page too).
+	MaxFileBytes int64
 	Limits       [][2]string
+	// Statement is the statement shown on the page.
+	Statement *statementPage
+	// Latest is the result of the newest submission, shown next to the
+	// submit button and updated live.
+	Latest *resultCard
+}
+
+// Why submissions are refused (untranslated).
+const (
+	msgClosed     = "Submissions are closed."
+	msgPaused     = "Submissions are paused by the organizers."
+	msgTaskClosed = "Submissions to this task are closed."
+)
+
+// submitBlocked says why submissions and user tests to t are refused now,
+// "" when they are accepted: the contest window, the organizers' pause or
+// the task closed (emergency controls, SPEC_IOI §9.3).
+func submitBlocked(rc *reqCtx, t *taskView) string {
+	switch {
+	case !rc.status.CanSubmit:
+		return msgClosed
+	case rc.contest.SubmissionsPaused:
+		return msgPaused
+	case t != nil && t.SubmissionsClosed:
+		return msgTaskClosed
+	}
+	return ""
 }
 
 func (s *Server) taskData(r *http.Request, rc *reqCtx, p *page, t *taskView) (*taskData, error) {
-	d := &taskData{Task: t, CanSubmit: rc.status.CanSubmit}
+	why := submitBlocked(rc, t)
+	d := &taskData{Task: t, CanSubmit: why == ""}
 	if !d.CanSubmit {
-		d.CannotSubmit = p.T("Submissions are closed.")
+		d.CannotSubmit = p.T(why)
+		if why == msgPaused && rc.contest.PauseMessage != "" {
+			d.CannotSubmit += " " + rc.contest.PauseMessage
+		}
 	}
 	for _, l := range t.Languages {
-		d.Languages = append(d.Languages, langChoice{ID: l.ID, Name: l.Name})
+		d.Languages = append(d.Languages, langChoice{ID: l.ID, Name: l.Name, Exts: strings.Join(l.SourceExtensions, " ")})
 	}
+	d.MaxFileBytes = s.fileLimit(rc, t)
 	subs, err := s.listSubs(r, rc, t)
 	if err != nil {
 		return nil, err
@@ -157,10 +133,15 @@ func (s *Server) taskData(r *http.Request, rc *reqCtx, p *page, t *taskView) (*t
 	}
 	d.Subs = subs
 	d.Limits = s.limitsText(p, rc, t)
+	if len(subs) > 0 {
+		if d.Latest, err = s.resultCardByID(r, p, rc, t, subs[0].ID); err != nil {
+			return nil, err
+		}
+	}
 	if d.Tokens, err = s.tokenView(r, rc, t); err != nil {
 		return nil, err
 	}
-	if d.TestsEnabled = testsEnabled(rc, t) && rc.status.CanSubmit; testsEnabled(rc, t) {
+	if d.TestsEnabled = testsEnabled(rc, t) && d.CanSubmit; testsEnabled(rc, t) {
 		if d.Tests, err = s.listTests(r, rc, p, t); err != nil {
 			return nil, err
 		}
@@ -212,6 +193,10 @@ func (s *Server) handleTask(w http.ResponseWriter, r *http.Request, rc *reqCtx) 
 		s.fail(w, err)
 		return
 	}
+	if d.Statement, err = s.statementPage(r, rc, p, t); err != nil {
+		s.fail(w, err)
+		return
+	}
 	p.Data = d
 	s.render(w, "task", http.StatusOK, p)
 }
@@ -246,7 +231,14 @@ func (s *Server) serveBlob(w http.ResponseWriter, r *http.Request, digest, name,
 	}
 	h := w.Header()
 	h.Set("Content-Type", ctype)
-	h.Set("Cache-Control", "private, max-age=3600")
+	// Linked with ?v=<digest prefix> the content never changes at that
+	// address; without it (an attachment replaced under the same name) the
+	// browser revalidates, so the new file shows at once.
+	if v := r.URL.Query().Get("v"); len(v) >= 12 && strings.HasPrefix(digest, v) {
+		h.Set("Cache-Control", "private, max-age=31536000, immutable")
+	} else {
+		h.Set("Cache-Control", "private, no-cache")
+	}
 	h.Set("ETag", `"`+digest+`"`)
 	disp := "inline"
 	if attachment {
@@ -258,26 +250,6 @@ func (s *Server) serveBlob(w http.ResponseWriter, r *http.Request, digest, name,
 		return
 	}
 	io.Copy(w, rc)
-}
-
-func (s *Server) handleStatement(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	t := s.visibleTask(w, r, rc)
-	if t == nil {
-		return
-	}
-	for _, st := range t.Statements {
-		if st.Lang == r.PathValue("lang") {
-			ext := ".pdf"
-			if strings.Contains(st.ContentType, "html") {
-				ext = ".html"
-				// HTML statements are rendered sandboxed: no scripts, no forms.
-				w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'")
-			}
-			s.serveBlob(w, r, st.Digest, t.Name+"-"+st.Lang+ext, st.ContentType, false)
-			return
-		}
-	}
-	http.NotFound(w, r)
 }
 
 func (s *Server) handleAttachment(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -299,6 +271,8 @@ func (s *Server) handleAttachment(w http.ResponseWriter, r *http.Request, rc *re
 func (s *Server) submitError(w http.ResponseWriter, r *http.Request, rc *reqCtx, status int, msg string) {
 	p := s.newPage(rc, "", "")
 	if webkit.IsHTMX(r) {
+		w.Header().Set("HX-Retarget", "#submit-result")
+		w.Header().Set("HX-Reswap", "innerHTML")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(status)
 		fmt.Fprintf(w, `<span class="bad">%s</span>`, templateEscape(i18n.TDetail(p.Lang, msg)))
@@ -312,8 +286,8 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request, rc *reqCtx
 	if t == nil {
 		return
 	}
-	if !rc.status.CanSubmit {
-		s.submitError(w, r, rc, http.StatusForbidden, "Submissions are closed.")
+	if why := submitBlocked(rc, t); why != "" {
+		s.submitError(w, r, rc, http.StatusForbidden, why)
 		return
 	}
 	if !s.limiter.Allow(r.Context(), "submit:"+itoa(rc.part.ID), s.cfg.RateLimitPerMinute, time.Minute) {
@@ -361,10 +335,12 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request, rc *reqCtx
 			return
 		}
 		p.Data = d
-		// Replace the list and confirm next to the button.
-		w.Header().Set("HX-Retarget", "#submissions")
+		// The new submission's result card replaces the previous one next
+		// to the button; the list below is updated out of band.
+		w.Header().Set("HX-Retarget", "#latest")
 		w.Header().Set("HX-Reswap", "outerHTML")
-		s.renderPartial(w, "submissions", p)
+		p.OOB = true
+		s.renderPartial(w, "submitted", submittedCtx{Card: cardCtx{P: p, C: d.Latest, Task: t}, Page: p})
 		return
 	}
 	http.Redirect(w, r, "/"+rc.contest.Name+"/tasks/"+t.Name, http.StatusSeeOther)
@@ -378,11 +354,29 @@ type submittedFile struct {
 
 // readSubmission parses and validates the multipart form.
 func (s *Server) readSubmission(w http.ResponseWriter, r *http.Request, rc *reqCtx, t *taskView) ([]submittedFile, *langs.Language, string) {
-	max := int64(s.cfg.MaxSubmissionBytes)
-	if max <= 0 {
-		max = 1 << 20
+	return s.readSources(w, r, rc, t, s.submissionLimit())
+}
+
+// submissionLimit bounds a whole submission request.
+func (s *Server) submissionLimit() int64 {
+	if max := int64(s.cfg.MaxSubmissionBytes); max > 0 {
+		return max
 	}
-	return s.readSources(w, r, rc, t, max)
+	return 1 << 20
+}
+
+// fileLimit is the size limit of each file of a submission to t: the
+// task's source limit, the contest's and the server's.
+func (s *Server) fileLimit(rc *reqCtx, t *taskView) int64 {
+	perFile := t.SourceLimit
+	max := s.submissionLimit()
+	if perFile <= 0 {
+		perFile = max
+	}
+	if m := rc.contest.MaxSubmissionBytes; m != nil && *m < perFile {
+		perFile = *m
+	}
+	return perFile
 }
 
 // readSources reads the files (and language) of a submission or a user
@@ -414,6 +408,15 @@ func (s *Server) readSources(w http.ResponseWriter, r *http.Request, rc *reqCtx,
 	var files []submittedFile
 	for _, format := range t.Formats {
 		f, hdr, err := r.FormFile(format)
+		if err != nil && t.Editor() && strings.TrimSpace(r.FormValue("source")) != "" {
+			// Typed in the page's editor (browsers send its lines with CRLF).
+			data := []byte(strings.ReplaceAll(r.FormValue("source"), "\r\n", "\n"))
+			if int64(len(data)) > perFile {
+				return nil, nil, "A file exceeds the size limit."
+			}
+			files = append(files, submittedFile{name: format, data: data})
+			continue
+		}
 		if err != nil {
 			if t.NeedsLanguage {
 				return nil, nil, "Every file of the submission is required."
@@ -549,8 +552,15 @@ func (s *Server) storeSubmission(r *http.Request, rc *reqCtx, t *taskView, files
 		params[i] = sqlc.CreateSubmissionFilesParams{Filename: f.name, Digest: info.Digest}
 	}
 	var langID *string
+	var flags []suspicious.Flag
 	if lang != nil {
 		langID = &lang.ID
+		// Sources only (output-only submissions have no language).
+		src := make(map[string][]byte, len(files))
+		for _, f := range files {
+			src[f.name] = f.data
+		}
+		flags = suspicious.Scan(lang.ID, src)
 	}
 	var id int64
 	err := db.InTx(ctx, s.pool, func(tx pgx.Tx, q *sqlc.Queries) error {
@@ -563,8 +573,17 @@ func (s *Server) storeSubmission(r *http.Request, rc *reqCtx, t *taskView, files
 		for i := range params {
 			params[i].SubmissionID = id
 		}
-		_, err = q.CreateSubmissionFiles(ctx, params)
-		return err
+		if _, err = q.CreateSubmissionFiles(ctx, params); err != nil {
+			return err
+		}
+		for _, f := range flags {
+			if err := q.InsertSubmissionFlag(ctx, sqlc.InsertSubmissionFlagParams{SubmissionID: id, Kind: "source",
+				Reason: f.Reason, Detail: f.Detail}); err != nil {
+				return err
+			}
+		}
+		// Last, so the audit chain's lock is held as briefly as possible.
+		return q.InsertSubmissionReceipt(ctx, receipt(rc, t, id, params, langID, now, s.ips.ClientIP(r).String()))
 	})
 	if err != nil {
 		return 0, err
@@ -574,6 +593,25 @@ func (s *Server) storeSubmission(r *http.Request, rc *reqCtx, t *taskView, files
 		s.log.Warn("notify dispatcher", "submission", id, "error", err)
 	}
 	return id, nil
+}
+
+// receipt is a submission's entry in the audit chain (SPEC_IOI §13): who,
+// what, when and the SHA-256 of every file as received.
+func receipt(rc *reqCtx, t *taskView, id int64, files []sqlc.CreateSubmissionFilesParams, lang *string, at time.Time,
+	ip string) sqlc.InsertSubmissionReceiptParams {
+	digests := make(map[string]string, len(files))
+	for _, f := range files {
+		digests[f.Filename] = f.Digest
+	}
+	det, _ := json.Marshal(struct {
+		Contest       string            `json:"contest"`
+		Participation int64             `json:"participation"`
+		Task          string            `json:"task"`
+		Language      *string           `json:"language,omitempty"`
+		SubmittedAt   time.Time         `json:"submitted_at"`
+		Files         map[string]string `json:"files"`
+	}{rc.contest.Name, rc.part.ID, t.Name, lang, at.UTC(), digests})
+	return sqlc.InsertSubmissionReceiptParams{Actor: "contestant:" + rc.part.Username, SubmissionID: id, Details: det, Ip: ip}
 }
 
 // ---------------------------------------------------------------- submissions
@@ -667,14 +705,24 @@ type docLanguage struct {
 	Extensions string
 	Compile    []string
 	Run        string
+	// Version is the toolchain the judging machines report (the most
+	// common one; "" when none reports it).
+	Version string
 }
 
 func (s *Server) handleDocumentation(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	p := s.newPage(rc, "", "documentation")
 	p.Title = p.T("Documentation")
+	var tcs map[string][]queue.Toolchain
+	if ws, err := s.queue.Workers(r.Context(), 10*time.Minute); err == nil {
+		tcs = queue.Toolchains(ws)
+	}
 	var ls []docLanguage
 	for _, l := range rc.contest.Languages {
 		d := docLanguage{ID: l.ID, Name: l.Name, Extensions: strings.Join(l.SourceExtensions, " ")}
+		if list := tcs[l.ID]; len(list) > 0 {
+			d.Version = list[0].Version
+		}
 		v := langs.Vars{Sources: []string{"sol" + l.SourceExtension()}, MainSource: "sol" + l.SourceExtension(), Main: "sol",
 			Executable: l.ExecutableName("sol"), Memory: 256 << 20}
 		for _, c := range l.Compile {

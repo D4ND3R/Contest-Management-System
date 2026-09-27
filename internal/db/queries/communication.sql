@@ -23,13 +23,15 @@ ORDER BY (q.reply_at IS NULL AND NOT q.ignored) DESC, q.asked_at DESC;
 -- Staff inbox: pending questions oldest first (questions_pending_idx), then
 -- the most recently answered or ignored ones; optionally one contest/task.
 SELECT q.*, u.username, c.name AS contest_name, t.name AS task_name,
-       (q.reply_at IS NULL AND NOT q.ignored)::boolean AS pending
+       (q.reply_at IS NULL AND NOT q.ignored)::boolean AS pending, ad.username AS assignee
 FROM questions q
 JOIN participations p ON p.id = q.participation_id
 JOIN users u ON u.id = p.user_id
 JOIN contests c ON c.id = q.contest_id
 LEFT JOIN tasks t ON t.id = q.task_id
+LEFT JOIN admins ad ON ad.id = q.assigned_admin_id
 WHERE (sqlc.narg(contest_id)::bigint IS NULL OR q.contest_id = sqlc.narg(contest_id))
+  AND (sqlc.narg(assigned_to)::bigint IS NULL OR q.assigned_admin_id = sqlc.narg(assigned_to))
   AND (sqlc.narg(task_id)::bigint IS NULL OR q.task_id = sqlc.narg(task_id))
   AND (sqlc.narg(question_id)::bigint IS NULL OR q.id = sqlc.narg(question_id))
   AND (@with_answered::boolean OR (q.reply_at IS NULL AND NOT q.ignored))
@@ -164,3 +166,7 @@ WHERE id = $1 AND status IN ('done', 'failed');
 
 -- name: CancelPrintJob :execrows
 UPDATE print_jobs SET status = 'failed', status_text = $2 WHERE id = $1 AND status = 'queued';
+
+-- name: AssignQuestion :exec
+-- A staff member takes a question (or gives it back: NULL).
+UPDATE questions SET assigned_admin_id = sqlc.narg(admin_id) WHERE id = @id::bigint;

@@ -15,6 +15,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/config"
 	"github.com/D4ND3R/Contest-Management-System/internal/deps"
 	"github.com/D4ND3R/Contest-Management-System/internal/logging"
+	"github.com/D4ND3R/Contest-Management-System/internal/queue"
 )
 
 func init() {
@@ -118,7 +119,7 @@ func cmdRestore(args []string, stdout, stderr io.Writer) error {
 	}
 	defer f.Close()
 	ctx := context.Background()
-	_, d, err := openBackupDeps(ctx, *cfgPath, stderr)
+	cfg, d, err := openBackupDeps(ctx, *cfgPath, stderr)
 	if err != nil {
 		return err
 	}
@@ -132,7 +133,28 @@ func cmdRestore(args []string, stdout, stderr io.Writer) error {
 	if len(st.Missing) > 0 {
 		fmt.Fprintf(stderr, "warning: %d blobs were already missing when the backup was taken: %s\n", len(st.Missing), strings.Join(st.Missing, ", "))
 	}
+	drainAfterRestore(ctx, cfg, stdout, stderr)
 	return nil
+}
+
+// drainAfterRestore empties the judging queues: the restored database
+// hands out again the submission ids created after the backup, and jobs
+// still queued for those would land on the new submissions.
+func drainAfterRestore(ctx context.Context, cfg *config.Config, stdout, stderr io.Writer) {
+	if cfg.Redis.URL == "" {
+		return
+	}
+	rd, err := deps.Open(ctx, cfg, logging.Discard(), deps.Need{Redis: true})
+	if err != nil {
+		fmt.Fprintf(stderr, "warning: the job queues could not be emptied (%v): run cmsctl queue-drain before starting the services\n", err)
+		return
+	}
+	defer rd.Close()
+	if _, err := queue.New(rd.Redis, cfg.Redis.Namespace).Drain(ctx); err != nil {
+		fmt.Fprintf(stderr, "warning: the job queues could not be emptied (%v): run cmsctl queue-drain before starting the services\n", err)
+		return
+	}
+	fmt.Fprintln(stdout, "emptied the job queues (they referred to the database before the restore)")
 }
 
 func cmdBackupVerify(args []string, stdout, stderr io.Writer) error {

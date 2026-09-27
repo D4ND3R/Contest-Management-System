@@ -43,6 +43,7 @@
   </div>
   <p class="checks">
     <label><input type="checkbox" name="hidden" {{if $p.Hidden}}checked{{end}}> {{.T "Hidden (not in the ranking)"}}</label>
+    <label><input type="checkbox" name="unofficial" {{if $p.Unofficial}}checked{{end}}> {{.T "Unofficial (ranked, but no place and no medal)"}}</label>
     <label><input type="checkbox" name="unrestricted" {{if $p.Unrestricted}}checked{{end}}> {{.T "Unrestricted (no time or limit checks)"}}</label>
   </p>
   <p>{{.T "Started:"}} {{if $p.StartingTime}}{{dt $p.StartingTime}} UTC <label class="inline"><input type="checkbox" name="reset_start"> {{.T "reset"}}</label>{{else}}<span class="muted">{{.T "not yet"}}</span>{{end}}</p>

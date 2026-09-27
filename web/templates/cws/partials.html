@@ -1,5 +1,5 @@
 {{define "submissions"}}{{$d := .Data}}
-<div id="submissions" data-task="{{$d.Task.ID}}" data-src="{{.Base}}tasks/{{$d.Task.Name}}/submissions">
+<div id="submissions" data-task="{{$d.Task.ID}}" data-src="{{.Base}}tasks/{{$d.Task.Name}}/submissions"{{if .OOB}} hx-swap-oob="true"{{end}}>
 {{if $d.Subs}}
 <table>
 <tr><th>{{.T "Time"}}</th><th>{{.T "Language"}}</th><th>{{if .Contest.ICPC}}{{.T "Verdict"}}{{else}}{{.T "Status"}}{{end}}</th>{{if not .Contest.ICPC}}<th class="num">{{.T "Score"}}</th>{{end}}<th></th></tr>
@@ -24,28 +24,28 @@
 <div id="communication" data-src="{{.Base}}communication/list">
 {{with $d.Announcements}}
 <section class="card"><h2>{{$.T "Announcements"}}</h2>
-{{range .}}<article class="msg"><h3>{{.Subject}} <small class="muted">{{$.Time .CreatedAt}}</small></h3><p class="pre">{{.Text}}</p></article>{{end}}
+{{range .}}<article class="msg"><h3><bdi>{{.Subject}}</bdi> <small class="muted">{{$.Time .CreatedAt}}</small></h3><p class="pre" dir="auto">{{.Text}}</p></article>{{end}}
 </section>
 {{end}}
 {{with $d.Messages}}
 <section class="card"><h2>{{$.T "Private messages"}}</h2>
-{{range .}}<article class="msg"><h3>{{.Subject}} <small class="muted">{{$.Time .CreatedAt}}</small></h3><p class="pre">{{.Text}}</p></article>{{end}}
+{{range .}}<article class="msg"><h3><bdi>{{.Subject}}</bdi> <small class="muted">{{$.Time .CreatedAt}}</small></h3><p class="pre" dir="auto">{{.Text}}</p></article>{{end}}
 </section>
 {{end}}
 <section class="card"><h2>{{.T "Your questions"}}</h2>
 {{range $d.Questions}}
 <article class="msg">
   <h3>{{.About}} <small class="muted">{{$.Time .AskedAt}}</small></h3>
-  <p class="pre">{{.Text}}</p>
-  {{if .Answered}}<p class="answer"><b>{{$.T .ReplySubject}}</b>{{with .ReplyText}} <span class="pre">{{.}}</span>{{end}}{{if .Public}} <span class="tag">{{$.T "answered for everyone"}}</span>{{end}}</p>
+  <p class="pre" dir="auto">{{.Text}}</p>
+  {{if .Answered}}<p class="answer"><b>{{$.T .ReplySubject}}</b>{{with .ReplyText}} <span class="pre" dir="auto">{{.}}</span>{{end}}{{if .Public}} <span class="tag">{{$.T "answered for everyone"}}</span>{{end}}</p>
   {{else}}<p class="muted">{{$.T "Waiting for an answer."}}</p>{{end}}
 </article>
 {{else}}<p class="muted">{{.T "You have not asked anything."}}</p>{{end}}
 </section>
 {{with $d.Public}}
 <section class="card"><h2>{{$.T "Answers for everyone"}}</h2>
-{{range .}}<article class="msg"><h3>{{.About}} <small class="muted">{{$.Time .ReplyAt}}</small></h3><p class="pre">{{.Text}}</p>
-<p class="answer"><b>{{$.T .ReplySubject}}</b>{{with .ReplyText}} <span class="pre">{{.}}</span>{{end}}</p></article>{{end}}
+{{range .}}<article class="msg"><h3><bdi>{{.About}}</bdi> <small class="muted">{{$.Time .ReplyAt}}</small></h3><p class="pre" dir="auto">{{.Text}}</p>
+<p class="answer"><b>{{$.T .ReplySubject}}</b>{{with .ReplyText}} <span class="pre" dir="auto">{{.}}</span>{{end}}</p></article>{{end}}
 </section>
 {{end}}
 </div>
@@ -62,7 +62,7 @@
 <th class="num">{{if $b.ICPC}}{{.T "Solved"}}{{else}}{{.T "Total"}}{{end}}</th>{{if $b.ICPC}}<th class="num">{{.T "Penalty"}}</th>{{end}}</tr></thead>
 <tbody>
 {{range $r := $d.Rows}}
-<tr class="{{if eq $r.Key $d.Mine}}mine{{end}}"><td class="num">{{$r.Rank}}</td><td>{{$r.Name}}{{if and $b.Institutions $r.Institution}} <small class="muted">{{$r.Institution}}</small>{{end}}</td>
+<tr class="{{if eq $r.Key $d.Mine}}mine{{end}}{{with $r.Medal}} medal-{{.}}{{end}}"><td class="num">{{$r.ShownPlace}}</td><td>{{$r.Name}}{{if $r.Unofficial}} <span class="tag">{{$.T "unofficial"}}</span>{{end}}{{with $r.Medal}} <span class="medal {{.}}" title="{{$.T .}}">{{icon "award"}}</span>{{end}}{{if and $b.Institutions $r.Institution}} <small class="muted">{{$r.Institution}}</small>{{end}}</td>
 {{range $i, $c := $r.Cells}}{{$x := cell $b $i $c}}<td class="num {{$x.Class}}">{{$x.Text}}{{with $x.Minute}} <small>{{.}}</small>{{end}}{{if $x.Pending}} <span class="pending">?</span>{{end}}{{with $x.Subtasks}}<small class="sub">{{.}}</small>{{end}}</td>{{end}}
 <td class="num"><b>{{if $b.ICPC}}{{$r.Solved}}{{else}}{{fscore $r.Total $b.Precision}}{{end}}</b></td>{{if $b.ICPC}}<td class="num">{{$r.Penalty}}</td>{{end}}</tr>
 {{end}}
@@ -96,4 +96,69 @@
 </table>
 {{else}}<p class="muted">{{.T "Nothing printed yet."}}</p>{{end}}
 </div>
+{{end}}
+
+{{define "resultcard"}}{{$p := .P}}{{$t := .Task}}
+{{with .C}}{{$s := .Sub}}
+<section class="card result {{$s.Class}}" id="latest" data-task="{{$t.ID}}" data-sub="{{$s.ID}}" data-base="{{$p.Base}}" data-src="{{$p.Base}}submissions/{{$s.ID}}/card" aria-live="polite"
+  {{if .Queued}}hx-get="{{$p.Base}}submissions/{{$s.ID}}/card" hx-trigger="every 10s" hx-swap="outerHTML"{{end}}>
+  <h2>{{$p.T "Latest result"}} <small class="muted">#{{$s.ID}} · {{$p.Time $s.Time}}</small></h2>
+  <p class="verdict {{$s.Class}}">{{$s.StatusText}}</p>
+  {{if .Queued}}<p class="muted small queue-pos">{{if .Ahead}}{{$p.T "Submissions ahead of yours in the queue: %d." .Ahead}}{{else}}{{$p.T "Next in the queue."}}{{end}}{{with .Typical}} {{$p.T "Results take about %s right now." ($p.Approx .)}}{{end}}</p>{{end}}
+  {{if $s.Evaluating}}<progress max="{{$s.Total}}" value="{{$s.Done}}"></progress>{{end}}
+  {{if $s.HasScore}}<p class="bigscore"><b>{{$p.Score $s.Score $s.Precision}}</b> / {{$p.Score $s.Max $s.Precision}}</p>{{end}}
+  {{with .Subtasks}}<ul class="chips">{{range .}}<li class="{{.Class}}">{{$p.T "Subtask %d" .Index}} <b>{{$p.Score .Score $s.Precision}}/{{$p.Score .Max $s.Precision}}</b></li>{{end}}</ul>{{end}}
+  {{with .CompileError}}<pre class="compile-error">{{.}}</pre>{{end}}
+  <p><a href="{{$p.Base}}submissions/{{$s.ID}}">{{$p.T "Full details"}}</a></p>
+</section>
+{{else}}
+<section class="card result" id="latest" data-task="{{$t.ID}}" data-base="{{$p.Base}}" aria-live="polite">
+  <h2>{{$p.T "Latest result"}}</h2>
+  <p class="muted">{{$p.T "No submissions yet."}}</p>
+</section>
+{{end}}
+{{end}}
+
+{{define "submitted"}}{{template "resultcard" .Card}}{{template "submissions" .Page}}{{end}}
+
+{{define "testsform"}}{{$p := .P}}{{$d := .D}}{{$t := .Task}}
+<p class="muted">{{$p.T "Runs your program on an input you choose, with the task's limits, and shows its output. Tests are not graded."}}{{range $d.TestLimits}} {{index . 0}}: {{index . 1}}.{{end}}</p>
+{{if $d.TestsEnabled}}
+<form method="post" action="{{$p.Base}}tasks/{{$t.Name}}/test{{with .From}}?from={{.}}{{end}}" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{$p.CSRF}}">
+  {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" required></label>{{end}}
+  {{if $t.NeedsLanguage}}<label>{{$p.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
+  <label>{{$p.T "Input file"}} <input type="file" name="input"></label>
+  <label>{{$p.T "or type the input"}} <textarea name="input_text" rows="3"></textarea></label>
+  <button>{{$p.T "Run test"}}</button>
+</form>
+{{end}}
+{{if $d.Tests}}
+<table>
+<tr><th>{{$p.T "Time"}}</th><th>{{$p.T "Language"}}</th><th>{{$p.T "Status"}}</th><th>{{$p.T "Output"}}</th></tr>
+{{range $d.Tests}}{{template "testrow" (testrow $p .)}}{{end}}
+</table>
+{{end}}
+{{end}}
+
+
+{{define "banner"}}
+<section class="banner">
+  {{with .BannerURL}}<img class="bg" src="{{.}}" alt="">{{end}}
+  <div class="inner">
+    <div>
+      <h1>{{.Contest.Heading}}</h1>
+      {{with .Contest.Subheading}}<p class="sub">{{.}}</p>{{end}}
+      <p class="when"><span>{{icon "calendar"}} {{.DateRange .Contest.StartTime .Contest.StopTime}}</span>{{with .Contest.Location}}<span>{{icon "map-pin"}} {{.}}</span>{{end}}</p>
+    </div>
+    {{with .Contest.Tagline}}<p class="quote">“{{.}}”</p>{{end}}
+  </div>
+  <div class="figures">
+    <div class="figure">{{icon "file"}}<div><b>{{len .Contest.Tasks}}</b><small>{{.T "Tasks"}}</small></div></div>
+    {{with .Data.Duration}}<div class="figure">{{icon "clock"}}<div><b>{{$.Hours .}}</b><small>{{$.T "Duration"}}</small></div></div>{{end}}
+    {{if and .Tasks (not .Data.Hidden)}}{{if .Contest.ICPC}}<div class="figure">{{icon "check-circle"}}<div><b>{{.Data.Solved}} / {{len .Data.Rows}}</b><small>{{.T "Solved"}}</small></div></div>
+    {{else}}<div class="figure">{{icon "zap"}}<div><b>{{.Score .Data.Total 2}}</b><small>{{.T "of %s points" (.Score .Data.MaxTotal 2)}}</small></div></div>{{end}}{{end}}
+    {{with .Data.Rank}}<div class="figure">{{icon "trophy"}}<div><b>#{{.}}</b><small>{{$.T "of %d" $.Data.Ranked}}</small></div></div>{{end}}
+  </div>
+</section>
 {{end}}

@@ -2,12 +2,13 @@
 -- Stores the score computed from the submissions plus the manual
 -- adjustments of the row; returns the stored score.
 INSERT INTO participation_task_scores (participation_id, task_id, score, subtask_scores, icpc_solved,
-    icpc_attempts, icpc_solved_at, pending, last_submission_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+    icpc_attempts, icpc_solved_at, pending, last_submission_at, score_reached_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
 ON CONFLICT (participation_id, task_id) DO UPDATE SET
     score = EXCLUDED.score + participation_task_scores.adjustment, subtask_scores = EXCLUDED.subtask_scores,
     icpc_solved = EXCLUDED.icpc_solved, icpc_attempts = EXCLUDED.icpc_attempts, icpc_solved_at = EXCLUDED.icpc_solved_at,
-    pending = EXCLUDED.pending, last_submission_at = EXCLUDED.last_submission_at, updated_at = now()
+    pending = EXCLUDED.pending, last_submission_at = EXCLUDED.last_submission_at,
+    score_reached_at = EXCLUDED.score_reached_at, updated_at = now()
 RETURNING score;
 
 -- name: CreateScoreAdjustment :one

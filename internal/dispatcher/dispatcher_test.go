@@ -55,6 +55,8 @@ type env struct {
 	evMu    sync.Mutex
 	evs     []events.Event
 	boxBase int
+	// taken are the jobs the test (playing the worker) already took.
+	taken map[string]bool
 }
 
 var boxBase = 600
@@ -80,6 +82,13 @@ func newEnv(t *testing.T, withWorker bool) *env {
 	}
 	reg, err := langs.Load(filepath.Join("..", "..", "config", "languages"))
 	if err != nil {
+		t.Fatal(err)
+	}
+	// C with twice the time (time_multiplier).
+	c11, _ := reg.Get("c11")
+	slow := *c11
+	slow.ID, slow.Name, slow.TimeMultiplier = "c11x2", "C11 (x2)", 2
+	if err := reg.Add(&slow); err != nil {
 		t.Fatal(err)
 	}
 	e.disp = dispatcher.New(pool, rdb, reg, logging.Discard(), dispatcher.Options{
@@ -202,9 +211,11 @@ const (
 )
 
 // submit stores a submission and notifies the dispatcher.
-func (e *env) submit(src string, notify bool) int64 {
+func (e *env) submit(src string, notify bool) int64 { return e.submitIn("c11", src, notify) }
+
+// submitIn stores a submission in a language and notifies the dispatcher.
+func (e *env) submitIn(lang, src string, notify bool) int64 {
 	q := sqlc.New(e.pool)
-	lang := "c11"
 	s, err := q.CreateSubmission(ctx, sqlc.CreateSubmissionParams{ParticipationID: &e.part.ID, TaskID: e.task.ID,
 		SubmittedAt: time.Now(), Language: &lang, Official: true})
 	if err != nil {
@@ -309,6 +320,10 @@ func TestEndToEndScoring(t *testing.T) {
 	ts := e.taskScore()
 	if ts.Score != 100 || ts.Pending != 0 {
 		t.Fatalf("task score %+v", ts)
+	}
+	// The ranking tie-break time is the AC's (later submissions scored less).
+	if acSub, err := sqlc.New(e.pool).GetSubmission(ctx, ac); err != nil || ts.ScoreReachedAt == nil || !ts.ScoreReachedAt.Equal(acSub.SubmittedAt) {
+		t.Fatalf("score reached at %v, AC submitted at %v (%v)", ts.ScoreReachedAt, acSub.SubmittedAt, err)
 	}
 	// Ranking updates were pushed.
 	n, _ := e.rdb.XLen(ctx, e.q.RankingStream()).Result()

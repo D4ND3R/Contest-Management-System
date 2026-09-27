@@ -54,6 +54,13 @@ type Judge struct {
 	UIDs [2]int
 }
 
+// Seccomp reports whether the executor runs programs behind the seccomp
+// filter (the battery's seccomp cases are skipped otherwise).
+func (j *Judge) Seccomp() bool {
+	s, ok := j.Exec.(interface{ Seccomp() bool })
+	return ok && s.Seccomp()
+}
+
 // Result is the outcome of one program.
 type Result struct {
 	Group string // "security" or "samples"
@@ -82,8 +89,14 @@ func (r Result) OK() bool {
 }
 
 // Class is the verdict a contestant sees (both time limits are a TLE), used
-// to compare runs.
+// to compare runs. A security case has one question, whether the sandbox
+// held: any of its accepted outcomes is the same class (a fork bomb may be
+// stopped by the time or the memory limit, depending on the kernel's
+// timing).
 func (r Result) Class() string {
+	if r.Group == "security" && r.OK() {
+		return "contained"
+	}
 	if r.Got == "timeout" || r.Got == "timeout_wall" {
 		return "TLE"
 	}
@@ -105,6 +118,8 @@ type securityCase struct {
 	want              []string
 	outcome           float64
 	check             func(env *hostEnv, output string) []string
+	// seccomp: the case tests the seccomp filter (skipped without it).
+	seccomp bool
 }
 
 func defaultLimits() jobs.Limits {
@@ -115,6 +130,17 @@ func defaultLimits() jobs.Limits {
 // overloaded machine the wall-clock limit (2×TL) can expire before the
 // program accumulates TL of CPU time. Both are "time limit exceeded".
 var tle = []string{"timeout", "timeout_wall"}
+
+// contained is what stops a fork bomb: a time limit, or the box's memory
+// limit. Each fork the process limit refuses still allocates the child's
+// kernel structures, charged to the box's control group and freed only
+// after an RCU grace period; with many processes forking in a loop they
+// can pile up to the memory limit first. Either way the box was killed
+// whole (noProcs checks that nothing survived).
+var contained = []string{"timeout", "timeout_wall", "memory"}
+
+// security is what the seccomp filter makes of a forbidden system call.
+var security = []string{"security"}
 
 // escapePaths are the files write_outside.c tries to create on the host.
 var escapePaths = []string{"/cms_pwned", "/usr/cms_pwned", "/usr/bin/cms_pwned", "/etc/cms_pwned",
@@ -131,8 +157,8 @@ func securityCases() []securityCase {
 		{name: "control_ac", file: "sum_ok.c", input: "2 3\n", limits: lim, want: []string{"ok"}, outcome: 1},
 		{name: "control_wa", file: "sum_wrong.c", input: "2 3\n", limits: lim, want: []string{"ok"}},
 		{name: "control_ce", file: "syntax_error.c", want: []string{"compile_error"}},
-		{name: "fork_bomb", file: "fork_bomb.c", limits: lim, want: tle, check: noProcs},
-		{name: "fork_bomb_64_procs", file: "fork_bomb_wide.c", limits: wide, want: tle, check: noProcs},
+		{name: "fork_bomb", file: "fork_bomb.c", limits: lim, want: contained, check: noProcs},
+		{name: "fork_bomb_64_procs", file: "fork_bomb_wide.c", limits: wide, want: contained, check: noProcs},
 		{name: "read_passwd", file: "read_passwd.c", limits: lim, want: []string{"ok"},
 			check: func(_ *hostEnv, out string) []string {
 				// /etc/alternatives is mounted on purpose (compiler symlinks),
@@ -193,7 +219,16 @@ func securityCases() []securityCase {
 				return append(p, leftoverProcesses(env.uids)...)
 			}},
 		{name: "stack_overflow", file: "stack_overflow.c", limits: lim, want: []string{"signal", "memory"}},
-		{name: "privilege_escalation", file: "privilege.c", limits: lim, want: []string{"ok"},
+		{name: "seccomp_user_namespace", file: "forbidden.c", input: "unshare\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_clone_newnet", file: "forbidden.c", input: "clone_newnet\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_bpf", file: "forbidden.c", input: "bpf\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_io_uring", file: "forbidden.c", input: "io_uring\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_ptrace", file: "forbidden.c", input: "ptrace\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_keyctl", file: "forbidden.c", input: "keyctl\n", limits: lim, want: security, seccomp: true},
+		{name: "seccomp_perf_event", file: "forbidden.c", input: "perf\n", limits: lim, want: security, seccomp: true},
+		// setuid fails; chroot and mount are refused, or kill it with the
+		// seccomp filter.
+		{name: "privilege_escalation", file: "privilege.c", limits: lim, want: []string{"ok", "security"},
 			check: func(_ *hostEnv, out string) []string {
 				if strings.Contains(out, "ROOT") {
 					return []string{"privilege escalation succeeded: " + firstLine(out)}
@@ -246,6 +281,9 @@ func (j *Judge) RunBattery(ctx context.Context) ([]Result, error) {
 	for _, c := range securityCases() {
 		if err := ctx.Err(); err != nil {
 			return out, err
+		}
+		if c.seccomp && !j.Seccomp() {
+			continue
 		}
 		src, err := Program("malicious/" + c.file)
 		if err != nil {
@@ -476,10 +514,18 @@ func Compare(a, b []Result) []string {
 		case !ok:
 			out = append(out, r.Name+": missing from the second run")
 		case r.Class() != o.Class():
-			out = append(out, fmt.Sprintf("%s: %s, then %s", r.Name, r.Got, o.Got))
+			out = append(out, fmt.Sprintf("%s: %s, then %s", r.Name, r.describe(), o.describe()))
 		}
 	}
 	return out
+}
+
+// describe is the outcome as Compare reports it.
+func (r Result) describe() string {
+	if r.Group == "security" && !r.OK() {
+		return r.Got + " (not contained)"
+	}
+	return r.Got
 }
 
 // ---------------------------------------------------------------- jobs

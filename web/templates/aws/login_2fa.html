@@ -1,5 +1,4 @@
 {{define "content"}}
-<div class="card narrow">
 <h1>{{.T "Two-factor authentication"}}</h1>
 <form method="post" action="/login/2fa">
   {{template "csrf" .CSRF}}
@@ -7,5 +6,4 @@
   <label>{{.T "Code from your authenticator app"}} <input name="totp_code" inputmode="numeric" autocomplete="one-time-code" required autofocus></label>
   <button>{{.T "Verify"}}</button>
 </form>
-</div>
 {{end}}

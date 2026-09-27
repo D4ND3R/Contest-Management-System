@@ -165,16 +165,16 @@ fi
 SMT=$(readf /sys/devices/system/cpu/smt/active)
 case "$SMT" in
   1) warn "SMT (hyperthreading) is on: a busy sibling thread slows the judging core down" \
-       "boot with nosmt, or keep worker.cores to one thread per physical core (the default) and leave the siblings idle" ;;
+       "keep worker.cores to one CPU per physical core, siblings idle (the installer's default since 0.3), or boot with nosmt" ;;
   0) ok "SMT (hyperthreading) is off" ;;
   *) info "SMT state not exposed (virtual machine?)" ;;
 esac
 if [ -f /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
   if [ "$(readf /sys/devices/system/cpu/intel_pstate/no_turbo)" = 1 ]; then ok "turbo boost is off"
-  else warn "turbo boost is on: running times vary with temperature and load" "echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo"; fi
+  else warn "turbo boost is on: running times vary with temperature and load" "sudo cms-host-tuning enable (or: echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo)"; fi
 elif [ -f /sys/devices/system/cpu/cpufreq/boost ]; then
   if [ "$(readf /sys/devices/system/cpu/cpufreq/boost)" = 0 ]; then ok "CPU boost is off"
-  else warn "CPU boost is on: running times vary with temperature and load" "echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost"; fi
+  else warn "CPU boost is on: running times vary with temperature and load" "sudo cms-host-tuning enable (or: echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost)"; fi
 else
   info "turbo boost not exposed (virtual machine?)"
 fi
@@ -184,7 +184,7 @@ if [ -z "$GOVS" ]; then
 elif [ "$GOVS" = "performance " ]; then
   ok "CPU governor: performance"
 else
-  warn "CPU governor: $GOVS(frequency changes make times less stable)" "sudo cpupower frequency-set -g performance"
+  warn "CPU governor: $GOVS(frequency changes make times less stable)" "sudo cms-host-tuning enable (or: sudo cpupower frequency-set -g performance)"
 fi
 
 # --- memory and clock -----------------------------------------------------
@@ -199,13 +199,19 @@ if command -v timedatectl >/dev/null && [ -d /run/systemd/system ]; then
 else
   info "clock synchronisation not checked (no systemd)"
 fi
+# The worker builds its seccomp filter (the sandbox's second wall) with the
+# system C compiler; the kernel must support seccomp filters.
+if ! grep -q '^Seccomp:' /proc/self/status 2>/dev/null; then
+  warn "the kernel has no seccomp support: programs are confined by isolate alone" "use a kernel built with CONFIG_SECCOMP_FILTER (every distribution kernel is)"
+elif command -v cc >/dev/null; then ok "C compiler present: the worker builds its seccomp filter"
+else warn "no C compiler: the worker cannot build its seccomp filter" "sudo apt-get install gcc libc6-dev (then restart cms-worker)"; fi
 if command -v isolate-check-environment >/dev/null; then
   # Its warnings (ASLR, transparent huge pages, ...) make times less stable.
   CE=$(isolate-check-environment 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E '^WARNING' || true)
   if [ -z "$CE" ]; then
     ok "isolate-check-environment found nothing to improve"
   else
-    warn "isolate-check-environment suggests changes for more stable times:" "sudo isolate-check-environment --execute (not persistent: add it to a boot script)"
+    warn "isolate-check-environment suggests changes for more stable times:" "sudo cms-host-tuning enable (persistent; ASLR only with ASLR=off in /etc/cms/host-tuning.conf), or sudo isolate-check-environment --execute (until the next boot)"
     echo "$CE" | sed 's/^WARNING: /         - /'
   fi
 fi

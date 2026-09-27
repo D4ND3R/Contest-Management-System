@@ -73,6 +73,10 @@ for design decisions.
 
 ## License / Licencia
 
-[Apache License 2.0](LICENSE) (see [NOTICE](NOTICE)). An independent
-implementation: no code from CMS (AGPL-3.0) is included. /
-Licencia Apache 2.0; implementación independiente, sin código de CMS.
+Copyright 2026 The Contest Management System authors. All rights reserved.
+No license is granted: using, copying, modifying or distributing this code
+requires the owner's written permission (see [NOTICE](NOTICE)). An
+independent implementation: no code from CMS (AGPL-3.0) is included. /
+Todos los derechos reservados. No se concede ninguna licencia: usar,
+copiar, modificar o distribuir este código requiere permiso escrito del
+titular. Implementación independiente, sin código de CMS.

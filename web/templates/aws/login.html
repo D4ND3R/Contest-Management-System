@@ -1,12 +1,10 @@
 {{define "content"}}
-<div class="card narrow">
 <h1>{{.T "Administration"}}</h1>
 <form method="post" action="/login">
   {{template "csrf" .CSRF}}
   <input type="hidden" name="next" value="{{.Data}}">
   <label>{{.T "Username"}} <input name="username" autocomplete="username" required autofocus></label>
   <label>{{.T "Password"}} <input type="password" name="password" autocomplete="current-password" required></label>
-  <button>{{.T "Log in"}}</button>
+  <p><button>{{icon "arrow-right"}} {{.T "Log in"}}</button></p>
 </form>
-</div>
 {{end}}

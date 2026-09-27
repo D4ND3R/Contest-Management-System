@@ -32,6 +32,7 @@ func NewContestUpdate() sqlc.UpdateContestParams {
 	c.RankingShowSubtasks, c.RankingShowFlags, c.RankingShowInstitutions = true, true, true
 	c.Status, c.DefaultScoreMode, c.ScoreVisibility, c.ShowCompilationOutput = "published", "max_subtask", "always", true
 	c.Registration, c.PasswordMinLength = "admin", 8
+	c.Medals, c.RankingTieBreak = "none", "shared"
 	return c
 }
 
@@ -62,6 +63,8 @@ func ContestToUpdate(c sqlc.Contest) sqlc.UpdateContestParams {
 		MaxSubmissionBytes: c.MaxSubmissionBytes, Registration: c.Registration, InvitationCode: c.InvitationCode,
 		PasswordMinLength: c.PasswordMinLength, SessionMinutes: c.SessionMinutes, TeamMode: c.TeamMode,
 		MaxTeamSize: c.MaxTeamSize, MaxPrintTotalPages: c.MaxPrintTotalPages,
+		Title: c.Title, Location: c.Location, Tagline: c.Tagline, Medals: c.Medals, AppealsUntil: c.AppealsUntil,
+		RankingTieBreak: c.RankingTieBreak, RankingShowPhotos: c.RankingShowPhotos,
 	}
 }
 
@@ -85,6 +88,7 @@ func TaskToUpdate(t sqlc.Task) sqlc.UpdateTaskParams {
 		MaxSubmissionNumber: t.MaxSubmissionNumber, MaxUserTestNumber: t.MaxUserTestNumber,
 		MinSubmissionIntervalS: t.MinSubmissionIntervalS, MinUserTestIntervalS: t.MinUserTestIntervalS,
 		FeedbackLevel: t.FeedbackLevel, ScorePrecision: t.ScorePrecision, ScoreMode: t.ScoreMode, Languages: t.Languages,
+		HideCheckerMessages: t.HideCheckerMessages,
 	}
 }
 
@@ -106,6 +110,7 @@ func DatasetToUpdate(d sqlc.Dataset) sqlc.UpdateDatasetParams {
 		WallTimeLimitMs: d.WallTimeLimitMs, MemoryLimitBytes: d.MemoryLimitBytes, OutputLimitBytes: d.OutputLimitBytes,
 		ProcessLimit: d.ProcessLimit, SourceSizeLimitBytes: d.SourceSizeLimitBytes, TaskType: d.TaskType,
 		TaskTypeParams: d.TaskTypeParams, ScoreType: d.ScoreType, ScoreTypeParams: d.ScoreTypeParams,
+		ShortCircuit: d.ShortCircuit,
 	}
 }
 
@@ -114,5 +119,6 @@ func ParticipationToUpdate(p sqlc.Participation) sqlc.UpdateParticipationParams 
 	return sqlc.UpdateParticipationParams{
 		ID: p.ID, TeamID: p.TeamID, Ip: p.Ip, DelayTimeS: p.DelayTimeS, ExtraTimeS: p.ExtraTimeS,
 		Hidden: p.Hidden, Unrestricted: p.Unrestricted, StartingTime: p.StartingTime, SiteID: p.SiteID,
+		Unofficial: p.Unofficial,
 	}
 }

@@ -8,6 +8,7 @@ package pdf
 
 import (
 	"bytes"
+	"compress/zlib"
 	"fmt"
 	"io"
 	"strconv"
@@ -25,12 +26,16 @@ type Doc struct {
 	pages  []*Page
 	images []*Image
 	Title  string
+	// Compress deflates the page contents (long documents); off, the
+	// text stays searchable in the raw bytes.
+	Compress bool
 }
 
 // Page is one page; coordinates are in points from the bottom-left corner.
 type Page struct {
-	w, h float64
-	buf  bytes.Buffer
+	w, h  float64
+	buf   bytes.Buffer
+	links []link
 }
 
 // New returns an empty document.
@@ -55,6 +60,9 @@ func (p *Page) Size() (w, h float64) { return p.w, p.h }
 
 // Pages is the number of pages.
 func (d *Doc) Pages() int { return len(d.pages) }
+
+// Page returns page i (from 0).
+func (d *Doc) Page(i int) *Page { return d.pages[i] }
 
 func num(v float64) string { return strconv.FormatFloat(v, 'f', 2, 64) }
 
@@ -135,8 +143,8 @@ func (d *Doc) Write(w io.Writer) error {
 	// 1: catalog, 2: pages (bodies written in order; numbering fixed below).
 	n := len(d.pages)
 	pagesID := 2
-	fontReg, fontBold, fontMono := 3, 4, 5
-	first := 6 // page i uses objects first+2i (page) and first+2i+1 (content)
+	fontFirst := 3                     // the fonts, numFonts objects
+	first := fontFirst + int(numFonts) // page i uses objects first+2i (page) and first+2i+1 (content)
 	// Images follow the pages; every page may use any of them.
 	xobjects := ""
 	if len(d.images) > 0 {
@@ -152,14 +160,25 @@ func (d *Doc) Write(w io.Writer) error {
 	}
 	obj(fmt.Sprintf("<< /Type /Catalog /Pages %d 0 R >>", pagesID))
 	obj(fmt.Sprintf("<< /Type /Pages /Kids [%s] /Count %d >>", strings.Join(kids, " "), n))
-	obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
-	obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
-	obj("<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>")
+	var fonts []string
+	for f := Font(0); f < numFonts; f++ {
+		obj(f.object())
+		fonts = append(fonts, fmt.Sprintf("/%s %d 0 R", f.resource(), fontFirst+int(f)))
+	}
+	fontRes := strings.Join(fonts, " ")
 	for i, p := range d.pages {
-		obj(fmt.Sprintf("<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %s %s] /Resources << /Font << /F1 %d 0 R /F2 %d 0 R /F3 %d 0 R >>%s >> /Contents %d 0 R >>",
-			pagesID, num(p.w), num(p.h), fontReg, fontBold, fontMono, xobjects, first+2*i+1))
-		content := p.buf.Bytes()
-		obj(fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(content)+0, content))
+		annots := ""
+		if len(p.links) > 0 {
+			var as []string
+			for _, l := range p.links {
+				as = append(as, fmt.Sprintf("<< /Type /Annot /Subtype /Link /Rect [%s %s %s %s] /Border [0 0 0] /A << /S /URI /URI (%s) >> >>",
+					num(l.x), num(l.y), num(l.x+l.w), num(l.y+l.h), escape(encode(l.url))))
+			}
+			annots = " /Annots [" + strings.Join(as, " ") + "]"
+		}
+		obj(fmt.Sprintf("<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %s %s] /Resources << /Font << %s >>%s >>%s /Contents %d 0 R >>",
+			pagesID, num(p.w), num(p.h), fontRes, xobjects, annots, first+2*i+1))
+		obj(stream(p.buf.Bytes(), d.Compress))
 	}
 	for _, im := range d.images {
 		obj(im.object())
@@ -180,6 +199,18 @@ func (d *Doc) Write(w io.Writer) error {
 	fmt.Fprintf(&out, "trailer\n%s >>\nstartxref\n%d\n%%%%EOF\n", trailer, xref)
 	_, err := w.Write(out.Bytes())
 	return err
+}
+
+// stream is a content stream object, compressed when that pays.
+func stream(content []byte, compress bool) string {
+	if compress && len(content) > 512 {
+		var z bytes.Buffer
+		zw := zlib.NewWriter(&z)
+		zw.Write(content)
+		zw.Close()
+		return fmt.Sprintf("<< /Length %d /Filter /FlateDecode >>\nstream\n%s\nendstream", z.Len(), z.Bytes())
+	}
+	return fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(content), content)
 }
 
 // Bytes returns the serialised document.

@@ -20,6 +20,7 @@ type Admin struct {
 	CreatedAt              time.Time `json:"created_at"`
 	TotpSecret             *string   `json:"totp_secret"`
 	PasswordChangeRequired bool      `json:"password_change_required"`
+	TeamID                 *int64    `json:"team_id"`
 }
 
 type Announcement struct {
@@ -29,6 +30,19 @@ type Announcement struct {
 	Subject   string    `json:"subject"`
 	Text      string    `json:"text"`
 	AdminID   *int64    `json:"admin_id"`
+}
+
+type Appeal struct {
+	ID              int64      `json:"id"`
+	ParticipationID int64      `json:"participation_id"`
+	TaskID          *int64     `json:"task_id"`
+	SubmissionID    *int64     `json:"submission_id"`
+	CreatedAt       time.Time  `json:"created_at"`
+	Text            string     `json:"text"`
+	Status          string     `json:"status"`
+	Response        string     `json:"response"`
+	HandledBy       *int64     `json:"handled_by"`
+	HandledAt       *time.Time `json:"handled_at"`
 }
 
 type Attachment struct {
@@ -47,6 +61,10 @@ type AuditLog struct {
 	TargetID   *int64          `json:"target_id"`
 	Details    json.RawMessage `json:"details"`
 	Ip         string          `json:"ip"`
+	Actor      string          `json:"actor"`
+	Seq        *int64          `json:"seq"`
+	PrevHash   string          `json:"prev_hash"`
+	Hash       *string         `json:"hash"`
 }
 
 type Balloon struct {
@@ -76,6 +94,26 @@ type CertificateTemplate struct {
 	LogoDigest             *string         `json:"logo_digest"`
 	ContestantsCanDownload bool            `json:"contestants_can_download"`
 	UpdatedAt              time.Time       `json:"updated_at"`
+}
+
+type CompilationCache struct {
+	Key       string    `json:"key"`
+	Text      string    `json:"text"`
+	Stdout    string    `json:"stdout"`
+	Stderr    string    `json:"stderr"`
+	Time      float64   `json:"time"`
+	WallTime  float64   `json:"wall_time"`
+	Memory    int64     `json:"memory"`
+	Hits      int64     `json:"hits"`
+	CreatedAt time.Time `json:"created_at"`
+	UsedAt    time.Time `json:"used_at"`
+}
+
+type CompilationCacheFile struct {
+	Key      string `json:"key"`
+	Filename string `json:"filename"`
+	Digest   string `json:"digest"`
+	Size     int64  `json:"size"`
 }
 
 type Contest struct {
@@ -143,6 +181,17 @@ type Contest struct {
 	PasswordMinLength           int32      `json:"password_min_length"`
 	SessionMinutes              *int32     `json:"session_minutes"`
 	MaxPrintTotalPages          *int32     `json:"max_print_total_pages"`
+	Title                       string     `json:"title"`
+	Location                    string     `json:"location"`
+	Tagline                     string     `json:"tagline"`
+	BannerDigest                *string    `json:"banner_digest"`
+	BannerType                  string     `json:"banner_type"`
+	SubmissionsPaused           bool       `json:"submissions_paused"`
+	PauseMessage                string     `json:"pause_message"`
+	Medals                      string     `json:"medals"`
+	AppealsUntil                *time.Time `json:"appeals_until"`
+	RankingTieBreak             string     `json:"ranking_tie_break"`
+	RankingShowPhotos           bool       `json:"ranking_show_photos"`
 }
 
 type Dataset struct {
@@ -161,6 +210,7 @@ type Dataset struct {
 	ScoreType            string          `json:"score_type"`
 	ScoreTypeParams      json.RawMessage `json:"score_type_params"`
 	CreatedAt            time.Time       `json:"created_at"`
+	ShortCircuit         bool            `json:"short_circuit"`
 }
 
 type Evaluation struct {
@@ -226,6 +276,7 @@ type Participation struct {
 	SiteID              *int64         `json:"site_id"`
 	CommunicationSeenAt time.Time      `json:"communication_seen_at"`
 	Approved            bool           `json:"approved"`
+	Unofficial          bool           `json:"unofficial"`
 }
 
 type ParticipationTaskScore struct {
@@ -240,6 +291,7 @@ type ParticipationTaskScore struct {
 	LastSubmissionAt *time.Time      `json:"last_submission_at"`
 	UpdatedAt        time.Time       `json:"updated_at"`
 	Adjustment       float64         `json:"adjustment"`
+	ScoreReachedAt   *time.Time      `json:"score_reached_at"`
 }
 
 type PrintJob struct {
@@ -270,6 +322,7 @@ type Question struct {
 	ContestID       int64      `json:"contest_id"`
 	TaskID          *int64     `json:"task_id"`
 	Public          bool       `json:"public"`
+	AssignedAdminID *int64     `json:"assigned_admin_id"`
 }
 
 type ScoreAdjustment struct {
@@ -317,6 +370,14 @@ type SubmissionFile struct {
 	SubmissionID int64  `json:"submission_id"`
 	Filename     string `json:"filename"`
 	Digest       string `json:"digest"`
+}
+
+type SubmissionFlag struct {
+	SubmissionID int64     `json:"submission_id"`
+	Kind         string    `json:"kind"`
+	Reason       string    `json:"reason"`
+	Detail       string    `json:"detail"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type SubmissionResult struct {
@@ -374,6 +435,17 @@ type Task struct {
 	CreatedAt              time.Time `json:"created_at"`
 	UpdatedAt              time.Time `json:"updated_at"`
 	Languages              []string  `json:"languages"`
+	SubmissionsClosed      bool      `json:"submissions_closed"`
+	HideCheckerMessages    bool      `json:"hide_checker_messages"`
+}
+
+type TaskExample struct {
+	ID           int64  `json:"id"`
+	TaskID       int64  `json:"task_id"`
+	Position     int32  `json:"position"`
+	InputDigest  string `json:"input_digest"`
+	OutputDigest string `json:"output_digest"`
+	Note         string `json:"note"`
 }
 
 type Team struct {

@@ -38,6 +38,15 @@ func (s *s3Remote) Upload(ctx context.Context, name, path string) error {
 	return err
 }
 
+// Download fetches an object into path (ErrRemoteNotFound when absent).
+func (s *s3Remote) Download(ctx context.Context, name, path string) error {
+	err := s.c.FGetObject(ctx, s.bucket, s.prefix+name, path, minio.GetObjectOptions{})
+	if e := minio.ToErrorResponse(err); e.Code == "NoSuchKey" {
+		return ErrRemoteNotFound
+	}
+	return err
+}
+
 func (s *s3Remote) Delete(ctx context.Context, name string) error {
 	return s.c.RemoveObject(ctx, s.bucket, s.prefix+name, minio.RemoveObjectOptions{})
 }

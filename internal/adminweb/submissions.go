@@ -58,11 +58,11 @@ func (f submissionFilter) query(before int64) string {
 func (f submissionFilter) Query() string { return f.query(0) }
 
 // statusFilters are the values of the submission list's status filter.
-var statusFilters = []string{"pending", "compile_failed", "scored", "error"}
+var statusFilters = []string{"pending", "compile_failed", "scored", "error", "flagged"}
 
 // verdictFilters are the verdicts of the verdict filter.
 var verdictFilters = []string{scoring.VerdictAccepted, scoring.VerdictWrong, scoring.VerdictTime, scoring.VerdictMemory,
-	scoring.VerdictRuntime, scoring.VerdictOutputLimit, scoring.VerdictCompileError}
+	scoring.VerdictRuntime, scoring.VerdictOutputLimit, scoring.VerdictCompileError, scoring.VerdictSecurity}
 
 type submissionsPage struct {
 	Contest   sqlc.Contest
@@ -97,10 +97,9 @@ func submissionQuery(r *http.Request, c sqlc.Contest) (submissionFilter, sqlc.Ad
 	if f.Language != "" {
 		p.Language = &f.Language
 	}
-	switch f.Status {
-	case "pending", "compile_failed", "scored", "error":
+	if contains(statusFilters, f.Status) {
 		p.Status = &f.Status
-	default:
+	} else {
 		f.Status = ""
 	}
 	if contains(verdictFilters, f.Verdict) {
@@ -270,7 +269,9 @@ type resultView struct {
 }
 
 type submissionPage struct {
-	S       sqlc.AdminGetSubmissionRow
+	S sqlc.AdminGetSubmissionRow
+	// Flags say why the submission looks suspicious.
+	Flags   []sqlc.SubmissionFlag
 	Files   []fileView
 	Results []resultView
 	Contest string
@@ -301,13 +302,18 @@ func (s *Server) loadSubmission(w http.ResponseWriter, r *http.Request, rc *reqC
 
 // files loads the source files of a submission (text up to 1 MiB each).
 func (s *Server) files(r *http.Request, sub sqlc.AdminGetSubmissionRow) ([]fileView, error) {
-	fs, err := s.q.ListSubmissionFiles(r.Context(), sub.ID)
+	return s.filesOf(r, sub.ID, sub.Language)
+}
+
+// filesOf loads the source files of submission id in language lang.
+func (s *Server) filesOf(r *http.Request, id int64, lang *string) ([]fileView, error) {
+	fs, err := s.q.ListSubmissionFiles(r.Context(), id)
 	if err != nil {
 		return nil, err
 	}
 	ext := ""
-	if sub.Language != nil {
-		if l, ok := s.langs.Get(*sub.Language); ok {
+	if lang != nil {
+		if l, ok := s.langs.Get(*lang); ok {
 			ext = l.SourceExtension()
 		}
 	}
@@ -337,6 +343,10 @@ func (s *Server) handleSubmission(w http.ResponseWriter, r *http.Request, rc *re
 	}
 	d := &submissionPage{S: sub}
 	var err error
+	if d.Flags, err = s.q.ListSubmissionFlags(r.Context(), sub.ID); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
 	if d.Files, err = s.files(r, sub); err != nil {
 		s.internalError(w, r, rc, err)
 		return

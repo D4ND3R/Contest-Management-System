@@ -40,7 +40,6 @@ archives:
     name_template: "cms_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     wrap_in_directory: true
     files:
-      - LICENSE
       - NOTICE
       - README.md
       - config/cms.example.yaml
@@ -54,6 +53,7 @@ archives:
       - scripts/install.sh
       - scripts/install-isolate.sh
       - scripts/verify-host.sh
+      - scripts/host-tuning.sh
       - docs/**/*
 
 checksum:

@@ -30,6 +30,8 @@ worker: {cores: [0, 2]}
 	t.Setenv("CMS_REDIS_URL", "redis://example:1/2")
 	t.Setenv("CMS_WORKER_CORES", "4-6,9")
 	t.Setenv("CMS_CONTEST_ID", "12")
+	t.Setenv("CMS_REDIS_SENTINELS", "10.0.0.1:26379, 10.0.0.2:26379")
+	t.Setenv("CMS_REDIS_SENTINEL_MASTER", "cms")
 	cfg, err := Load(p)
 	if err != nil {
 		t.Fatal(err)
@@ -45,6 +47,9 @@ worker: {cores: [0, 2]}
 	}
 	if cfg.Redis.URL != "redis://example:1/2" {
 		t.Errorf("env override not applied: %q", cfg.Redis.URL)
+	}
+	if s := cfg.Redis.Sentinels; len(s) != 2 || s[1] != "10.0.0.2:26379" || cfg.Redis.SentinelMaster != "cms" {
+		t.Errorf("sentinels = %q master %q", s, cfg.Redis.SentinelMaster)
 	}
 	if got := cfg.Worker.Cores; len(got) != 4 || got[0] != 4 || got[3] != 9 {
 		t.Errorf("cores = %v", got)
@@ -80,11 +85,12 @@ func TestValidate(t *testing.T) {
 	c.Blob.Backend = "tape"
 	c.SecretKey = "abcd"
 	c.Dispatcher.MaxAttempts = 0
+	c.Redis.Sentinels = []string{"10.0.0.1:26379"}
 	err := c.Validate()
 	if err == nil {
 		t.Fatal("expected validation errors")
 	}
-	for _, want := range []string{"log.level", "blob.backend", "secret_key", "max_attempts"} {
+	for _, want := range []string{"log.level", "blob.backend", "secret_key", "max_attempts", "sentinel_master"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %s", err, want)
 		}

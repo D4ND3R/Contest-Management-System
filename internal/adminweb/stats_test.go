@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/D4ND3R/Contest-Management-System/internal/db"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
+	"github.com/D4ND3R/Contest-Management-System/internal/testutil"
 )
 
 // TestTaskStatistics (SPEC_CLOSE D4): per task, the submissions by verdict
@@ -48,5 +50,31 @@ func TestTaskStatistics(t *testing.T) {
 	}
 	if !strings.Contains(body, fmt.Sprintf(`<a href="/submissions/%d">ana</a>`, f.subs[0])) || !strings.Contains(body, "(minute 37)") {
 		t.Errorf("first accepted:\n%s", body)
+	}
+}
+
+// TestReportsReadTheReplica (SPEC_IOI §12): with a read replica, the
+// statistics come from it (here a different, empty database, so the
+// routing shows), while the rest of the admin reads the primary.
+func TestReportsReadTheReplica(t *testing.T) {
+	f := newFixture(t)
+	b := f.login("all")
+	path := fmt.Sprintf("/contests/%d/stats", f.contest.ID)
+	if _, body := b.Get(path); !strings.Contains(body, `<div class="stat"><b>2</b>`) {
+		t.Fatal("primary statistics")
+	}
+	// The "replica": the same contest (fresh databases number rows alike),
+	// without its tasks and submissions.
+	replica := sqlc.New(testutil.DB(t))
+	c, err := replica.CreateContest(bg, db.NewContestParams(f.contest.Name, f.contest.StartTime, f.contest.StopTime))
+	if err != nil || c.ID != f.contest.ID {
+		t.Skipf("replica contest id %d, primary %d (%v)", c.ID, f.contest.ID, err)
+	}
+	f.srv.rq = replica
+	if code, body := b.Get(path); code != 200 || strings.Contains(body, `<div class="stat"><b>2</b>`) {
+		t.Fatalf("the statistics do not come from the replica (%d)", code)
+	}
+	if code, body := b.Get(fmt.Sprintf("/submissions/%d", f.subs[0])); code != 200 || !strings.Contains(body, fmt.Sprintf("Submission %d", f.subs[0])) {
+		t.Fatal("submission pages must read the primary")
 	}
 }

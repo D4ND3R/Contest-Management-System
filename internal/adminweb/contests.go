@@ -5,7 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/contestweb"
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
@@ -26,6 +28,11 @@ type contestForm struct {
 	Counts        *sqlc.AdminContestCountsRow
 	// Pending self-registrations waiting for approval.
 	Pending int64
+	// BannerURL shows the banner image ("" = none).
+	BannerURL string
+	// Paused and PauseMessage: the emergency pause (not a form field).
+	Paused       bool
+	PauseMessage string
 }
 
 type localization struct{ Code, Name string }
@@ -147,6 +154,15 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 		f.fail("%q is reserved", c.Name)
 	}
 	c.Description = f.str("description")
+	c.Title, c.Location, c.Tagline = f.str("title"), f.str("location"), f.str("tagline")
+	for _, v := range []struct {
+		value, name string
+		max         int
+	}{{c.Title, "Title", 120}, {c.Location, "Location", 120}, {c.Tagline, "Motto", 200}, {c.Description, "Description", 300}} {
+		if utf8.RuneCountInString(v.value) > v.max {
+			f.fail("%s: at most %d characters", v.name, v.max)
+		}
+	}
 	if f.str("status") != "" {
 		c.Status = f.oneOf("status", "Status", "draft", "published", "archived")
 	}
@@ -176,6 +192,10 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 	c.AnalysisEnabled = f.check("analysis_enabled")
 	c.AnalysisStart = f.optTime("analysis_start", "Analysis start", loc)
 	c.AnalysisStop = f.optTime("analysis_stop", "Analysis end", loc)
+	c.AppealsUntil = f.optTime("appeals_until", "Appeals until", loc)
+	if c.AppealsUntil != nil && c.AppealsUntil.Before(c.StopTime) {
+		f.fail("appeals must close after the contest ends")
+	}
 	if c.AnalysisEnabled && (c.AnalysisStart == nil || c.AnalysisStop == nil) {
 		f.fail("analysis mode needs a start and an end")
 	}
@@ -244,7 +264,7 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 	}
 	c.ScoringMode = f.oneOf("scoring_mode", "Scoring mode", "ioi", "icpc")
 	if f.str("default_score_mode") != "" {
-		c.DefaultScoreMode = f.oneOf("default_score_mode", "Score mode of new tasks", "max_subtask", "max", "max_tokened_last")
+		c.DefaultScoreMode = f.oneOf("default_score_mode", "Score mode of new tasks", "max_subtask", "max", "max_tokened_last", "last")
 	}
 	c.TeamMode = f.check("team_mode")
 	c.MaxTeamSize = f.optInt32("max_team_size", "Maximum team size")
@@ -266,9 +286,20 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 		}
 		c.RankingShowSubtasks = f.check("ranking_show_subtasks")
 		c.RankingShowFlags = f.check("ranking_show_flags")
+		c.RankingShowPhotos = f.check("ranking_show_photos")
 		c.RankingShowInstitutions = f.check("ranking_show_institutions")
 		c.RankingShowHidden = f.check("ranking_show_hidden")
 		c.RankingAnonymous = f.check("ranking_anonymous")
+	}
+	if f.str("medals") != "" {
+		c.Medals = f.oneOf("medals", "Medals", "none", "admins", "public")
+	} else if c.Medals == "" {
+		c.Medals = "none" // a new contest
+	}
+	if f.str("ranking_tie_break") != "" {
+		c.RankingTieBreak = f.oneOf("ranking_tie_break", "Ties", "shared", "time")
+	} else if c.RankingTieBreak == "" {
+		c.RankingTieBreak = "shared"
 	}
 	c.MaxPrintJobs = f.int32("max_print_jobs", "Maximum print jobs", 10)
 	c.MaxPrintPages = f.int32("max_print_pages", "Maximum pages per job", 20)
@@ -313,11 +344,10 @@ func (s *Server) handleContestCreate(w http.ResponseWriter, r *http.Request, rc 
 	s.done(w, r, "/contests/"+strconv.FormatInt(id, 10), "Contest created.")
 }
 
-func (s *Server) handleContest(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	id, _ := pathID(r, "id")
-	c, err := s.q.GetContest(r.Context(), id)
-	if err != nil {
-		s.notFound(w, r, rc)
+// handleContestSettings is the contest's settings form.
+func (s *Server) handleContestSettings(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	c, ok := s.loadContest(w, r, rc)
+	if !ok {
 		return
 	}
 	d, err := s.contestForm(r.Context(), db.ContestToUpdate(c), false)
@@ -325,7 +355,36 @@ func (s *Server) handleContest(w http.ResponseWriter, r *http.Request, rc *reqCt
 		s.internalError(w, r, rc, err)
 		return
 	}
-	s.render(w, "contest", http.StatusOK, s.newPage(w, r, rc, c.Name, "contests", d).crumb("Contests", "/contests"))
+	d.BannerURL = bannerURL(c)
+	d.Paused, d.PauseMessage = c.SubmissionsPaused, c.PauseMessage
+	s.render(w, "contest", http.StatusOK, s.contestCrumbs(s.newPage(w, r, rc, "Settings", "contests", d), c))
+}
+
+// handleContestTasks lists the contest's tasks (order, add, remove).
+func (s *Server) handleContestTasks(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	c, ok := s.loadContest(w, r, rc)
+	if !ok {
+		return
+	}
+	d, err := s.contestForm(r.Context(), db.ContestToUpdate(c), false)
+	if err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	s.render(w, "contest_tasks", http.StatusOK, s.contestCrumbs(s.newPage(w, r, rc, "Problems", "contests", d), c))
+}
+
+// bannerURL is the versioned address of a contest's banner ("" = none).
+func bannerURL(c sqlc.Contest) string {
+	if c.BannerDigest == nil || len(*c.BannerDigest) < 12 {
+		return ""
+	}
+	return "/contests/" + strconv.FormatInt(c.ID, 10) + "/banner?v=" + (*c.BannerDigest)[:12]
+}
+
+// contestCrumbs leads back to the contest's dashboard.
+func (s *Server) contestCrumbs(p *page, c sqlc.Contest) *page {
+	return p.crumb("Contests", "/contests").crumb(c.Name, "/contests/"+strconv.FormatInt(c.ID, 10))
 }
 
 func (s *Server) handleContestUpdate(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -343,8 +402,11 @@ func (s *Server) handleContestUpdate(w http.ResponseWriter, r *http.Request, rc 
 		}
 	}
 	if f.err != nil {
+		rc.contest = &old
 		d, _ := s.contestForm(r.Context(), c, false)
-		s.formError(w, r, rc, "contest", s.newPage(w, r, rc, old.Name, "contests", d).crumb("Contests", "/contests"), f.err.Error())
+		d.BannerURL = bannerURL(old)
+		d.Paused, d.PauseMessage = old.SubmissionsPaused, old.PauseMessage
+		s.formError(w, r, rc, "contest", s.contestCrumbs(s.newPage(w, r, rc, "Settings", "contests", d), old), f.err.Error())
 		return
 	}
 	if _, err := s.q.UpdateContest(r.Context(), c); err != nil {
@@ -353,7 +415,7 @@ func (s *Server) handleContestUpdate(w http.ResponseWriter, r *http.Request, rc 
 	}
 	rc.target("contest", id)
 	s.contestChanged(r.Context(), id, 0)
-	s.done(w, r, "/contests/"+strconv.FormatInt(id, 10), "Contest saved.")
+	s.done(w, r, "/contests/"+strconv.FormatInt(id, 10)+"/settings", "Contest saved.")
 }
 
 func (s *Server) handleContestDelete(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -404,7 +466,7 @@ func (s *Server) handleContestAddTask(w http.ResponseWriter, r *http.Request, rc
 	}
 	rc.target("contest", id)
 	s.contestChanged(r.Context(), id, 0)
-	s.done(w, r, "/contests/"+strconv.FormatInt(id, 10), "Task "+t.Name+" added.")
+	s.done(w, r, "/contests/"+strconv.FormatInt(id, 10)+"/tasks", "Task "+t.Name+" added.")
 }
 
 func (s *Server) handleContestMoveTask(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -426,7 +488,7 @@ func (s *Server) handleContestMoveTask(w http.ResponseWriter, r *http.Request, r
 		j = i + 1
 	}
 	if i < 0 || j < 0 || j >= len(tasks) {
-		s.done(w, r, "/contests/"+strconv.FormatInt(id, 10), "")
+		s.done(w, r, "/contests/"+strconv.FormatInt(id, 10)+"/tasks", "")
 		return
 	}
 	a, b := tasks[i], tasks[j]
@@ -446,7 +508,7 @@ func (s *Server) handleContestMoveTask(w http.ResponseWriter, r *http.Request, r
 	}
 	rc.target("contest", id)
 	s.contestChanged(r.Context(), id, 0)
-	s.done(w, r, "/contests/"+strconv.FormatInt(id, 10), "")
+	s.done(w, r, "/contests/"+strconv.FormatInt(id, 10)+"/tasks", "")
 }
 
 func (s *Server) handleContestRemoveTask(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -464,7 +526,7 @@ func (s *Server) handleContestRemoveTask(w http.ResponseWriter, r *http.Request,
 	rc.target("contest", id)
 	rc.note("task", t.Name)
 	s.contestChanged(r.Context(), id, 0)
-	s.done(w, r, "/contests/"+strconv.FormatInt(id, 10), "Task "+t.Name+" removed from the contest.")
+	s.done(w, r, "/contests/"+strconv.FormatInt(id, 10)+"/tasks", "Task "+t.Name+" removed from the contest.")
 }
 
 // loadContest resolves {id} or renders 404.
@@ -479,7 +541,57 @@ func (s *Server) loadContest(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 		}
 		return c, false
 	}
+	rc.contest = &c
 	return c, true
+}
+
+// focusContest is the contest the admin pages default to: the running one
+// (the latest to start), else the next to start, else the latest one; never
+// an archived contest while another exists.
+func focusContest(list []sqlc.Contest, now time.Time) *sqlc.Contest {
+	var running, next, last *sqlc.Contest
+	for i := range list {
+		c := &list[i]
+		if c.Status == "archived" {
+			continue
+		}
+		switch {
+		case !now.Before(c.StartTime) && now.Before(c.StopTime):
+			if running == nil || c.StartTime.After(running.StartTime) {
+				running = c
+			}
+		case now.Before(c.StartTime):
+			if next == nil || c.StartTime.Before(next.StartTime) {
+				next = c
+			}
+		default:
+			if last == nil || c.StopTime.After(last.StopTime) {
+				last = c
+			}
+		}
+	}
+	switch {
+	case running != nil:
+		return running
+	case next != nil:
+		return next
+	case last != nil:
+		return last
+	case len(list) > 0:
+		return &list[0]
+	}
+	return nil
+}
+
+// contestPhase names the phase of a contest's official window.
+func contestPhase(c sqlc.Contest, now time.Time) string {
+	switch {
+	case now.Before(c.StartTime):
+		return "upcoming"
+	case now.Before(c.StopTime):
+		return "running"
+	}
+	return "finished"
 }
 
 // handleContestExtend moves the end of the contest (and, with per-user
@@ -512,4 +624,42 @@ func (s *Server) handleContestExtend(w http.ResponseWriter, r *http.Request, rc 
 	rc.target("contest", c.ID)
 	s.contestChanged(r.Context(), c.ID, 0)
 	s.done(w, r, "/contests/"+strconv.FormatInt(c.ID, 10), "End of the contest moved by %d minutes; contestants' clocks are updated.", minutes)
+}
+
+// maxPauseMessage bounds the message shown to contestants during a pause.
+const maxPauseMessage = 500
+
+// handleContestPause pauses or resumes submissions and user tests for the
+// whole contest (emergency control, SPEC_IOI §9.3). The clock keeps
+// running: extend the contest afterwards if the pause should not count.
+func (s *Server) handleContestPause(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	c, ok := s.loadContest(w, r, rc)
+	if !ok {
+		return
+	}
+	paused := r.FormValue("paused") == "1"
+	msg := strings.TrimSpace(r.FormValue("message"))
+	if !paused {
+		msg = ""
+	}
+	if len(msg) > maxPauseMessage {
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, i18n.T(adminLang(r), "The message is too long (at most %d characters).", maxPauseMessage))
+		return
+	}
+	if err := s.q.SetContestPaused(r.Context(), sqlc.SetContestPausedParams{ID: c.ID, Paused: paused, Message: msg}); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	rc.target("contest", c.ID)
+	rc.note("paused", paused)
+	if msg != "" {
+		rc.note("message", msg)
+	}
+	s.contestChanged(r.Context(), c.ID, 0)
+	back := "/contests/" + strconv.FormatInt(c.ID, 10)
+	if paused {
+		s.done(w, r, back, "Submissions paused: contestants cannot submit or run tests until you resume.")
+		return
+	}
+	s.done(w, r, back, "Submissions resumed.")
 }

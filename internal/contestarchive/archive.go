@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"time"
 
@@ -76,6 +77,7 @@ var tables = []table{
 	{"tasks", "contest_id = $1", "id", false},
 	{"statements", inTasks, "id", false},
 	{"attachments", inTasks, "id", false},
+	{"task_examples", inTasks, "id", false},
 	{"datasets", inTasks, "id", false},
 	{"managers", inDatasets, "id", false},
 	{"testcases", inDatasets, "id", false},
@@ -88,24 +90,44 @@ var tables = []table{
 	{"tokens", inSubmissions, "id", true},
 	{"submission_results", inSubmissions, "submission_id, dataset_id", true},
 	{"evaluations", inSubmissions, "submission_id, dataset_id, testcase_id", true},
+	{"submission_flags", inSubmissions, "submission_id, kind, reason", true},
 	{"participation_task_scores", inParticipations + " AND " + inTasks, "participation_id, task_id", true},
 	{"score_adjustments", inParticipations + " AND " + inTasks, "id", true},
+	{"appeals", inParticipations, "id", true},
+}
+
+// anonymous says how an anonymized archive (SPEC_IOI §14) rewrites a
+// table: set is merged into every row (SQL over the row r), and the digest
+// columns in drop are neither kept nor their files exported. People are
+// replaced by their numeric id; countries, teams' codes and flags, and
+// every result stay, so the archive still supports statistics and
+// research. Free text (questions, appeals, sources) is not rewritten.
+var anonymous = map[string]struct {
+	set  string
+	drop []string
+}{
+	"users": {`jsonb_build_object('username', 'user' || r.id, 'first_name', '', 'last_name', '', 'email', '',
+		'institution', '', 'region', '', 'password_hash', '*', 'photo_digest', NULL, 'timezone', NULL)`, []string{"photo_digest"}},
+	"teams":          {`jsonb_build_object('photo_digest', NULL)`, []string{"photo_digest"}},
+	"participations": {`jsonb_build_object('password_hash', NULL, 'ip', '[]'::jsonb)`, nil},
 }
 
 // skipped are the tables an archive leaves out, and why.
 var skipped = map[string]string{
-	"schema_migrations":     "installation",
-	"blobs":                 "installation (the files themselves travel)",
-	"languages":             "installation (config/languages)",
-	"admins":                "installation: references to admins become empty",
-	"audit_log":             "installation",
-	"executables":           "compiled again when needed",
-	"user_tests":            "contestants' own test runs, not results",
-	"user_test_files":       "contestants' own test runs, not results",
-	"user_test_results":     "contestants' own test runs, not results",
-	"user_test_executables": "compiled again when needed",
-	"print_jobs":            "contest-day logistics",
-	"balloons":              "contest-day logistics",
+	"schema_migrations":       "installation",
+	"blobs":                   "installation (the files themselves travel)",
+	"languages":               "installation (config/languages)",
+	"admins":                  "installation: references to admins become empty",
+	"audit_log":               "installation",
+	"executables":             "compiled again when needed",
+	"compilation_cache":       "installation (compilations remembered for reuse)",
+	"compilation_cache_files": "installation (compilations remembered for reuse)",
+	"user_tests":              "contestants' own test runs, not results",
+	"user_test_files":         "contestants' own test runs, not results",
+	"user_test_results":       "contestants' own test runs, not results",
+	"user_test_executables":   "compiled again when needed",
+	"print_jobs":              "contest-day logistics",
+	"balloons":                "contest-day logistics",
 }
 
 // refs maps every column holding an id to the table the id belongs to.
@@ -126,6 +148,7 @@ var refs = map[string]string{
 // to an installation, so they are emptied.
 var adminRefs = map[string]bool{
 	"admin_id": true, "reply_admin_id": true, "tester_admin_id": true, "invalidated_by": true, "delivered_by": true,
+	"assigned_admin_id": true, "handled_by": true,
 }
 
 // TableCount is the number of rows of one table in an archive.
@@ -143,6 +166,7 @@ type Header struct {
 	Contest     string       `json:"contest"`
 	Title       string       `json:"title"`
 	Submissions bool         `json:"submissions"`
+	Anonymized  bool         `json:"anonymized,omitempty"`
 	Tables      []TableCount `json:"tables"`
 	Blobs       int          `json:"blobs"`
 	BlobBytes   int64        `json:"blob_bytes"`
@@ -166,6 +190,8 @@ type Options struct {
 	// Submissions adds the submissions with their files, results,
 	// evaluations, tokens, per-task scores and manual adjustments.
 	Submissions bool
+	// Anonymize replaces the contestants' personal data (see anonymous).
+	Anonymize bool
 }
 
 // Export writes the archive of a contest to w. The rows come from one
@@ -217,7 +243,7 @@ func exportRows(ctx context.Context, pool *pgxpool.Pool, zw *zip.Writer, contest
 		return nil, nil, fmt.Errorf("contest %d: %w", contestID, err)
 	}
 	h := &Header{Format: Format, CreatedAt: time.Now().UTC().Truncate(time.Second), Version: version.String(),
-		Contest: c.Name, Title: c.Description, Submissions: o.Submissions}
+		Contest: c.Name, Title: c.Description, Submissions: o.Submissions, Anonymized: o.Anonymize}
 	if h.Migrations, err = appliedMigrations(ctx, tx); err != nil {
 		return nil, nil, err
 	}
@@ -230,7 +256,12 @@ func exportRows(ctx context.Context, pool *pgxpool.Pool, zw *zip.Writer, contest
 		if t.submissions && !o.Submissions {
 			continue
 		}
-		n, err := exportTable(ctx, tx, zw, t, contestID, digestCols[t.name], seen)
+		cols, set := digestCols[t.name], ""
+		if a, ok := anonymous[t.name]; ok && o.Anonymize {
+			set = a.set
+			cols = slices.DeleteFunc(slices.Clone(cols), func(c string) bool { return slices.Contains(a.drop, c) })
+		}
+		n, err := exportTable(ctx, tx, zw, t, contestID, cols, set, seen)
 		if err != nil {
 			return nil, nil, fmt.Errorf("export %s: %w", t.name, err)
 		}
@@ -240,6 +271,9 @@ func exportRows(ctx context.Context, pool *pgxpool.Pool, zw *zip.Writer, contest
 		rk, err := ranking.Compute(ctx, q, contestID, ranking.Options{})
 		if err != nil {
 			return nil, nil, err
+		}
+		if o.Anonymize {
+			rk.Anonymize()
 		}
 		fw, err := zw.Create(resultsName)
 		if err != nil {
@@ -259,7 +293,8 @@ func exportRows(ctx context.Context, pool *pgxpool.Pool, zw *zip.Writer, contest
 
 // exportTable writes the rows of t as JSON lines and collects the digests
 // they reference.
-func exportTable(ctx context.Context, tx pgx.Tx, zw *zip.Writer, t table, contestID int64, digestCols []string, seen map[string]bool) (int64, error) {
+func exportTable(ctx context.Context, tx pgx.Tx, zw *zip.Writer, t table, contestID int64, digestCols []string, set string,
+	seen map[string]bool) (int64, error) {
 	arr := "NULL::text[]"
 	if len(digestCols) > 0 {
 		arr = "ARRAY["
@@ -271,7 +306,11 @@ func exportTable(ctx context.Context, tx pgx.Tx, zw *zip.Writer, t table, contes
 		}
 		arr += "]"
 	}
-	rows, err := tx.Query(ctx, "SELECT row_to_json(r)::text, "+arr+" FROM "+pgx.Identifier{t.name}.Sanitize()+
+	row := "row_to_json(r)::text"
+	if set != "" {
+		row = "(to_jsonb(r) || " + set + ")::text"
+	}
+	rows, err := tx.Query(ctx, "SELECT "+row+", "+arr+" FROM "+pgx.Identifier{t.name}.Sanitize()+
 		" r WHERE "+t.where+" ORDER BY "+t.order, contestID)
 	if err != nil {
 		return 0, err

@@ -87,7 +87,9 @@ nothing), `--web nginx` (nginx + certbot instead of Caddy), `--admin-allow
 toolchains instead of C, C++, Python and Java), `--private-ip 10.8.0.1`
 (let [external workers](external-worker.md) reach this server),
 `--http-ports 8000,8001,8002` (contest, ranking and admin ports on a LAN),
-`--no-firewall`, `--enable-cgroup-v2`. The whole list: `--help`, or the top
+`--tune-host` (performance governor, no turbo boost or transparent huge
+pages, for stable times: see [verify-host](verify-host.md)),
+`--judge-all-threads`, `--no-firewall`, `--enable-cgroup-v2`. The whole list: `--help`, or the top
 of [scripts/install.sh](../../scripts/install.sh).
 
 **On a machine that already serves something** (a home server with
@@ -256,11 +258,16 @@ Every unit restarts automatically (`Restart=always`, 2 s). The web
 services are sandboxed by systemd (read-only system, private /tmp, no new
 privileges, writes only under `/var/lib/cms`).
 
-**CPU pinning.** Drop-ins (`/etc/systemd/system/<unit>.d/cpu.conf`) set
-`CPUAffinity=0` for every CMS service but the worker, and for PostgreSQL,
-Valkey and the proxy. The worker is not confined: it pins each sandbox to
-its judging cores (`worker.cores: [1]` in `cms.yaml`) and its own threads
-to the other CPUs.
+**CPU pinning.** The first physical core (the first two from six cores up)
+serves the web: drop-ins (`/etc/systemd/system/<unit>.d/cpu.conf`) set
+`CPUAffinity` to its CPUs for every CMS service but the worker, and for
+PostgreSQL, Valkey and the proxy. Every other physical core judges with one
+CPU (`worker.cores` in `cms.yaml`); with hyperthreading its siblings stay
+idle, because a busy sibling slows the judging CPU down
+(`--judge-all-threads` uses them too). The worker is not confined: it pins
+each sandbox to a judging CPU and its own threads to the other CPUs. The
+installer prints the layout: "judging cores: [1, 2, 3]; web CPUs: 0 4; idle
+hyperthreads: 5 6 7".
 
 ### HTTPS
 

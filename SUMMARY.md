@@ -143,7 +143,7 @@ tools to check them are ready.
   updates carry rank shifts, and pages reload when they missed one**
   (D70); **a submission is pending in the task score from its arrival**
   (D71).
-- **Distribution** (after the final summary): Apache-2.0 (D72); releases
+- **Distribution** (after the final summary): all rights reserved (D97; Apache-2.0 at first, D72); releases
   and multi-architecture images from a tag (D73); a one-line installer of
   side-by-side releases (D74); a Docker worker with minimal privileges
   (D75); `cmsctl upgrade` with backup and automatic rollback (D76); no

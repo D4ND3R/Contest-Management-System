@@ -35,6 +35,7 @@ const (
 	StatusWallTimeout  Status = "timeout_wall"  // wall-clock limit exceeded
 	StatusMemory       Status = "memory"        // memory limit exceeded
 	StatusOutputLimit  Status = "output_limit"  // file size limit exceeded (SIGXFSZ)
+	StatusSecurity     Status = "security"      // killed by the seccomp filter (SIGSYS)
 	StatusSandboxError Status = "sandbox_error" // isolate itself failed
 )
 
@@ -71,6 +72,8 @@ type Spec struct {
 	Limits         Limits
 	// ShareNet keeps the host network namespace (never for contestants).
 	ShareNet bool
+	// NoSeccomp runs the program without the seccomp launcher.
+	NoSeccomp bool
 	// StdinFile / StdoutFile connect the program to already-open files
 	// (typically pipe ends shared with another sandbox) instead of box
 	// paths; they take precedence over Stdin / Stdout.
@@ -101,6 +104,9 @@ type Isolate struct {
 	Path    string // path to the isolate binary
 	CG      bool   // use control groups (--cg)
 	BoxRoot string // box_root from the isolate configuration
+	// Launcher is the seccomp launcher (BuildLauncher); "" runs programs
+	// without the filter.
+	Launcher string
 }
 
 // ErrSandbox wraps isolate failures (infrastructure errors, not verdicts).
@@ -445,6 +451,10 @@ func (b *Box) args(spec *Spec) []string {
 	if spec.ShareNet {
 		a = append(a, "--share-net")
 	}
+	if l := b.iso.Launcher; l != "" && !spec.NoSeccomp {
+		a = append(a, "--dir="+LauncherDir+"="+filepath.Dir(l), "--run", "--", LauncherDir+"/"+filepath.Base(l))
+		return append(a, spec.Args...)
+	}
 	a = append(a, "--run", "--")
 	return append(a, spec.Args...)
 }
@@ -549,6 +559,9 @@ func classify(meta map[string]string, l Limits, cg bool) *Result {
 		r.Status = StatusTimeout
 	case status == "SG" && r.Signal == int(syscall.SIGXFSZ):
 		r.Status = StatusOutputLimit
+	case status == "SG" && r.Signal == int(syscall.SIGSYS):
+		// Only the seccomp filter sends SIGSYS on a forbidden system call.
+		r.Status = StatusSecurity
 	case (status == "SG" || status == "RE") && l.Memory > 0 && r.Memory >= l.Memory*98/100:
 		// Died while at the memory ceiling: the allocation failed.
 		r.Status = StatusMemory

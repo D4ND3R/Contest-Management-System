@@ -26,10 +26,15 @@ type Board struct {
 	Teams        bool        `json:"teams"`
 	Subtasks     bool        `json:"subtasks"`
 	Flags        bool        `json:"flags"`
+	Photos       bool        `json:"photos,omitempty"`
 	Institutions bool        `json:"institutions"`
 	Tasks        []BoardTask `json:"tasks"`
 	Rows         []BoardRow  `json:"rows"`
 	Generated    time.Time   `json:"generated"`
+	// Unofficial: some rows are unofficial (rows then carry their place);
+	// Cutoffs: the medal cutoffs, when the contest publishes them.
+	Unofficial bool     `json:"unofficial,omitempty"`
+	Cutoffs    []Cutoff `json:"cutoffs,omitempty"`
 }
 
 // BoardTask is a column of the scoreboard.
@@ -48,7 +53,8 @@ type BoardRow struct {
 	Rank        int         `json:"rank"`
 	Name        string      `json:"name"`
 	Team        string      `json:"team,omitempty"`
-	Flag        string      `json:"flag,omitempty"` // asset digest
+	Flag        string      `json:"flag,omitempty"`  // asset digest
+	Photo       string      `json:"photo,omitempty"` // asset digest
 	Institution string      `json:"institution,omitempty"`
 	Total       float64     `json:"total"`
 	Solved      int         `json:"solved,omitempty"`
@@ -56,6 +62,25 @@ type BoardRow struct {
 	Cells       []BoardCell `json:"cells"`
 	// Members are the participations of a team row (for its history).
 	Members []int64 `json:"-"`
+	// Unofficial rows show no place; Place is set only on boards with
+	// unofficial rows (elsewhere it equals Rank, and leaving it out keeps
+	// rows that only move out of the updates' content).
+	Unofficial bool   `json:"unofficial,omitempty"`
+	Place      int    `json:"place,omitempty"`
+	Medal      string `json:"medal,omitempty"`
+	// reached is the tie-break time (see Row.ReachedS).
+	reached *int64
+}
+
+// ShownPlace is the place to display ("" for unofficial rows).
+func (r BoardRow) ShownPlace() string {
+	switch {
+	case r.Unofficial:
+		return "–"
+	case r.Place > 0:
+		return strconv.Itoa(r.Place)
+	}
+	return strconv.Itoa(r.Rank)
 }
 
 // BoardCell is a row's result on a task.
@@ -69,6 +94,11 @@ type BoardCell struct {
 	Minute    int       `json:"minute,omitempty"`
 	// Adjustment (included in Score) matters when team scores are merged.
 	Adjustment float64 `json:"-"`
+	// elapsed is the tie-break time (see Cell); subAt, of a merged team
+	// cell with "best per subtask" scoring, that of the member holding
+	// each subtask's best score.
+	elapsed int64
+	subAt   []int64
 }
 
 // ParticipationKey is the board key of a participation.
@@ -80,7 +110,8 @@ func BuildBoard(r *Ranking, c sqlc.Contest, now time.Time) *Board {
 	b := &Board{Contest: c.Name, Title: c.Description, ICPC: r.ICPC, Precision: r.Precision, Start: c.StartTime, Stop: c.StopTime,
 		Timezone: c.Timezone,
 		FreezeAt: FreezeAt(c), Frozen: Frozen(c, now), Teams: c.TeamMode, Subtasks: c.RankingShowSubtasks,
-		Flags: c.RankingShowFlags, Institutions: c.RankingShowInstitutions, Generated: r.Generated}
+		Flags: c.RankingShowFlags, Institutions: c.RankingShowInstitutions, Generated: r.Generated,
+		Photos: c.RankingShowPhotos && !c.RankingAnonymous}
 	if b.Title == "" {
 		b.Title = c.Name
 	}
@@ -107,9 +138,18 @@ func BuildBoard(r *Ranking, c sqlc.Contest, now time.Time) *Board {
 	teams := map[string]int{}
 	for _, row := range r.Rows {
 		br := BoardRow{Key: ParticipationKey(row.ParticipationID), Name: displayName(row), Team: row.TeamCode,
-			Total: row.Total, Solved: row.Solved, Penalty: row.Penalty, Members: []int64{row.ParticipationID}}
+			Total: row.Total, Solved: row.Solved, Penalty: row.Penalty, Members: []int64{row.ParticipationID}, reached: row.ReachedS}
+		if !b.Teams && r.Unofficial {
+			br.Unofficial, br.Place = row.Unofficial, row.Place
+		}
+		if c.Medals == "public" && !b.Teams {
+			br.Medal = row.Medal
+		}
 		if b.Flags {
 			br.Flag = row.TeamFlag
+		}
+		if b.Photos {
+			br.Photo = row.Photo
 		}
 		if b.Institutions {
 			br.Institution = row.Institution
@@ -122,7 +162,7 @@ func BuildBoard(r *Ranking, c sqlc.Contest, now time.Time) *Board {
 		}
 		for _, cell := range row.Cells {
 			bc := BoardCell{Score: cell.Score, Submitted: cell.Submitted, Pending: cell.Pending,
-				Subtasks: append([]float64(nil), cell.Subtasks...), Adjustment: cell.Adjustment}
+				Subtasks: append([]float64(nil), cell.Subtasks...), Adjustment: cell.Adjustment, elapsed: cell.elapsed}
 			if r.ICPC {
 				bc.Solved, bc.Attempts, bc.Minute = cell.Solved, cell.Attempts, cell.SolvedMinute
 			}
@@ -133,7 +173,8 @@ func BuildBoard(r *Ranking, c sqlc.Contest, now time.Time) *Board {
 				mergeTeam(&b.Rows[i], br, r.ICPC, r.Tasks)
 				continue
 			}
-			br.Key, br.Name = "t"+row.TeamCode, row.TeamName
+			// A team row shows its flag, not a member's photo.
+			br.Key, br.Name, br.Photo = "t"+row.TeamCode, row.TeamName, ""
 			if br.Name == "" {
 				br.Name = row.TeamCode
 			}
@@ -150,6 +191,12 @@ func BuildBoard(r *Ranking, c sqlc.Contest, now time.Time) *Board {
 			if !b.Subtasks || len(r.Tasks[k].SubtaskMax) <= 1 {
 				b.Rows[i].Cells[k].Subtasks = nil
 			}
+		}
+	}
+	if !b.Teams {
+		b.Unofficial = r.Unofficial
+		if c.Medals == "public" {
+			b.Cutoffs = r.Cutoffs
 		}
 	}
 	if b.Teams {
@@ -195,6 +242,8 @@ func displayName(row Row) string {
 // mergeTeam adds a member's results to its team row: per task the best
 // member score, or with "best per subtask" scoring the sum of the best
 // member score of every subtask; in ICPC, the member who solved first.
+// The tie-break time follows: the first member to reach the best score
+// (per subtask, the time the holding member reached their own score).
 func mergeTeam(t *BoardRow, m BoardRow, icpc bool, tasks []Task) {
 	t.Members = append(t.Members, m.Members...)
 	for i, mc := range m.Cells {
@@ -203,18 +252,27 @@ func mergeTeam(t *BoardRow, m BoardRow, icpc bool, tasks []Task) {
 		tc.Pending += mc.Pending
 		if icpc {
 			if mc.Solved && (!tc.Solved || mc.Minute < tc.Minute) {
-				tc.Solved, tc.Minute, tc.Attempts = true, mc.Minute, mc.Attempts
+				tc.Solved, tc.Minute, tc.Attempts, tc.elapsed = true, mc.Minute, mc.Attempts, mc.elapsed
 			} else if !tc.Solved {
 				tc.Attempts += mc.Attempts
 			}
 			continue
 		}
+		for len(tc.subAt) < len(tc.Subtasks) {
+			tc.subAt = append(tc.subAt, tc.elapsed)
+		}
 		for k, v := range mc.Subtasks {
 			if k < len(tc.Subtasks) {
+				if v > tc.Subtasks[k] || v == tc.Subtasks[k] && earlier(mc.elapsed, tc.subAt[k]) {
+					tc.subAt[k] = mc.elapsed
+				}
 				tc.Subtasks[k] = max(tc.Subtasks[k], v)
 			} else {
-				tc.Subtasks = append(tc.Subtasks, v)
+				tc.Subtasks, tc.subAt = append(tc.Subtasks, v), append(tc.subAt, mc.elapsed)
 			}
+		}
+		if mc.Score > tc.Score || mc.Score == tc.Score && earlier(mc.elapsed, tc.elapsed) {
+			tc.elapsed = mc.elapsed
 		}
 		tc.Score = max(tc.Score, mc.Score)
 		// Manual adjustments of any member count for the team.
@@ -225,9 +283,18 @@ func mergeTeam(t *BoardRow, m BoardRow, icpc bool, tasks []Task) {
 				sum += v
 			}
 			tc.Score = round(sum, tasks[i].Precision)
+			tc.elapsed = -1
+			for k, v := range tc.Subtasks {
+				if v > 0 {
+					tc.elapsed = max(tc.elapsed, tc.subAt[k])
+				}
+			}
 		}
 	}
 }
+
+// earlier reports whether tie-break time a (-1: unknown) is before b.
+func earlier(a, b int64) bool { return a >= 0 && (b < 0 || a < b) }
 
 // rerank computes team totals and ranks.
 func (b *Board) rerank(c sqlc.Contest) {
@@ -242,21 +309,10 @@ func (b *Board) rerank(c sqlc.Contest) {
 			}
 		}
 		row.Total = round(row.Total, b.Precision)
+		row.reached = reachedTime(b.ICPC, row.Cells, func(c BoardCell) (float64, bool, int64) { return c.Score, c.Solved, c.elapsed })
 	}
 	cmp := func(x, y *BoardRow) int {
-		if b.ICPC {
-			if x.Solved != y.Solved {
-				return y.Solved - x.Solved
-			}
-			return x.Penalty - y.Penalty
-		}
-		switch {
-		case x.Total > y.Total+1e-9:
-			return -1
-		case y.Total > x.Total+1e-9:
-			return 1
-		}
-		return 0
+		return compareRows(b.ICPC, c.RankingTieBreak, x.Total, y.Total, x.Solved, y.Solved, x.Penalty, y.Penalty, x.reached, y.reached)
 	}
 	sort.SliceStable(b.Rows, func(i, j int) bool {
 		if c := cmp(&b.Rows[i], &b.Rows[j]); c != 0 {
@@ -277,7 +333,9 @@ func (b *Board) rerank(c sqlc.Contest) {
 // tasks or the freeze, which need a full refresh).
 func (b *Board) Header() Board {
 	h := *b
-	h.Rows, h.Generated = nil, time.Time{}
+	// Cutoffs move with the scores: rows carry their medal, and the
+	// summary is refreshed with the page, not by reloading every client.
+	h.Rows, h.Generated, h.Cutoffs = nil, time.Time{}, nil
 	return h
 }
 

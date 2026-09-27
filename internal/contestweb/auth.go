@@ -43,17 +43,21 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	sess := s.anonymous(w, r)
 	lang := s.language(r, nil, nil, "")
-	p := &page{Lang: lang, CSRF: s.csrf.Token(sess.ID), loc: time.UTC, UILanguages: uiLanguages(nil), Data: list}
+	p := &page{Lang: lang, Display: webkit.ReadDisplay(r), CSRF: s.csrf.Token(sess.ID), loc: time.UTC, UILanguages: uiLanguages(nil), Data: list}
 	p.Title = p.T("Contests")
 	s.render(w, "index", http.StatusOK, p)
 }
 
-// handleLang stores the UI language in a cookie.
+// handleLang stores the UI language and, from the preferences form, the
+// display preferences in cookies.
 func (s *Server) handleLang(w http.ResponseWriter, r *http.Request) {
 	smallBody(w, r)
 	if lang := r.FormValue("lang"); slices.Contains(i18n.Languages(), lang) {
 		http.SetCookie(w, &http.Cookie{Name: "cms_lang", Value: lang, Path: "/", MaxAge: 365 * 24 * 3600,
 			HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteLaxMode})
+	}
+	if r.Form.Has("theme") || r.Form.Has("size") {
+		webkit.WriteDisplay(w, webkit.DisplayFromForm(r), s.cfg.CookieSecure)
 	}
 	back := r.Header.Get("HX-Current-URL")
 	if back == "" {
@@ -68,7 +72,7 @@ func (s *Server) handleLang(w http.ResponseWriter, r *http.Request) {
 func (s *Server) loginPage(w http.ResponseWriter, r *http.Request, cv *contestView, status int, msg string) {
 	sess := s.anonymous(w, r)
 	lang := s.language(r, cv, nil, "")
-	p := &page{Lang: lang, CSRF: s.csrf.Token(sess.ID), Base: "/" + cv.Name + "/", Contest: cv, loc: cv.Loc,
+	p := &page{Lang: lang, Display: webkit.ReadDisplay(r), CSRF: s.csrf.Token(sess.ID), Base: "/" + cv.Name + "/", Contest: cv, loc: cv.Loc,
 		UILanguages: uiLanguages(cv.AllowedLocalizations)}
 	p.Title = p.T("Log in")
 	p.RegisterOpen = registrationOpen(cv, s.now())

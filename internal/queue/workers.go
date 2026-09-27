@@ -36,6 +36,14 @@ type WorkerStatus struct {
 	Alive     bool         `json:"alive"`
 	// Host is the load of the worker's machine.
 	Host *hoststat.Stats `json:"host,omitempty"`
+	// Seccomp: programs run behind the seccomp filter.
+	Seccomp bool `json:"seccomp"`
+	// Warmed of WarmTotal published blobs are in the worker's cache.
+	Warmed    int `json:"warmed,omitempty"`
+	WarmTotal int `json:"warm_total,omitempty"`
+	// Toolchains are the compiler and interpreter versions of the
+	// worker's machine, by language id (each language's version_command).
+	Toolchains map[string]string `json:"toolchains,omitempty"`
 }
 
 func (q *Queue) workerKey(name string) string { return q.Key("worker", name) }
@@ -115,7 +123,103 @@ func WorkerOfConsumer(consumer string) string {
 	return consumer
 }
 
+// Toolchain is a version of a language's toolchain and the live workers
+// reporting it.
+type Toolchain struct {
+	Version string
+	Workers []string
+}
+
+// Toolchains groups the versions reported by the live workers per
+// language, the most common first: every machine should judge with the
+// same compilers (SPEC_IOI §3), so more than one version is a problem.
+func Toolchains(ws []WorkerStatus) map[string][]Toolchain {
+	out := map[string][]Toolchain{}
+	for _, w := range ws {
+		if !w.Alive {
+			continue
+		}
+		for lang, v := range w.Toolchains {
+			list := out[lang]
+			i := 0
+			for i < len(list) && list[i].Version != v {
+				i++
+			}
+			if i == len(list) {
+				list = append(list, Toolchain{Version: v})
+			}
+			list[i].Workers = append(list[i].Workers, w.Name)
+			out[lang] = list
+		}
+	}
+	for _, list := range out {
+		sort.SliceStable(list, func(i, j int) bool {
+			if len(list[i].Workers) != len(list[j].Workers) {
+				return len(list[i].Workers) > len(list[j].Workers)
+			}
+			return list[i].Version < list[j].Version
+		})
+	}
+	return out
+}
+
 func itoa(v int64) string {
 	b, _ := json.Marshal(v)
 	return string(b)
+}
+
+// Calibration is the latest calibration benchmark of a worker machine
+// ("cms ctl calibrate"): the median CPU time of each judging slot, in
+// seconds.
+type Calibration struct {
+	Worker   string    `json:"worker"`
+	Hostname string    `json:"hostname"`
+	At       time.Time `json:"at"`
+	Median   float64   `json:"median"`
+	Slots    []float64 `json:"slots"`
+	// Cores are the CPUs of Slots; Tolerance the fraction that counts as off.
+	Cores     []int   `json:"cores"`
+	Tolerance float64 `json:"tolerance"`
+	// Off counts the slots more than the tolerance away from Median.
+	Off int `json:"off"`
+}
+
+func (q *Queue) calibrationKey(worker string) string { return q.Key("calibration", worker) }
+func (q *Queue) calibrationsSet() string             { return q.Key("calibrations") }
+
+// SaveCalibration stores a worker's calibration (kept 30 days).
+func (q *Queue) SaveCalibration(ctx context.Context, c Calibration) error {
+	data, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+	pipe := q.rdb.Pipeline()
+	pipe.Set(ctx, q.calibrationKey(c.Worker), data, 30*24*time.Hour)
+	pipe.SAdd(ctx, q.calibrationsSet(), c.Worker)
+	_, err = pipe.Exec(ctx)
+	return err
+}
+
+// Calibrations returns the stored calibrations, by worker name.
+func (q *Queue) Calibrations(ctx context.Context) (map[string]Calibration, error) {
+	names, err := q.rdb.SMembers(ctx, q.calibrationsSet()).Result()
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]Calibration{}
+	for _, n := range names {
+		data, err := q.rdb.Get(ctx, q.calibrationKey(n)).Bytes()
+		if errors.Is(err, redis.Nil) {
+			q.rdb.SRem(ctx, q.calibrationsSet(), n)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		var c Calibration
+		if json.Unmarshal(data, &c) == nil {
+			out[n] = c
+		}
+	}
+	return out, nil
 }

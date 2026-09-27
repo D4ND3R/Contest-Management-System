@@ -90,7 +90,15 @@ cmsctl restore -force FILE       # replace a database that already has data
      commits;
    - applies the migrations that are newer than the backup (a backup taken
      with an older CMS version restores into a newer one).
-4. Start the services again.
+4. Start the services again. The restore also empties the job queues
+   (the restored database hands out again the submission ids created
+   after the backup; jobs queued for the old ones must not reach the new
+   ones); if Valkey cannot be reached it says so: run `cmsctl queue-drain`
+   before starting the services.
+
+To take the database back to any moment (not only to the last backup),
+see continuous archiving and point-in-time recovery in
+[operations](operations.md).
 
 A damaged or truncated file is rejected before anything is committed.
 Restoring into a newer schema than the backup's needs `-force`; a backup
@@ -132,7 +140,7 @@ on purpose: compiled executables (a reevaluation compiles again), user
 tests, print jobs, balloons, the audit log and the administrators
 (references to them are emptied).
 
-- **Admin panel**: *Archive* on the contest page downloads it (with or
+- **Admin panel**: *Archive* on the contest's Settings page downloads it (with or
   without submissions); *Import a contest archive* at the bottom of the
   contests page creates the new contest.
 - **Command line**:
@@ -152,3 +160,12 @@ otherwise nothing is written. By default the new contest is *archived*
 *draft* otherwise. Files are checked against their SHA-256; a damaged file,
 or an archive written by a newer CMS version, is refused before anything
 is written. Both the download and the import are in the audit log.
+
+### Anonymized archives
+
+Tick **anonymized** when downloading an archive (or the results CSV) to
+share a contest for research or training: usernames become `user<id>`;
+names, e-mails, institutions, photos, IP restrictions and passwords are
+removed. Countries, teams (codes and flags), tasks, submissions and every
+result stay. Free text (questions, appeals, source code) is not rewritten:
+review it before publishing.

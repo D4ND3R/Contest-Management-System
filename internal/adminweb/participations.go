@@ -221,6 +221,7 @@ func (s *Server) handleParticipationUpdate(w http.ResponseWriter, r *http.Reques
 	up.DelayTimeS = f.nonNeg("delay_time_s", "Delay", 0)
 	up.ExtraTimeS = f.nonNeg("extra_time_s", "Extra time", 0)
 	up.Hidden = f.check("hidden")
+	up.Unofficial = f.check("unofficial")
 	up.Unrestricted = f.check("unrestricted")
 	if f.check("reset_start") {
 		up.StartingTime = nil

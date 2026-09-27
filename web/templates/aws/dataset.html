@@ -2,7 +2,7 @@
 {{$d := .Data.D}}{{$ds := .Data.Dataset}}
 <h1>{{.T "Dataset %s" $ds.Description}} <small class="muted">{{.T "task"}} <a href="/tasks/{{.Data.Task.ID}}">{{.Data.Task.Name}}</a></small>
   {{if .Data.Live}}<span class="tag ok">{{.T "live"}}</span>{{end}}{{if $ds.Autojudge}}<span class="tag">{{.T "autojudge"}}</span>{{end}}</h1>
-<p class="actions"><a href="/tasks/{{.Data.Task.ID}}/export.zip?dataset={{$ds.ID}}">{{.T "Export as a package"}}</a></p>
+<p class="actions"><a href="/tasks/{{.Data.Task.ID}}/export.zip?dataset={{$ds.ID}}">{{.T "Export as a package"}}</a>{{if not .Data.Live}} · <a href="/tasks/{{.Data.Task.ID}}/compare?b={{$ds.ID}}">{{.T "Compare with the live dataset"}}</a>{{end}}</p>
 {{if .CanWrite}}<p class="actions">
   {{if not .Data.Live}}<form method="post" action="/datasets/{{$ds.ID}}/activate" class="inline" data-confirm="{{.T "Make this the live dataset? Scores will change."}}">{{template "csrf" .CSRF}}<button>{{.T "Make live"}}</button></form>{{end}}
   {{.T "Reevaluate on this dataset:"}} {{template "reevaluate" (reeval $ "dataset_id" $ds.ID (printf "/datasets/%d" $ds.ID))}}
@@ -12,7 +12,7 @@
 
 <form method="post" action="/datasets/{{$ds.ID}}" class="card">
 {{template "csrf" .CSRF}}
-<fieldset {{if not .CanWrite}}disabled{{end}}>
+<fieldset {{if not .CanEditTasks}}disabled{{end}}>
 <div class="grid">
   <label>{{.T "Description"}} <input name="description" value="{{$d.Description}}" required></label>
   <label>{{.T "Time limit (s)"}} <input name="time_limit" value="{{msToS $d.TimeLimitMs}}" inputmode="decimal"></label>
@@ -74,45 +74,47 @@
 </fieldset>
 <details><summary>{{.T "Advanced: raw parameters (JSON)"}}</summary>
   <p class="checks"><label><input type="checkbox" name="raw_params"> {{.T "Use this JSON instead of the fields above"}}</label></p>
-  <textarea name="task_type_params" rows="6" class="code">{{.Data.ParamsJSON}}</textarea>
+  <textarea name="task_type_params" rows="6" class="code" aria-label="{{.T "Advanced: raw parameters (JSON)"}}">{{.Data.ParamsJSON}}</textarea>
 </details>
 </div>
 <div>
 <label>{{.T "Score type"}} <select name="score_type" data-type-switch="score">{{range .Data.ScoreTypes}}<option {{if eq . $d.ScoreType}}selected{{end}}>{{.}}</option>{{end}}</select></label>
 {{template "score-editor" (part $ .Data.Editor)}}
+<p class="checks" data-group="score" data-for="GroupMin GroupMul"><label><input type="checkbox" name="short_circuit" {{if $d.ShortCircuit}}checked{{end}}> {{.T "Short-circuit: skip the rest of a subtask once one of its testcases scores 0"}}</label></p>
+<p class="muted small" data-group="score" data-for="GroupMin GroupMul">{{.T "It saves judging time (the score cannot change); skipped testcases are shown as skipped instead of their result."}}</p>
 <details {{if .Data.Editor.Raw}}open{{end}}><summary>{{.T "Advanced: raw score parameters (JSON)"}}</summary>
   <p class="checks"><label><input type="checkbox" name="raw_score" {{if .Data.Editor.Raw}}checked{{end}}> {{.T "Use this JSON instead of the editor"}}</label></p>
-  <textarea name="score_type_params" id="score_type_params" rows="7" class="code">{{.Data.ScoreJSON}}</textarea>
+  <textarea name="score_type_params" id="score_type_params" rows="7" class="code" aria-label="{{.T "Advanced: raw score parameters (JSON)"}}">{{.Data.ScoreJSON}}</textarea>
   <small class="muted">{{.T "Sum: points per testcase (e.g. 10). Group*: one entry per subtask with its maximum score and testcases (regex, count or list) and an optional threshold, e.g."}} <code>[[40, "1_.*"], [60, 5]]</code></small>
 </details>
 </div>
 </div>
-{{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}
+{{if .CanEditTasks}}<button>{{.T "Save"}}</button>{{end}}
 </fieldset>
 </form>
 
 <section class="card" id="managers">
 <h2>{{.T "Managers"}} <small class="muted">{{.T "checkers, graders, stubs, headers"}}</small></h2>
 <ul>{{range .Data.Managers}}<li><a href="/datasets/{{$ds.ID}}/managers/{{.Filename}}">{{.Filename}}</a>
-  {{if $.CanWrite}}<form method="post" action="/datasets/{{$ds.ID}}/managers/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
+  {{if $.CanEditTasks}}<form method="post" action="/datasets/{{$ds.ID}}/managers/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
 {{else}}<li class="muted">{{.T "None."}}</li>{{end}}</ul>
 {{with .Data.Required}}<p class="muted small">{{$.T "This configuration uses:"}} {{join . ", "}}.</p>{{end}}
-{{if .CanWrite}}
+{{if .CanEditTasks}}
 <form method="post" action="/datasets/{{$ds.ID}}/managers" enctype="multipart/form-data">
-  {{template "csrf" .CSRF}}<input type="file" name="files" multiple required> <button>{{.T "Upload"}}</button>
+  {{template "csrf" .CSRF}}<input type="file" name="files" multiple required aria-label="{{.T "Managers"}}"> <button>{{.T "Upload"}}</button>
 </form>
 {{end}}
 </section>
 
 <section class="card" id="testcases">
 <h2>{{.T "Testcases"}} <small class="muted">{{len .Data.Testcases}}</small></h2>
-{{if .CanWrite}}
+{{if .CanEditTasks}}
 <div class="row">
 <form method="post" action="/datasets/{{$ds.ID}}/testcases/archive" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
   <h3>{{.T "From a zip archive"}}</h3>
   <div class="grid"><label>{{.T "Input names"}} <input name="input_template" value="*.in"></label><label>{{.T "Output names"}} <input name="output_template" value="*.out"></label></div>
-  <input type="file" name="archive" accept=".zip,application/zip" required>
+  <input type="file" name="archive" accept=".zip,application/zip" required aria-label="{{.T "From a zip archive"}}">
   <p class="checks"><label><input type="checkbox" name="overwrite"> {{.T "Overwrite existing"}}</label> <label><input type="checkbox" name="public"> {{.T "Public"}}</label></p>
   <button>{{.T "Import"}}</button>
 </form>
@@ -131,9 +133,9 @@
 <tbody>
 {{range .Data.Testcases}}
 <tr><td>{{.Codename}}</td>
-<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/public" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="public" value="{{if .Public}}0{{else}}1{{end}}"><button class="link">{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}</button></form>{{else}}{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}{{end}}</td>
+<td>{{if $.CanEditTasks}}<form method="post" action="/testcases/{{.ID}}/public" class="inline">{{template "csrf" $.CSRF}}<input type="hidden" name="public" value="{{if .Public}}0{{else}}1{{end}}"><button class="link">{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}</button></form>{{else}}{{if .Public}}{{$.T "yes"}}{{else}}{{$.T "no"}}{{end}}{{end}}</td>
 <td><a href="/testcases/{{.ID}}/input">{{$.T "input"}}</a></td><td><a href="/testcases/{{.ID}}/output">{{$.T "output"}}</a></td>
-<td>{{if $.CanWrite}}<form method="post" action="/testcases/{{.ID}}/delete" class="inline" data-confirm="{{$.T "Delete testcase %s?" .Codename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
+<td>{{if $.CanEditTasks}}<form method="post" action="/testcases/{{.ID}}/example" class="inline">{{template "csrf" $.CSRF}}<button class="link" title="{{$.T "Show it in the statement, on the page and in the PDF"}}">{{$.T "use as example"}}</button></form> · <form method="post" action="/testcases/{{.ID}}/delete" class="inline" data-confirm="{{$.T "Delete testcase %s?" .Codename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</td></tr>
 {{else}}
 <tr><td colspan="5" class="muted">{{.T "No testcases."}}</td></tr>
 {{end}}
@@ -141,7 +143,7 @@
 </table>
 </section>
 
-{{if and .CanWrite (not .Data.Live)}}
+{{if and .CanEditTasks (not .Data.Live)}}
 <section class="card danger">
 <form method="post" action="/datasets/{{$ds.ID}}/delete" data-confirm="{{.T "Delete this dataset and its results?"}}">
   {{template "csrf" .CSRF}}<button class="danger">{{.T "Delete dataset"}}</button>

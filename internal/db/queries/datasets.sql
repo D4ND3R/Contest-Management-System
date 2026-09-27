@@ -30,7 +30,7 @@ UPDATE datasets SET
     description = $2, autojudge = $3, time_limit_ms = $4, wall_time_limit_ms = $5,
     memory_limit_bytes = $6, output_limit_bytes = $7, process_limit = $8,
     source_size_limit_bytes = $9, task_type = $10, task_type_params = $11,
-    score_type = $12, score_type_params = $13
+    score_type = $12, score_type_params = $13, short_circuit = $14
 WHERE id = $1
 RETURNING *;
 
@@ -90,3 +90,38 @@ DELETE FROM testcases WHERE id = $1;
 
 -- name: CountTestcases :one
 SELECT count(*) FROM testcases WHERE dataset_id = $1;
+
+-- name: ListWarmDigests :many
+-- What the workers download ahead of time (SPEC_IOI §11): the testcases
+-- and managers of the live datasets of the contests running now or
+-- starting before @until. A handful of contests; testcases and managers
+-- are read through their (dataset_id, ...) unique indexes.
+SELECT DISTINCT x.digest::text AS digest FROM (
+    SELECT tc.input_digest AS digest
+    FROM contests c JOIN tasks t ON t.contest_id = c.id JOIN testcases tc ON tc.dataset_id = t.active_dataset_id
+    WHERE c.start_time < @until::timestamptz AND c.stop_time > now()
+  UNION ALL
+    SELECT tc.output_digest
+    FROM contests c JOIN tasks t ON t.contest_id = c.id JOIN testcases tc ON tc.dataset_id = t.active_dataset_id
+    WHERE c.start_time < @until::timestamptz AND c.stop_time > now()
+  UNION ALL
+    SELECT m.digest
+    FROM contests c JOIN tasks t ON t.contest_id = c.id JOIN managers m ON m.dataset_id = t.active_dataset_id
+    WHERE c.start_time < @until::timestamptz AND c.stop_time > now()
+) x;
+
+-- name: CompareDatasetSubmissions :many
+-- Every counted submission of a task with its results on two datasets
+-- (the dataset comparison page; submissions_task_idx, then the results'
+-- primary key): scores per submission and the inputs of the task score.
+SELECT s.id, s.participation_id, u.username, s.submitted_at, s.official, (k.submission_id IS NOT NULL)::boolean AS tokened,
+       ra.compilation_outcome AS compilation_a, ra.score AS score_a, ra.ranking_score_details AS details_a, ra.scored_at AS scored_at_a,
+       rb.compilation_outcome AS compilation_b, rb.score AS score_b, rb.ranking_score_details AS details_b, rb.scored_at AS scored_at_b
+FROM submissions s
+JOIN participations p ON p.id = s.participation_id
+JOIN users u ON u.id = p.user_id
+LEFT JOIN submission_results ra ON ra.submission_id = s.id AND ra.dataset_id = @dataset_a::bigint
+LEFT JOIN submission_results rb ON rb.submission_id = s.id AND rb.dataset_id = @dataset_b::bigint
+LEFT JOIN tokens k ON k.submission_id = s.id
+WHERE s.task_id = @task_id::bigint AND s.invalidated_at IS NULL AND NOT s.tester
+ORDER BY u.username, s.submitted_at, s.id;

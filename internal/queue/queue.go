@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,10 +47,18 @@ const (
 	PriorityCompile                    // submission compilation
 	PriorityUserTest                   // user tests
 	PriorityBackground                 // non-live datasets (autojudge), rejudges of old data
+	// PriorityDeferred holds the jobs of a contestant's older submissions
+	// once a newer one to the same task arrived: everybody's latest
+	// submission is judged first, and one contestant's burst cannot starve
+	// the others (SPEC_IOI §11). Served right after compilations.
+	PriorityDeferred
 	numPriorities
 )
 
-var priorityNames = [...]string{"evaluate", "compile", "usertest", "background"}
+var priorityNames = [...]string{"evaluate", "compile", "usertest", "background", "deferred"}
+
+// serviceOrder is the order workers read the queues in.
+var serviceOrder = []Priority{PriorityEvaluate, PriorityCompile, PriorityDeferred, PriorityUserTest, PriorityBackground}
 
 func (p Priority) String() string {
 	if p >= 0 && p < numPriorities {
@@ -59,13 +68,7 @@ func (p Priority) String() string {
 }
 
 // Priorities lists every priority in service order.
-func Priorities() []Priority {
-	out := make([]Priority, numPriorities)
-	for i := range out {
-		out[i] = Priority(i)
-	}
-	return out
-}
+func Priorities() []Priority { return append([]Priority(nil), serviceOrder...) }
 
 // ParsePriority maps a stream suffix back to its priority.
 func ParsePriority(s string) (Priority, bool) {
@@ -232,6 +235,50 @@ func (q *Queue) firstDelivery(res []redis.XStream) *Delivery {
 		return &Delivery{Priority: p, ID: s.Messages[0].ID, Job: j, Raw: raw}
 	}
 	return nil
+}
+
+// Defer moves a delivered job to the deferred queue (in one MULTI/EXEC:
+// a crash cannot lose it; at worst the monitor runs it twice, which the
+// dispatcher tolerates).
+func (q *Queue) Defer(ctx context.Context, d *Delivery) error {
+	j := *d.Job
+	j.Priority = int(PriorityDeferred)
+	data, err := json.Marshal(&j)
+	if err != nil {
+		return err
+	}
+	stream := q.JobStream(d.Priority)
+	pipe := q.rdb.TxPipeline()
+	pipe.XAdd(ctx, &redis.XAddArgs{Stream: q.JobStream(PriorityDeferred), Values: []any{"job", data}})
+	pipe.XAck(ctx, stream, workersGroup, d.ID)
+	pipe.XDel(ctx, stream, d.ID)
+	_, err = pipe.Exec(ctx)
+	return err
+}
+
+func (q *Queue) supersededKey(sub int64) string {
+	return q.Key("superseded", strconv.FormatInt(sub, 10))
+}
+
+// Supersede marks submissions whose remaining jobs should wait behind the
+// latest submissions of everybody (their contestant sent a newer one).
+func (q *Queue) Supersede(ctx context.Context, subs ...int64) error {
+	if len(subs) == 0 {
+		return nil
+	}
+	pipe := q.rdb.Pipeline()
+	for _, s := range subs {
+		pipe.Set(ctx, q.supersededKey(s), 1, skipTTL)
+	}
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+// Superseded reports whether a submission was superseded (false when
+// Redis cannot tell: judging it now is always correct).
+func (q *Queue) Superseded(ctx context.Context, sub int64) bool {
+	n, err := q.rdb.Exists(ctx, q.supersededKey(sub)).Result()
+	return err == nil && n > 0
 }
 
 // Ack acknowledges a delivery and deletes the message.
@@ -642,4 +689,43 @@ func (q *Queue) AdoptPending(ctx context.Context, consumer string) (int, error) 
 		}
 	}
 	return n, nil
+}
+
+// Skip lists the testcases of a (submission, dataset, generation) the
+// workers must not run (the short-circuit settled them).
+type Skip struct {
+	SubmissionID, DatasetID int64
+	Generation              int32
+	Testcases               []int64
+}
+
+func (q *Queue) skipKey(sub, ds int64, gen int32) string {
+	return q.Key("skip", strconv.FormatInt(sub, 10), strconv.FormatInt(ds, 10), strconv.Itoa(int(gen)))
+}
+
+// skipTTL outlives any job of the submission still queued.
+const skipTTL = 6 * time.Hour
+
+// AddSkips records testcases not to run.
+func (q *Queue) AddSkips(ctx context.Context, s Skip) error {
+	if len(s.Testcases) == 0 {
+		return nil
+	}
+	k := q.skipKey(s.SubmissionID, s.DatasetID, s.Generation)
+	members := make([]any, len(s.Testcases))
+	for i, id := range s.Testcases {
+		members[i] = id
+	}
+	pipe := q.rdb.Pipeline()
+	pipe.SAdd(ctx, k, members...)
+	pipe.Expire(ctx, k, skipTTL)
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+// Skipped reports whether a testcase of a job must not run (false when
+// Redis cannot tell: running it is always correct).
+func (q *Queue) Skipped(ctx context.Context, sub, ds int64, gen int32, testcase int64) bool {
+	ok, err := q.rdb.SIsMember(ctx, q.skipKey(sub, ds, gen), testcase).Result()
+	return err == nil && ok
 }

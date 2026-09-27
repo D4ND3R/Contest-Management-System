@@ -4,7 +4,7 @@
 <form method="post" action="/users/import" enctype="multipart/form-data" class="card inline-form">
   {{template "csrf" .CSRF}}
   <b>{{.T "Import CSV"}}</b>
-  <input type="file" name="file" accept=".csv,text/csv" required>
+  <input type="file" name="file" accept=".csv,text/csv" required aria-label="{{.T "Import CSV"}}">
   <label>{{.T "and add to"}} <select name="contest_id"><option value="">{{.T "no contest"}}</option>{{range .Data.Contests}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
   <label><input type="checkbox" name="update"> {{.T "update existing"}}</label>
   <label><input type="checkbox" name="generate" checked> {{.T "generate missing passwords"}}</label>

@@ -14,6 +14,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/auth"
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
+	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -42,7 +43,7 @@ func registrationOpen(cv *contestView, now time.Time) bool {
 func (s *Server) registerPage(w http.ResponseWriter, r *http.Request, cv *contestView, status int, d *registerForm, msg string) {
 	sess := s.anonymous(w, r)
 	lang := s.language(r, cv, nil, "")
-	p := &page{Lang: lang, CSRF: s.csrf.Token(sess.ID), Base: "/" + cv.Name + "/", Contest: cv, loc: cv.Loc,
+	p := &page{Lang: lang, Display: webkit.ReadDisplay(r), CSRF: s.csrf.Token(sess.ID), Base: "/" + cv.Name + "/", Contest: cv, loc: cv.Loc,
 		UILanguages: uiLanguages(cv.AllowedLocalizations), Data: d}
 	p.Title = p.T("Register")
 	if msg != "" {

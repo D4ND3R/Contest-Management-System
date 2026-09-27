@@ -51,6 +51,21 @@ func TestTaskLanguages(t *testing.T) {
 	if tk, _ := f.q.GetTask(bg, f.task.ID); len(tk.Languages) != 0 {
 		t.Fatalf("languages %v", tk.Languages)
 	}
+	// The "last submission" score mode (SPEC_IOI §6) is accepted by the
+	// form and the schema.
+	code, body = b.Post(path, taskForm(f, url.Values{"score_mode": {"last"}}))
+	webtest.MustOK(t, "last score mode", code, body)
+	if tk, _ := f.q.GetTask(bg, f.task.ID); tk.ScoreMode != "last" || !strings.Contains(body, `value="last" selected`) {
+		t.Fatalf("score mode %q", tk.ScoreMode)
+	}
+	// Checker messages hidden from contestants (SPEC_IOI §5); a form
+	// without the field keeps the setting.
+	code, body = b.Post(path, taskForm(f, url.Values{"checker_messages": {"hide"}}))
+	webtest.MustOK(t, "hide checker messages", code, body)
+	b.Post(path, taskForm(f, nil))
+	if tk, _ := f.q.GetTask(bg, f.task.ID); !tk.HideCheckerMessages {
+		t.Fatal("checker messages not hidden")
+	}
 }
 
 // datasetForm is a valid Batch dataset form with the score editor fields.

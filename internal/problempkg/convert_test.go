@@ -2,6 +2,8 @@ package problempkg
 
 import (
 	"io"
+
+	"github.com/D4ND3R/Contest-Management-System/internal/statement"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -51,6 +53,10 @@ func TestConvertItaly(t *testing.T) {
 	}
 	if names(p.Managers) != "checker.cpp" || names(p.Attachments) != "ejemplo.txt" || len(p.Statements) != 1 || p.Statements[0].Language != "es" {
 		t.Fatalf("managers %q attachments %q statements %+v", names(p.Managers), names(p.Attachments), p.Statements)
+	}
+	// att/input0.txt and att/output0.txt are an example, not downloads.
+	if len(p.Examples) != 1 || fileText(t, p.Examples[0].Input) != "2 3\n" || fileText(t, p.Examples[0].Output) != "5\n" {
+		t.Fatalf("examples %+v", p.Examples)
 	}
 	var sols []string
 	for _, s := range p.Solutions {
@@ -113,8 +119,26 @@ func TestConvertPolygon(t *testing.T) {
 	for _, s := range p.Statements {
 		langs[s.Language] = s.ContentType
 	}
-	if langs["es"] != "application/pdf" || !strings.HasPrefix(langs["en"], "text/html") {
+	// Spanish has LaTeX sections: they are the statement (rendered and
+	// typeset by the CMS); English only has HTML.
+	if langs["es"] != statement.TypeLaTeX || !strings.HasPrefix(langs["en"], "text/html") {
 		t.Fatalf("statements %v", langs)
+	}
+	for _, s := range p.Statements {
+		if s.Language != "es" {
+			continue
+		}
+		tex := fileText(t, s.File)
+		if !strings.Contains(tex, "\\section*{Entrada}") || !strings.Contains(tex, "\\Examples") || !strings.Contains(tex, "long long") {
+			t.Fatalf("generated statement:\n%s", tex)
+		}
+		doc, _ := statement.ParseIn(s.ContentType, []byte(tex), "es")
+		if html := doc.HTML(statement.HTMLOptions{}); !strings.Contains(html, "<math><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow></math>") {
+			t.Fatalf("rendered: %s", html)
+		}
+	}
+	if len(p.Examples) != 1 || fileText(t, p.Examples[0].Input) != "2 3\n" {
+		t.Fatalf("examples %+v", p.Examples)
 	}
 
 	// The plain package (tests not generated) is refused with the remedy.

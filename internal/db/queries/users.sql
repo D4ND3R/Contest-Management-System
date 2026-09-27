@@ -75,7 +75,7 @@ WHERE p.contest_id = $1 AND u.username = $2;
 
 -- name: ListParticipationsByContest :many
 SELECT sqlc.embed(p), u.username, u.first_name, u.last_name, u.timezone AS user_timezone,
-       u.institution, u.country, u.disabled, t.code AS team_code, t.name AS team_name,
+       u.institution, u.country, u.disabled, u.photo_digest AS user_photo, t.code AS team_code, t.name AS team_name,
        t.flag_digest AS team_flag, t.institution AS team_institution,
        st.name AS site_name, st.start_time AS site_start_time
 FROM participations p
@@ -94,7 +94,7 @@ SELECT p.id, p.ip, p.login_nonce FROM participations p WHERE p.contest_id = $1 A
 
 -- name: UpdateParticipation :one
 UPDATE participations SET team_id = $2, ip = $3, delay_time_s = $4, extra_time_s = $5, hidden = $6, unrestricted = $7,
-    starting_time = $8, site_id = $9
+    starting_time = $8, site_id = $9, unofficial = $10
 WHERE id = $1
 RETURNING *;
 

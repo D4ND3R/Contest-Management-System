@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/app"
+	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
 	"github.com/D4ND3R/Contest-Management-System/internal/metrics"
 	"github.com/D4ND3R/Contest-Management-System/internal/queue"
@@ -60,6 +61,10 @@ type Options struct {
 	Parallelism int
 	// Consumer name in the Redis consumer groups (default: hostname).
 	Consumer string
+	// WarmInterval: how often the blobs to pre-warm on the workers are
+	// published; WarmAhead: how long before its start a contest's are
+	// (SPEC_IOI §11).
+	WarmInterval, WarmAhead time.Duration
 }
 
 func (o *Options) defaults() {
@@ -83,6 +88,12 @@ func (o *Options) defaults() {
 	}
 	if o.Consumer == "" {
 		o.Consumer, _ = os.Hostname()
+	}
+	if o.WarmInterval <= 0 {
+		o.WarmInterval = time.Minute
+	}
+	if o.WarmAhead <= 0 {
+		o.WarmAhead = 3 * time.Hour
 	}
 }
 
@@ -298,6 +309,7 @@ func (d *Dispatcher) sweepLoop(ctx context.Context) error {
 	t := time.NewTicker(d.opts.SweepInterval)
 	defer t.Stop()
 	d.RequestSweep() // on becoming active: recover whatever was in flight
+	var lastWarm time.Time
 	for {
 		select {
 		case <-ctx.Done():
@@ -308,7 +320,27 @@ func (d *Dispatcher) sweepLoop(ctx context.Context) error {
 		if err := d.Sweep(ctx); err != nil && ctx.Err() == nil {
 			d.log.Error("sweep", "error", err)
 		}
+		if time.Since(lastWarm) >= d.opts.WarmInterval {
+			lastWarm = time.Now()
+			if err := d.PublishWarm(ctx); err != nil && ctx.Err() == nil {
+				d.log.Warn("publish blobs to pre-warm", "error", err)
+			}
+		}
 	}
+}
+
+// PublishWarm tells the workers which blobs the running and upcoming
+// contests need, so they download them before the first submission does.
+func (d *Dispatcher) PublishWarm(ctx context.Context) error {
+	digests, err := sqlc.New(d.pool).ListWarmDigests(ctx, time.Now().Add(d.opts.WarmAhead))
+	if err != nil {
+		return err
+	}
+	changed, err := d.q.SetWarm(ctx, digests)
+	if changed {
+		d.log.Info("blobs to pre-warm published", "count", len(digests))
+	}
+	return err
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) {

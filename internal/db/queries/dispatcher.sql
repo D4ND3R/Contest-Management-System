@@ -99,3 +99,18 @@ WHERE t.active_dataset_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM user_test_results r WHERE r.user_test_id = u.id AND r.dataset_id = t.active_dataset_id)
 ORDER BY u.id
 LIMIT $1;
+
+-- name: RunningContestCount :one
+-- Published contests whose window is open now (alerts: no worker alive).
+SELECT count(*)::bigint FROM contests WHERE status = 'published' AND start_time <= now() AND stop_time > now();
+
+-- name: JudgingLatencyWindow :one
+-- The median time from arrival to score of the submissions of the last ten
+-- minutes on live datasets, the ones still waiting counting until now
+-- (alerts; submissions_time_idx).
+SELECT COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM COALESCE(sr.scored_at, now()) - s.submitted_at)), 0)::float8 AS median,
+       count(*)::bigint AS submissions
+FROM submissions s
+JOIN tasks t ON t.id = s.task_id
+JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
+WHERE s.submitted_at > now() - interval '10 minutes' AND NOT s.tester AND sr.system_error IS NULL;

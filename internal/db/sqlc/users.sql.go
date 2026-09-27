@@ -52,7 +52,7 @@ func (q *Queries) CountTeamMembers(ctx context.Context, arg CountTeamMembersPara
 const createParticipation = `-- name: CreateParticipation :one
 INSERT INTO participations (contest_id, user_id, team_id, password_hash, ip, delay_time_s, extra_time_s, hidden, unrestricted)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved
+RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved, unofficial
 `
 
 type CreateParticipationParams struct {
@@ -96,6 +96,7 @@ func (q *Queries) CreateParticipation(ctx context.Context, arg CreateParticipati
 		&i.SiteID,
 		&i.CommunicationSeenAt,
 		&i.Approved,
+		&i.Unofficial,
 	)
 	return i, err
 }
@@ -289,7 +290,7 @@ func (q *Queries) GetLoginCandidate(ctx context.Context, arg GetLoginCandidatePa
 }
 
 const getParticipation = `-- name: GetParticipation :one
-SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved FROM participations WHERE id = $1
+SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved, unofficial FROM participations WHERE id = $1
 `
 
 func (q *Queries) GetParticipation(ctx context.Context, id int64) (Participation, error) {
@@ -311,12 +312,13 @@ func (q *Queries) GetParticipation(ctx context.Context, id int64) (Participation
 		&i.SiteID,
 		&i.CommunicationSeenAt,
 		&i.Approved,
+		&i.Unofficial,
 	)
 	return i, err
 }
 
 const getParticipationByContestUser = `-- name: GetParticipationByContestUser :one
-SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved FROM participations WHERE contest_id = $1 AND user_id = $2
+SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved, unofficial FROM participations WHERE contest_id = $1 AND user_id = $2
 `
 
 type GetParticipationByContestUserParams struct {
@@ -343,6 +345,7 @@ func (q *Queries) GetParticipationByContestUser(ctx context.Context, arg GetPart
 		&i.SiteID,
 		&i.CommunicationSeenAt,
 		&i.Approved,
+		&i.Unofficial,
 	)
 	return i, err
 }
@@ -477,8 +480,8 @@ func (q *Queries) ListExistingUsernames(ctx context.Context, usernames []string)
 }
 
 const listParticipationsByContest = `-- name: ListParticipationsByContest :many
-SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, p.communication_seen_at, p.approved, u.username, u.first_name, u.last_name, u.timezone AS user_timezone,
-       u.institution, u.country, u.disabled, t.code AS team_code, t.name AS team_name,
+SELECT p.id, p.contest_id, p.user_id, p.team_id, p.password_hash, p.ip, p.starting_time, p.delay_time_s, p.extra_time_s, p.hidden, p.unrestricted, p.login_nonce, p.site_id, p.communication_seen_at, p.approved, p.unofficial, u.username, u.first_name, u.last_name, u.timezone AS user_timezone,
+       u.institution, u.country, u.disabled, u.photo_digest AS user_photo, t.code AS team_code, t.name AS team_name,
        t.flag_digest AS team_flag, t.institution AS team_institution,
        st.name AS site_name, st.start_time AS site_start_time
 FROM participations p
@@ -498,6 +501,7 @@ type ListParticipationsByContestRow struct {
 	Institution     string        `json:"institution"`
 	Country         string        `json:"country"`
 	Disabled        bool          `json:"disabled"`
+	UserPhoto       *string       `json:"user_photo"`
 	TeamCode        *string       `json:"team_code"`
 	TeamName        *string       `json:"team_name"`
 	TeamFlag        *string       `json:"team_flag"`
@@ -531,6 +535,7 @@ func (q *Queries) ListParticipationsByContest(ctx context.Context, contestID int
 			&i.Participation.SiteID,
 			&i.Participation.CommunicationSeenAt,
 			&i.Participation.Approved,
+			&i.Participation.Unofficial,
 			&i.Username,
 			&i.FirstName,
 			&i.LastName,
@@ -538,6 +543,7 @@ func (q *Queries) ListParticipationsByContest(ctx context.Context, contestID int
 			&i.Institution,
 			&i.Country,
 			&i.Disabled,
+			&i.UserPhoto,
 			&i.TeamCode,
 			&i.TeamName,
 			&i.TeamFlag,
@@ -556,7 +562,7 @@ func (q *Queries) ListParticipationsByContest(ctx context.Context, contestID int
 }
 
 const listParticipationsByUser = `-- name: ListParticipationsByUser :many
-SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved FROM participations WHERE user_id = $1 ORDER BY contest_id
+SELECT id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved, unofficial FROM participations WHERE user_id = $1 ORDER BY contest_id
 `
 
 func (q *Queries) ListParticipationsByUser(ctx context.Context, userID int64) ([]Participation, error) {
@@ -584,6 +590,7 @@ func (q *Queries) ListParticipationsByUser(ctx context.Context, userID int64) ([
 			&i.SiteID,
 			&i.CommunicationSeenAt,
 			&i.Approved,
+			&i.Unofficial,
 		); err != nil {
 			return nil, err
 		}
@@ -774,7 +781,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 }
 
 const setParticipationApproved = `-- name: SetParticipationApproved :one
-UPDATE participations SET approved = $2 WHERE id = $1 RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved
+UPDATE participations SET approved = $2 WHERE id = $1 RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved, unofficial
 `
 
 type SetParticipationApprovedParams struct {
@@ -801,6 +808,7 @@ func (q *Queries) SetParticipationApproved(ctx context.Context, arg SetParticipa
 		&i.SiteID,
 		&i.CommunicationSeenAt,
 		&i.Approved,
+		&i.Unofficial,
 	)
 	return i, err
 }
@@ -862,7 +870,7 @@ func (q *Queries) SetUserPhoto(ctx context.Context, arg SetUserPhotoParams) erro
 }
 
 const startParticipation = `-- name: StartParticipation :one
-UPDATE participations SET starting_time = COALESCE(starting_time, $2) WHERE id = $1 RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved
+UPDATE participations SET starting_time = COALESCE(starting_time, $2) WHERE id = $1 RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved, unofficial
 `
 
 type StartParticipationParams struct {
@@ -890,15 +898,16 @@ func (q *Queries) StartParticipation(ctx context.Context, arg StartParticipation
 		&i.SiteID,
 		&i.CommunicationSeenAt,
 		&i.Approved,
+		&i.Unofficial,
 	)
 	return i, err
 }
 
 const updateParticipation = `-- name: UpdateParticipation :one
 UPDATE participations SET team_id = $2, ip = $3, delay_time_s = $4, extra_time_s = $5, hidden = $6, unrestricted = $7,
-    starting_time = $8, site_id = $9
+    starting_time = $8, site_id = $9, unofficial = $10
 WHERE id = $1
-RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved
+RETURNING id, contest_id, user_id, team_id, password_hash, ip, starting_time, delay_time_s, extra_time_s, hidden, unrestricted, login_nonce, site_id, communication_seen_at, approved, unofficial
 `
 
 type UpdateParticipationParams struct {
@@ -911,6 +920,7 @@ type UpdateParticipationParams struct {
 	Unrestricted bool           `json:"unrestricted"`
 	StartingTime *time.Time     `json:"starting_time"`
 	SiteID       *int64         `json:"site_id"`
+	Unofficial   bool           `json:"unofficial"`
 }
 
 func (q *Queries) UpdateParticipation(ctx context.Context, arg UpdateParticipationParams) (Participation, error) {
@@ -924,6 +934,7 @@ func (q *Queries) UpdateParticipation(ctx context.Context, arg UpdateParticipati
 		arg.Unrestricted,
 		arg.StartingTime,
 		arg.SiteID,
+		arg.Unofficial,
 	)
 	var i Participation
 	err := row.Scan(
@@ -942,6 +953,7 @@ func (q *Queries) UpdateParticipation(ctx context.Context, arg UpdateParticipati
 		&i.SiteID,
 		&i.CommunicationSeenAt,
 		&i.Approved,
+		&i.Unofficial,
 	)
 	return i, err
 }

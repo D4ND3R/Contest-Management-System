@@ -14,6 +14,8 @@ import (
 func TestDocsLinks(t *testing.T) {
 	root := filepath.Join("..", "..")
 	link := regexp.MustCompile(`\]\(([^)\s]+)\)`)
+	fence := regexp.MustCompile("(?s)```.*?```")
+	span := regexp.MustCompile("`[^`\n]*`")
 	var pages []string
 	filepath.Walk(filepath.Join(root, "docs"), func(p string, info os.FileInfo, err error) error {
 		if err == nil && strings.HasSuffix(p, ".md") {
@@ -27,7 +29,10 @@ func TestDocsLinks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, m := range link.FindAllStringSubmatch(string(b), -1) {
+		// Code blocks and spans show syntax, not links.
+		text := fence.ReplaceAllString(string(b), "")
+		text = span.ReplaceAllString(text, "")
+		for _, m := range link.FindAllStringSubmatch(text, -1) {
 			target := m[1]
 			if strings.Contains(target, "://") || strings.HasPrefix(target, "#") || strings.HasPrefix(target, "mailto:") {
 				continue

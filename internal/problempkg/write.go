@@ -81,6 +81,9 @@ func ConfigFromCMS(t sqlc.Task, d sqlc.Dataset, codes []string, public []bool) (
 		Scoring: inverse(ScoreTypes, d.ScoreType), ProcessLimit: int(d.ProcessLimit), ScoreMode: t.ScoreMode,
 		ScorePrecision: ptrInt(int(t.ScorePrecision)), Feedback: t.FeedbackLevel, Languages: t.Languages,
 		SubmissionFormat: t.SubmissionFormat, PrimaryStatements: t.PrimaryStatements, Dataset: d.Description}
+	if t.HideCheckerMessages {
+		c.CheckerMessages = "hide"
+	}
 	if c.Type == "" || c.Scoring == "" {
 		return nil, fmt.Errorf("task type %s / score type %s cannot be exported", d.TaskType, d.ScoreType)
 	}

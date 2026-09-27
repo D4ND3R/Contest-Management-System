@@ -1,7 +1,7 @@
 {{define "content"}}
-<section class="card narrow">
+<section {{if .Part}}class="card"{{end}}>
 <h1>{{.Title}}</h1>
 <p>{{.Error}}</p>
-<p><a href="{{if .Contest}}{{.Base}}{{else}}/{{end}}">{{.T "Back"}}</a></p>
+<p><a class="button secondary" href="{{if .Contest}}{{.Base}}{{else}}/{{end}}">{{icon "chevron-left"}} {{.T "Back"}}</a></p>
 </section>
 {{end}}

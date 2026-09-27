@@ -5,6 +5,7 @@ package deps
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/blob"
@@ -26,10 +27,12 @@ type Need struct {
 
 // Deps bundles opened dependencies. Fields for unrequested dependencies are nil.
 type Deps struct {
-	Cfg   *config.Config
-	Log   *slog.Logger
-	DB    *pgxpool.Pool
-	Redis *redis.Client
+	Cfg *config.Config
+	Log *slog.Logger
+	DB  *pgxpool.Pool
+	// ReadDB is the read replica when one is configured, else DB.
+	ReadDB *pgxpool.Pool
+	Redis  *redis.Client
 	// Blobs is the configured blob store; when the database is also open
 	// it is wrapped in blob.Tracked so new blobs are registered for GC.
 	Blobs blob.Store
@@ -43,10 +46,18 @@ func Open(ctx context.Context, cfg *config.Config, log *slog.Logger, need Need) 
 		if err != nil {
 			return nil, err
 		}
-		d.DB = pool
+		d.DB, d.ReadDB = pool, pool
+		if cfg.Database.ReplicaURL != "" {
+			replica, err := db.Open(ctx, cfg.Database.ReplicaURL, cfg.Database.MaxConns)
+			if err != nil {
+				d.Close()
+				return nil, fmt.Errorf("database replica: %w", err)
+			}
+			d.ReadDB = replica
+		}
 	}
 	if need.Redis {
-		rc, err := redisx.Open(ctx, cfg.Redis.URL, cfg.Redis.PoolSize)
+		rc, err := redisx.Open(ctx, cfg.Redis)
 		if err != nil {
 			d.Close()
 			return nil, err
@@ -73,6 +84,9 @@ func (d *Deps) Checks() []httpx.Check {
 	if d.DB != nil {
 		cs = append(cs, httpx.Check{Name: "database", Fn: d.DB.Ping})
 	}
+	if d.ReadDB != nil && d.ReadDB != d.DB {
+		cs = append(cs, httpx.Check{Name: "database replica", Fn: d.ReadDB.Ping})
+	}
 	if d.Redis != nil {
 		cs = append(cs, httpx.Check{Name: "redis", Fn: func(ctx context.Context) error { return d.Redis.Ping(ctx).Err() }})
 	}
@@ -82,6 +96,9 @@ func (d *Deps) Checks() []httpx.Check {
 // Close releases every opened dependency.
 func (d *Deps) Close() error {
 	var errs []error
+	if d.ReadDB != nil && d.ReadDB != d.DB {
+		d.ReadDB.Close()
+	}
 	if d.DB != nil {
 		d.DB.Close()
 	}

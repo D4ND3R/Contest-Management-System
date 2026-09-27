@@ -1078,3 +1078,614 @@ re-run is clean. A custom Caddyfile is kept and restored by
 validation, the rendered Caddy/nginx configuration and both firewall
 paths: TCP, UDP, kernel and `systemd` listeners, SSH on 2222 and a
 WireGuard tunnel.
+
+## D82. The host check on a hyperthreaded server (SPEC_IOI, H0)
+The first real installation (Ubuntu 26.04, 8 CPUs) failed `cms-verify-host`:
+in the second run `fork_bomb_64_procs` was stopped by the memory limit
+instead of a time limit, so it both "failed" and "changed between runs".
+
+- **Fork bombs.** Every fork refused by the process limit still allocates
+  the child's task structure and kernel stack, charged to the box's memory
+  control group and freed after an RCU grace period. 64 processes forking in
+  a loop can pile those up to the 256 MiB limit before the second of CPU
+  runs out; whether they do depends on the kernel's timing. Both outcomes
+  kill the whole box and leave no process behind (checked), so both are
+  "contained". Security cases are compared between runs by that question
+  (did the sandbox hold), not by which limit fired; samples are still
+  compared by verdict, where a TLE/MLE flip is real instability.
+- **One judging CPU per physical core.** The installer judged on every CPU
+  after the web ones. On that machine (4 cores × 2 threads, siblings 0/4,
+  1/5, ...) CPUs 2–7 include pairs of siblings and siblings of the web CPUs,
+  so each judging box ran next to another box or the web server on the
+  same core: unstable times, the very thing the second run measures. The
+  layout now comes from `thread_siblings_list`: the web keeps whole cores
+  (the first; the first two from six cores up), and every other core judges
+  on its first CPU with the siblings idle. Machines without SMT get the
+  same layout as before. An existing `cms.yaml` whose `worker.cores` is
+  exactly the old default is moved (cores chosen by hand are kept, with a
+  note); the self-test warns about sibling judging CPUs.
+  `--judge-all-threads` keeps the old behaviour for those who prefer
+  throughput. Leaving siblings idle halves the judging CPUs on SMT
+  machines; SPEC_IOI §2.2 asks exactly for that, and a medal decided by
+  timing noise costs more than a longer queue.
+- **The worker pauses during the check.** The installer starts the services
+  and then runs the check, so the worker could be judging at the same time
+  (one of the six warnings). It is stopped for the check and started again.
+- **Host tuning is opt-in.** `cms-host-tuning` (and `--tune-host`) sets the
+  performance governor and turns turbo boost and transparent huge pages
+  off, persistently through a oneshot unit. ASLR and SMT only change when
+  set to `off` in `/etc/cms/host-tuning.conf`. It is not the default
+  because the installer also runs on shared servers (the owner's runs
+  Nextcloud): turbo and huge pages are machine-wide, and turning ASLR off
+  weakens every internet-facing program on the machine.
+
+## D83. Statements: one source, rendered on the server (SPEC_IOI H1)
+The owner reported LaTeX errors, statements not in PDF, samples offered as
+downloads, and statements that did not change after an upload. Causes:
+statements were files linked from the task page; Markdown/text files were
+offered raw; Polygon's HTML statements rely on MathJax, which the strict
+CSP (no inline or foreign scripts) blocks, so every formula showed as TeX;
+the samples of converted packages were attachments; and statements were
+served from a fixed address with `max-age=3600`.
+
+- **One document model, two renderers.** `internal/statement` reads
+  Markdown (CommonMark basics, GFM tables), LaTeX (documents, fragments,
+  olymp.sty problems, Polygon sections) and HTML (Polygon's layout; active
+  content dropped) into blocks and inlines, with TeX formulas parsed into a
+  math tree. The task page gets HTML with **MathML**, which current
+  browsers lay out natively: no JavaScript, nothing to load, and the CSP
+  stays strict. KaTeX/MathJax were rejected: 75 KB+ of JavaScript and fonts
+  against the SPEC's 30 KB budget, and client-side rendering on 400
+  machines at the start of a contest.
+- **PDF typeset by the CMS.** The same tree is typeset into A4 pages by the
+  existing PDF writer, extended with the standard Times, Helvetica, Courier
+  and Symbol fonts (widths from Adobe's core-14 metrics): title, a box with
+  the limits and I/O files, justified text with inline formulas, TeX-style
+  math boxes (fractions, radicals, scripts, limits, stretchy delimiters
+  drawn as curves, matrices), lists, tables, code, images and the examples
+  as Input/Output columns, with page numbers. Nothing is embedded, so a
+  statement is a few KiB. Limitation: the standard fonts cover Western
+  European text; other scripts show fully on the page and need an uploaded
+  PDF for print. Shelling out to LaTeX or a browser was rejected: hundreds
+  of MB on every server, and one more thing to break on contest day.
+- **Examples belong to the task** (`task_examples`: input and output
+  digests and an optional Markdown note), shown in every statement, on the
+  page and in the PDF. They come from the admin (typed, files, or any
+  testcase), from packages (`statement/examples/`), from italy_yaml sample
+  pairs in `att/` (no longer attachments) and from Polygon (`example.NN`,
+  else sample tests). Polygon's LaTeX sections become the statement (a
+  generated `.tex`), preferred over its PDF/HTML.
+- **Always the current version.** Renderings are cached (HTML at first
+  view, PDF at first download) under a key hashing everything they depend
+  on: the source digest, examples, limits, task and contest names,
+  attachments. The key is the `?v=` of the links, served `immutable`; any
+  unversioned address (bookmarks, the old URL) is `no-cache` with an ETag.
+  Attachments follow the same scheme with their digest.
+- **An editor.** Statements are written in the admin with a live preview
+  (htmx, 600 ms after typing stops) listing what was not understood, and a
+  PDF preview. Uploads accept `.tex` too.
+
+While adding the examples table, the blob garbage collector turned out to
+miss `certificate_templates.logo_digest`: `cmsctl blobs-gc` would have
+deleted certificate logos. Both are now referenced.
+
+## D84. Results next to the button; the Testing page (SPEC_IOI H1)
+"You cannot easily see the result of your submission": the submit form
+swapped the submissions table at the bottom of the page and said nothing
+next to the button. The task page now has a side column with the form, a
+**latest result** card (status, progress, score, one chip per subtask,
+the first lines of a compilation error, a link to the details) and the
+limits. Submitting replaces the card with the new submission's (the list
+below updates out of band) and the card follows the live events of its
+task's newest submission. The chips come from the public score details
+already stored, so the card costs one query more per task page.
+
+The "Testing" menu entry pointed to `/testing`, which did not exist (tests
+lived only on the task pages). The page now exists: a tab per task with its
+test form and every task's tests; a test run from it comes back to it. A
+test (`TestLoginAndPages` and the new ones) now fetches every page linked
+from the menus.
+
+
+## D85. One design system, dashboards and the contest banner (SPEC_IOI H2)
+The owner asked for a total redesign after a reference dashboard (dark,
+sidebar grouped as CONTEST / USERS / DATA / SYSTEM, a top bar with the
+contest, its phase and the time left, a banner with the contest's image,
+dates, place and figures, coloured action tiles, live scoreboard, problem
+status donut, events, quick tools, system health, notifications, an
+activity chart and quick stats), without copying its placeholder brand and
+keeping the banner.
+
+- **One stylesheet** (`web/static/style.css`) for the three sites: colour
+  tokens as custom properties (dark by default; a `data-theme="light"` set
+  exists for H7's preference), system fonts, no web fonts or images. The
+  admin-only stylesheet is gone (one request less); the ranking site keeps a
+  small `rws.css`. Still no inline JavaScript or style attributes: the CSP
+  is unchanged.
+- **Icons** are 24×24 strokes drawn for this project and emitted inline by
+  a template function (`webkit.Icon`): no icon font, no sprite request,
+  nothing for the CSP to allow; `TestIconsExist` checks every name a
+  template or handler uses. Charts (the donut, the activity lines) are SVG
+  drawn on the server (`webkit.Donut`, `webkit.LineChart`): no chart
+  library, the JS budget untouched.
+- **Mobile**: the sidebar becomes an off-canvas panel opened by a checkbox
+  label (no JavaScript); grid tracks are `minmax(0, 1fr)` so a wide
+  statement or table scrolls inside its card instead of widening the page.
+- **Admin pages follow a contest.** The sidebar and the top bar show the
+  contest of the page, or the one the pages default to (running, else the
+  next, else the latest; never an archived one while another exists): one
+  indexed query on a tiny table per page. The contest page became its
+  **dashboard**; the long form moved to `/contests/{id}/settings` and the
+  task list to `/contests/{id}/tasks` (the POST addresses did not change).
+  The home page shows the running contest's dashboard above the contest
+  list and the system errors.
+- **The dashboard's live part** (`/contests/{id}/live`) refreshes every
+  20 s with htmx. It costs one ranking computation and a few aggregates
+  over indexed columns (per-task counters, verdict counts, first solves,
+  the latest 10 submissions through the primary key, the latest questions
+  and announcements, one bucketed activity query) — for the handful of
+  administrators looking, never for contestants. The contestant overview
+  stays cheap: its scores and per-task counts (two indexed queries), the
+  latest 6 submissions, and the ranking top from the board cache every
+  contestant already shares.
+- **The banner** is data of the contest: `title` (display name; the
+  description becomes its subtitle), `location`, `tagline`, and an image in
+  the blob store (`banner_digest`, `banner_type`, migration 0018). Uploads
+  are sniffed from their bytes and accepted only as PNG, JPEG, GIF or WebP
+  up to 4 MiB — SVG never, since it can carry scripts — and served with
+  their stored type, `nosniff`, and a digest version (immutable). The
+  contest site serves it without a session so the login page can show it.
+  Archives and clones carry it (they copy every `sha256_digest` column),
+  and the blob garbage collector knows it; `TestBlobGCKnowsEveryDigest` now
+  fails if a future digest column is forgotten there.
+
+## D86. A seccomp filter behind isolate; flagging suspicious submissions (SPEC_IOI H3)
+The owner asked to "improve the detection of malicious files that attack
+the server", and SPEC_IOI §2.1/§13 ask for a seccomp filter as a second
+wall and a **Security Violation** verdict.
+
+- **Where the filter comes from.** isolate has no seccomp support. A
+  launcher installs the filter (`PR_SET_NO_NEW_PRIVS`, then a classic BPF
+  program) and `execvp`s the real command; isolate runs the launcher,
+  mounted read-only at `/cms-launcher`. It is **C, compiled by the worker
+  at start** with the system compiler (statically when `libc.a` exists):
+  its start costs tens of microseconds of the measured CPU time, where a
+  Go launcher costs milliseconds (a Go runtime per run), and syscall
+  numbers come from the target's own headers, so amd64 and arm64 need no
+  tables. The source lives in the Go code (a `.c` file would make the
+  package a cgo one); the binary is cached by the hash of the source.
+- **A deny list, not an allow list.** Eleven languages with JVMs,
+  runtimes and compilers use a wide and changing set of calls; an allow
+  list would break one of them on the next toolchain update. The deny list
+  covers what a contest program never needs and what most sandbox escapes
+  went through: namespaces (`unshare`, `setns`, `clone` with namespace
+  flags — checked on its first argument), `bpf`, `io_uring`,
+  `userfaultfd`, `perf_event_open`, keyrings, `ptrace` and cross-process
+  memory, mounts, `chroot`, modules, `kexec`, `reboot`, swap, clocks,
+  `syslog`, I/O ports, file handles (`open_by_handle_at`), and the x32 ABI
+  and foreign architectures. `clone3` cannot be inspected (its flags are in
+  memory): it answers `ENOSYS`, the C libraries fall back to `clone`. Every
+  compiler and runtime of `config/languages` was run through it (their
+  samples pass in the sandbox, with and without the filter alike).
+- **The verdict.** The filter kills (`SECCOMP_RET_KILL_PROCESS`); SIGSYS
+  is only sent by it, so the sandbox classifies it as `security`, the
+  judge writes "Security violation: the program made a forbidden system
+  call", and the ICPC-style verdict is `SV`. A compilation stopped by it
+  fails with its own message.
+- **Degrading.** `worker.seccomp: auto` (default) runs without the filter
+  when no C compiler is there — isolate still confines everything — and
+  says so: worker log, a *no seccomp* tag on the Judges page, a dashboard
+  notification, a self-test warning, a verify-host warning. `on` makes it
+  mandatory, `off` disables it.
+- **Suspicious submissions** are flagged, never rejected or penalised: a
+  scan of the source on arrival (per language: starting programs, network,
+  raw system calls, system paths, includes from outside, ptrace, native
+  code; binary data anywhere) and the sandbox's `security` results become
+  rows of `submission_flags` (migration 0019) with where they were seen.
+  Rejecting on patterns would punish `system("pause")` left in by a
+  beginner and could be dodged by any attacker; the sandbox is what stops
+  attacks, the flags point the staff at intent. The scan is a few regular
+  expressions (RE2, linear time) over at most the submission size limit.
+
+## D87. Judging faster and fairer: deferred queue, short-circuit, compilation cache, pre-warming, calibration (SPEC_IOI H4)
+SPEC_IOI §2.2, §3, §6, §7 and §11 ask for evaluation that is fast and
+fair under load. What was built, and the choices behind it:
+
+- **Priorities stay evaluate → compile** (D67 measured why: compilations
+  first starved the evaluation of already compiled submissions). §11's
+  "compilations first" is read as "live work first", which both are. The
+  spec's fairness items are met by a new **deferred** queue, served after
+  compile and before user tests: when a contestant submits to a task, their
+  earlier submissions to it still unfinished are marked *superseded* in
+  Redis (6 h TTL), and a worker taking one of their evaluate/compile jobs
+  moves it to the deferred stream (XADD + XACK + XDEL in one MULTI) instead
+  of running it. Everybody's latest submission goes first; one contestant's
+  burst cannot delay the others; nothing is dropped (the IOI score takes the
+  best, so older submissions must still be judged). Marking in Redis rather
+  than rewriting queued jobs keeps the arrival path O(1) and the queues
+  append-only; the check costs one EXISTS per job.
+- **Short-circuit** (§6) is a per-dataset option (`datasets.short_circuit`,
+  migration 0020, off by default: feedback shows every testcase unless the
+  organisers opt out). Only score types that can prove a testcase no longer
+  matters implement `scoring.Skipper` — GroupMin and GroupMul, where a zero
+  fixes the subtask; a testcase in several subtasks is skipped only when all
+  of them are zero. The dispatcher writes the skipped evaluations itself
+  (outcome 0, status `skipped`, "Skipped: another testcase of the subtask
+  failed") so the result completes without waiting, and publishes a skip set
+  per (submission, dataset, generation) that workers check before each
+  testcase. A worker that already started one still reports it; the real
+  result replaces the mark and the score cannot change. Reevaluation bumps
+  the generation, so old skips never leak.
+- **Compilation cache** (§3): keyed by SHA-256 over the language
+  definition (its commands), task type and parameters, and the submitted
+  and manager files by name and digest — everything the executables depend
+  on that the system knows. Only successes are cached (failures are cheap
+  and their messages may depend on timing). Rows in PostgreSQL
+  (`compilation_cache`, `compilation_cache_files`), executables stay in the
+  blob store (digests only), and the blob GC keeps them alive while cached
+  and prunes entries unused for 7 days. The compiler binary's version is
+  not in the key, so an explicit **recompile** reevaluation clears the
+  whole cache: after upgrading a toolchain, that is the documented step.
+- **Queue position / ETA** (§7): the card counts unfinished live results
+  with a smaller submission id (partial index `submission_results_pending_idx`)
+  and shows the median arrival-to-score time of the newest 200 judged
+  submissions, cached 10 s per server; the card polls every 10 s only
+  while queued. Submission order approximates queue order (the deferred
+  queue can reorder), which is the honest precision for a number shown to
+  contestants.
+- **Time multipliers** (§3): `time_multiplier` in a language file (0–10,
+  none by default) scales the dataset's time and wall limits when the
+  dispatcher builds the job, so workers, results and the task page agree;
+  ceil to the millisecond with an epsilon (1.1 × 1000 is 1100, not 1101).
+- **Pre-warming** (§11): the dispatcher publishes, each minute, the
+  digests of testcases and managers of live datasets of contests running or
+  starting within 3 h as one versioned Redis set; workers compare the
+  version every ≤30 s and download what they lack, sequentially, up to 80%
+  of their cache. Workers have no database access by design, so the
+  dispatcher (which has) decides; a version avoids re-listing thousands of
+  digests every poll.
+- **Calibration** (§2.2): `cms ctl calibrate` times a CPU-bound C
+  benchmark (xorshift integer work with scattered accesses to a 4 MiB
+  array, like contest solutions; ~0.5 s, no I/O) through the
+  real sandbox on every judging core, 5 runs each, median per core, and
+  flags cores more than 3% from the machine's median and noisy cores (run
+  spread over twice the tolerance). Results go to Redis (30 days) and the
+  Judges page compares machines against the median of all machines. The
+  benchmark measures CPU time, as the verdicts do; turbo, the governor and
+  SMT siblings are what it is meant to catch, and they show in it.
+
+## D88. Emergency controls, a tamper-evident audit log, task setters and delegation leaders (SPEC_IOI H5)
+- **Emergency controls** (§9.3) are two flags, `contests.submissions_paused`
+  (+ message) and `tasks.submissions_closed` (migration 0021), checked where
+  submissions and user tests are accepted (one function,
+  `submitBlocked`). A pause does not stop the clock: stopping time would
+  shift every per-user window and the ranking's timeline; the existing
+  global extension is the explicit, audited way to give the time back.
+  Questions keep working during a pause (that is when contestants ask).
+- **Tamper evidence** (§9.4, §13) lives in the database, not the web
+  servers, so every writer is covered: a BEFORE INSERT trigger chains each
+  audit entry (seq, previous hash, SHA-256 over a canonical text of the
+  entry: actor, action, target, details, ip, created_at in UTC
+  microseconds) under a transaction-level advisory lock; BEFORE
+  UPDATE/DELETE/TRUNCATE triggers refuse changes, except the foreign key
+  clearing `admin_id` when an administrator is deleted — which is why the
+  administrator's name is copied into `actor` and `admin_id` is not
+  hashed. Each submission adds a receipt with the SHA-256 of its files
+  (they are content-addressed already) as the last statement of its
+  transaction, so the lock is held for microseconds (measured: 20 000
+  chained inserts in about a second). Entries that arrive already hashed
+  (a backup restored with COPY) keep their values; verification
+  recomputes everything in SQL (`audit_hash`), so Go and the database
+  cannot disagree on the canonical form. A hash chain only proves
+  integrity up to a hash known outside the database: the page and
+  `cms ctl audit-verify` show the head for organisers to write down or
+  publish; the table owner can still disable triggers, which is exactly
+  what the chain exposes. Receipts are hidden from the default audit
+  listing (they would drown the administrators' actions) and shown with
+  the action filter.
+- **Roles** (§9.2, §9.4): `task_setter` gets the task-preparation routes
+  (a new permission level, `permTasks`) and keeps read access; making a
+  dataset live, rejudging and deleting a task stay with `all` because they
+  change contestants' scores. `leader` is an administrator account tied to
+  a team (the delegation): it reaches only its own account and
+  `/delegation`, which lists the team's contestants' submissions with the
+  results the contestants see (public score, only when the contest's
+  score visibility allows, ICPC verdicts) and their sources; everything
+  else answers 403, and the layout hides the administration menu, the
+  question counter and the event stream. Reusing the admin site (instead of
+  logging leaders into the contest site) keeps them out of contestants'
+  sessions and gives them 2FA and the audit log for free.
+
+## D89. Unofficial participants, medals, the clarification desk, dataset comparison, appeals and anonymized archives (SPEC_IOI H5)
+- **Places, not ranks, for people.** Rows keep their position rank (the
+  sort order and the ranking server's delta protocol, which moves runs of
+  rows by rank, are unchanged); a separate *place* numbers official,
+  visible participants only, so unofficial and hidden participants never
+  push anybody down and every view (admin with hidden users, public,
+  exports) agrees. The public board carries the place only when some row
+  is unofficial: elsewhere it equals the rank, and leaving it out keeps
+  rows that merely move out of the updates' content (the delta stays
+  small). Ranking-server rows are rendered once for every spectator, so
+  they carry no words (a * and a medal icon), with a translated legend.
+- **Medals** follow the IOI regulations' shape: cumulative limits of 1/12,
+  1/4 and 1/2 of the official participants, never splitting a tie (the
+  group falls to the next medal), no medal for zero. Cutoffs are not part
+  of the board header: they change with every score and the header
+  changing makes every spectator reload; rows carry their medal instead.
+  ICPC contests award medals by other rules and get none here.
+- **Clarification desk**: a question can be taken by one staff member
+  (`questions.assigned_admin_id`), shown to the others, taken over, or given
+  back; the inbox filters "mine". Taking is advisory, not a lock: an
+  urgent answer must never be blocked by an absent colleague.
+- **Dataset comparison** recomputes each contestant's task score on both
+  datasets with the same aggregation the dispatcher uses
+  (`scoring.Aggregate`, the task's score mode), from one query over the
+  task's submissions and both result rows; it reports how many
+  submissions the candidate has not judged yet, since a partial
+  comparison would otherwise look like "no change".
+- **Appeals** open when the contestant's own contest is over (their
+  per-user window counts) and close at `contests.appeals_until`.
+  Accepting records the decision only: corrections go through rejudges or
+  score adjustments, which are already audited and visible to the
+  contestant; a second path that changes scores would bypass both.
+  Contestants may name one of their own submissions (checked against the
+  whole team for team contests), 20 appeals at most.
+- **Anonymized archives** rewrite rows in the export query (`to_jsonb(r) ||`
+  an override per table) and leave out the photos' files; people become
+  `user<id>` while countries, teams and every result stay useful.
+  Free text is not rewritten (it cannot be done reliably); the docs say to
+  review it. The archive importer empties the new administrator
+  references (question assignee, appeal handler) like the old ones.
+
+## D90. Alerts, point-in-time recovery, a read replica, rehearsals and configuration in Git (SPEC_IOI H6)
+
+- **Alerts live in the monitor**, the one service that already watches
+  everything and runs once. Rules are Go functions over the queue, the
+  database and the host samples; a rule must fail for its "for" duration
+  before it fires, and the firing state is kept in Valkey so a restarted
+  monitor does not announce the same incident twice. Delivery reuses the
+  admin notifications (no new channel to watch) plus one generic JSON
+  webhook (`text` and `content` fields cover Slack, Mattermost, Discord and
+  ntfy without per-vendor code). Prometheus rules are shipped too for
+  sites that already run Alertmanager; neither replaces the other.
+- **WAL archiving through `cms ctl`** rather than a shell `cp`: segments
+  are written through a synced temporary file and renamed (a crash never
+  leaves a partial segment under its name), a second archive of the same
+  segment is accepted and a different file under an existing name is
+  refused (PostgreSQL retries and the `wal_archiving` alert fires), and the
+  same S3 destination as the logical backups gets a copy. PostgreSQL runs
+  it as `postgres`, so the docs give it a separate, secret-free
+  configuration file instead of access to `cms.yaml`.
+- **Restoring empties the job queues.** A database taken back in time hands
+  out again the submission ids created after that moment; a job or a
+  skip hint still in Valkey for the old submission 1234 would be applied
+  to the new submission 1234 (the result generation does not tell them
+  apart). `cms ctl restore` drains automatically; point-in-time recovery
+  runs `cms ctl queue-drain`. The dispatcher's sweep rebuilds the queues
+  from the database, which is the source of truth.
+- **The replica only takes reads that tolerate lag and are heavy**:
+  scoreboard pushes, statistics, exports and plagiarism. The contest site
+  stays on the primary because a contestant must read their own writes.
+  No automatic failover: promoting a replica is one command, and an
+  automatic promotion that misjudges a network split creates two
+  primaries — two diverging contests — which is worse than minutes of
+  downtime with a human deciding.
+- **Rehearsal replay** matches contestants by username and tasks by
+  position (a cloned contest renames tasks), keeps the original gaps
+  divided by `-speed`, and writes each submission exactly as the contest
+  site does (files, receipt in the audit chain, dispatcher event), so the
+  measured latency is the real pipeline's.
+- **Contest configuration in Git** carries the settings by their column
+  names (what `export` writes), refuses secrets and operational state, and
+  leaves contestants out (credentials never go to a repository). A task
+  changes only when its content does: the dataset `apply` creates is
+  tagged with the SHA-256 of the package directory, and a directory
+  written by `export` is compared by exporting the live dataset, so
+  export → apply is a no-op. After the start a changed task's dataset is
+  imported but not made live without `-activate`, since switching the
+  live dataset rescores everybody; already imported content is activated,
+  never imported twice. Tasks missing from the file are reported, not
+  deleted.
+- **Ansible wraps the installer** instead of re-implementing it: the
+  installer is the tested, idempotent path every installation takes, and
+  a second implementation would drift. The playbook adds what a single
+  host cannot know: ordering, the main server's secrets for the workers
+  (under `no_log`), rolling worker upgrades, `cmsctl upgrade` on the main
+  server, and a pinned version (never `latest`) so reruns are
+  reproducible. The first-run administrator password is hidden and reset
+  with `cmsctl admin-password`, rather than risking it in Ansible logs.
+
+## D91. Interface languages as data, right to left, display preferences and the code editor (SPEC_IOI H7)
+
+- **Languages are locale files, not code.** The contestant and ranking sites
+  are what dozens of delegations read; each extra language is a YAML file
+  (English text → translation) embedded in the binary, and an
+  installation's `locales_dir` adds languages or corrects shipped ones
+  without a rebuild. The administration site stays in English and Spanish:
+  its ~2000 strings are read by the host's staff, and a half-translated
+  admin panel is worse than a complete English one.
+- **What a language must translate is generated, not maintained by hand.**
+  `internal/i18n/contestant.txt` (make generate) collects the texts the
+  contestant and ranking templates translate and the catalog keys that
+  appear as literals in the Go packages whose messages reach contestants.
+  The Spanish catalog already covers every shown string (tests enforce it),
+  so being a Spanish key is what marks a literal as a message. A test fails
+  when the file is stale, and every shipped locale must translate all of
+  it.
+- **Placeholders are checked, not trusted.** A translation must take the
+  same arguments as the English text (the same verb at each position;
+  `%[n]` indexes may reorder them, which Japanese, Korean and Turkish
+  need). Mismatches are dropped at load time, so a bad file shows English
+  instead of `%!d(string=…)` in a contestant's face.
+- **18 languages are shipped** (en, es, fr, pt, de, it, ru, uk, pl, tr, zh,
+  ja, ko, vi, id, ar, fa, he), written for this project and checked by
+  machine; the docs say plainly that a native speaker should read them
+  before an official contest, and `locale-template` / `locale-check` make
+  that review and new languages cheap.
+- **Right to left through logical CSS properties**, not a second
+  stylesheet: every left/right became inline-start/end, the two
+  direction-dependent gradients and the off-canvas menu read a variable,
+  and arrows carry a `flip` class. Code, inputs and outputs are forced left
+  to right. A statement takes the direction of its own language, which may
+  differ from the interface's; user-written text (questions, answers,
+  names) uses `dir="auto"` / `<bdi>` so a right-to-left name cannot
+  scramble a ranking row. Ranking rows stay language-neutral (they are
+  rendered once for every spectator), so the medal and unofficial markers
+  name themselves through `aria-labelledby` pointing at translated text on
+  the page.
+- **Display preferences live in a cookie**, not the session or the
+  database: they must work on the login page, on the ranking site (which
+  has no sessions) and cost nothing on the server. Dark stays the default
+  (the approved design); light, high contrast and "as the system" are
+  choices. Text sizes scale the root font, whose base became a percentage
+  so the browser's own font setting is respected. Filled buttons got their
+  own colour tokens so white text keeps 4.5:1 and the high-contrast theme
+  can use black on yellow.
+- **Selecting a language no longer submits by itself**: a select that acts
+  on change breaks WCAG 3.2.2 for keyboard users (every arrow press would
+  reload). One form applies language, theme and size together.
+- **The editor is a textarea with a little JavaScript**, not an embedded
+  code editor: no dependency, nothing for the CSP to allow, the browser's
+  own undo, find, zoom and screen-reader support, and well inside the
+  JavaScript budget. Tab indents, so Esc then Tab leaves it (no keyboard
+  trap). It is offered only when the submission is one source file, sends
+  a text field that goes through the same size checks as an upload (line
+  endings normalised), and a chosen file takes precedence. The checks
+  before sending (size, extension against the language) only save a round
+  trip; the server repeats all of them.
+- **Accessibility is tested, not promised**: `webtest.A11y` checks every
+  audited page of the three sites (lang and dir, one main landmark and h1,
+  alt text, a name for every control, button and link, unique ids and valid
+  ARIA references, no positive tabindex), and a Playwright script drives
+  the real contest site through the editor, keyboard use, right to left,
+  high contrast and large text.
+
+## D92. Ranking tie-break by time (SPEC_IOI §10)
+
+- **A contest setting, `shared` by default.** The IOI rule is that equal
+  totals share the place (and the medal), so that stays the default;
+  `time` is for olympiads and ICPC-style contests that rank who got there
+  first. It lives on the contest (`ranking_tie_break`), so contest.yaml,
+  the clone and the archive carry it without extra code.
+- **What "first" means.** IOI mode: the moment the total was reached, i.e.
+  the latest, over the tasks with points, of the submission that last
+  changed the task score to its current value. That is "the first
+  submission with the best score" for `max`, "the latest of the first
+  submissions reaching each subtask's best" for `max_subtask`, and a replay
+  of the prefixes for `max_tokened_last` (its score can go down and up
+  again; a participant has few submissions per task, so O(n²) on n is
+  negligible next to judging). ICPC mode: the last accepted problem, after
+  problems and penalty — the usual ICPC third criterion — in seconds rather
+  than minutes, so fewer ties survive.
+- **Counted from each participant's own start** (site start, delay, or
+  per-user window), like the ICPC minutes: a contestant who started late is
+  not behind. Manual adjustments never move the time (an administrator's
+  action says nothing about who solved first); a cell whose points only
+  come from an adjustment has no time, and rows without a time rank after
+  equal rows with one.
+- **Stored with the aggregate.** `participation_task_scores.score_reached_at`
+  is computed by the dispatcher with the rest of the row, so `Compute`
+  (every admin view, export and the pushers) stays one query with no scan
+  of submissions; `Replay` (frozen boards) computes the same value from the
+  submissions it already reads. Rows aggregated before the upgrade have no
+  time until the task is scored again; they fall back to the last
+  submission, an upper bound.
+- **Team boards** keep, per task, the first member to reach the team's best
+  score; with "best per subtask" scoring, per subtask the member holding
+  the best value, using that member's own time for the task (an upper
+  bound when the member's later submissions improved other subtasks).
+  Keeping per-subtask times in the database was not worth it for a rare
+  combination.
+- **Places, medals and certificates** all use the same comparison, so with
+  time tie-breaks nothing is shared and the medal rule's "never split a
+  tie" applies only to rows equal in both total and time.
+
+## D93. The "last" score mode and the toolchains the judges report (SPEC_IOI §3, §6)
+
+- **`last` counts the latest scored submission that compiled**, better or
+  worse than the earlier ones. A compilation error does not replace a
+  working program (a mistaken upload in the last minute should not erase a
+  contest), and a submission still being judged does not count until it is
+  scored — the same rules the other modes follow. Its tie-break time is the
+  last change of the score, found by replaying the prefixes like
+  `max_tokened_last`. The CHECK constraints of `tasks.score_mode` and
+  `contests.default_score_mode` gained the value (migration 0023).
+- **Toolchain versions come from the workers**, not from the languages
+  directory of the web servers: the compilers that matter are those of the
+  machines that judge. Each worker runs every `version_command` once at
+  start (outside the sandbox: the command is the administrator's), keeps
+  the first line of its output (standard output or error, since
+  `java -version` writes to the latter) and sends it with every heartbeat.
+  No database table: the value is as fresh as the heartbeat and vanishes
+  with the worker. The admin Languages page lists each version with the
+  workers reporting it and flags a language judged with more than one; the
+  Judges page repeats the warning; the contestants' Documentation page
+  shows the most common version, which is what "published to contestants
+  before the contest" needs.
+
+## D94. Participants' photos on the scoreboards (SPEC_IOI §10)
+
+- **Opt-in per contest** (`ranking_show_photos`, off): olympiad contestants
+  are mostly minors, and a public page with their faces needs the
+  organizers' decision. Anonymous boards never show them, and team rows
+  keep their flag.
+- **Thumbnails, not originals.** A photo may be 16 MiB; the scoreboard shows
+  it at 2em to hundreds of spectators. The ranking pusher crops the centre
+  square and scales it to 128 px (a JPEG of a few KiB), stores it in the
+  blob store and sends that digest to the ranking servers with the flags.
+  The scaling averages a 4×4 grid of samples per pixel, stdlib only: no
+  image dependency, and a 12-megapixel photo costs one decode.
+- **In the background.** Thumbnails are made one at a time by a goroutine of
+  the active pusher and cached by the original's digest (a new photo is a
+  new digest). A board omits a photo whose thumbnail is not ready and is
+  pushed again when thumbnails complete, so publishing a contest with 400
+  photos never delays the scores. Formats Go cannot decode (WebP, HEIC)
+  are simply not shown.
+
+## D95. No single point of failure: Valkey through Sentinel, several contest web servers (SPEC_IOI §1.1, §12)
+
+- **Valkey failover through Sentinel**, not Valkey Cluster: the queues use
+  streams, consumer groups and Lua over several keys of one namespace,
+  which a cluster would scatter across slots; one primary with replicas is
+  what the data model needs, and Sentinel is the standard way to promote a
+  replica. `redis.sentinels` + `redis.sentinel_master` switch every service
+  to go-redis's failover client (the same client type, so nothing else
+  changes). Replication is asynchronous; what a failover can lose is
+  covered by what already covers a Valkey restart: idempotent jobs and the
+  dispatcher's sweep that enqueues every unjudged submission again. The
+  test runs a real primary, replica and Sentinel, kills the primary and
+  checks that the same client writes again and still reads older data.
+- **Several contest web servers** needed no code: sessions are signed
+  cookies checked against the database, and rate limits, notifications and
+  results go through Valkey. A test now proves it (log in on one server,
+  submit on another), and the operations guide shows the proxy
+  configuration. The dispatcher, monitor, ranking pusher and backups
+  already fail over between instances with Valkey leases.
+
+## D96. Hiding a checker's own messages (SPEC_IOI §5)
+
+- **Per task, off by default** (`hide_checker_messages`; `checker_messages:
+  hide` in packages). Some checkers print the expected answer or hints
+  ("expected 12"), which the organizers may not want contestants to read;
+  others print useful feedback. With it on, contestants see the standard
+  message of each outcome (correct, partially correct, wrong), translated
+  into their language; the staff still see the checker's words.
+- **What counts as the checker's text**: anything that is not one of the
+  system's own messages (the contestant message catalogue, which every
+  shipped language translates, plus the two parameterised ones). So time
+  and memory limits, crashes and security violations keep their message.
+- **Stored as "hide", not "show"**, so the zero value of every existing
+  creation path (forms, packages, clones, imports) keeps today's behaviour.
+
+## D97. All rights reserved (replaces D72)
+
+- The owner removed the Apache-2.0 LICENSE and wants the code under
+  copyright only for now: no license is granted. README and NOTICE say so
+  (in both languages in the README); the release tarballs ship NOTICE
+  instead of LICENSE; the images are labelled
+  `LicenseRef-All-Rights-Reserved`, the SPDX form for a proprietary work.
+- NOTICE keeps the htmx attribution (Zero-Clause BSD needs none, but it
+  says what is bundled) and the statement that no CMS (AGPL-3.0) code is
+  included.
+- Releases already published under Apache-2.0 (v0.1.0 to v0.2.1) keep
+  that license for those versions; the change applies from the next one.

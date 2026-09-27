@@ -1,0 +1,159 @@
+# Reproducible provisioning of a CMS cluster (SPEC_IOI §15): the main
+# server, then the judging workers, then (optionally) the contest
+# configuration kept in Git. See docs/en/ansible.md.
+#
+#   ansible-playbook -i inventory.ini site.yml
+#
+# Every host runs the release installer (scripts/install.sh) of the pinned
+# cms_version: it verifies the release checksums, is idempotent (a second
+# run changes nothing) and is the path every other installation takes. A
+# host with another version installed is upgraded with cmsctl upgrade
+# (backup, migrations and automatic rollback). Secrets never appear in the
+# output: the tasks that handle them have no_log.
+
+- name: Check the inventory
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: A pinned version and exactly one main server
+      ansible.builtin.assert:
+        that:
+          - cms_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+          - groups['cms_main'] | default([]) | length == 1
+          - groups['cms_workers'] | default([]) | length == 0 or hostvars[groups['cms_main'][0]].cms_private_ip is defined
+        fail_msg: >-
+          Set cms_version to a release (X.Y.Z, never "latest": a rerun must
+          install the same thing), put one host in [cms_main], and give it
+          cms_private_ip when there are workers.
+
+- name: Main server
+  hosts: cms_main
+  become: true
+  tasks:
+    - name: Installed version
+      ansible.builtin.command: /opt/cms/current/cms version
+      register: cms_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Upgrade to the pinned version (backup, migrations, rollback on failure)
+      ansible.builtin.command:
+        argv: [/usr/local/bin/cmsctl, upgrade, -version, "{{ cms_version }}"]
+      when:
+        - cms_installed.rc == 0
+        - cms_installed.stdout.split()[1] | default('') != cms_version
+
+    - name: Fetch the installer of the pinned release
+      ansible.builtin.get_url:
+        url: "https://raw.githubusercontent.com/D4ND3R/Contest-Management-System/v{{ cms_version }}/scripts/install.sh"
+        dest: "/root/cms-install-{{ cms_version }}.sh"
+        mode: "0700"
+
+    - name: Install or reconfigure CMS
+      ansible.builtin.command:
+        argv: >-
+          {{ ['bash', '/root/cms-install-' ~ cms_version ~ '.sh', '--version', cms_version,
+              '--languages', cms_languages | default('minimal')]
+             + (['--domain', cms_domain] if cms_domain | default('') else ['--lan'])
+             + (['--email', cms_email] if cms_email | default('') else [])
+             + (['--admin-allow', cms_admin_allow] if cms_admin_allow | default('') else [])
+             + (['--private-ip', cms_private_ip] if cms_private_ip is defined else [])
+             + (['--tune-host'] if cms_tune_host | default(false) else [])
+             + cms_install_extra_args | default([]) }}
+      # The installer is idempotent but does not say whether it changed
+      # anything, so this task always reports "changed".
+      # The first run prints the administrator's password: it must not end up
+      # in Ansible's output or logs. Set it afterwards with
+      #   sudo -u cms cmsctl admin-password
+      no_log: true
+
+    - name: Read what the workers need from the main server's secrets
+      ansible.builtin.slurp:
+        src: /etc/cms/secrets.env
+      register: cms_secrets
+      no_log: true
+      when: groups['cms_workers'] | default([]) | length > 0
+
+    - name: Keep them for the workers
+      ansible.builtin.set_fact:
+        cms_redis_password: "{{ cms_secrets.content | b64decode | regex_search('(?m)^REDIS_PASSWORD=(.*)$', '\\1') | first }}"
+        cms_blob_token: "{{ cms_secrets.content | b64decode | regex_search('(?m)^BLOB_TOKEN=(.*)$', '\\1') | first }}"
+      no_log: true
+      when: groups['cms_workers'] | default([]) | length > 0
+
+- name: Judging workers
+  hosts: cms_workers
+  become: true
+  # Workers are replaced a few at a time so judging never stops.
+  serial: "{{ cms_worker_batch | default('25%') }}"
+  vars:
+    main: "{{ groups['cms_main'][0] }}"
+  tasks:
+    - name: Installed version
+      ansible.builtin.command: /opt/cms/current/cms version
+      register: cms_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Fetch the installer of the pinned release
+      ansible.builtin.get_url:
+        url: "https://raw.githubusercontent.com/D4ND3R/Contest-Management-System/v{{ cms_version }}/scripts/install.sh"
+        dest: "/root/cms-install-{{ cms_version }}.sh"
+        mode: "0700"
+
+    - name: Remove another version (a worker keeps no data; the installer then puts the pinned one)
+      ansible.builtin.command:
+        argv: [bash, "/root/cms-install-{{ cms_version }}.sh", --uninstall]
+      when:
+        - cms_installed.rc == 0
+        - cms_installed.stdout.split()[1] | default('') != cms_version
+
+    - name: Install or reconfigure the worker
+      ansible.builtin.command:
+        argv: >-
+          {{ ['bash', '/root/cms-install-' ~ cms_version ~ '.sh', '--version', cms_version, '--role', 'worker',
+              '--main', hostvars[main].cms_private_ip,
+              '--redis-password', hostvars[main].cms_redis_password,
+              '--blob-token', hostvars[main].cms_blob_token,
+              '--worker-name', inventory_hostname,
+              '--languages', cms_languages | default('minimal')]
+             + (['--tune-host'] if cms_worker_tune_host | default(true) else [])
+             + cms_worker_extra_args | default([]) }}
+      no_log: true
+
+- name: Contest configuration from Git
+  hosts: cms_main
+  become: true
+  tasks:
+    - name: Apply each contest directory (contest.yaml and tasks/)
+      when: cms_contest_configs | default([]) | length > 0
+      block:
+        # Removed first so that files deleted in Git are deleted here too
+        # (apply itself reports whether anything really changed).
+        - name: Remove the previous copies
+          ansible.builtin.file:
+            path: "/var/lib/cms/contest-config/{{ item | basename }}"
+            state: absent
+          loop: "{{ cms_contest_configs }}"
+
+        - name: Copy the directories
+          ansible.builtin.copy:
+            src: "{{ item }}/"
+            dest: "/var/lib/cms/contest-config/{{ item | basename }}/"
+            owner: cms
+            group: cms
+            mode: "u=rwX,g=rX,o="
+          loop: "{{ cms_contest_configs }}"
+
+        - name: Apply them (idempotent; a started contest's tasks are not switched without cms_contest_activate)
+          ansible.builtin.command:
+            argv: >-
+              {{ ['/usr/local/bin/cmsctl', 'contest-config', 'apply']
+                 + (['-activate'] if cms_contest_activate | default(false) else [])
+                 + ['/var/lib/cms/contest-config/' ~ (item | basename)] }}
+          become_user: cms
+          environment:
+            CMS_CONFIG: /etc/cms/cms.yaml
+          register: cms_apply
+          changed_when: "'nothing to do' not in cms_apply.stdout"
+          loop: "{{ cms_contest_configs }}"

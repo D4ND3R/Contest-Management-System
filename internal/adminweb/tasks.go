@@ -15,6 +15,7 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
+	"github.com/D4ND3R/Contest-Management-System/internal/statement"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -127,6 +128,7 @@ type taskPage struct {
 	Datasets    []sqlc.Dataset
 	Tester      *testerForm
 	Languages   []*langs.Language
+	Examples    []exampleView
 }
 
 func (s *Server) taskPage(ctx context.Context, t sqlc.Task, u sqlc.UpdateTaskParams) (*taskPage, error) {
@@ -150,6 +152,9 @@ func (s *Server) taskPage(ctx context.Context, t sqlc.Task, u sqlc.UpdateTaskPar
 		return nil, err
 	}
 	if d.Tester, err = s.testerForm(ctx, t); err != nil {
+		return nil, err
+	}
+	if d.Examples, err = s.exampleViews(ctx, t.ID); err != nil {
 		return nil, err
 	}
 	return d, nil
@@ -209,11 +214,14 @@ func parseTask(f *form, u sqlc.UpdateTaskParams) sqlc.UpdateTaskParams {
 	u.MinSubmissionIntervalS = f.optInt64("min_submission_interval_s", "Minimum interval between submissions")
 	u.MinUserTestIntervalS = f.optInt64("min_user_test_interval_s", "Minimum interval between user tests")
 	u.FeedbackLevel = f.oneOf("feedback_level", "Feedback level", "full", "restricted")
+	if v := f.str("checker_messages"); v != "" {
+		u.HideCheckerMessages = f.oneOf("checker_messages", "Checker messages", "show", "hide") == "hide"
+	}
 	u.ScorePrecision = f.int32("score_precision", "Score precision", 0)
 	if u.ScorePrecision < 0 || u.ScorePrecision > 6 {
 		f.fail("score precision must be between 0 and 6")
 	}
-	u.ScoreMode = f.oneOf("score_mode", "Score mode", "max_subtask", "max", "max_tokened_last")
+	u.ScoreMode = f.oneOf("score_mode", "Score mode", "max_subtask", "max", "max_tokened_last", "last")
 	u.Languages = f.multi("languages")
 	return u
 }
@@ -329,14 +337,10 @@ func (s *Server) handleStatementUpload(w http.ResponseWriter, r *http.Request, r
 		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "Choose a file: "+err.Error())
 		return
 	}
-	ct := "application/pdf"
-	switch strings.ToLower(path.Ext(name)) {
-	case ".html", ".htm":
-		ct = "text/html; charset=utf-8"
-	case ".txt":
-		ct = "text/plain; charset=utf-8"
-	case ".md":
-		ct = "text/markdown; charset=utf-8"
+	ct := statement.TypeForName(name)
+	if ct == "" {
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "A statement is a PDF, Markdown (.md), LaTeX (.tex), HTML or text file.")
+		return
 	}
 	if _, err := s.q.UpsertStatement(r.Context(), sqlc.UpsertStatementParams{TaskID: t.ID, Language: lang, Digest: digest, ContentType: ct}); err != nil {
 		s.internalError(w, r, rc, err)
@@ -370,11 +374,9 @@ func (s *Server) handleStatementDownload(w http.ResponseWriter, r *http.Request,
 	}
 	for _, st := range stmts {
 		if st.Language == r.PathValue("lang") {
-			ext := ".pdf"
-			if strings.HasPrefix(st.ContentType, "text/html") {
-				ext = ".html"
-			}
-			s.serveBlob(w, r, rc, st.Digest, st.ContentType, t.Name+"-"+st.Language+ext, false)
+			ext := statement.Extension(st.ContentType)
+			// Sources download as files; a PDF opens.
+			s.serveBlob(w, r, rc, st.Digest, st.ContentType, t.Name+"-"+st.Language+ext, statement.IsSource(st.ContentType))
 			return
 		}
 	}
@@ -492,4 +494,30 @@ func (s *Server) serveBlob(w http.ResponseWriter, r *http.Request, rc *reqCtx, d
 	h.Set("Content-Disposition", mime.FormatMediaType(disp, map[string]string{"filename": filename}))
 	h.Set("Cache-Control", "private, max-age=0")
 	io.Copy(w, rd)
+}
+
+// handleTaskClose closes or reopens submissions to one task (emergency
+// control, SPEC_IOI §9.3): the statement stays visible.
+func (s *Server) handleTaskClose(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	t, ok := s.loadTask(w, r, rc)
+	if !ok {
+		return
+	}
+	closed := r.FormValue("closed") == "1"
+	if err := s.q.SetTaskSubmissionsClosed(r.Context(), sqlc.SetTaskSubmissionsClosedParams{ID: t.ID, Closed: closed}); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	rc.target("task", t.ID)
+	rc.note("closed", closed)
+	back := "/tasks/" + strconv.FormatInt(t.ID, 10)
+	if t.ContestID != nil {
+		s.contestChanged(r.Context(), *t.ContestID, 0)
+		back = "/contests/" + strconv.FormatInt(*t.ContestID, 10) + "/tasks"
+	}
+	if closed {
+		s.done(w, r, back, "Submissions to %s are closed.", t.Name)
+		return
+	}
+	s.done(w, r, back, "Submissions to %s are open again.", t.Name)
 }

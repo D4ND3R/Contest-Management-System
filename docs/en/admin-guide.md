@@ -9,7 +9,12 @@ other guides go deeper: [contest settings](contest-settings.md),
 ## 1. Administrators
 
 **Admins → New admin**. Roles: *all* (everything), *messaging* (questions,
-announcements, balloons, printing; read the rest) and *read only*. Each
+announcements, balloons, printing; read the rest), *task setter* (prepare
+tasks: statements, datasets, testcases, graders, the task tester; making a
+dataset live, rejudging and deleting stay with *all*), *read only*, and
+*leader* for delegation leaders: linked to a team, they see only their
+contestants' submissions, sources and the results the contestants see
+(**My delegation**), and cannot submit. Each
 administrator can turn on a second factor (**My account → Two-factor
 authentication**, any TOTP app); an administrator with role *all* can reset
 another's lost device. Every change is in the **Audit log**.
@@ -24,14 +29,26 @@ another's lost device. Every change is in the **Audit log**.
    (read-only, off the lists).
 3. The rest, section by section — languages, per-contestant time windows,
    practice, IOI or ICPC, teams, tokens, feedback, score visibility, access
-   and registration, submission limits, questions, printing — is described
-   in [contest settings](contest-settings.md). Every field shows its
-   meaning next to it.
-4. **Sites** (optional): venues with their own start time, used to filter
+   and registration, submission limits, questions, printing — is on the
+   contest's **Settings** page and described in
+   [contest settings](contest-settings.md). Every field shows its meaning
+   next to it.
+4. **Presentation** (Settings): a title shown to everybody, the description
+   as its subtitle, the place and a motto make the **banner** at the top of
+   the contestants' and the administrators' dashboards (and of the login
+   page). **Banner image**: a wide PNG, JPEG, GIF or WebP (about 1600×400,
+   at most 4 MiB); SVG is refused because it can carry scripts. Without an
+   image the banner uses a plain background.
+5. **Sites** (optional): venues with their own start time, used to filter
    the ranking and the balloons.
-5. Reusing last year's contest: **Copy this contest** at the bottom of its
-   page (tasks and settings, optionally the participants), or import its
-   [archive](backups.md#contest-archives).
+6. Reusing last year's contest: **Copy this contest** at the bottom of its
+   Settings page (tasks and settings, optionally the participants), or
+   import its [archive](backups.md#contest-archives).
+
+The left menu follows the contest you are looking at (the home page shows
+the running one, else the next one): its **dashboard**, problems,
+submissions, scoreboard, statistics, announcements, participants and
+settings; the top bar shows its phase and the time remaining.
 
 ## 3. Contestants
 
@@ -60,13 +77,17 @@ converted. The format and one example per type are in
 
 By hand, **Tasks → Create task** and then, on the task page:
 
-1. **General**: title, statements (PDF or HTML per language, one marked
-   primary), attachments (files contestants download), submission files
+1. **General**: title, statements (written in Markdown or LaTeX in the
+   editor, or uploaded; one or more marked primary, see
+   [statements](statements.md)), examples, attachments (files contestants
+   download), submission files
    (`sol.%l` — `%l` becomes the language extension), languages (none
    ticked = the contest's).
 2. **Scoring and feedback**: score mode (best per subtask as at the IOI
-   since 2017, best submission, or tokened and last), precision, feedback
-   (full, or only the first failure per subtask).
+   since 2017, best submission, tokened and last, or the last submission
+   that compiled, better or worse), precision, feedback (full, or only the
+   first failure per subtask), and whether contestants see the checker's
+   own messages or only the standard one of each outcome.
 3. **Datasets → New dataset** (copy an existing one or start empty). On the
    dataset page:
    - **Task type** and its options (below), **Limits** (time, memory,
@@ -75,6 +96,9 @@ By hand, **Tasks → Create task** and then, on the task page:
      scores only if all its testcases pass), *GroupMul*, *GroupThreshold*;
      the subtask editor asks for the points and the testcases of each
      subtask (a regular expression over the codenames, a count or a list).
+     With GroupMin/GroupMul, **Short-circuit** skips the rest of a subtask
+     once a testcase scores 0 (same score, less judging time; see
+     [evaluation](evaluation.md)).
    - **Testcases**: one by one (input, output, public) or **From a zip
      archive** with name patterns (`*.in`/`*.out`, `input*`/`output*`).
    - **Managers**: checker, graders, stubs, headers, interactor — the page
@@ -82,11 +106,12 @@ By hand, **Tasks → Create task** and then, on the task page:
      managers for this configuration*).
    - **Make live** when it is right: submissions are scored with the live
      dataset; a second dataset can judge new submissions in the background
-     to compare before switching (*autojudge*).
+     to compare before switching (*autojudge*); **compare with live**
+     lists the task scores and submissions that would change.
 4. **Task tester**: submit any source as an administrator and see the
    verdict per testcase without it counting anywhere; **Validation report**
    judges the reference solutions on every dataset.
-5. Add the task to the contest (the contest page lists its tasks in order).
+5. Add the task to the contest (the contest's **Problems** page lists its tasks in order).
 
 ### Each problem type, step by step
 
@@ -113,6 +138,15 @@ backup and restore it, rehearse with a short contest
 
 ## 6. During the contest
 
+- The contest **dashboard** (its page, and the home page while it runs)
+  refreshes by itself every 20 seconds: the top of the scoreboard, the
+  state of each problem (solved by somebody, only partial points, unsolved;
+  submissions and who solved it first), the latest events (submissions,
+  first solves, questions, announcements), a chart of submissions and
+  accepted ones over time, the verdict counts, the health of judges, queue,
+  database, disks and backups, and what needs someone (unanswered
+  questions, submissions that could not be judged, stuck jobs,
+  registrations to approve, the end approaching, a frozen ranking).
 - **Workers & queues**: queues, jobs in flight, stuck jobs (requeue),
   system errors, CPU/memory/disk.
 - **Questions** and **Communication** (announcements, private messages);
@@ -122,9 +156,13 @@ backup and restore it, rehearse with a short contest
   **reevaluate** a submission, user, task or contest (recompile,
   re-evaluate or only rescore); **invalidate** a submission with a reason
   (restorable).
+- **Suspicious submissions** (sources that start programs, open sockets,
+  make raw system calls..., or programs the seccomp filter killed) are
+  flagged: a tag and a filter in the submissions, a notification on the
+  dashboard; see [security](security.md).
 - **Participation** page: extra time, manual score adjustment with a reason
   (audited), sessions, "view as the contestant".
-- **Extend the contest** for everybody from the contest page; **Balloons**
+- **Extend the contest** for everybody from its Settings page; **Balloons**
   and **Printing** for ICPC and on-site contests.
 
 ## 7. After the contest

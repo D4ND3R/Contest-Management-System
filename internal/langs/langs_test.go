@@ -51,6 +51,8 @@ func TestLoadRejectsInvalid(t *testing.T) {
 		"unknown key":   "id: x\nname: X\nsource_extensions: [.x]\nexecutable: a\nrun: [a]\nfoo: 1\n",
 		"empty compile": "id: x\nname: X\nsource_extensions: [.x]\nexecutable: a\nrun: [a]\ncompile: [[]]\n",
 		"invalid id":    "id: a b\nname: X\nsource_extensions: [.x]\nexecutable: a\nrun: [a]\n",
+		"negative time": "id: x\nname: X\nsource_extensions: [.x]\nexecutable: a\nrun: [a]\ntime_multiplier: -1\n",
+		"huge time":     "id: x\nname: X\nsource_extensions: [.x]\nexecutable: a\nrun: [a]\ntime_multiplier: 11\n",
 	}
 	for name, body := range cases {
 		dir := t.TempDir()
@@ -65,5 +67,29 @@ func TestLoadRejectsInvalid(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "b.yaml"), []byte(ok), 0o644)
 	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "duplicate") {
 		t.Errorf("duplicate ids accepted: %v", err)
+	}
+}
+
+// TestTimeMultiplier (SPEC_IOI §3): a language may scale the time limits.
+func TestTimeMultiplier(t *testing.T) {
+	var none *Language
+	for _, c := range []struct {
+		l      *Language
+		in, ms int64
+	}{{none, 1000, 1000}, {&Language{}, 1000, 1000}, {&Language{TimeMultiplier: 1}, 1000, 1000},
+		{&Language{TimeMultiplier: 1.5}, 1000, 1500}, {&Language{TimeMultiplier: 3}, 333, 999}, {&Language{TimeMultiplier: 1.1}, 7, 8}, {&Language{TimeMultiplier: 1.1}, 1000, 1100},
+		{&Language{TimeMultiplier: 2}, 0, 0}} {
+		if got := c.l.ScaleMs(c.in); got != c.ms {
+			t.Errorf("%v.ScaleMs(%d) = %d, want %d", c.l, c.in, got, c.ms)
+		}
+	}
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "j.yaml"), []byte("id: j\nname: J\nsource_extensions: [.j]\nexecutable: a\nrun: [a]\ntime_multiplier: 2\n"), 0o644)
+	r, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l, _ := r.Get("j"); !l.Multiplied() || l.ScaleMs(1500) != 3000 {
+		t.Fatalf("loaded %+v", l)
 	}
 }

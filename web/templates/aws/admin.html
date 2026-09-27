@@ -8,6 +8,7 @@
   <label>{{.T "Username"}} <input name="username" value="{{$a.Username}}" required autocomplete="off"></label>
   <label>{{.T "Name"}} <input name="name" value="{{$a.Name}}"></label>
   <label>{{.T "Role"}} <select name="role">{{range .Data.Roles}}<option {{if eq . $a.Role}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <label>{{.T "Team (delegation leaders)"}} <select name="team_id"><option value="">—</option>{{range .Data.Teams}}<option value="{{.ID}}" {{if and $a.TeamID (eq .ID (deref64 $a.TeamID))}}selected{{end}}>{{.Code}} — {{.Name}}</option>{{end}}</select></label>
   <label>{{.T "New password"}} <input type="password" name="password" minlength="8" autocomplete="new-password" placeholder="{{.T "leave empty to keep"}}"></label>
 </div>
 <p class="checks"><label><input type="checkbox" name="enabled" {{if $a.Enabled}}checked{{end}}> {{.T "Enabled"}}</label>

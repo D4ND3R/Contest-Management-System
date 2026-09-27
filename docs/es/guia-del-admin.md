@@ -10,8 +10,12 @@ inglés (selector de idioma al pie). Las demás guías profundizan:
 ## 1. Administradores
 
 **Administradores**: agrega a cada persona con su rol: *all* (todo),
-*messaging* (preguntas, anuncios, globos, impresión; lectura del resto) o
-*read only* (solo lectura). Cada administrador puede activar un segundo
+*messaging* (preguntas, anuncios, globos, impresión; lectura del resto),
+*task setter* (prepara problemas: enunciados, datasets, casos, graders, el
+probador; poner un dataset en vivo, reevaluar y borrar quedan para *all*),
+*read only* (solo lectura) o *leader* para líderes de delegación: vinculado
+a un equipo, ve solo los envíos, el código y los resultados que ven sus
+concursantes (**Mi delegación**), y no puede enviar. Cada administrador puede activar un segundo
 factor (**Mi cuenta → Autenticación de dos factores**, cualquier app TOTP);
 un administrador con rol *all* puede reiniciar el dispositivo perdido de
 otro. Todo cambio queda en el **Registro de auditoría**.
@@ -27,14 +31,26 @@ otro. Todo cambio queda en el **Registro de auditoría**.
 3. El resto, sección por sección —lenguajes, ventanas de tiempo por
    concursante, práctica, IOI o ICPC, equipos, tokens, retroalimentación,
    visibilidad de puntajes, acceso y registro, límites de envíos, preguntas,
-   impresión— se describe en
-   [configuración del concurso](configuracion-del-concurso.md). Cada campo
-   muestra su significado al lado.
-4. **Sedes** (opcional): lugares con su propia hora de inicio; sirven para
+   impresión— está en la página **Configuración** del concurso y se
+   describe en [configuración del concurso](configuracion-del-concurso.md).
+   Cada campo muestra su significado al lado.
+4. **Presentación** (Configuración): un título visible para todos, la
+   descripción como subtítulo, el lugar y un lema forman el **banner** que
+   encabeza los paneles de concursantes y administradores (y la página de
+   ingreso). **Imagen del banner**: un PNG, JPEG, GIF o WebP ancho (unos
+   1600×400, hasta 4 MiB); SVG se rechaza porque puede llevar scripts. Sin
+   imagen el banner usa un fondo liso.
+5. **Sedes** (opcional): lugares con su propia hora de inicio; sirven para
    filtrar el ranking y los globos.
-5. Para reutilizar el concurso del año anterior: **Copiar este concurso** al
-   final de su página (problemas y configuración, opcionalmente los
-   participantes), o importa su [archivo](respaldos.md#archivos-de-un-concurso).
+6. Para reutilizar el concurso del año anterior: **Copiar este concurso** al
+   final de su página de Configuración (problemas y configuración,
+   opcionalmente los participantes), o importa su
+   [archivo](respaldos.md#archivos-de-un-concurso).
+
+El menú de la izquierda sigue al concurso que estás viendo (la página de
+inicio muestra el que está en curso, o el siguiente): su **panel**,
+problemas, envíos, clasificación, estadísticas, avisos, participantes y
+configuración; la barra superior muestra su fase y el tiempo restante.
 
 ## 3. Concursantes
 
@@ -65,14 +81,18 @@ tipo están en [paquetes de problema](paquete-de-problema.md).
 A mano, **Problemas → Crear problema** y después, en la página del
 problema:
 
-1. **General**: título, enunciados (PDF o HTML por idioma, uno marcado como
-   principal), adjuntos (archivos que descargan los concursantes), archivos
+1. **General**: título, enunciados (escritos en Markdown o LaTeX en el
+   editor, o subidos; uno o más marcados como principales, ver
+   [enunciados](enunciados.md)), ejemplos, adjuntos (archivos que descargan
+   los concursantes), archivos
    del envío (`sol.%l`: `%l` se reemplaza por la extensión del lenguaje),
    lenguajes (ninguno marcado = los del concurso).
 2. **Puntuación y retroalimentación**: modo de puntuación (mejor por
    subtarea, como en la IOI desde 2017; mejor envío; o máximo entre los
-   envíos con token y el último), precisión, retroalimentación (completa, o
-   solo el primer fallo por subtarea).
+   envíos con token y el último; o el último envío que compiló, sea mejor o
+   peor), precisión, retroalimentación (completa, o solo el primer fallo
+   por subtarea), y si los concursantes ven los mensajes propios del
+   checker o solo el mensaje estándar de cada resultado.
 3. **Datasets → Nuevo dataset** (copia uno existente o empieza vacío). En la
    página del dataset:
    - **Tipo de problema** y sus opciones (abajo), **Límites** (tiempo,
@@ -81,7 +101,9 @@ problema:
      subtarea puntúa solo si pasan todos sus casos), *GroupMul*,
      *GroupThreshold*; el editor de subtareas pide los puntos y los casos de
      cada subtarea (una expresión regular sobre los nombres, una cantidad o
-     una lista).
+     una lista). Con GroupMin/GroupMul, **Cortocircuito** omite el resto de
+     una subtarea en cuanto un caso obtiene 0 (mismo puntaje, menos tiempo
+     de evaluación; ver [evaluación](evaluacion.md)).
    - **Casos de prueba**: uno por uno (entrada, salida, público) o **Desde un
      archivo zip** con patrones de nombre (`*.in`/`*.out`,
      `input*`/`output*`).
@@ -90,12 +112,14 @@ problema:
      (*Faltan managers para esta configuración*).
    - **Poner en vivo** cuando esté correcto: los envíos se puntúan con el
      dataset en vivo; un segundo dataset puede evaluar los envíos nuevos en
-     segundo plano para comparar antes de cambiar (*autoevaluación*).
+     segundo plano para comparar antes de cambiar (*autoevaluación*);
+     **comparar con el vivo** lista los puntajes de problema y los envíos
+     que cambiarían.
 4. **Probador de problemas**: envía cualquier fuente como administrador y ve
    el veredicto por caso sin que cuente en ningún lado; el **Reporte de
    validación** evalúa las soluciones de referencia en cada dataset.
-5. Agrega el problema al concurso (la página del concurso lista sus
-   problemas en orden).
+5. Agrega el problema al concurso (la página **Problemas** del concurso
+   lista sus problemas en orden).
 
 ### Cada tipo de problema, paso a paso
 
@@ -124,6 +148,16 @@ problema esté en verde.
 
 ## 6. Durante el concurso
 
+- El **panel** del concurso (su página, y la de inicio mientras está en
+  curso) se actualiza solo cada 20 segundos: lo alto de la clasificación, el
+  estado de cada problema (resuelto por alguien, solo puntos parciales, sin
+  resolver; envíos y quién lo resolvió primero), los últimos eventos
+  (envíos, primeras soluciones, preguntas, avisos), una gráfica de envíos y
+  aceptados en el tiempo, los conteos por veredicto, el estado de jueces,
+  cola, base de datos, discos y respaldos, y lo que requiere atención
+  (preguntas sin responder, envíos que no se pudieron evaluar, trabajos
+  atascados, registros por aprobar, el final cerca, una clasificación
+  congelada).
 - **Workers y colas**: colas, trabajos en curso, trabajos atascados
   (reencolar), errores del sistema, CPU/memoria/disco.
 - **Preguntas** y **Comunicación** (anuncios, mensajes privados); las
@@ -133,9 +167,13 @@ problema esté en verde.
   zip; **reevaluar** un envío, un usuario, un problema o el concurso
   (recompilar, reevaluar o solo recalcular puntajes); **invalidar** un
   envío con un motivo (se puede restaurar).
+- Los **envíos sospechosos** (código que ejecuta programas, abre sockets,
+  hace llamadas directas al sistema..., o programas que el filtro seccomp
+  mató) quedan marcados: una etiqueta y un filtro en los envíos, una
+  notificación en el panel; ver [seguridad](seguridad.md).
 - Página de la **participación**: tiempo extra, ajuste manual de puntaje con
   motivo (auditado), sesiones, "ver como el concursante".
-- **Extender el concurso** para todos desde la página del concurso;
+- **Extender el concurso** para todos desde su página de Configuración;
   **Globos** e **Impresión** para concursos ICPC y presenciales.
 
 ## 7. Después del concurso

@@ -5,6 +5,7 @@
 package ranking
 
 import (
+	"cmp"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -45,29 +46,45 @@ type Cell struct {
 	SolvedMinute int `json:"solved_minute,omitempty"`
 	// Adjustment is the manual adjustment included in Score.
 	Adjustment float64 `json:"adjustment,omitempty"`
+	// ReachedAt is when the score last changed to its current value (the
+	// submission time; manual adjustments do not move it).
+	ReachedAt *time.Time `json:"reached_at,omitempty"`
+	// elapsed is the cell's tie-break time: seconds from the participant's
+	// start to ReachedAt (to the accepted submission in ICPC mode), -1
+	// when unknown.
+	elapsed int64
 }
 
 // Row is one participation.
 type Row struct {
-	Rank            int     `json:"rank"`
-	ParticipationID int64   `json:"participation_id"`
-	UserID          int64   `json:"user_id"`
-	Username        string  `json:"username"`
-	FirstName       string  `json:"first_name"`
-	LastName        string  `json:"last_name"`
-	TeamCode        string  `json:"team,omitempty"`
-	TeamName        string  `json:"team_name,omitempty"`
-	TeamFlag        string  `json:"team_flag,omitempty"` // blob digest
-	TeamInstitution string  `json:"team_institution,omitempty"`
-	Institution     string  `json:"institution,omitempty"`
-	Country         string  `json:"country,omitempty"`
-	Site            string  `json:"site,omitempty"`
-	Hidden          bool    `json:"hidden,omitempty"`
-	Unrestricted    bool    `json:"unrestricted,omitempty"`
-	Cells           []Cell  `json:"tasks"`
-	Total           float64 `json:"total"`
-	Solved          int     `json:"solved,omitempty"`
-	Penalty         int     `json:"penalty,omitempty"`
+	Rank            int    `json:"rank"`
+	ParticipationID int64  `json:"participation_id"`
+	UserID          int64  `json:"user_id"`
+	Username        string `json:"username"`
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
+	TeamCode        string `json:"team,omitempty"`
+	TeamName        string `json:"team_name,omitempty"`
+	TeamFlag        string `json:"team_flag,omitempty"` // blob digest
+	TeamInstitution string `json:"team_institution,omitempty"`
+	Institution     string `json:"institution,omitempty"`
+	Photo           string `json:"photo,omitempty"` // blob digest
+	Country         string `json:"country,omitempty"`
+	Site            string `json:"site,omitempty"`
+	Hidden          bool   `json:"hidden,omitempty"`
+	Unrestricted    bool   `json:"unrestricted,omitempty"`
+	// Unofficial participants are ranked in position but take no place
+	// and no medal; Place is the official place (0 for them).
+	Unofficial bool    `json:"unofficial,omitempty"`
+	Place      int     `json:"place,omitempty"`
+	Medal      string  `json:"medal,omitempty"`
+	Cells      []Cell  `json:"tasks"`
+	Total      float64 `json:"total"`
+	Solved     int     `json:"solved,omitempty"`
+	Penalty    int     `json:"penalty,omitempty"`
+	// ReachedS is the tie-break time: seconds from the participant's start
+	// until the total was reached (the last problem solved in ICPC mode).
+	ReachedS *int64 `json:"reached_s,omitempty"`
 }
 
 // Ranking of a contest.
@@ -79,6 +96,13 @@ type Ranking struct {
 	Tasks     []Task    `json:"tasks"`
 	Rows      []Row     `json:"rows"`
 	Generated time.Time `json:"generated"`
+	// Cutoffs are the medal cutoffs (when the contest awards medals).
+	Cutoffs []Cutoff `json:"cutoffs,omitempty"`
+	// Unofficial: some rows are unofficial participants.
+	Unofficial bool `json:"unofficial,omitempty"`
+	// TieBreak orders equal rows: "shared" (they share the place) or
+	// "time" (the earlier ReachedS first).
+	TieBreak string `json:"tie_break"`
 }
 
 // Options select what Compute includes.
@@ -167,7 +191,7 @@ func newBuild(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options
 	}
 	b := &build{c: c, rowIdx: map[int64]int{}, taskIdx: map[int64]int{}, starts: map[int64]time.Time{},
 		r: &Ranking{ContestID: c.ID, Contest: c.Name, ICPC: c.ScoringMode == "icpc", Precision: int(c.ScorePrecision),
-			Tasks: tasks, Generated: time.Now().UTC()}}
+			Tasks: tasks, Generated: time.Now().UTC(), TieBreak: c.RankingTieBreak}}
 	for i, t := range tasks {
 		b.taskIdx[t.ID] = i
 	}
@@ -180,11 +204,11 @@ func newBuild(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options
 			continue
 		}
 		row := Row{ParticipationID: p.Participation.ID, UserID: p.Participation.UserID, Username: p.Username,
-			FirstName: p.FirstName, LastName: p.LastName, Hidden: p.Participation.Hidden,
+			FirstName: p.FirstName, LastName: p.LastName, Hidden: p.Participation.Hidden, Unofficial: p.Participation.Unofficial,
 			Institution: p.Institution, Country: p.Country, Site: derefStr(p.SiteName),
 			Unrestricted: p.Participation.Unrestricted, Cells: make([]Cell, len(tasks)),
 			TeamCode: derefStr(p.TeamCode), TeamName: derefStr(p.TeamName), TeamFlag: derefStr(p.TeamFlag),
-			TeamInstitution: derefStr(p.TeamInstitution)}
+			TeamInstitution: derefStr(p.TeamInstitution), Photo: derefStr(p.UserPhoto)}
 		b.rowIdx[row.ParticipationID] = len(b.r.Rows)
 		b.r.Rows = append(b.r.Rows, row)
 	}
@@ -216,8 +240,13 @@ func (b *build) finish() *Ranking {
 			}
 		}
 		row.Total = round(row.Total, r.Precision)
+		row.ReachedS = reachedTime(r.ICPC, row.Cells, func(c Cell) (float64, bool, int64) { return c.Score, c.Solved, c.elapsed })
 	}
 	r.sort()
+	r.places()
+	if b.c.Medals != "none" && !r.ICPC {
+		r.medals()
+	}
 	return r
 }
 
@@ -226,6 +255,51 @@ func (b *build) solvedMinute(pid int64, at *time.Time) int {
 		return 0
 	}
 	return max(0, int(at.Sub(b.starts[pid])/time.Minute))
+}
+
+// setElapsed computes the tie-break time of a cell of participation pid.
+func (b *build) setElapsed(pid int64, c *Cell) {
+	at := c.ReachedAt
+	if b.r.ICPC {
+		at = nil
+		if c.Solved {
+			at = c.SolvedAt
+		}
+	}
+	c.elapsed = -1
+	if at != nil {
+		c.elapsed = max(0, int64(at.Sub(b.starts[pid])/time.Second))
+	}
+}
+
+// reachedTime is the tie-break time of a row: the latest time among the
+// cells that count (with points, or solved in ICPC mode); nil if none has
+// one. Cells whose points only come from manual adjustments have none.
+func reachedTime[C any](icpc bool, cells []C, get func(C) (score float64, solved bool, elapsed int64)) *int64 {
+	t := int64(-1)
+	for _, c := range cells {
+		score, solved, elapsed := get(c)
+		if (icpc && solved || !icpc && score > 0) && elapsed > t {
+			t = elapsed
+		}
+	}
+	if t < 0 {
+		return nil
+	}
+	return &t
+}
+
+// cmpReached orders tie-break times, unknown last.
+func cmpReached(a, b *int64) int {
+	switch {
+	case a == nil && b == nil:
+		return 0
+	case a == nil:
+		return 1
+	case b == nil:
+		return -1
+	}
+	return cmp.Compare(*a, *b)
 }
 
 // Compute builds the (unfrozen) ranking of a contest from the per-task
@@ -246,11 +320,18 @@ func Compute(ctx context.Context, q *sqlc.Queries, contestID int64, opt Options)
 			continue
 		}
 		cell := Cell{Score: s.Score, Submitted: s.LastSubmissionAt != nil || s.Pending > 0, Pending: int(s.Pending),
-			Solved: s.IcpcSolved, Attempts: int(s.IcpcAttempts), SolvedAt: s.IcpcSolvedAt, Adjustment: s.Adjustment}
+			Solved: s.IcpcSolved, Attempts: int(s.IcpcAttempts), SolvedAt: s.IcpcSolvedAt, Adjustment: s.Adjustment,
+			ReachedAt: s.ScoreReachedAt}
+		if cell.ReachedAt == nil && s.Score-s.Adjustment > 0 {
+			// Aggregated before the time was kept: the last submission is
+			// an upper bound until the task is scored again.
+			cell.ReachedAt = s.LastSubmissionAt
+		}
 		_ = json.Unmarshal(s.SubtaskScores, &cell.Subtasks)
 		if cell.Solved {
 			cell.SolvedMinute = b.solvedMinute(s.ParticipationID, cell.SolvedAt)
 		}
+		b.setElapsed(s.ParticipationID, &cell)
 		b.r.Rows[ri].Cells[ti] = cell
 	}
 	return b.finish(), nil
@@ -261,20 +342,31 @@ func round(v float64, precision int) float64 {
 	return math.Round(v*p) / p
 }
 
-// less orders rows: IOI by total score; ICPC by problems solved, then
-// penalty. Equal rows share a rank and are listed by username.
+// cmp orders rows: IOI by total score; ICPC by problems solved, then
+// penalty; with the "time" tie-break, then by who got there first. Equal
+// rows share a rank and are listed by username.
 func (r *Ranking) cmp(a, b *Row) int {
-	if r.ICPC {
-		if a.Solved != b.Solved {
-			return b.Solved - a.Solved
+	return compareRows(r.ICPC, r.TieBreak, a.Total, b.Total, a.Solved, b.Solved, a.Penalty, b.Penalty, a.ReachedS, b.ReachedS)
+}
+
+func compareRows(icpc bool, tieBreak string, totalA, totalB float64, solvedA, solvedB, penA, penB int, reachedA, reachedB *int64) int {
+	if icpc {
+		if solvedA != solvedB {
+			return solvedB - solvedA
 		}
-		return a.Penalty - b.Penalty
+		if penA != penB {
+			return penA - penB
+		}
+	} else {
+		switch {
+		case totalA > totalB+1e-9:
+			return -1
+		case totalB > totalA+1e-9:
+			return 1
+		}
 	}
-	switch {
-	case a.Total > b.Total+1e-9:
-		return -1
-	case b.Total > a.Total+1e-9:
-		return 1
+	if tieBreak == "time" {
+		return cmpReached(reachedA, reachedB)
 	}
 	return 0
 }
@@ -314,11 +406,16 @@ func (r *Ranking) WriteCSV(w io.Writer) error {
 	if r.ICPC {
 		head = append(head, "solved", "penalty")
 	}
+	head = append(head, "official", "medal")
 	if err := cw.Write(head); err != nil {
 		return err
 	}
 	for _, row := range r.Rows {
-		rec := []string{strconv.Itoa(row.Rank), row.Username, row.FirstName, row.LastName, row.TeamCode}
+		place := ""
+		if row.Place > 0 {
+			place = strconv.Itoa(row.Place)
+		}
+		rec := []string{place, row.Username, row.FirstName, row.LastName, row.TeamCode}
 		for i, cell := range row.Cells {
 			rec = append(rec, formatScore(cell.Score, r.Tasks[i].Precision))
 		}
@@ -326,6 +423,7 @@ func (r *Ranking) WriteCSV(w io.Writer) error {
 		if r.ICPC {
 			rec = append(rec, strconv.Itoa(row.Solved), strconv.Itoa(row.Penalty))
 		}
+		rec = append(rec, strconv.FormatBool(!row.Unofficial), row.Medal)
 		if err := cw.Write(rec); err != nil {
 			return err
 		}

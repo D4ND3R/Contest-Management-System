@@ -1,0 +1,30 @@
+# Settings of site.yml. Keep this file in Git next to the inventory: a run
+# with the same files installs the same thing.
+
+# The release (X.Y.Z). Change it to upgrade: the main server goes through
+# cmsctl upgrade (backup, migrations, rollback), then the workers.
+cms_version: "0.2.2"
+
+# Contest site with HTTPS (admin.<domain> and ranking.<domain> too); empty:
+# plain HTTP on the LAN (contest :80, ranking :8080, admin :8081).
+cms_domain: ""
+cms_email: ""
+# Only these addresses reach the admin site (CIDR), e.g. "10.8.0.0/24".
+cms_admin_allow: ""
+# Toolchains: minimal (C, C++, Python, Java) or full.
+cms_languages: minimal
+# Performance governor, no turbo, no transparent huge pages.
+cms_tune_host: false
+cms_worker_tune_host: true
+# Workers upgraded at a time.
+cms_worker_batch: "25%"
+# More installer options (scripts/install.sh --help), as lists.
+cms_install_extra_args: []
+cms_worker_extra_args: []
+
+# Contest configuration directories on the control machine (each with
+# contest.yaml and tasks/; see docs/en/contest-config.md), applied in order.
+cms_contest_configs: []
+# Make the new datasets of changed tasks live even though the contest has
+# started (otherwise they wait for review in the admin panel).
+cms_contest_activate: false

@@ -1,5 +1,5 @@
 {{define "layout"}}<!doctype html>
-<html lang="{{.Lang}}">
+<html lang="{{.Lang}}" dir="{{.Dir}}"{{with .Display.Theme}} data-theme="{{.}}"{{end}}{{with .Display.Size}} data-size="{{.}}"{{end}}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,8 +9,28 @@
 {{if .Live}}<meta name="rws-events" content="/{{.Name}}/events" data-seq="{{.Seq}}"><script src="{{static "rws.js"}}" defer></script>{{end}}
 </head>
 <body class="rws">
-<main class="wide">
+<a class="skip" href="#main">{{.T "Skip to content"}}</a>
+<header class="topbar">
+  <a class="brand" href="/"><span class="logo">{{icon "logo"}}</span><span><b>CMS</b><small>{{.T "Ranking"}}</small></span></a>
+  <div class="crumbs">{{if .Board}}<a href="/{{.Name}}/" class="with-icon">{{icon "trophy"}} <b>{{.Board.Title}}</b></a>{{end}}</div>
+  {{if .Live}}<div class="top-right"><span id="live" class="pill ok live">{{.T "live"}}</span></div>{{end}}
+</header>
+<main id="main" class="content">
 {{template "content" .}}
 </main>
+<footer class="content rws-foot">
+  <details class="prefs-box">
+    <summary>{{.T "Language and display"}}</summary>
+    <form method="get" action="{{.Path}}">
+      <label for="ui-lang">{{.T "Language"}}</label>
+      <select id="ui-lang" name="lang">{{range .Languages}}<option value="{{.Value}}" lang="{{.Value}}" {{if eq .Value $.Lang}}selected{{end}}>{{.Label}}</option>{{end}}</select>
+      <label for="ui-theme">{{.T "Theme"}}</label>
+      <select id="ui-theme" name="theme">{{range .Themes}}<option value="{{.Value}}" {{if eq .Value $.Display.Theme}}selected{{end}}>{{.Label}}</option>{{end}}</select>
+      <label for="ui-size">{{.T "Text size"}}</label>
+      <select id="ui-size" name="size">{{range .Sizes}}<option value="{{.Value}}" {{if eq .Value $.Display.Size}}selected{{end}}>{{.Label}}</option>{{end}}</select>
+      <button class="small">{{.T "Apply"}}</button>
+    </form>
+  </details>
+</footer>
 </body>
 </html>{{end}}

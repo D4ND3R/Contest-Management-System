@@ -10,7 +10,7 @@ Hay tres lugares que muestran un ranking:
   vivo, con historial de puntaje por participante, banderas y
   actualizaciones en vivo.
 
-## Configuración (página del concurso → Ranking)
+## Configuración (Configuración del concurso → Ranking)
 
 | opción | valores |
 |--------|---------|
@@ -18,7 +18,29 @@ Hay tres lugares que muestran un ranking:
 | Qué ven los concursantes | el ranking completo · solo su posición · nada |
 | Cuándo | durante y después del concurso · solo al terminar |
 | Congelamiento | los últimos N minutos (o a una hora dada); los envíos posteriores se muestran como `?` |
-| Mostrar | puntajes por subtarea · banderas · instituciones · usuarios ocultos · anónimo (sin nombres) |
+| Mostrar | puntajes por subtarea · banderas · fotos · instituciones · usuarios ocultos · anónimo (sin nombres) |
+| Empates | comparten el puesto (la regla de la IOI, por defecto) · se desempatan por tiempo |
+
+**Fotos**: las fotos de los participantes (página del usuario → Foto),
+desactivadas por defecto: los concursantes suelen ser menores de edad, así
+que actívalas solo con consentimiento. El marcador muestra una miniatura
+cuadrada junto a cada nombre y una más grande en la página del
+participante, nunca el archivo original; las filas de equipo muestran la
+bandera del equipo y los marcadores anónimos no muestran fotos. El
+publicador de ranking hace las miniaturas en segundo plano (fotos JPEG, PNG
+o GIF), así que aparecen unos segundos después de publicar el concurso.
+
+**Empates.** Por defecto, los totales iguales comparten el puesto (en modo
+ICPC, igual cantidad de problemas y penalización). *Se desempatan por
+tiempo* pone primero a quien llegó antes: en modo IOI, el momento en que el
+participante alcanzó su total (el envío que dejó por última vez el puntaje
+de cada problema en su valor actual, el más tardío entre los problemas); en
+modo ICPC, el último problema resuelto. Los tiempos se cuentan desde el
+inicio de cada participante, así que empezar con retraso no perjudica; los
+ajustes manuales de puntaje no los cambian. La exportación JSON muestra el
+tiempo como `reached_s` (segundos desde el inicio). Con desempate por
+tiempo, las medallas y los premios de los certificados siguen los puestos
+resultantes.
 
 Los concursos por equipos se clasifican por equipo: por problema, el mejor
 puntaje de sus integrantes (con puntuación "mejor por subtarea", el mejor
@@ -31,6 +53,21 @@ revierte). El ranking del panel nunca se congela. Los marcadores públicos
 abiertos no se recargan al descongelar: las filas que cambiaron se revelan
 una por una de abajo hacia arriba (medio minuto como máximo), resaltadas al
 moverse.
+
+## Participantes no oficiales y medallas
+
+- **No oficial** (página del participante): un invitado o un concursante
+  extra se evalúa y se muestra como todos, marcado *no oficial* (un * en la
+  tabla pública), pero no ocupa puesto ni recibe medalla: los puestos
+  oficiales lo saltan. Los participantes ocultos tampoco ocupan puesto.
+- **Medallas** (Configuración → Ranking): *ninguna*, *cortes para los
+  administradores* o *también en las tablas públicas*. La regla de la IOI:
+  como máximo una doceava parte de los participantes oficiales recibe oro,
+  una cuarta parte oro o plata y la mitad una medalla; un empate nunca se
+  divide (un grupo empatado que no entra recibe la medalla siguiente) y un
+  puntaje de cero no gana nada. La clasificación muestra los cortes (total
+  mínimo y cantidad de cada medalla) y a cada medallista; el CSV exportado
+  tiene las columnas `official` y `medal`.
 
 ## Servidor de ranking
 

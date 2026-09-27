@@ -1,0 +1,27 @@
+{{define "content"}}{{$d := .Data}}
+<div class="page-head"><div><h1>{{.T "Appeals"}}</h1><p>{{.T "Contest %s" $d.C.Name}}{{with $d.C.AppealsUntil}} · {{$.T "open until %s" (dt .)}} UTC{{end}}</p></div></div>
+<form method="get" class="filters">
+  <label>{{.T "Status"}} <select name="status"><option value="">{{.T "all"}}</option>
+    <option value="open" {{if eq $d.Status "open"}}selected{{end}}>{{.T "open"}}</option>
+    <option value="accepted" {{if eq $d.Status "accepted"}}selected{{end}}>{{.T "accepted"}}</option>
+    <option value="rejected" {{if eq $d.Status "rejected"}}selected{{end}}>{{.T "rejected"}}</option></select></label>
+  <button>{{.T "Filter"}}</button>
+</form>
+<p class="muted small">{{.T "Accepting an appeal records the decision; correct the result with the usual tools (fix the dataset and rejudge, or adjust the score), which are audited."}}</p>
+{{range $d.Rows}}
+<article class="card question {{if eq .Status "open"}}pending{{end}}">
+  <h3>{{.Username}} · {{deref .TaskName}}{{with .SubmissionID}} · <a href="/submissions/{{deref64 .}}">#{{deref64 .}}</a>{{end}} <small class="muted">{{dt .CreatedAt}} UTC</small>
+    {{if eq .Status "open"}}<span class="tag bad">{{$.T "open"}}</span>{{else if eq .Status "accepted"}}<span class="tag ok">{{$.T "accepted"}}</span>{{else}}<span class="tag">{{$.T "rejected"}}</span>{{end}}
+    {{with .Handler}}<small class="muted">{{$.T "by %s" (deref .)}}</small>{{end}}</h3>
+  <p class="pre">{{.Text}}</p>
+  {{with .Response}}<p class="answer"><b>{{$.T "Answer:"}}</b> <span class="pre">{{.}}</span></p>{{end}}
+  {{if $.CanMessage}}
+  <form method="post" action="/appeals/{{.ID}}" class="reply">
+    {{template "csrf" $.CSRF}}
+    <textarea name="response" rows="2" maxlength="4000" placeholder="{{$.T "Answer for the contestant"}}" aria-label="{{$.T "Answer"}}">{{.Response}}</textarea>
+    <p><button name="status" value="accepted">{{icon "check-circle"}} {{$.T "Accept"}}</button> <button name="status" value="rejected" class="secondary">{{icon "x-circle"}} {{$.T "Reject"}}</button></p>
+  </form>
+  {{end}}
+</article>
+{{else}}<p class="muted">{{.T "No appeals."}}</p>{{end}}
+{{end}}

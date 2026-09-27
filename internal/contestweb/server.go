@@ -63,6 +63,8 @@ type Server struct {
 	hub       *hub
 	sessions  *webkit.SessionTracker
 	boards    boardCache
+	stmts     stmtCache
+	latency   latencyCache
 	checks    []httpx.Check
 	now       func() time.Time
 }
@@ -111,10 +113,22 @@ func New(cfg config.ContestWeb, d Deps, log *slog.Logger) (*Server, error) {
 func (s *Server) loadTemplates() error {
 	funcs := template.FuncMap{
 		"static":  s.static.URL,
+		"kib":     func(n int64) int64 { return n >> 10 },
 		"row":     func(p *page, sv subView) rowCtx { return rowCtx{P: p, S: sv} },
 		"testrow": func(p *page, v testView) testCtx { return testCtx{P: p, T: v} },
-		"cell":    ranking.Display,
-		"fscore":  ranking.FormatScore,
+		"card":    func(p *page, c *resultCard, t *taskView) cardCtx { return cardCtx{P: p, C: c, Task: t} },
+		"tests": func(p *page, d *taskData, t *taskView, from string) testsCtx {
+			return testsCtx{P: p, D: d, Task: t, From: from}
+		},
+		// attv is the version of an attachment for its link (see serveBlob).
+		"attv": func(t *taskView, name string) string {
+			if d := t.AttachDigest[name]; len(d) >= 20 {
+				return d[:20]
+			}
+			return ""
+		},
+		"cell":   ranking.Display,
+		"fscore": ranking.FormatScore,
 		// signed writes a score change with its sign (+5, -2.5).
 		"signed": func(v float64) string {
 			if v > 0 {
@@ -122,6 +136,11 @@ func (s *Server) loadTemplates() error {
 			}
 			return strconv.FormatFloat(v, 'f', -1, 64)
 		},
+	}
+	for k, v := range webkit.UIFuncs() {
+		if _, ok := funcs[k]; !ok {
+			funcs[k] = v
+		}
 	}
 	base, err := template.New("").Funcs(funcs).ParseFS(web.Templates, "cws/layout.html", "cws/partials.html")
 	if err != nil {
@@ -168,6 +187,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{contest}/register", s.withContest(s.handleRegisterForm))
 	mux.HandleFunc("POST /{contest}/register", s.withContest(s.handleRegister))
 	mux.HandleFunc("POST /{contest}/lang", s.withContest(s.handleLang))
+	mux.HandleFunc("GET /{contest}/banner", s.withContest(s.handleBanner))
 	mux.HandleFunc("POST /{contest}/logout", s.withContest(s.handleLogout))
 	mux.HandleFunc("GET /{contest}/impersonate", s.withContest(s.handleImpersonate))
 
@@ -189,6 +209,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{contest}/tasks/{task}/submissions", auth(s.handleSubmissionList))
 	mux.HandleFunc("GET /{contest}/submissions/{id}", auth(s.handleSubmission))
 	mux.HandleFunc("GET /{contest}/submissions/{id}/row", auth(s.handleSubmissionRow))
+	mux.HandleFunc("GET /{contest}/submissions/{id}/card", auth(s.handleSubmissionCard))
+	mux.HandleFunc("GET /{contest}/testing", auth(s.handleTesting))
 	mux.HandleFunc("POST /{contest}/submissions/{id}/token", auth(s.handleToken))
 	mux.HandleFunc("GET /{contest}/submissions/{id}/file/{name}", auth(s.handleSubmissionFile))
 	mux.HandleFunc("GET /{contest}/documentation", auth(s.handleDocumentation))
@@ -256,12 +278,14 @@ type reqCtx struct {
 	part    sqlc.GetParticipationViewRow
 	// group is the participation, or every participation of its team in a
 	// team contest (they share submissions, limits and scores).
-	group  []int64
-	sess   *webkit.Session
-	lang   string
-	status contest.Status
-	ip     netip.Addr
-	now    time.Time
+	group []int64
+	sess  *webkit.Session
+	lang  string
+	// display: the visitor's theme and text size.
+	display webkit.Display
+	status  contest.Status
+	ip      netip.Addr
+	now     time.Time
 }
 
 // sessionTTL is how long a contestant session lasts: the contest's
@@ -379,7 +403,7 @@ func (s *Server) withAuth(h func(http.ResponseWriter, *http.Request, *reqCtx)) h
 		}
 		now := s.now()
 		rc := &reqCtx{ctx: r.Context(), contest: cv, part: part, sess: sess, ip: ip, now: now,
-			lang: s.language(r, cv, part.PreferredLanguages, sess.Lang)}
+			lang: s.language(r, cv, part.PreferredLanguages, sess.Lang), display: webkit.ReadDisplay(r)}
 		rc.group = []int64{part.ID}
 		if cv.TeamMode && part.TeamID != nil {
 			if ids, err := s.cache.team(r.Context(), cv.ID, *part.TeamID); err == nil && len(ids) > 0 {
@@ -456,7 +480,7 @@ func (s *Server) newPage(rc *reqCtx, title, active string) *page {
 		}
 	}
 	p := &page{
-		Lang: rc.lang, Title: title, CSRF: s.csrf.Token(rc.sess.ID), Base: "/" + rc.contest.Name + "/",
+		Lang: rc.lang, Display: rc.display, Title: title, CSRF: s.csrf.Token(rc.sess.ID), Base: "/" + rc.contest.Name + "/",
 		Contest: rc.contest, Part: &rc.part, Status: statusView{rc.status}, Active: active,
 		EventsURL: "/" + rc.contest.Name + "/events", ServerTime: rc.now.UnixMilli(),
 		UILanguages: uiLanguages(rc.contest.AllowedLocalizations), loc: loc,
@@ -474,6 +498,7 @@ func (s *Server) newPage(rc *reqCtx, title, active string) *page {
 		p.Tasks = rc.contest.Tasks
 	}
 	p.Ranking = rankingVisible(rc.contest.Contest, rc.now)
+	p.Appeals = appealsShown(rc)
 	return p
 }
 
@@ -494,7 +519,7 @@ func (s *Server) renderPartial(w http.ResponseWriter, name string, data any) {
 // errorPage renders an error for authenticated or anonymous visitors.
 func (s *Server) errorPage(w http.ResponseWriter, r *http.Request, cv *contestView, status int, title, msg string) {
 	lang := s.language(r, cv, nil, "")
-	p := &page{Lang: lang, Contest: cv, loc: time.UTC, UILanguages: uiLanguages(nil)}
+	p := &page{Lang: lang, Display: webkit.ReadDisplay(r), Contest: cv, loc: time.UTC, UILanguages: uiLanguages(nil)}
 	p.Title, p.Error = p.T(title), i18n.TDetail(lang, msg)
 	if cv != nil {
 		p.Base = "/" + cv.Name + "/"

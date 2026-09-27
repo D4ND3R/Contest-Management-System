@@ -1014,3 +1014,217 @@ Skipping skills: immersive-web-design, master skill.
   needs instead), and it keeps SSH on any port and WireGuard open. A Caddyfile it did
   not write is kept aside and restored on uninstall. Verified in a 26.04
   container that mimics that server.
+
+## SPEC_IOI — the perfect CMS for IOI-level workloads (done)
+Skipping skills: immersive-web-design, master skill.
+
+`SPEC_IOI.md` records the owner's third specification, the problems found
+on the first real installation and the redesign request (reference image in
+`docs/design/`). Phases: H0 host check, H1 reported bugs, H2 UI redesign,
+H3 sandbox defense in depth, H4 evaluation, H5 admin and contest
+operations, H6 reliability and operations, H7 accessibility and
+localization, H8 audit (`AUDIT.md` §10) and summary.
+
+### H0 — the host check on the owner's server (done)
+- `fork_bomb_64_procs` stopped by the memory limit is contained, like a
+  time limit; security cases are compared between runs by "contained"
+  (D82). `selftest.TestCompare`.
+- The installer judges on one CPU per physical core, with hyperthread
+  siblings idle; an existing `cms.yaml` on the old default layout is moved.
+  `--judge-all-threads` restores the old behaviour. `TestInstallCPULayout`
+  (Intel and AMD sibling numbering, no SMT, worker, sync).
+- The worker is paused while the installer verifies the host; the
+  self-test warns when two judging CPUs are siblings
+  (`selftest.TestSharedCores`).
+- `cms-host-tuning` (status/apply/enable/disable) and `--tune-host` for the
+  governor, turbo and transparent huge pages; ASLR and SMT only on request.
+  The verify-host fixes point to it.
+
+### H1 — the reported contest-page problems (done)
+- **Statements** (D83): written in Markdown or LaTeX (or HTML, Polygon's
+  included) and shown on the task page with MathML formulas; the PDF is
+  typeset by the CMS with the title, limits and examples; uploaded PDFs are
+  embedded. Admin editor with live and PDF previews. New `internal/statement`
+  (`TestMathML`, `TestMarkdown`, `TestLaTeX`, `TestHTMLImport`, `TestPDF`,
+  `TestMathBoxes`); the PDF writer gained the standard Times, Symbol and
+  Helvetica/Courier variants, curves and links.
+- **Examples** in the statements, not downloads: `task_examples`
+  (migration 0017), admin (typed, files, from a testcase, notes, order),
+  packages (`statement/examples/`), italy_yaml sample pairs, Polygon
+  `example.NN`; contest archive and clone carry them.
+- **Statements that did not change**: versioned links (`?v=`) served
+  immutable, unversioned addresses revalidated (`TestStatementsOnTheTaskPage`).
+- **Results**: a live "latest result" card next to the submit button with
+  per-subtask chips and compile errors (D84, `TestResultCardAndTesting`).
+- **Testing 404**: the Testing page exists.
+- Polygon statement sections become the statement; the example packages
+  show it (`TestConvertPolygon`, `TestConvertItaly`, round trip with
+  examples). Docs: `docs/{en/statements.md,es/enunciados.md}`, package
+  format, admin guide.
+- Fixed on the way: the blob garbage collector did not know certificate
+  logos.
+
+### H2 — the redesign (done)
+- One dark design system for the contest, admin and ranking sites (D85):
+  top bar (contest, phase pill, time remaining, notifications, user menu),
+  grouped sidebar, cards, tables, forms, tiles; off-canvas menu on phones;
+  inline SVG icons and server-drawn charts (`internal/webkit/icons.go`,
+  `ui.go`; `TestIconsExist`, `TestLettersAndInitials`,
+  `TestDonutAndLineChart`).
+- **Contest banner**: title, subtitle, dates, place, motto and an image
+  (migration 0018; upload rules and serving in `TestContestBanner`,
+  `TestContestantDashboard`); on both dashboards and the login page.
+- **Contestant dashboard**: banner with score and rank, shortcuts, tasks
+  with their state and submission counts, latest submissions, progress
+  donut, ranking top, announcements, schedule.
+- **Admin contest dashboard**, refreshed live: scoreboard, problem status,
+  events, activity chart, quick stats, quick tools, system health,
+  notifications (`TestContestDashboard`); settings and problems on their own
+  pages; the home page follows the running contest.
+- Public ranking restyled; admin guide, contest settings, contest day,
+  ranking and backups docs follow the new menus (es/en).
+- `TestBlobGCKnowsEveryDigest` guards the blob garbage collector.
+
+### H3 — the sandbox's second wall (done)
+- **Seccomp filter** (D86): a C launcher built by the worker
+  (`internal/sandbox/seccomp.go`) kills programs on namespace, BPF,
+  io_uring, keyring, ptrace, mount, module, clock... calls; threads and
+  every language keep working (`TestSeccompLauncher`, `TestArgsSeccomp`;
+  in isolate: `TestMaliciousBattery` with seven new cases,
+  `TestSampleSolutions`, `TestSecurityViolation` end to end).
+- **Security violation** verdict (`security` status, verdict `SV`,
+  translated messages; compilation stopped by the filter).
+- **Suspicious submissions** (`internal/suspicious`, migration 0019):
+  source scan on arrival and runtime flags; shown on the submission page,
+  tagged and filterable in the list, counted on the dashboard
+  (`TestScan`, `TestSuspiciousSourceFlagged`, `TestSuspiciousSubmissions`).
+- `worker.seccomp: auto|on|off`; seccomp state per worker on the Judges
+  page and in the dashboard's health; self-test and verify-host report it.
+- Docs: `docs/en/security.md`, `docs/es/seguridad.md`, verify-host and
+  the admin guide.
+
+### H4 — judging faster and fairer (done)
+- **Deferred queue** (D87): a contestant's older unfinished submissions to
+  a task are superseded by a newer one and wait behind everybody's latest
+  (`TestDeferredJobs`, `TestNewerSubmissionSupersedes`).
+- **Short-circuit** for GroupMin/GroupMul, per dataset (migration 0020):
+  skipped testcases shown as skipped, same score (`TestSkippable`,
+  `TestSkips`, `TestShortCircuit`, `TestSkippedTestcases`,
+  `TestShortCircuitOption`).
+- **Compilation cache** by content hash; explicit recompilation clears it
+  (`TestCompilationCache`).
+- **Queue position and waiting time** on the contestant's result card
+  (`TestQueuePosition`).
+- **Per-language time multipliers** (`time_multiplier`; `TestTimeMultiplier`
+  in langs and dispatcher, `TestLanguageTimes`).
+- **Pre-warmed worker caches** for running and upcoming contests, progress
+  on the Judges page (`TestWarmSet`, `TestPublishWarm`, `TestWarm`).
+- **Calibration**: `cms ctl calibrate`, stored per worker and compared on
+  the Judges page (`TestDrift`, `TestCalibrate`, `TestCalibrations`,
+  `TestCalibrationsOnSystemPage`).
+- Docs: `docs/en/evaluation.md`, `docs/es/evaluacion.md`, languages,
+  verify-host and the admin guide.
+
+### H5 — contest operations (done)
+- **Emergency controls**: pause submissions (with a message) and close one
+  task; notices on the contest site, dashboard tools, audited (D88;
+  `TestEmergencyControls`, `TestEmergencyControlsAdmin`).
+- **Tamper-evident audit log**: append-only, hash-chained entries,
+  submission receipts with file hashes, `cms ctl audit-verify` and a
+  verification on the audit page (`TestChain`, `TestChainBackfill`,
+  `TestAuditChainPage`).
+- **Roles**: task setters and delegation leaders (`TestTaskSetterRole`,
+  `TestDelegationLeader`).
+- **Unofficial participants and medals**: places skip unofficial and
+  hidden participants; IOI medal cutoffs for the administrators or also
+  public (D89; `TestPlaces`, `TestMedals`, `TestBoardPlacesAndMedals`,
+  `TestUnofficialAndMedals`).
+- **Clarification desk**: take / take over / give back a question, "mine"
+  filter (`TestQuestionAssignment`).
+- **Dataset comparison** before switching the live dataset
+  (`TestDatasetCompare`).
+- **Appeals** after the contest, answered by the staff (`TestAppeals`,
+  `TestAppealsAdmin`).
+- **Anonymized archives and results** (`TestAnonymizedExport`).
+- Docs: ranking, contest settings, contest day, backups and the admin
+  guide (en/es).
+
+
+### H6 — reliability and operations (done)
+- **Alerts**: the monitor evaluates queue backlog, no workers during a
+  contest, judging latency, disk space, timing drift and WAL archiving,
+  with "for" durations and state in Valkey (one alert per incident across
+  restarts); admin notifications, a System page card and an optional
+  webhook; Prometheus rules in `deploy/prometheus/alerts.yml`
+  (`TestManager`, `TestStandardRules`).
+- **Continuous archiving and point-in-time recovery**: `cms ctl
+  wal-archive` / `wal-restore` / `basebackup`, local and S3 copies
+  (`TestWALArchive`); the whole procedure verified on a throwaway cluster
+  (recovery stopped just before a destructive statement).
+- **Queues after a restore**: `cms ctl queue-drain`, and `cms ctl restore`
+  drains by itself — a restored database reuses submission ids
+  (`TestDrain`, `TestDumpVerifyRestore`).
+- **Read replica** for the scoreboard push, statistics, exports and the
+  plagiarism report (`TestReportsReadTheReplica`); failover documented.
+- **Chaos test**: dispatchers and workers killed at random while judging;
+  exact scores, no lost or duplicated evaluations (`TestChaos`).
+- **Rehearsal replay** of a past contest with its rhythm and a latency
+  report, `cms ctl replay` (`TestReplay`).
+- **Contest configuration in Git**: `cms ctl contest-config export|apply`,
+  deterministic and idempotent, packages read from directories
+  (`TestApplyAndExport`, `TestApplyRejects`).
+- **Ansible**: `deploy/ansible` wraps the pinned release installer for the
+  main server and the workers (rolling), upgrades through `cmsctl
+  upgrade`, secrets under `no_log`, contest directories applied.
+- Docs: operations, contest configuration in Git, Ansible, backups (en/es).
+
+### H7 — accessibility and localization (done)
+- **18 interface languages** for the contestant and ranking sites, three of
+  them right to left (ar, fa, he), as locale files; `locales_dir` adds or
+  corrects languages; `cms ctl locale-template` / `locale-check` for
+  translators; the message list is generated and every shipped locale is
+  complete with matching placeholders (`TestShippedLocales`,
+  `TestContestantMessagesUpToDate`, `TestSameVerbs`, `TestRegisterAndLoadDir`).
+- **Right to left**: logical CSS properties, mirrored arrows, code left to
+  right, statements in their own direction, bidi-isolated user text and
+  names (`TestDir`, browser test).
+- **Display preferences**: dark, light, high contrast, as the system; four
+  text sizes; one form with the language, on the three sites
+  (`TestDisplayPreferences`, ranking `TestAccessibility`).
+- **Accessibility**: WCAG AA colour tokens, keyboard-reachable mobile menu,
+  Escape closes menus, live region for results, named ranking markers,
+  labelled admin controls; `webtest.A11y` over the contestant, ranking and
+  admin pages (`TestA11yFindsProblems` and each site's `TestAccessibility`).
+- **In-browser editor** with Tab indentation, Esc-then-Tab exit,
+  Ctrl+Enter, a browser draft, and checks before sending
+  (`TestEditorSubmission`, `TestContestantUIInBrowser`).
+- Docs: interface languages and accessibility (en/es).
+
+### H8 — audit and the last gaps (done)
+The audit (`AUDIT.md` §10, 87 requirements, every cited test and file
+checked to exist) found these still missing, now done:
+- **Tie-break by time** (D92): `ranking_tie_break` shared (IOI, default) or
+  by the moment the total was reached, counted from each participant's own
+  start (ICPC: the last accepted problem); stored with the aggregate, in
+  places, medals, team boards and frozen replays (`TestTieBreakByTime`,
+  `TestTieBreakReplayAndTeams`, `TestReached`).
+- **"last" score mode** (D93): the latest submission that compiled counts
+  (`TestScoreModes`, `TestReached`).
+- **Toolchain versions** (D93): workers run each `version_command` and
+  report it; the contestants' Documentation page shows it, the Languages
+  and Judges pages flag machines that differ (`TestProbeToolchains`,
+  `TestToolchains`).
+- **Photos on the scoreboard** (D94): opt-in, as 128 px thumbnails made in
+  the background by the pusher (`TestScoreboardPhotos`, `TestThumbnail`).
+- **Valkey failover through Sentinel** and **several contest web servers**
+  (D95): a real primary/replica/Sentinel failover in the suite
+  (`TestSentinelFailover`), a session moving between two contest servers
+  (`TestSeveralContestWebServers`); operations guide (en/es).
+- **Hidden checker messages** per task (D96, `TestHiddenCheckerMessages`).
+- Docs: ranking, languages, operations, problem package, admin guide
+  (en/es).
+- License: by the owner's decision the code is all rights reserved, with
+  no LICENSE file (D97); README, NOTICE, packaging and image labels follow.
+  Pending on real hardware (**hw** in the audit): the host check on the
+  owner's server, the load and failover drills on the contest machines,
+  and a native speaker's review of each shipped translation.

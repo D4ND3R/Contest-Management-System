@@ -59,6 +59,7 @@ type Pusher struct {
 	mu       sync.Mutex
 	contests map[int64]*contestState
 	targets  []*target
+	photos   *photos
 }
 
 type contestState struct {
@@ -96,7 +97,17 @@ func New(pool *pgxpool.Pool, rdb *redis.Client, blobs blob.Store, log *slog.Logg
 	for _, u := range o.URLs {
 		p.targets = append(p.targets, &target{url: strings.TrimRight(u, "/"), seq: map[string]int64{}, assets: map[string]bool{}})
 	}
+	p.photos = newPhotos(blobs, p.markAllDirty)
 	return p
+}
+
+// markAllDirty schedules every contest for a recomputation.
+func (p *Pusher) markAllDirty() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, st := range p.contests {
+		st.dirty = true
+	}
 }
 
 // BoardKey is the key of an administrator-only board (visibility
@@ -126,6 +137,9 @@ func (p *Pusher) Run(ctx context.Context) error {
 		g.Go(p.watchScores)
 		g.Go(p.watchContests)
 		g.Go(p.loop)
+		if p.blobs != nil {
+			g.Go(p.photos.run)
+		}
 		return g.Wait()
 	})
 }
@@ -331,6 +345,10 @@ func (p *Pusher) pushContest(ctx context.Context, id int64) error {
 		return err
 	}
 	next := ranking.BuildBoard(r, c, now)
+	if p.blobs == nil {
+		next.Photos = false // nothing to send them from
+	}
+	p.photos.apply(next)
 	var appended map[string][]ranking.Point
 	if hist != nil {
 		st.history = map[string][]ranking.Point{}
@@ -371,7 +389,7 @@ func (p *Pusher) pushContest(ctx context.Context, id int64) error {
 	}
 	st.seq++
 	seq := st.seq
-	p.uploadFlags(ctx, next)
+	p.uploadAssets(ctx, next)
 	var firstErr error
 	for _, t := range p.targets {
 		if now.Before(t.retryAt) {
@@ -457,37 +475,44 @@ func (p *Pusher) remove(ctx context.Context, st *contestState, id int64) {
 	p.mu.Unlock()
 }
 
-// uploadFlags sends the flags the board shows to servers that lack them.
-func (p *Pusher) uploadFlags(ctx context.Context, b *ranking.Board) {
-	if p.blobs == nil || !b.Flags {
+// uploadAssets sends the flags and photos the board shows to servers
+// that lack them.
+func (p *Pusher) uploadAssets(ctx context.Context, b *ranking.Board) {
+	if p.blobs == nil {
 		return
 	}
 	for _, row := range b.Rows {
-		if row.Flag == "" {
+		if b.Flags && row.Flag != "" {
+			p.uploadAsset(ctx, row.Flag)
+		}
+		if b.Photos && row.Photo != "" {
+			p.uploadAsset(ctx, row.Photo)
+		}
+	}
+}
+
+func (p *Pusher) uploadAsset(ctx context.Context, digest string) {
+	var data []byte
+	for _, t := range p.targets {
+		if t.assets[digest] {
 			continue
 		}
-		var data []byte
-		for _, t := range p.targets {
-			if t.assets[row.Flag] {
-				continue
+		if data == nil {
+			var err error
+			if data, err = blob.ReadAll(ctx, p.blobs, digest); err != nil {
+				p.log.Warn("read scoreboard image", "digest", digest, "error", err)
+				return
 			}
-			if data == nil {
-				var err error
-				if data, err = blob.ReadAll(ctx, p.blobs, row.Flag); err != nil {
-					p.log.Warn("read flag", "digest", row.Flag, "error", err)
-					break
-				}
-			}
-			req, _ := http.NewRequestWithContext(ctx, "PUT", t.url+"/assets/"+row.Flag, bytes.NewReader(data))
-			req.Header.Set("Authorization", "Bearer "+p.opts.Token)
-			resp, err := p.client.Do(req)
-			if err != nil {
-				continue
-			}
-			resp.Body.Close()
-			if resp.StatusCode < 300 {
-				t.assets[row.Flag] = true
-			}
+		}
+		req, _ := http.NewRequestWithContext(ctx, "PUT", t.url+"/assets/"+digest, bytes.NewReader(data))
+		req.Header.Set("Authorization", "Bearer "+p.opts.Token)
+		resp, err := p.client.Do(req)
+		if err != nil {
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode < 300 {
+			t.assets[digest] = true
 		}
 	}
 }

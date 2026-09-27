@@ -92,7 +92,15 @@ cmsctl restore -force ARCHIVO    # reemplaza una base que ya tiene datos
      foráneas y recién entonces confirma;
    - aplica las migraciones más nuevas que el respaldo (un respaldo tomado
      con una versión anterior del CMS se restaura en una más nueva).
-4. Vuelve a iniciar los servicios.
+4. Vuelve a iniciar los servicios. La restauración también vacía las
+   colas de trabajos (la base restaurada vuelve a entregar los ids de envío
+   creados después del respaldo; los trabajos encolados para los viejos no
+   deben llegar a los nuevos); si no puede conectarse a Valkey lo avisa:
+   ejecuta `cmsctl queue-drain` antes de iniciar los servicios.
+
+Para llevar la base de datos a cualquier instante (no solo al último
+respaldo), ver archivado continuo y recuperación a un instante en
+[operación](operaciones.md).
 
 Un archivo dañado o truncado se rechaza antes de confirmar nada. Restaurar
 sobre un esquema más nuevo que el del respaldo requiere `-force`; un
@@ -135,7 +143,7 @@ los ejecutables compilados (una reevaluación vuelve a compilar), los user
 tests, los trabajos de impresión, los globos, el registro de auditoría y los
 administradores (las referencias a ellos quedan vacías).
 
-- **Panel de administración**: *Archivo* en la página del concurso lo
+- **Panel de administración**: *Archivo* en la página de Configuración del concurso lo
   descarga (con o sin envíos); *Importar el archivo de un concurso*, al
   final de la página de concursos, crea el concurso nuevo.
 - **Línea de comandos**:
@@ -156,3 +164,13 @@ de la lista de concursos) si el archivo tiene envíos y como *borrador* si
 no. Cada archivo se verifica contra su SHA-256; un archivo dañado, o uno
 escrito por una versión más nueva de CMS, se rechaza antes de escribir
 nada. La descarga y la importación quedan en el registro de auditoría.
+
+### Archivos anonimizados
+
+Marca **anonimizado** al descargar un archivo (o el CSV de resultados) para
+compartir un concurso con fines de investigación o entrenamiento: los
+usuarios pasan a ser `user<id>`; se quitan nombres, correos,
+instituciones, fotos, restricciones de IP y contraseñas. Quedan los
+países, los equipos (códigos y banderas), los problemas, los envíos y
+todos los resultados. El texto libre (preguntas, apelaciones, código
+fuente) no se reescribe: revísalo antes de publicarlo.

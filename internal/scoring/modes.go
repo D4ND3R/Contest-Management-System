@@ -30,6 +30,10 @@ type TaskScore struct {
 	Pending int
 	// LastSubmission is the time of the latest official submission.
 	LastSubmission *time.Time
+	// Reached is the time of the submission that last changed the score to
+	// its current value (nil while the score is not positive): the ranking
+	// tie-break by time.
+	Reached *time.Time
 }
 
 // Score modes.
@@ -37,6 +41,8 @@ const (
 	ModeMax            = "max"
 	ModeMaxSubtask     = "max_subtask"
 	ModeMaxTokenedLast = "max_tokened_last"
+	// ModeLast: the latest scored submission that compiled counts.
+	ModeLast = "last"
 )
 
 // Aggregate computes a task score with the given mode. Only official
@@ -75,22 +81,8 @@ func Aggregate(mode string, subs []Submission, precision int) TaskScore {
 		for _, v := range ts.Subtasks {
 			ts.Score += v
 		}
-	case ModeMaxTokenedLast:
-		var best *Submission
-		consider := func(s *Submission) {
-			if s.Scored && (best == nil || s.Score > best.Score) {
-				best = s
-			}
-		}
-		if n := len(official); n > 0 {
-			consider(&official[n-1])
-		}
-		for i := range official {
-			if official[i].Tokened {
-				consider(&official[i])
-			}
-		}
-		if best != nil {
+	case ModeMaxTokenedLast, ModeLast:
+		if best := counting(mode, official); best != nil {
 			ts.Score, ts.Subtasks = best.Score, append([]float64(nil), best.Subtasks...)
 		}
 	default: // ModeMax
@@ -106,7 +98,97 @@ func Aggregate(mode string, subs []Submission, precision int) TaskScore {
 		}
 	}
 	ts.Score = round(ts.Score, precision)
+	if ts.Score > 0 {
+		ts.Reached = reached(mode, official, ts)
+	}
 	return ts
+}
+
+// counting is the submission whose score counts in the modes where it can
+// go down (nil: none).
+func counting(mode string, official []Submission) *Submission {
+	if mode == ModeLast {
+		// A compilation error does not replace a working program.
+		for i := len(official) - 1; i >= 0; i-- {
+			if s := &official[i]; s.Scored && !s.CompileError {
+				return s
+			}
+		}
+		return nil
+	}
+	return bestTokenedLast(official)
+}
+
+// bestTokenedLast is the submission that counts in ModeMaxTokenedLast: the
+// best of the last one and the tokened ones (nil: none is scored).
+func bestTokenedLast(official []Submission) *Submission {
+	var best *Submission
+	consider := func(s *Submission) {
+		if s.Scored && (best == nil || s.Score > best.Score) {
+			best = s
+		}
+	}
+	if n := len(official); n > 0 {
+		consider(&official[n-1])
+	}
+	for i := range official {
+		if official[i].Tokened {
+			consider(&official[i])
+		}
+	}
+	return best
+}
+
+// reached finds when the score of official (in time order) last changed to
+// ts, its final value.
+func reached(mode string, official []Submission, ts TaskScore) *time.Time {
+	var at *time.Time
+	switch mode {
+	case ModeMaxSubtask:
+		// The score only grows: it is final once every subtask reached its
+		// best value, each at the first submission that scored it.
+		for i, v := range ts.Subtasks {
+			if v <= 0 {
+				continue
+			}
+			for k := range official {
+				if s := &official[k]; s.Scored && i < len(s.Subtasks) && s.Subtasks[i] == v {
+					if at == nil || s.Time.After(*at) {
+						at = &s.Time
+					}
+					break
+				}
+			}
+		}
+	case ModeMaxTokenedLast, ModeLast:
+		// The score can go down and up again: replay the prefixes (a
+		// participant has few submissions per task).
+		prev := 0.0
+		for k := range official {
+			v := 0.0
+			if best := counting(mode, official[:k+1]); best != nil {
+				v = best.Score
+			}
+			if v != prev {
+				at, prev = &official[k].Time, v
+			}
+		}
+	default: // ModeMax: the first submission with the best score.
+		var best *Submission
+		for k := range official {
+			if s := &official[k]; s.Scored && (best == nil || s.Score > best.Score) {
+				best = s
+			}
+		}
+		if best != nil {
+			at = &best.Time
+		}
+	}
+	if at == nil {
+		return nil
+	}
+	t := *at
+	return &t
 }
 
 // ICPCTask is the ICPC view of a participation on a task.

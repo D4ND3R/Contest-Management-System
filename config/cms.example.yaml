@@ -14,6 +14,10 @@ database:
 redis:
   url: redis://localhost:6379/0
   pool_size: 64
+  # Failover through Valkey Sentinel (docs/en/operations.md): the services
+  # follow the primary; the url then gives only the password and database.
+  # sentinels: ["10.0.0.1:26379", "10.0.0.2:26379", "10.0.0.3:26379"]
+  # sentinel_master: cms
 
 # Content-addressed blob store (SHA-256). Blobs never live in PostgreSQL.
 blob:
@@ -91,6 +95,9 @@ worker:
   queues: []                 # empty = all, in priority order
   sandbox_dirs: []           # extra read-only dirs, e.g. /usr/lib/jvm
   heartbeat_interval: 2s
+  # Seccomp filter (docs/en/security.md): auto = build it with the system C
+  # compiler, run without it (warning) if that fails; on = required; off.
+  seccomp: auto
 
 monitor:
   metrics_listen: ":9103"

@@ -144,11 +144,54 @@ func TestScoreModes(t *testing.T) {
 	if ts := Aggregate(ModeMaxTokenedLast, extra, 0); ts.Score != 30 {
 		t.Errorf("max_tokened_last with pending last = %v", ts.Score)
 	}
+	// last: the latest scored submission that compiled, even if worse; the
+	// pending one (ID 6) and the compilation error do not replace it.
+	if ts := Aggregate(ModeLast, subs, 0); ts.Score != 10 || ts.Subtasks[0] != 10 {
+		t.Errorf("last = %+v", ts)
+	}
+	ce := append(append([]Submission{}, extra...), Submission{ID: 7, Time: time.Unix(0, 0).Add(12 * time.Minute), Official: true, Scored: true, CompileError: true})
+	if ts := Aggregate(ModeLast, ce, 0); ts.Score != 10 || ts.Pending != 1 {
+		t.Errorf("last with pending and compilation error = %+v", ts)
+	}
 	if ts := Aggregate(ModeMax, nil, 0); ts.Score != 0 || ts.LastSubmission != nil {
 		t.Errorf("empty = %+v", ts)
 	}
 	if ts := Aggregate(ModeMax, []Submission{sub(1, 1, 33.335, nil, false)}, 2); ts.Score != 33.34 {
 		t.Errorf("precision = %v", ts.Score)
+	}
+}
+
+// TestReached: the ranking tie-break time is when the score last changed
+// to its final value.
+func TestReached(t *testing.T) {
+	minute := func(ts TaskScore) int {
+		if ts.Reached == nil {
+			return -1
+		}
+		return int(ts.Reached.Sub(time.Unix(0, 0)) / time.Minute)
+	}
+	cases := []struct {
+		name string
+		mode string
+		subs []Submission
+		want int
+	}{
+		// An equal later score does not move it.
+		{"max", ModeMax, []Submission{sub(1, 1, 10, nil, false), sub(2, 2, 50, nil, false), sub(3, 3, 50, nil, false), sub(4, 4, 30, nil, false)}, 2},
+		// Final once every subtask has its best value.
+		{"max_subtask", ModeMaxSubtask, []Submission{sub(1, 1, 40, []float64{40, 0}, false), sub(2, 2, 60, []float64{0, 60}, false),
+			sub(3, 3, 100, []float64{40, 60}, false)}, 2},
+		// 50 (tokened), then 80 (last), then back to 50: the last change.
+		{"max_tokened_last", ModeMaxTokenedLast, []Submission{sub(1, 1, 50, nil, true), sub(2, 2, 80, nil, false), sub(3, 3, 20, nil, false)}, 3},
+		// 30, 70, then 70 again: last changed at minute 2.
+		{"last", ModeLast, []Submission{sub(1, 1, 30, nil, false), sub(2, 2, 70, nil, false), sub(3, 3, 70, nil, false)}, 2},
+		{"zero", ModeMax, []Submission{sub(1, 1, 0, nil, false)}, -1},
+		{"pending", ModeMax, []Submission{sub(1, 1, 50, nil, false), {ID: 2, Time: time.Unix(0, 0).Add(5 * time.Minute), Official: true}}, 1},
+	}
+	for _, c := range cases {
+		if got := minute(Aggregate(c.mode, c.subs, 0)); got != c.want {
+			t.Errorf("%s: reached at minute %d, want %d", c.name, got, c.want)
+		}
 	}
 }
 
@@ -228,4 +271,49 @@ func TestSubtaskEditorRoundTrip(t *testing.T) {
 	if raw := EncodeSubtasks(specs[:1], false); string(raw) != `[[20,2]]` {
 		t.Fatalf("encoded %s", raw)
 	}
+}
+
+// TestSkippable: a testcase is skipped only when every subtask holding it
+// already has a zero; partial outcomes and other score types skip nothing.
+func TestSkippable(t *testing.T) {
+	codes := []string{"a1", "a2", "a3", "b1", "b2", "s"}
+	st, err := New("GroupMin", json.RawMessage(`[[30, "a.*"], [50, "b.*|s"], [20, "a3|s"]]`), codes, make([]bool, len(codes)), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sk := st.(Skipper)
+	got := func(known map[string]float64) string { return strings.Join(sk.Skippable(known), ",") }
+	if g := got(map[string]float64{"a1": 1}); g != "" {
+		t.Fatalf("nothing failed: %s", g)
+	}
+	if g := got(map[string]float64{"a1": 0.5}); g != "" {
+		t.Fatalf("partial settles nothing: %s", g)
+	}
+	// a1 = 0 kills subtask 1: a2 goes; a3 is also in subtask 3, alive.
+	if g := got(map[string]float64{"a1": 0}); g != "a2" {
+		t.Fatalf("a1 failed: %s", g)
+	}
+	// b1 = 0 kills subtask 2; s is also in subtask 3: kill it through a3.
+	if g := got(map[string]float64{"b1": 0, "a3": 0}); g != "a1,a2,b2,s" {
+		t.Fatalf("b1 and a3 failed: %s", g)
+	}
+	mul, _ := New("GroupMul", json.RawMessage(`[[100, 2]]`), []string{"x", "y"}, []bool{false, false}, 0)
+	if g := strings.Join(mul.(Skipper).Skippable(map[string]float64{"x": 0}), ","); g != "y" {
+		t.Fatalf("GroupMul: %s", g)
+	}
+	th, _ := New("GroupThreshold", json.RawMessage(`[[100, 2, 0.5]]`), []string{"x", "y"}, []bool{false, false}, 0)
+	if g := th.(Skipper).Skippable(map[string]float64{"x": 0}); g != nil {
+		t.Fatalf("GroupThreshold skips %v", g)
+	}
+	if _, ok := any(mustSum(t)).(Skipper); ok {
+		t.Fatal("Sum must not skip")
+	}
+}
+
+func mustSum(t *testing.T) ScoreType {
+	st, err := New("Sum", json.RawMessage(`10`), []string{"x"}, []bool{false}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st
 }

@@ -83,6 +83,10 @@ type Log struct {
 type Database struct {
 	URL      string `yaml:"url"`
 	MaxConns int32  `yaml:"max_conns"`
+	// ReplicaURL, when set, is a read-only replica (streaming replication)
+	// that takes the heavy reads which tolerate a moment of lag: the
+	// public scoreboards, statistics, exports and the plagiarism report.
+	ReplicaURL string `yaml:"replica_url"`
 }
 
 type Redis struct {
@@ -90,6 +94,12 @@ type Redis struct {
 	PoolSize int    `yaml:"pool_size"`
 	// Namespace prefixes every key (several installations can share a server).
 	Namespace string `yaml:"namespace"`
+	// Sentinels (host:port) watch a primary and its replicas: when set,
+	// every service follows SentinelMaster through a failover. The URL
+	// then only gives the password and the database number.
+	Sentinels        []string `yaml:"sentinels"`
+	SentinelMaster   string   `yaml:"sentinel_master"`
+	SentinelPassword string   `yaml:"sentinel_password"`
 }
 
 type S3 struct {
@@ -196,6 +206,10 @@ type Worker struct {
 	// Extra read-only directories bound inside every sandbox (e.g. /usr/lib/jvm).
 	SandboxDirs       []string `yaml:"sandbox_dirs"`
 	HeartbeatInterval Duration `yaml:"heartbeat_interval"`
+	// Seccomp: "auto" builds the seccomp launcher with the system C
+	// compiler and runs without it (with a warning) when that fails; "on"
+	// refuses to start without it; "off" never uses it.
+	Seccomp string `yaml:"seccomp"`
 }
 
 type Monitor struct {
@@ -205,6 +219,21 @@ type Monitor struct {
 	// worker still heartbeats (it is probably stuck).
 	JobTimeout    Duration `yaml:"job_timeout"`
 	CheckInterval Duration `yaml:"check_interval"`
+	Alerts        Alerts   `yaml:"alerts"`
+}
+
+// Alerts are the health rules the monitor evaluates (SPEC_IOI §12).
+type Alerts struct {
+	// WebhookURL, when set, receives every alert as a JSON POST
+	// ({"text": ..., "content": ...}: Slack, Mattermost, Discord, ntfy...).
+	WebhookURL string `yaml:"webhook_url"`
+	// QueueDepth: jobs waiting to be judged (live queues) before alerting.
+	QueueDepth int64 `yaml:"queue_depth"`
+	// JudgingLatency: median time from submission to score (last 10
+	// minutes) before alerting.
+	JudgingLatency Duration `yaml:"judging_latency"`
+	// DiskFreePercent: free space below this on this server or a worker.
+	DiskFreePercent float64 `yaml:"disk_free_percent"`
 }
 
 type Printing struct {
@@ -251,21 +280,25 @@ func (b BackupS3) Enabled() bool { return b.Endpoint != "" && b.Bucket != "" }
 
 // Config is the root configuration.
 type Config struct {
-	Log          Log        `yaml:"log"`
-	Database     Database   `yaml:"database"`
-	Redis        Redis      `yaml:"redis"`
-	Blob         Blob       `yaml:"blob"`
-	SecretKey    string     `yaml:"secret_key"` // hex, >= 32 bytes; signs cookies and CSRF tokens
-	LanguagesDir string     `yaml:"languages_dir"`
-	ContestWeb   ContestWeb `yaml:"contest_web"`
-	AdminWeb     AdminWeb   `yaml:"admin_web"`
-	RankingWeb   RankingWeb `yaml:"ranking_web"`
-	Dispatcher   Dispatcher `yaml:"dispatcher"`
-	Worker       Worker     `yaml:"worker"`
-	Monitor      Monitor    `yaml:"monitor"`
-	Printing     Printing   `yaml:"printing"`
-	Backup       Backup     `yaml:"backup"`
-	BlobServer   BlobServer `yaml:"blob_server"`
+	Log          Log      `yaml:"log"`
+	Database     Database `yaml:"database"`
+	Redis        Redis    `yaml:"redis"`
+	Blob         Blob     `yaml:"blob"`
+	SecretKey    string   `yaml:"secret_key"` // hex, >= 32 bytes; signs cookies and CSRF tokens
+	LanguagesDir string   `yaml:"languages_dir"`
+	// LocalesDir holds extra interface languages for the contestant and
+	// ranking sites, or corrections to the shipped ones (<code>.yaml; see
+	// docs/en/interface.md). Empty: only the shipped ones.
+	LocalesDir string     `yaml:"locales_dir"`
+	ContestWeb ContestWeb `yaml:"contest_web"`
+	AdminWeb   AdminWeb   `yaml:"admin_web"`
+	RankingWeb RankingWeb `yaml:"ranking_web"`
+	Dispatcher Dispatcher `yaml:"dispatcher"`
+	Worker     Worker     `yaml:"worker"`
+	Monitor    Monitor    `yaml:"monitor"`
+	Printing   Printing   `yaml:"printing"`
+	Backup     Backup     `yaml:"backup"`
+	BlobServer BlobServer `yaml:"blob_server"`
 
 	// Path the config was loaded from ("" when defaults only).
 	Path string `yaml:"-"`
@@ -294,11 +327,12 @@ func Default() *Config {
 			MetricsListen: ":9102", IsolatePath: "isolate", IsolateCG: true,
 			IsolateBoxRoot: "/var/local/lib/isolate", WorkDir: "./data/worker",
 			CacheDir: "./data/worker-cache", CacheMaxBytes: 2 << 30,
-			HeartbeatInterval: Duration(2 * time.Second),
+			HeartbeatInterval: Duration(2 * time.Second), Seccomp: "auto",
 		},
 		Monitor: Monitor{
 			MetricsListen: ":9103", HeartbeatTimeout: Duration(10 * time.Second),
 			JobTimeout: Duration(10 * time.Minute), CheckInterval: Duration(2 * time.Second),
+			Alerts: Alerts{QueueDepth: 500, JudgingLatency: Duration(3 * time.Minute), DiskFreePercent: 10},
 		},
 		Printing:   Printing{MetricsListen: ":9104", LPPath: "lp", PaperSize: "A4"},
 		BlobServer: BlobServer{Listen: ":8891", MaxUploadBytes: 1 << 30},
@@ -336,43 +370,57 @@ func Load(path string) (*Config, error) {
 // the settings that commonly differ between deployments are exposed.
 func (c *Config) applyEnv(lookup func(string) (string, bool)) error {
 	str := map[string]*string{
-		"CMS_LOG_LEVEL":          &c.Log.Level,
-		"CMS_LOG_FORMAT":         &c.Log.Format,
-		"CMS_DATABASE_URL":       &c.Database.URL,
-		"CMS_REDIS_URL":          &c.Redis.URL,
-		"CMS_BLOB_BACKEND":       &c.Blob.Backend,
-		"CMS_BLOB_DIR":           &c.Blob.LocalDir,
-		"CMS_BLOB_CACHE_DIR":     &c.Blob.CacheDir,
-		"CMS_S3_ENDPOINT":        &c.Blob.S3.Endpoint,
-		"CMS_S3_BUCKET":          &c.Blob.S3.Bucket,
-		"CMS_S3_ACCESS_KEY":      &c.Blob.S3.AccessKey,
-		"CMS_S3_SECRET_KEY":      &c.Blob.S3.SecretKey,
-		"CMS_SECRET_KEY":         &c.SecretKey,
-		"CMS_LANGUAGES_DIR":      &c.LanguagesDir,
-		"CMS_CONTEST_WEB_LISTEN": &c.ContestWeb.Listen,
-		"CMS_ADMIN_WEB_LISTEN":   &c.AdminWeb.Listen,
-		"CMS_RANKING_WEB_LISTEN": &c.RankingWeb.Listen,
-		"CMS_RANKING_DATA_DIR":   &c.RankingWeb.DataDir,
-		"CMS_RANKING_PUSH_TOKEN": &c.RankingWeb.PushToken,
-		"CMS_RANKING_PUBLIC_URL": &c.RankingWeb.PublicURL,
-		"CMS_WORKER_NAME":        &c.Worker.Name,
-		"CMS_WORKER_WORK_DIR":    &c.Worker.WorkDir,
-		"CMS_WORKER_CACHE_DIR":   &c.Worker.CacheDir,
-		"CMS_ISOLATE_PATH":       &c.Worker.IsolatePath,
-		"CMS_ISOLATE_BOX_ROOT":   &c.Worker.IsolateBoxRoot,
-		"CMS_DISPATCHER_METRICS": &c.Dispatcher.MetricsListen,
-		"CMS_WORKER_METRICS":     &c.Worker.MetricsListen,
-		"CMS_MONITOR_METRICS":    &c.Monitor.MetricsListen,
-		"CMS_PRINTING_METRICS":   &c.Printing.MetricsListen,
-		"CMS_PRINTER":            &c.Printing.Printer,
-		"CMS_BACKUP_DIR":         &c.Backup.Dir,
-		"CMS_BLOB_HTTP_URL":      &c.Blob.HTTP.URL,
-		"CMS_BLOB_HTTP_TOKEN":    &c.Blob.HTTP.Token,
-		"CMS_BLOB_SERVER_TOKEN":  &c.BlobServer.Token,
+		"CMS_LOG_LEVEL":             &c.Log.Level,
+		"CMS_LOG_FORMAT":            &c.Log.Format,
+		"CMS_DATABASE_URL":          &c.Database.URL,
+		"CMS_DATABASE_REPLICA_URL":  &c.Database.ReplicaURL,
+		"CMS_REDIS_URL":             &c.Redis.URL,
+		"CMS_REDIS_NAMESPACE":       &c.Redis.Namespace,
+		"CMS_REDIS_SENTINEL_MASTER": &c.Redis.SentinelMaster,
+		"CMS_BLOB_BACKEND":          &c.Blob.Backend,
+		"CMS_BLOB_DIR":              &c.Blob.LocalDir,
+		"CMS_BLOB_CACHE_DIR":        &c.Blob.CacheDir,
+		"CMS_S3_ENDPOINT":           &c.Blob.S3.Endpoint,
+		"CMS_S3_BUCKET":             &c.Blob.S3.Bucket,
+		"CMS_S3_ACCESS_KEY":         &c.Blob.S3.AccessKey,
+		"CMS_S3_SECRET_KEY":         &c.Blob.S3.SecretKey,
+		"CMS_SECRET_KEY":            &c.SecretKey,
+		"CMS_LANGUAGES_DIR":         &c.LanguagesDir,
+		"CMS_LOCALES_DIR":           &c.LocalesDir,
+		"CMS_CONTEST_WEB_LISTEN":    &c.ContestWeb.Listen,
+		"CMS_ADMIN_WEB_LISTEN":      &c.AdminWeb.Listen,
+		"CMS_RANKING_WEB_LISTEN":    &c.RankingWeb.Listen,
+		"CMS_RANKING_DATA_DIR":      &c.RankingWeb.DataDir,
+		"CMS_RANKING_PUSH_TOKEN":    &c.RankingWeb.PushToken,
+		"CMS_RANKING_PUBLIC_URL":    &c.RankingWeb.PublicURL,
+		"CMS_WORKER_NAME":           &c.Worker.Name,
+		"CMS_WORKER_WORK_DIR":       &c.Worker.WorkDir,
+		"CMS_WORKER_CACHE_DIR":      &c.Worker.CacheDir,
+		"CMS_ISOLATE_PATH":          &c.Worker.IsolatePath,
+		"CMS_ISOLATE_BOX_ROOT":      &c.Worker.IsolateBoxRoot,
+		"CMS_WORKER_SECCOMP":        &c.Worker.Seccomp,
+		"CMS_DISPATCHER_METRICS":    &c.Dispatcher.MetricsListen,
+		"CMS_WORKER_METRICS":        &c.Worker.MetricsListen,
+		"CMS_MONITOR_METRICS":       &c.Monitor.MetricsListen,
+		"CMS_ALERTS_WEBHOOK":        &c.Monitor.Alerts.WebhookURL,
+		"CMS_PRINTING_METRICS":      &c.Printing.MetricsListen,
+		"CMS_PRINTER":               &c.Printing.Printer,
+		"CMS_BACKUP_DIR":            &c.Backup.Dir,
+		"CMS_BLOB_HTTP_URL":         &c.Blob.HTTP.URL,
+		"CMS_BLOB_HTTP_TOKEN":       &c.Blob.HTTP.Token,
+		"CMS_BLOB_SERVER_TOKEN":     &c.BlobServer.Token,
 	}
 	for k, p := range str {
 		if v, ok := lookup(k); ok {
 			*p = v
+		}
+	}
+	if v, ok := lookup("CMS_REDIS_SENTINELS"); ok {
+		c.Redis.Sentinels = nil
+		for _, a := range strings.Split(v, ",") {
+			if a = strings.TrimSpace(a); a != "" {
+				c.Redis.Sentinels = append(c.Redis.Sentinels, a)
+			}
 		}
 	}
 	if v, ok := lookup("CMS_RANKING_URLS"); ok {
@@ -471,6 +519,9 @@ func (c *Config) Validate() error {
 	default:
 		errs = append(errs, fmt.Errorf("log.format: unknown format %q", c.Log.Format))
 	}
+	if len(c.Redis.Sentinels) > 0 && c.Redis.SentinelMaster == "" {
+		errs = append(errs, errors.New("redis.sentinel_master is required with redis.sentinels"))
+	}
 	switch c.Blob.Backend {
 	case "local":
 		if c.Blob.LocalDir == "" {
@@ -492,6 +543,11 @@ func (c *Config) Validate() error {
 		if err != nil || len(k) < 32 {
 			errs = append(errs, errors.New("secret_key must be at least 32 bytes, hex encoded"))
 		}
+	}
+	switch c.Worker.Seccomp {
+	case "", "auto", "on", "off":
+	default:
+		errs = append(errs, fmt.Errorf("worker.seccomp: %q is not auto, on or off", c.Worker.Seccomp))
 	}
 	if c.Dispatcher.MaxAttempts < 1 {
 		errs = append(errs, errors.New("dispatcher.max_attempts must be >= 1"))

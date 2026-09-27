@@ -235,6 +235,7 @@ func parseDataset(f *form, u sqlc.UpdateDatasetParams, codes []string) (sqlc.Upd
 		}
 	}
 	u.ScoreType = f.oneOf("score_type", "Score type", scoreTypes...)
+	u.ShortCircuit = f.check("short_circuit")
 	scoreText := f.str("score_type_params")
 	if f.str("score_editor") != "" && !f.check("raw_score") {
 		// The visual editor (the default in the page); the JSON field is
