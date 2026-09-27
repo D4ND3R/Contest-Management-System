@@ -90,7 +90,7 @@
     });
   }
 
-  // Time left in the contest of the page (top bar).
+  // Time left in the contest of the page (header).
   function countdowns() {
     var els = document.querySelectorAll("[data-countdown]");
     if (!els.length) return;
@@ -107,14 +107,25 @@
     setInterval(tick, 1000);
   }
 
-  // The user menu closes when clicking elsewhere.
-  document.addEventListener("click", function (e) {
-    document.querySelectorAll("details.userbox[open]").forEach(function (d) {
-      if (!d.contains(e.target)) d.removeAttribute("open");
+  // Preferences at the bottom apply at once (theme and size here, the
+  // language after a reload) and are stored by the server.
+  function prefs() {
+    var f = document.getElementById("prefs");
+    if (!f) return;
+    f.addEventListener("change", function (e) {
+      var sel = e.target, root = document.documentElement;
+      if (sel.dataset.attr) {
+        if (sel.value) root.setAttribute("data-" + sel.dataset.attr, sel.value); else root.removeAttribute("data-" + sel.dataset.attr);
+      }
+      fetch(f.action, { method: "POST", body: new URLSearchParams(new FormData(f)), credentials: "same-origin",
+        headers: { "HX-Request": "true", "X-CSRF-Token": meta("csrf-token") } })
+        .then(function () { if (sel.hasAttribute("data-reload")) location.reload(); })
+        .catch(function () { f.submit(); });
     });
-  });
+  }
 
+  document.documentElement.classList.add("js");
   function init() { switches(); dropzones(); }
-  document.addEventListener("DOMContentLoaded", function () { connect(); init(); countdowns(); });
+  document.addEventListener("DOMContentLoaded", function () { connect(); init(); countdowns(); prefs(); });
   document.addEventListener("htmx:afterSettle", init);
 })();

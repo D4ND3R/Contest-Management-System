@@ -1,14 +1,17 @@
 # Reverse proxy of the compose stack. The site addresses come from .env:
 # domain names get HTTPS certificates automatically (ports 80 and 443 must
 # be reachable); "http://:PORT" serves plain HTTP (a LAN without a domain).
-# Server-sent events are streamed as they come.
+# Server-sent events (the */events paths) are streamed as they come:
+# compressing them would hold them back.
 {$CONTEST_SITE} {
-	encode zstd gzip
+	@compress not path */events
+	encode @compress zstd gzip
 	reverse_proxy contest-web:8888
 }
 
 {$RANKING_SITE} {
-	encode zstd gzip
+	@compress not path */events
+	encode @compress zstd gzip
 	reverse_proxy ranking-web:8890
 }
 

@@ -520,7 +520,7 @@ func TestUserTest(t *testing.T) {
 	e := newEnv(t, true)
 	q := sqlc.New(e.pool)
 	lang := "c11"
-	ut, err := q.CreateUserTest(ctx, sqlc.CreateUserTestParams{ParticipationID: e.part.ID, TaskID: e.task.ID,
+	ut, err := q.CreateUserTest(ctx, sqlc.CreateUserTestParams{ParticipationID: &e.part.ID, TaskID: e.task.ID,
 		SubmittedAt: time.Now(), Language: &lang, InputDigest: e.put("40 2\n")})
 	if err != nil {
 		t.Fatal(err)

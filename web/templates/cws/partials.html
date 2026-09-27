@@ -1,80 +1,106 @@
+{{define "verdict"}}{{if .Verdict}}<span class="v {{.VClass}}">{{.Verdict}}</span> {{end}}<span class="{{.Class}}">{{.StatusText}}</span>{{if .Evaluating}} <progress max="{{.Total}}" value="{{.Done}}" aria-label="{{.Done}}/{{.Total}}"></progress> <small class="muted">{{.Done}}/{{.Total}}</small>{{end}}{{end}}
+
+{{define "subs-tab"}}{{$d := .Data}}{{$t := $d.Task}}
+<div id="subs-tab">
+{{if $d.CanSubmit}}
+<form method="post" action="{{.Base}}tasks/{{$t.Name}}/submit" enctype="multipart/form-data" class="checked" id="submit"
+      hx-post="{{.Base}}tasks/{{$t.Name}}/submit" hx-encoding="multipart/form-data" hx-target="#subs-tab" hx-swap="outerHTML"
+      data-max="{{$d.MaxFileBytes}}" data-msg-size="{{.T "The file is too large (at most %d KiB)." (kib $d.MaxFileBytes)}}"
+      data-msg-ext="{{.T "The file extension does not match the chosen language."}}" data-msg-empty="{{.T "Please attach at least one file."}}">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <div class="row">
+    {{range $t.Formats}}<label>{{srcname .}} <input type="file" name="{{.}}" {{if and $t.NeedsLanguage (not $t.Editor)}}required{{end}}></label>{{end}}
+    {{if eq $t.TaskType "OutputOnly"}}<label>{{.T "Or all the outputs in a zip archive"}} <input type="file" name="zip" accept=".zip,application/zip"></label>{{end}}
+    {{if $t.NeedsLanguage}}<label>{{.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" data-exts="{{.Exts}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
+    <div><button class="primary" {{with $d.ReadyAt}}data-ready-at="{{.}}" data-wait="{{$.T "Wait %s"}}"{{end}}>{{.T "Submit"}}</button></div>
+  </div>
+  {{if $t.Editor}}<details class="code-editor">
+    <summary>{{.T "Or write the code here"}}</summary>
+    <textarea name="source" class="code" rows="16" spellcheck="false" autocomplete="off" autocapitalize="off" dir="ltr"
+      aria-label="{{.T "Source code"}}" aria-describedby="editor-help" data-draft="{{.Base}}{{$t.Name}}"></textarea>
+    <p id="editor-help" class="help">{{.T "Tab indents. To leave the editor with the keyboard, press Esc and then Tab. Ctrl+Enter submits. A draft is kept in this browser."}}</p>
+  </details>{{end}}
+  <p id="submit-result" role="status" class="bad"></p>
+</form>
+{{else}}<p class="muted">{{$d.CannotSubmit}}</p>{{end}}
+{{with $d.Limits}}<p class="limits">{{range .}}<span>{{index . 0}}: {{index . 1}}</span>{{end}}</p>{{end}}
+{{with $d.Tokens}}<p class="muted" id="tokens">{{if .Unlimited}}{{$.T "Tokens: unlimited."}}{{else}}{{$.T "Tokens available: %d." .Available}}{{end}}
+  {{if .Wait}}{{$.T "The next one can be played in %s." ($.Dur .Wait)}}{{else if not .Next.IsZero}}{{$.T "Next token at %s." ($.Time .Next)}}{{end}}
+  {{$.T "A token shows the full result of a submission."}}</p>{{end}}
+{{template "submissions" .}}
+</div>
+{{end}}
+
 {{define "submissions"}}{{$d := .Data}}
-<div id="submissions" data-task="{{$d.Task.ID}}" data-src="{{.Base}}tasks/{{$d.Task.Name}}/submissions"{{if .OOB}} hx-swap-oob="true"{{end}}>
+<div id="submissions" data-task="{{$d.Task.ID}}" data-src="{{.Base}}tasks/{{$d.Task.Name}}/submissions?fragment=1">
 {{if $d.Subs}}
 <table>
-<tr><th>{{.T "Time"}}</th><th>{{.T "Language"}}</th><th>{{if .Contest.ICPC}}{{.T "Verdict"}}{{else}}{{.T "Status"}}{{end}}</th>{{if not .Contest.ICPC}}<th class="num">{{.T "Score"}}</th>{{end}}<th></th></tr>
+<thead><tr><th class="num">#</th><th>{{.T "Time"}}</th><th>{{.T "Language"}}</th><th>{{.T "Verdict"}}</th>{{if not .Contest.ICPC}}<th class="num">{{.T "Score"}}</th>{{end}}<th></th></tr></thead>
+<tbody>
 {{range $d.Subs}}{{template "subrow" (row $ .)}}{{end}}
+</tbody>
 </table>
 {{else}}<p class="muted">{{.T "No submissions yet."}}</p>{{end}}
 </div>
 {{end}}
 
 {{define "subrow"}}{{$p := .P}}{{$s := .S}}
-<tr id="sub-{{$s.ID}}" data-src="{{$p.Base}}submissions/{{$s.ID}}/row" {{if $s.Pending}}class="pending"{{end}}>
-  <td>{{$p.Time $s.Time}}{{with $s.Author}} <small class="muted">· {{.}}</small>{{end}}{{if not $s.Official}} <span class="muted">({{$p.T "unofficial"}})</span>{{end}}{{if $s.Invalidated}} <span class="tag bad" title="{{$s.InvalidatedReason}}">{{$p.T "invalidated"}}</span>{{end}}</td>
+<tr id="sub-{{$s.ID}}" data-src="{{$p.Base}}submissions/{{$s.ID}}/row" {{if $s.Pending}}data-pending="1"{{end}}>
+  <td class="num"><a href="{{$p.Base}}submissions/{{$s.ID}}">{{$s.ID}}</a></td>
+  <td class="nowrap">{{$p.Time $s.Time}}{{with $s.Author}} <small class="muted">{{.}}</small>{{end}}{{if not $s.Official}} <span class="tag">{{$p.T "unofficial"}}</span>{{end}}{{if $s.Invalidated}} <span class="tag bad" title="{{$s.InvalidatedReason}}">{{$p.T "invalidated"}}</span>{{end}}</td>
   <td>{{$s.Language}}</td>
-  <td class="{{$s.Class}}">{{$s.StatusText}}{{if $s.Evaluating}} <progress max="{{$s.Total}}" value="{{$s.Done}}"></progress>{{end}}</td>
-  {{if not $p.Contest.ICPC}}<td class="num">{{if $s.HasScore}}{{$p.Score $s.Score $s.Precision}} / {{$p.Score $s.Max $s.Precision}}{{end}}{{if $s.Tokened}} <span title="{{$p.T "token played"}}">★</span>{{end}}</td>{{end}}
-  <td><a href="{{$p.Base}}submissions/{{$s.ID}}">{{$p.T "details"}}</a>{{if $s.CanToken}}
-    <form method="post" action="{{$p.Base}}submissions/{{$s.ID}}/token" class="inline"><input type="hidden" name="csrf" value="{{$p.CSRF}}"><button class="link">{{$p.T "use a token"}}</button></form>{{end}}</td>
+  <td>{{template "verdict" $s}}{{if $s.Queued}}<br><small class="muted">{{if $s.Ahead}}{{$p.T "Submissions ahead of yours in the queue: %d." $s.Ahead}}{{else}}{{$p.T "Next in the queue."}}{{end}}{{with $s.Typical}} {{$p.T "Results take about %s right now." ($p.Approx .)}}{{end}}</small>{{end}}</td>
+  {{if not $p.Contest.ICPC}}<td class="num">{{if $s.HasScore}}<span class="score {{$s.VClass}}">{{$p.Score $s.Score $s.Precision}} / {{$p.Score $s.Max $s.Precision}}</span>{{if $s.Public}} <small class="muted">({{$p.T "public"}})</small>{{end}}{{end}}{{if $s.Tokened}} <small class="muted">{{$p.T "token played"}}</small>{{end}}</td>{{end}}
+  <td class="actions"><a href="{{$p.Base}}submissions/{{$s.ID}}">{{$p.T "details"}}</a>{{if $s.CanToken}}
+    <form method="post" action="{{$p.Base}}submissions/{{$s.ID}}/token" class="inline"> · <input type="hidden" name="csrf" value="{{$p.CSRF}}"><button class="link">{{$p.T "use a token"}}</button></form>{{end}}</td>
 </tr>
 {{end}}
 
 {{define "communication"}}{{$d := .Data}}
 <div id="communication" data-src="{{.Base}}communication/list">
-{{with $d.Announcements}}
-<section class="card"><h2>{{$.T "Announcements"}}</h2>
-{{range .}}<article class="msg"><h3><bdi>{{.Subject}}</bdi> <small class="muted">{{$.Time .CreatedAt}}</small></h3><p class="pre" dir="auto">{{.Text}}</p></article>{{end}}
-</section>
-{{end}}
-{{with $d.Messages}}
-<section class="card"><h2>{{$.T "Private messages"}}</h2>
-{{range .}}<article class="msg"><h3><bdi>{{.Subject}}</bdi> <small class="muted">{{$.Time .CreatedAt}}</small></h3><p class="pre" dir="auto">{{.Text}}</p></article>{{end}}
-</section>
-{{end}}
-<section class="card"><h2>{{.T "Your questions"}}</h2>
-{{range $d.Questions}}
-<article class="msg">
-  <h3>{{.About}} <small class="muted">{{$.Time .AskedAt}}</small></h3>
-  <p class="pre" dir="auto">{{.Text}}</p>
-  {{if .Answered}}<p class="answer"><b>{{$.T .ReplySubject}}</b>{{with .ReplyText}} <span class="pre" dir="auto">{{.}}</span>{{end}}{{if .Public}} <span class="tag">{{$.T "answered for everyone"}}</span>{{end}}</p>
-  {{else}}<p class="muted">{{$.T "Waiting for an answer."}}</p>{{end}}
-</article>
-{{else}}<p class="muted">{{.T "You have not asked anything."}}</p>{{end}}
-</section>
-{{with $d.Public}}
-<section class="card"><h2>{{$.T "Answers for everyone"}}</h2>
-{{range .}}<article class="msg"><h3><bdi>{{.About}}</bdi> <small class="muted">{{$.Time .ReplyAt}}</small></h3><p class="pre" dir="auto">{{.Text}}</p>
-<p class="answer"><b>{{$.T .ReplySubject}}</b>{{with .ReplyText}} <span class="pre" dir="auto">{{.}}</span>{{end}}</p></article>{{end}}
-</section>
-{{end}}
+{{if $d.Items}}
+<table class="clarifications">
+<thead><tr><th>{{.T "Time"}}</th><th>{{.T "About"}}</th><th>{{.T "Question"}}</th><th>{{.T "Answer"}}</th></tr></thead>
+<tbody>
+{{range $d.Items}}<tr{{if .Mine}} class="mine"{{end}}>
+  <td class="nowrap">{{$.Time .At}}</td>
+  <td>{{.About}}<br><small class="muted">{{.Kind}}</small></td>
+  {{if .Notice}}<td colspan="2"><b dir="auto">{{.Subject}}</b><br><span class="pre" dir="auto">{{.Question}}</span></td>
+  {{else}}<td><span class="pre" dir="auto">{{.Question}}</span></td>
+  <td>{{if .Answered}}{{with .ReplySubject}}<b>{{.}}</b>{{end}}{{if and .ReplySubject .Answer}}<br>{{end}}{{with .Answer}}<span class="pre" dir="auto">{{.}}</span>{{end}}{{else}}<span class="muted">{{$.T "Waiting for an answer."}}</span>{{end}}</td>{{end}}
+</tr>{{end}}
+</tbody>
+</table>
+{{else}}<p class="muted">{{.T "No clarifications yet."}}</p>{{end}}
 </div>
 {{end}}
 
 {{define "ranking-table"}}{{$d := .Data}}{{$b := $d.Board}}
 <div id="ranking" hx-get="{{.Base}}ranking?fragment=1" hx-trigger="every 15s" hx-swap="outerHTML">
 {{if $b.Frozen}}<p class="info">{{.T "The ranking is frozen: results of later submissions show as ?."}}</p>{{end}}
-{{if $d.Own}}<p class="big">{{if $d.Rank}}{{.T "Your position: %d of %d." $d.Rank $d.Count}}{{else}}{{.T "You are not in the ranking."}}{{end}}</p>{{end}}
+{{if $d.Own}}<p>{{if $d.Rank}}{{.T "Your position: %d of %d." $d.Rank $d.Count}}{{else}}{{.T "You are not in the ranking."}}{{end}}</p>{{end}}
 {{if $d.Rows}}
-<table class="ranking">
-<thead><tr><th class="num">#</th><th>{{if $b.Teams}}{{.T "Team"}}{{else}}{{.T "Participant"}}{{end}}</th>
-{{range $b.Tasks}}<th class="num" title="{{.Title}}">{{.Name}}</th>{{end}}
-<th class="num">{{if $b.ICPC}}{{.T "Solved"}}{{else}}{{.T "Total"}}{{end}}</th>{{if $b.ICPC}}<th class="num">{{.T "Penalty"}}</th>{{end}}</tr></thead>
+<div class="table-wrap">
+<table class="standings">
+<thead><tr><th class="num">#</th><th class="name">{{if $b.Teams}}{{.T "Team"}}{{else}}{{.T "Participant"}}{{end}}</th>
+{{range $b.Tasks}}<th title="{{.Title}}">{{.Name}}</th>{{end}}
+<th>{{if $b.ICPC}}{{.T "Solved"}}{{else}}{{.T "Total"}}{{end}}</th>{{if $b.ICPC}}<th>{{.T "Penalty"}}</th>{{end}}</tr></thead>
 <tbody>
 {{range $r := $d.Rows}}
-<tr class="{{if eq $r.Key $d.Mine}}mine{{end}}{{with $r.Medal}} medal-{{.}}{{end}}"><td class="num">{{$r.ShownPlace}}</td><td>{{$r.Name}}{{if $r.Unofficial}} <span class="tag">{{$.T "unofficial"}}</span>{{end}}{{with $r.Medal}} <span class="medal {{.}}" title="{{$.T .}}">{{icon "award"}}</span>{{end}}{{if and $b.Institutions $r.Institution}} <small class="muted">{{$r.Institution}}</small>{{end}}</td>
-{{range $i, $c := $r.Cells}}{{$x := cell $b $i $c}}<td class="num {{$x.Class}}">{{$x.Text}}{{with $x.Minute}} <small>{{.}}</small>{{end}}{{if $x.Pending}} <span class="pending">?</span>{{end}}{{with $x.Subtasks}}<small class="sub">{{.}}</small>{{end}}</td>{{end}}
-<td class="num"><b>{{if $b.ICPC}}{{$r.Solved}}{{else}}{{fscore $r.Total $b.Precision}}{{end}}</b></td>{{if $b.ICPC}}<td class="num">{{$r.Penalty}}</td>{{end}}</tr>
+<tr class="{{if eq $r.Key $d.Mine}}mine{{end}}{{with $r.Medal}} medal-{{.}}{{end}}"><td class="num">{{$r.ShownPlace}}</td><td class="name">{{$r.Name}}{{if $r.Unofficial}} <span class="tag">{{$.T "unofficial"}}</span>{{end}}{{with $r.Medal}} <span class="tag">{{$.T .}}</span>{{end}}{{if and $b.Institutions $r.Institution}} <small class="muted">{{$r.Institution}}</small>{{end}}</td>
+{{range $i, $c := $r.Cells}}{{$x := cell $b $i $c}}<td class="{{$x.Class}}">{{$x.Text}}{{with $x.Minute}} <small>{{.}}</small>{{end}}{{if $x.Pending}} <span class="pending">?</span>{{end}}{{with $x.Subtasks}}<small>{{.}}</small>{{end}}</td>{{end}}
+<td><b>{{if $b.ICPC}}{{$r.Solved}}{{else}}{{fscore $r.Total $b.Precision}}{{end}}</b></td>{{if $b.ICPC}}<td>{{$r.Penalty}}</td>{{end}}</tr>
 {{end}}
 </tbody>
 </table>
+</div>
 {{end}}
 </div>
 {{end}}
 
 {{define "testrow"}}{{$p := .P}}{{$u := .T}}
-<tr id="test-{{$u.ID}}" data-src="{{$p.Base}}tests/{{$u.ID}}/row" {{if $u.Pending}}class="pending"{{end}}>
-  <td>{{$p.Time $u.Time}}</td>
+<tr id="test-{{$u.ID}}" data-src="{{$p.Base}}tests/{{$u.ID}}/row" {{if $u.Pending}}data-pending="1"{{end}}>
+  <td class="nowrap">{{$p.Time $u.Time}}</td>
   <td>{{$u.Language}}</td>
   <td class="{{$u.Class}}">{{$u.StatusText}}{{with $u.Resources}} <small class="muted">({{.}})</small>{{end}}
     {{with $u.Compiler}}<details><summary>{{$p.T "compiler messages"}}</summary><pre>{{.}}</pre></details>{{end}}</td>
@@ -88,77 +114,38 @@
 <div id="print-jobs" data-src="{{.Base}}printing?fragment=1">
 {{if $d.Jobs}}
 <table>
-<tr><th>{{.T "Time"}}</th><th>{{.T "File"}}</th><th class="num">{{.T "Pages"}}</th><th>{{.T "Status"}}</th></tr>
+<thead><tr><th>{{.T "Time"}}</th><th>{{.T "File"}}</th><th class="num">{{.T "Pages"}}</th><th>{{.T "Status"}}</th></tr></thead>
+<tbody>
 {{range $d.Jobs}}<tr>
-  <td>{{$.Time .Created}}</td><td>{{.Filename}}</td><td class="num">{{.Pages}}</td>
+  <td class="nowrap">{{$.Time .Created}}</td><td>{{.Filename}}</td><td class="num">{{.Pages}}</td>
   <td class="{{.Class}}">{{.Status}}{{with .Detail}} <small class="muted">{{.}}</small>{{end}}</td>
 </tr>{{end}}
+</tbody>
 </table>
 {{else}}<p class="muted">{{.T "Nothing printed yet."}}</p>{{end}}
 </div>
 {{end}}
-
-{{define "resultcard"}}{{$p := .P}}{{$t := .Task}}
-{{with .C}}{{$s := .Sub}}
-<section class="card result {{$s.Class}}" id="latest" data-task="{{$t.ID}}" data-sub="{{$s.ID}}" data-base="{{$p.Base}}" data-src="{{$p.Base}}submissions/{{$s.ID}}/card" aria-live="polite"
-  {{if .Queued}}hx-get="{{$p.Base}}submissions/{{$s.ID}}/card" hx-trigger="every 10s" hx-swap="outerHTML"{{end}}>
-  <h2>{{$p.T "Latest result"}} <small class="muted">#{{$s.ID}} · {{$p.Time $s.Time}}</small></h2>
-  <p class="verdict {{$s.Class}}">{{$s.StatusText}}</p>
-  {{if .Queued}}<p class="muted small queue-pos">{{if .Ahead}}{{$p.T "Submissions ahead of yours in the queue: %d." .Ahead}}{{else}}{{$p.T "Next in the queue."}}{{end}}{{with .Typical}} {{$p.T "Results take about %s right now." ($p.Approx .)}}{{end}}</p>{{end}}
-  {{if $s.Evaluating}}<progress max="{{$s.Total}}" value="{{$s.Done}}"></progress>{{end}}
-  {{if $s.HasScore}}<p class="bigscore"><b>{{$p.Score $s.Score $s.Precision}}</b> / {{$p.Score $s.Max $s.Precision}}</p>{{end}}
-  {{with .Subtasks}}<ul class="chips">{{range .}}<li class="{{.Class}}">{{$p.T "Subtask %d" .Index}} <b>{{$p.Score .Score $s.Precision}}/{{$p.Score .Max $s.Precision}}</b></li>{{end}}</ul>{{end}}
-  {{with .CompileError}}<pre class="compile-error">{{.}}</pre>{{end}}
-  <p><a href="{{$p.Base}}submissions/{{$s.ID}}">{{$p.T "Full details"}}</a></p>
-</section>
-{{else}}
-<section class="card result" id="latest" data-task="{{$t.ID}}" data-base="{{$p.Base}}" aria-live="polite">
-  <h2>{{$p.T "Latest result"}}</h2>
-  <p class="muted">{{$p.T "No submissions yet."}}</p>
-</section>
-{{end}}
-{{end}}
-
-{{define "submitted"}}{{template "resultcard" .Card}}{{template "submissions" .Page}}{{end}}
 
 {{define "testsform"}}{{$p := .P}}{{$d := .D}}{{$t := .Task}}
 <p class="muted">{{$p.T "Runs your program on an input you choose, with the task's limits, and shows its output. Tests are not graded."}}{{range $d.TestLimits}} {{index . 0}}: {{index . 1}}.{{end}}</p>
 {{if $d.TestsEnabled}}
 <form method="post" action="{{$p.Base}}tasks/{{$t.Name}}/test{{with .From}}?from={{.}}{{end}}" enctype="multipart/form-data">
   <input type="hidden" name="csrf" value="{{$p.CSRF}}">
-  {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" required></label>{{end}}
+  <div class="row">
+  {{range $t.Formats}}<label>{{srcname .}} <input type="file" name="{{.}}" required></label>{{end}}
   {{if $t.NeedsLanguage}}<label>{{$p.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
   <label>{{$p.T "Input file"}} <input type="file" name="input"></label>
-  <label>{{$p.T "or type the input"}} <textarea name="input_text" rows="3"></textarea></label>
-  <button>{{$p.T "Run test"}}</button>
+  </div>
+  <label>{{$p.T "or type the input"}} <textarea name="input_text" rows="3" class="code"></textarea></label>
+  <p><button class="primary">{{$p.T "Run test"}}</button></p>
 </form>
 {{end}}
 {{if $d.Tests}}
 <table>
-<tr><th>{{$p.T "Time"}}</th><th>{{$p.T "Language"}}</th><th>{{$p.T "Status"}}</th><th>{{$p.T "Output"}}</th></tr>
+<thead><tr><th>{{$p.T "Time"}}</th><th>{{$p.T "Language"}}</th><th>{{$p.T "Status"}}</th><th>{{$p.T "Output"}}</th></tr></thead>
+<tbody>
 {{range $d.Tests}}{{template "testrow" (testrow $p .)}}{{end}}
+</tbody>
 </table>
 {{end}}
-{{end}}
-
-
-{{define "banner"}}
-<section class="banner">
-  {{with .BannerURL}}<img class="bg" src="{{.}}" alt="">{{end}}
-  <div class="inner">
-    <div>
-      <h1>{{.Contest.Heading}}</h1>
-      {{with .Contest.Subheading}}<p class="sub">{{.}}</p>{{end}}
-      <p class="when"><span>{{icon "calendar"}} {{.DateRange .Contest.StartTime .Contest.StopTime}}</span>{{with .Contest.Location}}<span>{{icon "map-pin"}} {{.}}</span>{{end}}</p>
-    </div>
-    {{with .Contest.Tagline}}<p class="quote">“{{.}}”</p>{{end}}
-  </div>
-  <div class="figures">
-    <div class="figure">{{icon "file"}}<div><b>{{len .Contest.Tasks}}</b><small>{{.T "Tasks"}}</small></div></div>
-    {{with .Data.Duration}}<div class="figure">{{icon "clock"}}<div><b>{{$.Hours .}}</b><small>{{$.T "Duration"}}</small></div></div>{{end}}
-    {{if and .Tasks (not .Data.Hidden)}}{{if .Contest.ICPC}}<div class="figure">{{icon "check-circle"}}<div><b>{{.Data.Solved}} / {{len .Data.Rows}}</b><small>{{.T "Solved"}}</small></div></div>
-    {{else}}<div class="figure">{{icon "zap"}}<div><b>{{.Score .Data.Total 2}}</b><small>{{.T "of %s points" (.Score .Data.MaxTotal 2)}}</small></div></div>{{end}}{{end}}
-    {{with .Data.Rank}}<div class="figure">{{icon "trophy"}}<div><b>#{{.}}</b><small>{{$.T "of %d" $.Data.Ranked}}</small></div></div>{{end}}
-  </div>
-</section>
 {{end}}

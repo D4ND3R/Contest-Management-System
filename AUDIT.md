@@ -256,3 +256,26 @@ H0–H8 are in PROGRESS.md and decisions D82–D96 in DECISIONS.md.
 | I-O8 | Plugin APIs for languages, task types, score types, checkers | complete | complete | internal/langs, internal/tasktypes, internal/scoring, internal/checkers | langs.TestLoadRepositoryLanguages, worker.TestProblemTypeSamples |
 | I-O9 | Documentation for contestants, task setters and operators (es/en) | complete | complete | docs/en, docs/es | cli.TestDocsLinks |
 | I-O10 | Versioned configuration in Git, imported deterministically | missing | complete (`cms ctl contest-config export` and `apply`) | internal/contestconfig | contestconfig.TestApplyAndExport, contestconfig.TestApplyRejects |
+
+## §11 SPEC_MIN — minimal interface and the owner's requests (SPEC_MIN.md)
+
+| ID | Requirement | Status | Files | Tests |
+|----|-------------|--------|-------|-------|
+| M-1 | Total redesign, Codeforces/QOJ/CMS style: plain menus and tables, no cards, icons or images; admin with top menus like Polygon | complete (D98) | web/static/style.css, web/templates/{cws,aws,rws} | contestweb.TestProblemsPage, adminweb.TestContestDashboard, contestweb.TestContestantUIInBrowser, rankingweb.TestAccessibility |
+| M-2 | Theme and language at the very bottom, applied at once | complete | web/static/{app,admin,rws}.js, */layout.html | contestweb.TestContestantUIInBrowser, rankingweb.TestAccessibility |
+| M-3 | Clarifications page: questions answered to one or to all, announcements | complete | internal/contestweb/communication.go, web/templates/aws/partials.html | e2e.TestCommunicationFlow, contestweb.TestAskQuestion |
+| M-4 | A server-wide time zone, changeable at any moment, followed by every site | complete (D101) | internal/db/migrations/0024_server_settings.sql, internal/adminweb/settings.go | adminweb.TestLoginRolesAndAudit, adminweb.TestSubmissionFiltersSourceAndZip, contestweb.TestContestStatus, backup.TestDumpRestoreIdentical |
+| M-5 | Pages update live (clarifications, statement changes, results), with a fallback when a proxy blocks the stream | complete (D100) | internal/webkit/sse.go, web/static/app.js, internal/adminweb/server.go | contestweb.TestServerSentEvents, e2e.TestSubmissionFlow |
+| M-6 | Two tabs per problem, Statement and Submissions | complete (D99) | web/templates/cws/task.html | contestweb.TestSubmitAnswerAndTesting |
+| M-7 | A notice after submitting | complete | internal/contestweb/handlers.go, web/static/app.js | contestweb.TestSubmitAnswerAndTesting, contestweb.TestContestantUIInBrowser |
+| M-8 | Contestants see the public testcases one by one and every subtask as a coloured block | complete (D99) | internal/contestweb/views.go, web/templates/cws/submission.html | contestweb.TestSubtaskBlocksAndPartialVerdict, contestweb.TestScoredSubmissionShowsFullScore |
+| M-9 | Partial results (PA) | complete | internal/scoring/verdict.go | scoring.TestIOIVerdicts |
+| M-10 | A wait between submissions | complete (20 s proposed for new contests, countdown on the button) | internal/adminweb/contests.go, web/static/app.js | contestweb.TestSubmissionWait, adminweb.TestContestDashboard |
+| M-11 | Simpler scoreboard settings | complete (D102) | web/templates/aws/contest.html, internal/adminweb/contests.go | adminweb.TestRankingSettings |
+| M-12 | Upgrade from the previous version failed with a database error | could not reproduce; migrating a populated v0.2.1 database is now tested (owner: "might be local") | internal/db/testdata/v0.2.1-seed.sql | db.TestUpgradeFromPopulatedV021 |
+| M-13 | A problem made step by step, no zip required | complete (D103) | internal/adminweb/{tasks.go,testcasegen.go} | adminweb.TestTestcasesOneByOne |
+| M-14 | A manual testcase generator in the problems section | complete (D103) | internal/adminweb/testcasegen.go, internal/dispatcher/testcasejobs.go | dispatcher.TestTestcaseJobs, adminweb.TestTestcasesOneByOne |
+| M-15 | No decorative images, drawings or symbols | complete (D98) | internal/webkit/ui.go | webkit.TestLettersAndPercent |
+| M-16 | Every problem type works | complete (each type configured from the admin and judged by real workers) | internal/tasktypes | e2e.TestEveryTaskTypeFromAdminUI, worker.TestProblemTypeSamples |
+| M-17 | Detailed documentation for anyone | complete (getting started, creating a problem, contestant guide, clarifications, glossary, troubleshooting; es/en) | docs/{es,en} | cli.TestDocsLinks |
+| M-18 | Field review | done on a native stack with a real judge (D104 found and fixed) | — | — |

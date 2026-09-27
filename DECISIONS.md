@@ -1689,3 +1689,142 @@ fair under load. What was built, and the choices behind it:
   included.
 - Releases already published under Apache-2.0 (v0.1.0 to v0.2.1) keep
   that license for those versions; the change applies from the next one.
+
+## D98. Minimal interface (SPEC_MIN §1, §2, §15)
+
+- **One look for the three sites**, in the spirit of Codeforces, QOJ and
+  the original CMS: a header line (contest, phase, time left, user), one
+  row of plain menu links (a second row for the contest in the admin, like
+  Polygon), then tables. No cards, shadows, icons, avatars, tiles, donuts
+  or charts: they cost bytes and attention during a contest and made the
+  pages look generated. The icon set, the donut and the line chart helpers
+  were deleted with their last use.
+- **Colour only carries meaning**: verdict chips and subtask blocks (green
+  accepted, yellow partial, red rejected, grey pending), the phase marker
+  and notices. Light, dark, system and high-contrast themes are CSS
+  tokens; one stylesheet serves the three sites (the ranking adds a few
+  lines).
+- **Preferences at the very bottom**, applied at once: theme and size set
+  an attribute on the page and are stored in the background (the server
+  answers 204 to the script); the language reloads the page. Without
+  JavaScript the Apply button does the same.
+- **The contest banner image is gone from the interface** (upload form,
+  dashboards, login page). The column and the contest site's /banner
+  address stay, so archives and old links keep working; nothing shows it.
+- **Wide tables scroll inside themselves** on narrow screens, never the
+  page (checked at 400 px in the browser test).
+
+## D99. What contestants see of a submission (SPEC_MIN §6–§10)
+
+- **Two tabs per problem**, Statement and Submissions (QOJ style); the
+  submit form lives on the Submissions tab with the list, so sending shows
+  the new row right away. Sending through htmx answers with the refreshed
+  tab and an HX-Trigger event that shows a notice ("Submission sent...");
+  without JavaScript the browser lands on the tab with the same notice.
+- **Full result unless tokens are in play**: the owner reported that
+  contestants only saw public scores. With tokens disabled (the default)
+  the contestant sees the full score and the verdict; with tokens, the
+  public score until a token is played (the IOI rule). Only the public
+  testcases are listed one by one; every subtask shows as a block with its
+  score and verdict, so the hidden cases stay hidden but the outcome does
+  not.
+- **Partially correct (PA) is a verdict** computed for display from the
+  stored one and the score: AC at full score, PA with some points, else
+  the stored failure (WA, TLE...). ICPC contests keep binary verdicts.
+- **A wait between submissions** (the existing minimum interval) is
+  proposed at 20 s for new contests; the Submit button counts down.
+
+## D100. Pages that update themselves (SPEC_MIN §5)
+
+- The event stream already existed; what failed in the field was silent:
+  a proxy that buffers or compresses the stream delivers nothing and the
+  page never notices. The server now sends a ping at once and every 25 s;
+  a page that hears nothing for 60 s falls back to polling (rows being
+  judged, the clock, unread clarifications) every 8 s until the stream
+  works again.
+- **Proxies**: Caddy 2.8 streams the events untouched even with `encode`
+  (checked with curl through a real Caddy); the generated Caddyfiles
+  (installer, Docker) now keep the `*/events` paths out of compression
+  anyway, for older versions. The server already sends
+  `X-Accel-Buffering: no` for nginx.
+- **Statement changes** publish a `statement` event: contestants get a
+  notice and the statement reloads if it is open. Clarifications and
+  answers raise a notice and update the badge; judged submissions update
+  their row and notify once.
+
+## D101. One time zone for the whole server (SPEC_MIN §4)
+
+- **A single-row `server_settings` table** holds the zone; any full
+  administrator changes it on the Server page at any moment. Admin pages,
+  contest pages, rankings and certificates show times in it, and times
+  typed in forms are read in it. The per-contest zone field is gone from
+  the form.
+- **Contests follow it through a trigger** (`contests.timezone` is always
+  the server's), so every reader of the contest zone (contest cache,
+  ranking board, certificates) keeps working unchanged, whatever creates
+  the contest (form, import, cmsctl, contest-config). Changing the zone
+  updates every contest in the same transaction and tells the web servers
+  to drop their caches.
+- **Upgrades start from the latest contest's zone**, so pages show what
+  they showed before. A user's own zone (remote contestants) still wins
+  on their pages.
+- **Restores load data verbatim**: triggers are disabled while tables are
+  copied, and the seeded settings row is replaced by the backup's.
+  Contest archives leave the table out: an imported contest takes the
+  importing server's zone.
+
+## D102. Scoreboard settings as questions (SPEC_MIN §11)
+
+- The five visibility fields confused the owner. The form now asks "Who
+  sees the scoreboard?" with five answers (everybody, contestants,
+  contestants see only their position, organizers and a secret link,
+  nobody), "when" and "freeze during the last N minutes", then which
+  columns. Ties, medals, an exact freeze time, hidden users and anonymity
+  are under "More scoreboard options". A stored combination that is none
+  of the five is offered as "keep the current setting".
+- The rest of the contest form is split the same way: general, submissions
+  and scoreboard first; everything else under "All other settings".
+
+## D103. Testcases one by one, and generators (SPEC_MIN §13, §14)
+
+- **A task is made in any order from its page**: a checklist at the top
+  (title, statement, testcases, type and checker, scoring, a reference
+  solution with the full score, a contest) says what is missing and links
+  to where it is done. Nothing requires a package or a zip any more; they
+  remain as shortcuts.
+- **One testcase at a time**: the input is typed in the page or uploaded;
+  the output is typed, uploaded, empty (interactive tasks, checkers that
+  only read the input) or written by a reference solution. The codename
+  proposed is the next number.
+- **Generators**: a program (any configured language) that reads one line
+  of parameters and writes an input; it runs once per line (up to 500),
+  and each input then goes to the reference solution or gets an empty
+  output.
+- **Everything runs on the judging workers**, never in the admin process:
+  each step is a user test owned by the administrator (no participation,
+  pinned to the dataset). A "plain" run ignores the task type (standard
+  input to standard output, no managers) with generous limits (10 s,
+  1 GiB, 256 MiB of output); a solution run uses the dataset's task type,
+  limits and graders, like a contestant's test. The reference solution is
+  a task tester run, so it is judged on the same dataset and its score is
+  visible.
+- **The dispatcher moves a `testcase_jobs` row forward in the same
+  transaction that stores the run's result**, so a crash never loses or
+  repeats a step; the next run starts after the commit (and the sweeper
+  starts it if that notice is lost). A finished job becomes a testcase
+  (upsert: making a testcase again replaces it) and tells every
+  dispatcher the dataset changed; a failed one keeps its reason (the
+  start of the compiler's message or the exit status) until forgotten.
+- **Only Batch tasks offer "written by the reference solution"**: for the
+  other types the output means something else (an answer file for an
+  interactor, the expected files of an output-only task).
+
+## D104. Absolute sandbox paths
+
+- The field review found every run failing on the development stack:
+  isolate refuses relative `--dir` rules, and `config/dev.yaml` (like the
+  built-in defaults) gives the worker relative directories. The worker now
+  resolves its work and cache directories, and the seccomp launcher's
+  directory, to absolute paths at start. Installed systems were not
+  affected (the installer and the Docker configuration use absolute
+  paths).

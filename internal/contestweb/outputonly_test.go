@@ -54,7 +54,7 @@ func TestOutputOnlySubmissions(t *testing.T) {
 	b.Get("/ioi/login")
 	code, body := b.Post("/ioi/login", url.Values{"username": {"ana"}, "password": {"secret"}})
 	webtest.MustOK(t, "login", code, body)
-	code, body = b.Get("/ioi/tasks/outs")
+	code, body = b.Get("/ioi/tasks/outs/submissions")
 	webtest.MustOK(t, "task page", code, body)
 	for _, name := range []string{"output_0.txt", "output_1.txt", "output_2.txt", `name="zip"`} {
 		if !strings.Contains(body, name) {

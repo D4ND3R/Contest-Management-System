@@ -71,7 +71,7 @@ func expectEvent(t *testing.T, ch <-chan string, want string) {
 	}
 }
 
-var badgeRe = regexp.MustCompile(`id="unread" class="badge"[^>]*?(hidden)?>(\d+)<`)
+var badgeRe = regexp.MustCompile(`id="unread" class="count" ?(hidden)?><span class="sr-only">[^<]*</span>(\d+)<`)
 
 func unread(t *testing.T, b *browser) string {
 	t.Helper()
@@ -131,7 +131,7 @@ func TestCommunicationFlow(t *testing.T) {
 	}
 	cb.c.Jar.SetCookies(mustURL(s.cwsURL), []*http.Cookie{{Name: "cms_lang", Value: "es", Path: "/"}})
 	_, body = cb.get("/e2e/communication")
-	if !strings.Contains(body, "Respuestas para todos") || !strings.Contains(body, "<b>Sí</b>") || !strings.Contains(body, "Hasta 10^9") {
+	if !strings.Contains(body, "Clarificación para todos") || !strings.Contains(body, "<b>Sí</b>") || !strings.Contains(body, "Hasta 10^9") {
 		t.Fatalf("public answer:\n%s", body)
 	}
 	if n := unread(t, cb); n != "0" {

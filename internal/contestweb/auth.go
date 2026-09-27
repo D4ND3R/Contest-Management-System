@@ -59,6 +59,11 @@ func (s *Server) handleLang(w http.ResponseWriter, r *http.Request) {
 	if r.Form.Has("theme") || r.Form.Has("size") {
 		webkit.WriteDisplay(w, webkit.DisplayFromForm(r), s.cfg.CookieSecure)
 	}
+	if r.Header.Get("HX-Request") != "" {
+		// The footer applies the choice in the page itself.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	back := r.Header.Get("HX-Current-URL")
 	if back == "" {
 		back = r.Referer()

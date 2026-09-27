@@ -10,7 +10,7 @@
 </table>
 <p class="muted small">{{.T "Roles: all can change everything; messaging can read everything and answer questions, send announcements and messages; task_setter can read everything and prepare tasks (statements, datasets, testcases, graders, the tester), but not make a dataset live, rejudge or delete; read_only can only look; leader (a delegation leader) sees only the submissions and public results of their team's contestants."}}</p>
 {{if .CanWrite}}
-<form method="post" action="/admins" class="card inline-form">
+<form method="post" action="/admins" class="inline-form">
   {{template "csrf" .CSRF}}
   <b>{{.T "New administrator"}}</b>
   <label>{{.T "Username"}} <input name="username" required autocomplete="off"></label>

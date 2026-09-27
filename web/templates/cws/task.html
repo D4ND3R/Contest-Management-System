@@ -1,69 +1,25 @@
-{{define "content"}}
-{{$d := .Data}}{{$t := $d.Task}}
-{{$i := .TaskIndex $t.Name}}<div class="page-head"><h1><span class="letter {{lclass $i}}">{{letter $i}}</span> {{$t.Name}} <span class="muted">— {{$t.Title}}</span></h1></div>
-<div class="task-layout">
-<div class="task-main">
-<section class="card statement-card" id="statement">
-  <div class="card-head">
-    <h2>{{.T "Statement"}}</h2>
-    {{with $d.Statement}}<div class="card-actions">
-      {{if gt (len .Languages) 1}}<nav class="tabs" aria-label="{{$.T "Statement language"}}">{{range .Languages}}<a href="?lang={{.Lang}}#statement" {{if eq .Lang $d.Statement.Current.Lang}}class="active" aria-current="true"{{end}}>{{.Name}}{{if .Primary}} ★{{end}}</a>{{end}}</nav>{{end}}
-      {{with .PDFURL}}<a class="button" href="{{.}}" target="_blank" rel="noopener">{{icon "download"}} {{$.T "PDF"}}</a>{{end}}
-    </div>{{end}}
-  </div>
-  {{with $d.Statement}}
-    {{if .HTML}}<div lang="{{bcp47 .Current.Lang}}" dir="{{dir .Current.Lang}}">{{.HTML}}</div>
-    {{else if .Embedded}}<iframe class="pdf-frame" src="{{.PDFURL}}" title="{{$.T "Statement"}}"></iframe>{{.Examples}}
-    {{else}}{{.Examples}}{{end}}
-  {{else}}<p class="muted">{{.T "No statement available."}}</p>{{end}}
-  {{if $t.Attachments}}<h3>{{.T "Attachments"}}</h3><ul class="files">{{range $t.Attachments}}<li><a href="{{$.Base}}tasks/{{$t.Name}}/attachments/{{.}}?v={{attv $t .}}" download>{{.}}</a></li>{{end}}</ul>{{end}}
-</section>
-{{if or $d.TestsEnabled $d.Tests}}
-<section class="card" id="tests">
-  <h2>{{.T "Test your solution"}}</h2>
-  {{template "testsform" (tests $ $d $t "")}}
-</section>
+{{define "content"}}{{$d := .Data}}{{$t := $d.Task}}
+<h1>{{letter (.TaskIndex $t.Name)}}. {{$t.Name}} <span class="muted">— {{$t.Title}}</span></h1>
+<p class="limits">{{if $t.TimeLimit}}<span>{{.T "Time limit"}}: {{.Seconds $t.TimeLimit}}</span>{{end}}{{range $t.LanguageTimes}}<span>{{$.T "Time limit in %s" .Name}}: {{$.Seconds .Limit}}</span>{{end}}{{if $t.MemoryLimit}}<span>{{.T "Memory limit"}}: {{.Bytes $t.MemoryLimit}}</span>{{end}}<span>{{$t.TaskType}}</span></p>
+<nav aria-label="{{.T "Problem"}}"><ul class="tabs">
+  <li><a href="{{.Base}}tasks/{{$t.Name}}" {{if eq $d.Tab "statement"}}aria-current="page"{{end}}>{{.T "Statement"}}</a></li>
+  <li><a href="{{.Base}}tasks/{{$t.Name}}/submissions" {{if eq $d.Tab "submissions"}}aria-current="page"{{end}}>{{.T "Submissions"}}{{with $d.Subs}} ({{len .}}){{end}}</a></li>
+</ul></nav>
+{{if eq $d.Tab "submissions"}}
+{{template "subs-tab" .}}
+{{else}}
+<div id="statement" data-task="{{$t.ID}}">
+{{with $d.Statement}}
+  {{if or (gt (len .Languages) 1) .PDFURL}}<p class="actions-bar">
+    {{if gt (len .Languages) 1}}<span class="muted">{{$.T "Statement language"}}:</span> {{range .Languages}}{{if eq .Lang $d.Statement.Current.Lang}}<b>{{.Name}}</b>{{else}}<a href="?lang={{.Lang}}">{{.Name}}</a>{{end}} {{end}}{{end}}
+    {{with .PDFURL}}<a href="{{.}}" target="_blank" rel="noopener">{{$.T "PDF"}}</a>{{end}}
+  </p>{{end}}
+  {{if .HTML}}<div class="statement" lang="{{bcp47 .Current.Lang}}" dir="{{dir .Current.Lang}}">{{.HTML}}</div>
+  {{else if .Embedded}}<iframe class="pdf-frame" src="{{.PDFURL}}" title="{{$.T "Statement"}}"></iframe>{{.Examples}}
+  {{else}}{{.Examples}}{{end}}
+{{else}}<p class="muted">{{.T "No statement available."}}</p>{{end}}
+{{if $t.Attachments}}<h2>{{.T "Attachments"}}</h2><ul class="files">{{range $t.Attachments}}<li><a href="{{$.Base}}tasks/{{$t.Name}}/attachments/{{.}}?v={{attv $t .}}" download>{{.}}</a></li>{{end}}</ul>{{end}}
+</div>
+{{if $d.CanSubmit}}<p><a class="button primary" href="{{.Base}}tasks/{{$t.Name}}/submissions">{{.T "Submit a solution"}}</a></p>{{else}}<p class="muted">{{$d.CannotSubmit}}</p>{{end}}
 {{end}}
-<h2>{{.T "Submissions"}}</h2>
-{{with $d.Tokens}}<p class="muted" id="tokens">{{if .Unlimited}}{{$.T "Tokens: unlimited."}}{{else}}{{$.T "Tokens available: %d." .Available}}{{end}}
-  {{if .Wait}}{{$.T "The next one can be played in %s." ($.Dur .Wait)}}{{else if not .Next.IsZero}}{{$.T "Next token at %s." ($.Time .Next)}}{{end}}
-  {{$.T "A token shows the full result of a submission."}}</p>{{end}}
-{{template "submissions" .}}
-</div>
-<aside class="task-side">
-<section class="card" id="submit">
-  <h2>{{.T "Submit a solution"}}</h2>
-  {{if $d.CanSubmit}}
-  <form method="post" action="{{.Base}}tasks/{{$t.Name}}/submit" enctype="multipart/form-data" class="checked"
-        hx-post="{{.Base}}tasks/{{$t.Name}}/submit" hx-encoding="multipart/form-data" hx-target="#latest" hx-swap="outerHTML"
-        data-max="{{$d.MaxFileBytes}}" data-msg-size="{{.T "The file is too large (at most %d KiB)." (kib $d.MaxFileBytes)}}"
-        data-msg-ext="{{.T "The file extension does not match the chosen language."}}" data-msg-empty="{{.T "Please attach at least one file."}}">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" {{if and $t.NeedsLanguage (not $t.Editor)}}required{{end}}></label>{{end}}
-    {{if $t.Editor}}<details class="code-editor">
-      <summary>{{.T "Or write the code here"}}</summary>
-      <textarea name="source" class="code" rows="16" spellcheck="false" autocomplete="off" autocapitalize="off" dir="ltr"
-        aria-label="{{.T "Source code"}}" aria-describedby="editor-help" data-draft="{{.Base}}{{$t.Name}}"></textarea>
-      <small id="editor-help" class="muted">{{.T "Tab indents. To leave the editor with the keyboard, press Esc and then Tab. Ctrl+Enter submits. A draft is kept in this browser."}}</small>
-    </details>{{end}}
-    {{if eq $t.TaskType "OutputOnly"}}<label>{{.T "Or all the outputs in a zip archive"}} <input type="file" name="zip" accept=".zip,application/zip"></label>{{end}}
-    {{if $t.NeedsLanguage}}<label>{{.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" data-exts="{{.Exts}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
-    <button>{{.T "Submit"}}</button>
-    <span id="submit-result" role="status"></span>
-  </form>
-  {{else}}<p class="muted">{{$d.CannotSubmit}}</p>{{end}}
-</section>
-<div aria-live="polite">{{template "resultcard" (card $ $d.Latest $t)}}</div>
-<section class="card">
-  <h2>{{.T "Limits"}}</h2>
-  <dl class="meta">
-    {{if $t.TimeLimit}}<dt>{{.T "Time limit"}}</dt><dd>{{.Seconds $t.TimeLimit}}</dd>{{end}}
-    {{range $t.LanguageTimes}}<dt>{{$.T "Time limit in %s" .Name}}</dt><dd>{{$.Seconds .Limit}}</dd>{{end}}
-    {{if $t.MemoryLimit}}<dt>{{.T "Memory limit"}}</dt><dd>{{.Bytes $t.MemoryLimit}}</dd>{{end}}
-    <dt>{{.T "Task type"}}</dt><dd>{{$t.TaskType}}</dd>
-    {{with $d.Limits}}{{range .}}<dt>{{index . 0}}</dt><dd>{{index . 1}}</dd>{{end}}{{end}}
-  </dl>
-</section>
-</aside>
-</div>
 {{end}}

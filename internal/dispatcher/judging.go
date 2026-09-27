@@ -27,6 +27,10 @@ type effects struct {
 	ranking []queue.RankingUpdate
 	// skips tell the workers which queued testcases not to run.
 	skips []queue.Skip
+	// userTests start after the commit (runs created by testcase jobs);
+	// datasets changed (testcases added by testcase jobs).
+	userTests []int64
+	datasets  []int64
 }
 
 func (d *Dispatcher) apply(ctx context.Context, e *effects) {
@@ -46,6 +50,17 @@ func (d *Dispatcher) apply(ctx context.Context, e *effects) {
 		// Lost, the workers only run what would have been ignored anyway.
 		if err := d.q.AddSkips(ctx, s); err != nil {
 			d.log.Warn("publish skipped testcases", "error", err)
+		}
+	}
+	for _, id := range e.userTests {
+		// Lost, the sweeper starts the run later.
+		if err := d.newUserTest(ctx, id); err != nil {
+			d.log.Warn("start user test", "user_test", id, "error", err)
+		}
+	}
+	for _, id := range e.datasets {
+		if err := d.q.Notify(ctx, queue.Event{Kind: queue.EventDatasetChanged, DatasetID: id}); err != nil {
+			d.log.Warn("notify dataset change", "dataset", id, "error", err)
 		}
 	}
 }

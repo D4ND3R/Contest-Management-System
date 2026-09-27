@@ -9,7 +9,7 @@ reproducen un concurso real a través del circuito de evaluación real.
 
 El servicio monitor revisa el sistema cada pocos segundos. Cuando un
 problema persiste, los administradores ven una alerta (una notificación
-roja y la tarjeta **Alertas** de la página Sistema), y otra vez cuando se
+roja y la sección **Alertas** de la página Jueces), y otra vez cuando se
 resuelve:
 
 | Alerta | Cuándo |

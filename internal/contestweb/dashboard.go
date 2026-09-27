@@ -6,7 +6,6 @@ import (
 
 	"github.com/D4ND3R/Contest-Management-System/internal/contest"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
-	"github.com/D4ND3R/Contest-Management-System/internal/ranking"
 )
 
 // ---------------------------------------------------------------- overview
@@ -57,18 +56,9 @@ type overviewData struct {
 	// Hidden: the contest does not show scores now.
 	Hidden bool
 	// Certificate: the contestant may download a certificate.
-	Certificate bool
-	// Solved, Partial, Unsolved count the tasks (the donut).
-	Solved, Partial, Unsolved int
-	Recent                    []recentSub
-	Announcements             []sqlc.Announcement
-	// Board is the top of the ranking (when contestants may see it);
-	// Rank is the contestant's place in it, of Ranked.
-	Board          []ranking.BoardRow
-	BoardICPC      bool
-	BoardPrecision int
-	Rank, Ranked   int
-	Mine           string
+	Certificate   bool
+	Recent        []recentSub
+	Announcements []sqlc.Announcement
 	// Duration of the contestant's window.
 	Duration time.Duration
 }
@@ -76,7 +66,7 @@ type overviewData struct {
 func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	ctx := r.Context()
 	p := s.newPage(rc, rc.contest.Name, "overview")
-	p.Title = p.T("Overview")
+	p.Title = p.T("Problems")
 	d := &overviewData{PerUserTime: rc.contest.Rules.PerUserTime}
 	if !rc.status.Begin.IsZero() && !rc.status.End.IsZero() {
 		d.Duration = rc.status.End.Sub(rc.status.Begin)
@@ -109,14 +99,6 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqC
 			row.HasScore, row.Score, row.Pending = true, sc.score, sc.pending > 0
 			row.Solved, row.Attempts, row.Adjustment = sc.solved, sc.attempts, sc.adjustment
 		}
-		switch row.State() {
-		case "solved":
-			d.Solved++
-		case "partial":
-			d.Partial++
-		default:
-			d.Unsolved++
-		}
 		d.Total += row.Score
 		d.MaxTotal += row.Max
 		d.Rows = append(d.Rows, row)
@@ -141,28 +123,6 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, rc *reqC
 	}
 	if anns, err := s.q.ListAnnouncements(ctx, rc.contest.ID); err == nil {
 		d.Announcements = anns[:min(len(anns), 3)]
-	}
-	if p.Ranking {
-		// The cached board (one computation per contest every few seconds).
-		b, err := s.contestBoard(ctx, rc.contest, rc.now)
-		if err != nil {
-			s.fail(w, err)
-			return
-		}
-		own := rc.contest.RankingContestantView == "own"
-		d.BoardICPC, d.BoardPrecision, d.Ranked = b.ICPC, b.Precision, len(b.Rows)
-		for _, row := range b.Rows {
-			mine := false
-			for _, m := range row.Members {
-				mine = mine || m == rc.part.ID
-			}
-			if mine {
-				d.Rank, d.Mine = row.Rank, row.Key
-			}
-			if (len(d.Board) < 8 && !own) || mine {
-				d.Board = append(d.Board, row)
-			}
-		}
 	}
 	p.Data = d
 	s.render(w, "overview", http.StatusOK, p)
@@ -195,7 +155,7 @@ func (s *Server) recentSubs(r *http.Request, rc *reqCtx, p *page) ([]recentSub, 
 		}
 		s.fillStatus(p, t, subState{compilation: row.CompilationOutcome, evaluation: row.EvaluationOutcome, done: done, total: total,
 			score: row.Score, pub: row.PublicScore, scored: row.ScoredAt != nil, systemError: row.SystemError, tokened: row.Tokened,
-			hidden: hidden, icpc: rc.contest.ICPC(), verdict: row.Verdict}, &sv)
+			hidden: hidden, icpc: rc.contest.ICPC(), verdict: row.Verdict, full: fullScores(rc, t)}, &sv)
 		out = append(out, recentSub{subView: sv, Task: t, Index: index[t.ID]})
 	}
 	return out, nil

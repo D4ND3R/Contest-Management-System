@@ -25,7 +25,7 @@ func TestTranslate(t *testing.T) {
 			t.Errorf("%s: %q", c.lang, got)
 		}
 	}
-	if got := T("ko", "You are #%d of %d.", 2, 10); got != "10명 중 2위입니다." {
+	if got := T("ko", "Your position: %d of %d.", 2, 10); got != "내 순위: 10명 중 2위." {
 		t.Errorf("ko: %q", got)
 	}
 }

@@ -53,8 +53,12 @@ aleatoria del administrador y corre `cms-verify-host`.
 
 ## Documentation / Documentación
 
-- English: [docs/en](docs/en/README.md)
-- Español: [docs/es](docs/es/README.md)
+- English: [docs/en](docs/en/README.md) — start with
+  [getting started](docs/en/getting-started.md) and
+  [creating a problem](docs/en/creating-a-problem.md).
+- Español: [docs/es](docs/es/README.md) — empieza por
+  [primeros pasos](docs/es/primeros-pasos.md) y
+  [crear un problema](docs/es/crear-un-problema.md).
 - Project status / Estado del proyecto: [SUMMARY.md](SUMMARY.md) (what is
   complete and what to verify on the real server),
   [loadtest/README.md](loadtest/README.md) (measured capacity)

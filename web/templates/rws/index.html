@@ -1,6 +1,6 @@
 {{define "content"}}
 <h1>{{.Title}}</h1>
-<section class="card">
-<ul class="feed">{{range .Data}}<li><span class="ico info">{{icon "trophy"}}</span><div class="what"><a href="/{{.Name}}/"><b>{{.Title}}</b></a></div></li>{{else}}<li class="muted">{{$.T "No public rankings."}}</li>{{end}}</ul>
-</section>
+{{if .Data}}<table>
+<tbody>{{range .Data}}<tr><td><a href="/{{.Name}}/">{{.Title}}</a></td></tr>{{end}}</tbody>
+</table>{{else}}<p class="muted">{{.T "No public rankings."}}</p>{{end}}
 {{end}}

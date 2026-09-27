@@ -1,9 +1,9 @@
 {{define "content"}}
 {{$r := .Data}}
 <h1>{{.T "Ranking of %s" $r.Contest}} {{if $r.ICPC}}<span class="tag">ICPC</span>{{end}}</h1>
-<section class="card">
+<section class="section">
 <p>{{.T "Public ranking:"}} <b>{{.T $r.C.RankingVisibility}}</b>{{with $r.PublicURL}} · <a href="{{.}}">{{$.T "open the scoreboard"}}</a>{{end}}
-{{with $r.FreezeAt}} · {{if $r.Frozen}}<span class="tag">{{$.T "frozen since %s UTC" (dt .)}}</span>{{else if $r.C.RankingUnfrozen}}<span class="tag ok">{{$.T "unfrozen"}}</span>{{else}}{{$.T "freezes at %s UTC" (dt .)}}{{end}}{{end}}</p>
+{{with $r.FreezeAt}} · {{if $r.Frozen}}<span class="tag">{{$.T "frozen since %s" (dt .)}}</span>{{else if $r.C.RankingUnfrozen}}<span class="tag ok">{{$.T "unfrozen"}}</span>{{else}}{{$.T "freezes at %s" (dt .)}}{{end}}{{end}}</p>
 {{if and .CanWrite $r.FreezeAt}}
 <form method="post" action="/contests/{{$r.C.ID}}/ranking/freeze" class="inline" data-confirm="{{if $r.C.RankingUnfrozen}}{{.T "Freeze the public ranking again?"}}{{else}}{{.T "Unfreeze the public ranking? Every result becomes visible."}}{{end}}">
   {{template "csrf" .CSRF}}<input type="hidden" name="unfrozen" value="{{if $r.C.RankingUnfrozen}}0{{else}}1{{end}}">
@@ -16,14 +16,14 @@
   <a href="/contests/{{$r.ContestID}}/ranking.pdf{{if $r.Site}}?site={{$r.Site}}{{end}}">{{.T "Printable PDF"}}</a> ·
   <a href="?hidden=1">{{.T "include hidden users"}}</a> · <a href="/contests/{{$r.ContestID}}/stats">{{.T "statistics"}}</a></p>
 {{if $r.Sites}}<form method="get" class="filters"><label>{{.T "Site"}} <select name="site"><option value="">{{.T "all"}}</option>{{range $r.Sites}}<option value="{{.ID}}" {{if eq .ID $r.Site}}selected{{end}}>{{.Name}}</option>{{end}}</select></label> <button>{{.T "Filter"}}</button></form>{{end}}
-{{if $r.Cutoffs}}<p class="cutoffs card">{{range $r.Cutoffs}}<span class="medal {{.Medal}}">{{icon "award"}} {{$.T .Medal}}: {{$.T "%d from %s points" .Count (score .Score $r.Precision)}}</span> {{end}}</p>{{end}}
+{{if $r.Cutoffs}}<p class="cutoffs">{{range $r.Cutoffs}}<span class="medal {{.Medal}}">{{$.T .Medal}}: {{$.T "%d from %s points" .Count (score .Score $r.Precision)}}</span> {{end}}</p>{{end}}
 <table class="ranking">
 <thead><tr><th class="num">#</th><th>{{.T "User"}}</th><th>{{.T "Team"}}</th>{{range $r.Tasks}}<th class="num" title="{{.Title}}">{{.Name}}<br><small class="muted">{{score .MaxScore .Precision}}</small></th>{{end}}<th class="num">{{.T "Total"}}</th>{{if $r.ICPC}}<th class="num">{{.T "Penalty"}}</th>{{end}}</tr></thead>
 <tbody>
 {{range $r.Rows}}
 <tr class="{{if .Hidden}}pending{{end}}{{with .Medal}} medal-{{.}}{{end}}">
   <td class="num">{{.ShownPlace}}</td>
-  <td><a href="/participations/{{.ParticipationID}}">{{.Username}}</a>{{if .Unofficial}} <span class="tag">{{$.T "unofficial"}}</span>{{end}}{{with .Medal}} <span class="medal {{.}}">{{icon "award"}} {{$.T .}}</span>{{end}} <span class="muted">{{.FirstName}} {{.LastName}}{{with .Institution}} · {{.}}{{end}}{{with .Site}} · {{.}}{{end}}</span></td>
+  <td><a href="/participations/{{.ParticipationID}}">{{.Username}}</a>{{if .Unofficial}} <span class="tag">{{$.T "unofficial"}}</span>{{end}}{{with .Medal}} <span class="medal {{.}}">{{$.T .}}</span>{{end}} <span class="muted">{{.FirstName}} {{.LastName}}{{with .Institution}} · {{.}}{{end}}{{with .Site}} · {{.}}{{end}}</span></td>
   <td>{{.TeamCode}}</td>
   {{range $i, $c := .Cells}}{{$t := index $r.Tasks $i}}
   <td class="num {{if not $c.Submitted}}muted{{else if and (gt $t.MaxScore 0.0) (ge $c.Score $t.MaxScore)}}ok{{else if gt $c.Score 0.0}}warn{{else}}bad{{end}}">

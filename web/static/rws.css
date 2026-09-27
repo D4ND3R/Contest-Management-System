@@ -1,22 +1,15 @@
-/* Public ranking additions to style.css (no sidebar). */
-
-body.rws .brand{width:auto;min-width:0}
-body.rws .content{max-width:1500px;margin:0 auto}
-.board-head{margin-bottom:1rem}
-.board-head .frozen{color:#9ec5ff;font-weight:600}
-table.board td,table.board th{padding:.4rem .55rem}
-table.board th{vertical-align:bottom}
+/* Public ranking additions to style.css. */
 table.board td.name a{color:inherit}
 table.board td.name a:hover{text-decoration:underline}
-table.board td.cell small.sub{display:block;color:var(--text-3);font-size:.72rem}
-table.board td.total{font-size:1.02rem}
-table.board tr.moved>td{background:var(--warn-soft);transition:background 2s}
-.pending{color:var(--warn);font-weight:bold}
-#live.off{color:var(--text-3);background:var(--panel-2)}
-#live.off::before{animation:none}
-img.flag{height:1.1rem;vertical-align:middle;border-radius:2px}
-img.photo{width:1.6rem;height:1.6rem;object-fit:cover;border-radius:50%;vertical-align:middle}
+table.board td.cell small.sub{display:block;color:var(--muted);font-size:.75em}
+table.board tr.moved>td{background:var(--pa-bg);transition:background 2s}
+.medal{display:inline-block;width:.6em;height:.6em;vertical-align:middle}
+.medal.gold{background:#d4a017}.medal.silver{background:#9aa3ad}.medal.bronze{background:#b06a2c}
+.cutoffs span{margin-inline-end:1rem;padding-inline-start:.4rem}
+.cutoffs .medal-gold{border-inline-start:4px solid #d4a017}
+.cutoffs .medal-silver{border-inline-start:4px solid #9aa3ad}
+.cutoffs .medal-bronze{border-inline-start:4px solid #b06a2c}
+#live.off{border-color:var(--line-2);color:var(--muted)}
 img.photo.big{width:3.2rem;height:3.2rem}
-svg.chart{width:100%;max-width:48rem;height:14rem;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;display:block}
-svg.chart .line{fill:none;stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke}
-.rws-foot{padding-top:0;color:var(--text-3);font-size:.85rem}
+svg.chart{width:100%;max-width:48rem;height:12rem;border:1px solid var(--line);display:block;margin-bottom:1rem}
+svg.chart .line{fill:none;stroke:var(--link);stroke-width:2;vector-effect:non-scaling-stroke}

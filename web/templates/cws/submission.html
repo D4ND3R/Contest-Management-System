@@ -1,34 +1,37 @@
 {{define "content"}}{{$d := .Data}}{{$s := $d.Sub}}
-<h1>{{.T "Submission"}} #{{$s.ID}} — <a href="{{.Base}}tasks/{{$d.TaskName}}">{{$d.TaskName}}</a></h1>
+<h1>{{.T "Submission"}} #{{$s.ID}} <span class="muted">— <a href="{{.Base}}tasks/{{$d.TaskName}}/submissions">{{letter (.TaskIndex $d.TaskName)}}. {{$d.TaskName}}</a></span></h1>
 {{with $s.Invalidated}}<p class="alert">{{$.T "The organizers invalidated this submission on %s: it does not count for the score." ($.DateTime .)}}{{with $s.InvalidatedReason}} {{$.T "Reason:"}} {{.}}{{end}}</p>{{end}}
-<section class="card">
-<dl class="meta">
-  <dt>{{.T "Time"}}</dt><dd>{{.DateTime $s.Time}}</dd>
-  {{with $s.Language}}<dt>{{$.T "Language"}}</dt><dd>{{.}}</dd>{{end}}
-  <dt>{{if .Contest.ICPC}}{{.T "Verdict"}}{{else}}{{.T "Status"}}{{end}}</dt><dd class="{{$s.Class}}">{{$s.StatusText}}</dd>
-  {{if $s.HasScore}}<dt>{{if $d.Full}}{{.T "Score"}}{{else}}{{.T "Public score"}}{{end}}</dt><dd>{{.Score $s.Score $s.Precision}} / {{.Score $s.Max $s.Precision}}</dd>{{end}}
-  {{if $d.Files}}<dt>{{.T "Files"}}</dt><dd>{{range $d.Files}}{{if $d.Download}}<a href="{{$.Base}}submissions/{{$s.ID}}/file/{{.}}">{{.}}</a>{{else}}{{.}}{{end}} {{end}}</dd>{{end}}
-</dl>
-</section>
+<div id="sub-detail" data-sub="{{$s.ID}}" {{if $s.Pending}}data-pending="1"{{end}}>
+<table class="kv">
+  <tr><th>{{.T "Time"}}</th><td>{{.DateTime $s.Time}}</td></tr>
+  {{with $s.Language}}<tr><th>{{$.T "Language"}}</th><td>{{.}}</td></tr>{{end}}
+  <tr><th>{{.T "Verdict"}}</th><td>{{template "verdict" $s}}{{if $s.Queued}} <small class="muted">{{if $s.Ahead}}{{.T "Submissions ahead of yours in the queue: %d." $s.Ahead}}{{else}}{{.T "Next in the queue."}}{{end}}</small>{{end}}</td></tr>
+  {{if $s.HasScore}}<tr><th>{{if $s.Public}}{{.T "Public score"}}{{else}}{{.T "Score"}}{{end}}</th><td><span class="score {{$s.VClass}}">{{.Score $s.Score $s.Precision}} / {{.Score $s.Max $s.Precision}}</span></td></tr>{{end}}
+  {{if $d.Files}}<tr><th>{{.T "Files"}}</th><td>{{range $d.Files}}{{if $d.Download}}<a href="{{$.Base}}submissions/{{$s.ID}}/file/{{.}}">{{.}}</a>{{else}}{{.}}{{end}} {{end}}</td></tr>{{end}}
+</table>
+
+{{if $d.Blocks}}
+<h2>{{.T "Subtasks"}}</h2>
+<ul class="blocks">
+{{range $d.Blocks}}<li class="{{.Class}}"><small>{{$.T "Subtask %d" .Index}}</small><b>{{$.Score .Score $s.Precision}} / {{$.Score .Max $s.Precision}}</b><small>{{.Verdict}} · {{$.T (verdict .Verdict)}}</small></li>{{end}}
+</ul>
+{{end}}
+
+{{if $d.Rows}}
+<h2>{{if $d.All}}{{.T "Testcases"}}{{else}}{{.T "Public testcases"}}{{end}}</h2>
+<table>
+<thead><tr><th>{{.T "Testcase"}}</th>{{if $d.Blocks}}<th class="num">{{.T "Subtask"}}</th>{{end}}<th>{{.T "Verdict"}}</th><th>{{.T "Message"}}</th>{{if $d.ShowResources}}<th class="num">{{.T "Time"}}</th><th class="num">{{.T "Memory"}}</th>{{end}}</tr></thead>
+<tbody>
+{{range $d.Rows}}<tr><td>{{.Codename}}</td>{{if $d.Blocks}}<td class="num">{{.Subtask}}</td>{{end}}<td><span class="v {{.Class}}">{{.Verdict}}</span></td><td>{{.Text}}</td>{{if $d.ShowResources}}<td class="num">{{$.Seconds .Time}}</td><td class="num">{{$.Bytes .Memory}}</td>{{end}}</tr>{{end}}
+</tbody>
+</table>
+{{else if and $d.Scored (not $d.All)}}<p class="muted">{{.T "This task has no public testcases: only the subtask results are shown."}}</p>{{end}}
+
 {{if $d.Compilation}}{{$c := $d.Compilation}}
-<section class="card">
-  <h2>{{.T "Compilation"}}</h2>
-  <p class="{{if $c.OK}}ok{{else}}bad{{end}}">{{.T $c.Text}}{{if $c.Time}} <span class="muted">({{.Seconds $c.Time}}, {{.Bytes $c.Memory}})</span>{{end}}</p>
-  {{with $c.Stdout}}<pre>{{.}}</pre>{{end}}
-  {{with $c.Stderr}}<pre>{{.}}</pre>{{end}}
-</section>
+<h2>{{.T "Compilation"}}</h2>
+<p class="{{if $c.OK}}ok{{else}}bad{{end}}">{{.T $c.Text}}{{if $c.Time}} <span class="muted">({{.Seconds $c.Time}}, {{.Bytes $c.Memory}})</span>{{end}}</p>
+{{with $c.Stdout}}<pre>{{.}}</pre>{{end}}
+{{with $c.Stderr}}<pre class="{{if not $c.OK}}compile-error{{end}}">{{.}}</pre>{{end}}
 {{end}}
-{{if $d.Details}}
-<section class="card">
-  <h2>{{.T "Evaluation"}}</h2>
-  {{if not $d.Full}}<p class="muted">{{.T "Only public testcases are shown."}}</p>{{end}}
-  {{range $d.Details.Groups}}
-  {{if .Title}}<h2>{{.Title}} <span class="{{.Class}}">{{$.Score .Score $s.Precision}} / {{$.Score .Max $s.Precision}}</span></h2>{{end}}
-  <table>
-  <tr><th>#</th><th>{{$.T "Outcome"}}</th>{{if $d.ShowResources}}<th class="num">{{$.T "Time"}}</th><th class="num">{{$.T "Memory"}}</th>{{end}}</tr>
-  {{range .Rows}}<tr><td>{{.Codename}}</td><td class="{{.Class}}">{{.Text}}</td>{{if $d.ShowResources}}<td class="num">{{$.Seconds .Time}}</td><td class="num">{{$.Bytes .Memory}}</td>{{end}}</tr>{{end}}
-  </table>
-  {{end}}
-</section>
-{{end}}
+</div>
 {{end}}

@@ -1,9 +1,13 @@
 package contestweb
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -133,48 +137,70 @@ func TestStatementsOnTheTaskPage(t *testing.T) {
 	}
 }
 
-// TestResultCardAndTesting (SPEC_IOI H1): the result of the newest
-// submission is next to the submit button (the submission's answer replaces
-// it and updates the list out of band); the Testing page exists.
-func TestResultCardAndTesting(t *testing.T) {
+// TestSubmitAnswerAndTesting (SPEC_MIN §6, §7): the Submissions tab of a
+// task holds the form and the list; submitting through htmx answers with
+// the refreshed tab and a "submission sent" notification; the submission's
+// page shows the subtask blocks and the compiler's message; the Testing
+// page exists.
+func TestSubmitAnswerAndTesting(t *testing.T) {
 	f := newFixture(t, fixtureOpts{})
 	c := f.client()
 	_, page := f.login(c, "ana", "secret")
 	csrf := csrfOf(t, page)
-	_, body := f.get(c, "/ioi/tasks/sum")
-	if !strings.Contains(body, `id="latest"`) || !strings.Contains(body, "No submissions yet.") {
-		t.Fatalf("empty card missing:\n%s", body)
+	_, body := f.get(c, "/ioi/tasks/sum/submissions")
+	if !strings.Contains(body, `id="subs-tab"`) || !strings.Contains(body, "No submissions yet.") {
+		t.Fatalf("empty submissions tab:\n%s", body)
 	}
-	code, body := f.submit(c, csrf, "c11", "int main(){}", true)
-	if code != 200 || !strings.Contains(body, `<section class="card result`) || !strings.Contains(body, `id="latest"`) ||
-		!strings.Contains(body, `id="submissions"`) || !strings.Contains(body, `hx-swap-oob="true"`) {
-		t.Fatalf("submit answer: %d\n%s", code, body)
+	var body0 bytes.Buffer
+	mw := multipart.NewWriter(&body0)
+	mw.WriteField("csrf", csrf)
+	mw.WriteField("language", "c11")
+	fw, _ := mw.CreateFormFile("sum.%l", "sum.c")
+	fw.Write([]byte("int main(){}"))
+	mw.Close()
+	req, _ := http.NewRequest("POST", f.url+"/ioi/tasks/sum/submit", &body0)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("HX-Request", "true")
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	body = string(b)
+	if resp.StatusCode != 200 || !strings.Contains(body, `id="subs-tab"`) || !strings.Contains(body, `id="submissions"`) ||
+		!strings.Contains(body, "Compiling…") || !strings.Contains(resp.Header.Get("HX-Trigger"), `"cms-submitted"`) {
+		t.Fatalf("submit answer: %d %v\n%s", resp.StatusCode, resp.Header, body)
 	}
 	subs, _ := f.q.ListSubmissionsByParticipation(bg, f.part.ID)
 	id := subs[0].ID
-	// Scored with subtasks: the card shows the score and a chip per subtask.
+	// Without htmx the browser lands on the Submissions tab with a notice.
+	if code, body := f.submit(c, csrf, "c11", "int main(){return 0;}", false); code != 200 || !strings.Contains(body, "received. Watch its status below") {
+		t.Fatalf("plain submit: %d\n%s", code, body)
+	}
+	// Scored with subtasks: one block per subtask.
 	f.scoreSubmission(t, id)
 	det := json.RawMessage(`{"type":"group","max_score":100,"subtasks":[{"index":1,"score":30,"max_score":30,"fraction":1,"testcases":[]},{"index":2,"score":0,"max_score":70,"fraction":0,"testcases":[]}]}`)
 	full, pub := 30.0, 30.0
 	f.q.SetScore(bg, sqlc.SetScoreParams{SubmissionID: id, DatasetID: f.ds.ID, Score: &full, ScoreDetails: det, PublicScore: &pub,
 		PublicScoreDetails: det, RankingScoreDetails: json.RawMessage(`[30, 0]`)})
-	code, body = f.get(c, "/ioi/submissions/"+itoa(id)+"/card")
-	if code != 200 || !strings.Contains(body, `<li class="ok">Subtask 1 <b>30/30</b></li>`) || !strings.Contains(body, `<li class="bad">Subtask 2 <b>0/70</b></li>`) {
-		t.Fatalf("card: %d\n%s", code, body)
+	code, body := f.get(c, "/ioi/submissions/"+itoa(id))
+	if code != 200 || !strings.Contains(body, `<li class="ok"><small>Subtask 1</small><b>30 / 30</b>`) || !strings.Contains(body, `<li class="bad"><small>Subtask 2</small><b>0 / 70</b>`) {
+		t.Fatalf("submission page: %d\n%s", code, body)
 	}
-	// A compilation error shows its first lines on the card.
+	// A compilation error shows the compiler's message.
 	ce := "fail"
 	f.q.SetCompilationResult(bg, sqlc.SetCompilationResultParams{SubmissionID: id, DatasetID: f.ds.ID, CompilationOutcome: &ce,
 		CompilationText: "Compilation failed", CompilationStderr: "sol.c:1: error: expected ';'", TestcasesTotal: 2})
-	if _, body = f.get(c, "/ioi/submissions/"+itoa(id)+"/card"); !strings.Contains(body, `<pre class="compile-error">sol.c:1: error: expected &#39;;&#39;</pre>`) {
-		t.Fatalf("compile error on the card:\n%s", body)
+	if _, body = f.get(c, "/ioi/submissions/"+itoa(id)); !strings.Contains(body, `<pre class="compile-error">sol.c:1: error: expected &#39;;&#39;</pre>`) {
+		t.Fatalf("compile error:\n%s", body)
 	}
 	// Someone else's submission is not readable.
-	if code, _ := f.get(c, "/ioi/submissions/999999/card"); code != 404 {
-		t.Fatalf("foreign card: %d", code)
+	if code, _ := f.get(c, "/ioi/submissions/999999"); code != 404 {
+		t.Fatalf("foreign submission: %d", code)
 	}
 
-	// The Testing page (the menu linked to a 404).
+	// The Testing page.
 	code, body = f.get(c, "/ioi/testing")
 	if code != 200 || !strings.Contains(body, `action="/ioi/tasks/sum/test?from=testing"`) {
 		t.Fatalf("testing page: %d\n%s", code, body)
@@ -182,8 +208,8 @@ func TestResultCardAndTesting(t *testing.T) {
 }
 
 // TestQueuePosition (SPEC_IOI H4): while a submission waits for a worker
-// its card says how many submissions are ahead and how long results take
-// now, and refreshes itself; once judged it stops polling.
+// its row says how many submissions are ahead and how long results take
+// now, and is marked for refreshing; once judged it is not.
 func TestQueuePosition(t *testing.T) {
 	f := newFixture(t, fixtureOpts{})
 	c := f.client()
@@ -199,20 +225,24 @@ func TestQueuePosition(t *testing.T) {
 	for _, id := range []int64{older, newer} {
 		f.q.EnsureSubmissionResult(bg, sqlc.EnsureSubmissionResultParams{SubmissionID: id, DatasetID: f.ds.ID})
 	}
-	card := func(id int64) string { _, b := f.get(c, "/ioi/submissions/"+itoa(id)+"/card"); return b }
-	if b := card(older); !strings.Contains(b, "Next in the queue.") || !strings.Contains(b, `hx-trigger="every 10s"`) {
+	row := func(id int64) string { _, b := f.get(c, "/ioi/submissions/"+itoa(id)+"/row"); return b }
+	if b := row(older); !strings.Contains(b, "Next in the queue.") || !strings.Contains(b, `data-pending="1"`) {
 		t.Fatalf("older:\n%s", b)
 	}
-	if b := card(newer); !strings.Contains(b, "Submissions ahead of yours in the queue: 1.") || strings.Contains(b, "Results take about") {
+	if b := row(newer); !strings.Contains(b, "Submissions ahead of yours in the queue: 1.") || strings.Contains(b, "Results take about") {
 		t.Fatalf("newer:\n%s", b)
 	}
 	f.scoreSubmission(t, older)
 	f.srv.latency = latencyCache{} // the typical time is cached for 10 s
-	if b := card(older); strings.Contains(b, "queue") || strings.Contains(b, "hx-trigger") {
-		t.Fatalf("judged card still polls:\n%s", b)
+	if b := row(older); strings.Contains(b, "queue") || strings.Contains(b, "data-pending") {
+		t.Fatalf("judged row still refreshes:\n%s", b)
 	}
-	if b := card(newer); !strings.Contains(b, "Next in the queue.") || !strings.Contains(b, "Results take about 1 s right now.") {
+	if b := row(newer); !strings.Contains(b, "Next in the queue.") || !strings.Contains(b, "Results take about 1 s right now.") {
 		t.Fatalf("newer after the older was judged:\n%s", b)
+	}
+	// The submission's own page says it too.
+	if _, b := f.get(c, "/ioi/submissions/"+itoa(newer)); !strings.Contains(b, "Next in the queue.") || !strings.Contains(b, `data-pending="1"`) {
+		t.Fatalf("submission page:\n%s", b)
 	}
 }
 
@@ -226,5 +256,35 @@ func TestLanguageTimes(t *testing.T) {
 	}
 	if (&taskView{Languages: tv.Languages}).LanguageTimes() != nil {
 		t.Fatal("no time limit, yet language limits")
+	}
+}
+
+// TestSubmissionWait (SPEC_MIN §10): with a wait between submissions, a
+// second submission sent too early is refused with the reason, and the
+// Submit button carries the moment it may be used again (the page counts
+// down); the task's limits say it.
+func TestSubmissionWait(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	f.setContest(t, "min_submission_interval_s = 60")
+	c := f.client()
+	_, page := f.login(c, "ana", "secret")
+	csrf := csrfOf(t, page)
+	if code, body := f.submit(c, csrf, "c11", "int main(){}", true); code != 200 {
+		t.Fatalf("first submission: %d\n%s", code, body)
+	}
+	code, body := f.submit(c, csrf, "c11", "int main(){return 0;}", true)
+	if code != http.StatusTooManyRequests || !strings.Contains(body, "Please wait before submitting again") {
+		t.Fatalf("second submission: %d\n%s", code, body)
+	}
+	if subs, _ := f.q.ListSubmissionsByParticipation(bg, f.part.ID); len(subs) != 1 {
+		t.Fatalf("%d submissions stored", len(subs))
+	}
+	_, tab := f.get(c, "/ioi/tasks/sum/submissions")
+	m := regexp.MustCompile(`data-ready-at="(\d+)" data-wait="Wait %s"`).FindStringSubmatch(tab)
+	if m == nil || !strings.Contains(tab, "Minimum interval: 0:01:00") {
+		t.Fatalf("submissions tab:\n%s", tab)
+	}
+	if at, _ := strconv.ParseInt(m[1], 10, 64); at < time.Now().Add(50*time.Second).UnixMilli() || at > time.Now().Add(61*time.Second).UnixMilli() {
+		t.Fatalf("ready at %d, now %d", at, time.Now().UnixMilli())
 	}
 }

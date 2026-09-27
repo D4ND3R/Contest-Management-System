@@ -15,8 +15,12 @@ func SSEFrame(kind string, data []byte) []byte {
 	return append(b, "\n\n"...)
 }
 
+// pingFrame keeps idle connections open and tells pages the stream is
+// alive (a named event, which scripts see; comments they do not).
+const pingFrame = "event: ping\ndata: {}\n\n"
+
 // ServeSSE streams the frames received on ch until the client goes away.
-// Comments are sent every ping so proxies keep idle connections open, and
+// A ping is sent every ping interval so proxies keep idle connections open, and
 // browsers are asked to wait retry before reconnecting (thundering herd
 // after a restart).
 func ServeSSE(w http.ResponseWriter, r *http.Request, ch <-chan []byte, ping, retry time.Duration) {
@@ -26,7 +30,9 @@ func ServeSSE(w http.ResponseWriter, r *http.Request, ch <-chan []byte, ping, re
 	h.Set("Cache-Control", "no-store")
 	h.Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("retry: " + itoa(retry.Milliseconds()) + "\n\n"))
+	// A first ping at once: pages learn the stream works (and fall back to
+	// polling when a proxy holds it back and pings stop arriving).
+	w.Write([]byte("retry: " + itoa(retry.Milliseconds()) + "\n\n" + pingFrame))
 	if err := rcx.Flush(); err != nil {
 		return
 	}
@@ -48,7 +54,7 @@ func ServeSSE(w http.ResponseWriter, r *http.Request, ch <-chan []byte, ping, re
 				return
 			}
 		case <-t.C:
-			if !write([]byte(": ping\n\n")) {
+			if !write([]byte(pingFrame)) {
 				return
 			}
 		}

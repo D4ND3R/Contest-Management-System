@@ -1,10 +1,29 @@
 # Administrator's guide
 
 A contest from scratch in the admin panel (`https://admin.<your domain>`).
-Every page is in English or Spanish (language switch at the bottom). The
-other guides go deeper: [contest settings](contest-settings.md),
-[task types](task-types.md), [problem packages](problem-package.md),
-[contest day](contest-day.md), [backups](backups.md).
+If you have never used the system, start with
+[getting started](getting-started.md), which walks the same path in more
+detail. The other guides go deeper: [creating a problem](creating-a-problem.md),
+[contest settings](contest-settings.md), [task types](task-types.md),
+[problem packages](problem-package.md), [clarifications](clarifications.md),
+[contest day](contest-day.md), [backups](backups.md). Technical words are
+in the [glossary](glossary.md).
+
+## 0. How the panel is laid out
+
+- **Top**: the contest you are looking at, its phase and the time left; on
+  the right **Questions** (with the number pending), your account and
+  **Log out**.
+- **First menu row**, the whole server: Dashboard, Contests, Task library,
+  Users, Teams, Clarifications, Judges, Languages, Backups, Admins, Audit
+  log, Server.
+- **Second row**, the current contest (the one you are looking at; on the
+  home page, the running one or the next): its dashboard, Problems,
+  Participants, Submissions, Scoreboard, Announcements, Statistics,
+  Appeals, Printing and Balloons (when they apply), Plagiarism,
+  Certificates, Sites, Settings.
+- **Foot**: language, theme and text size (applied at once), and the time
+  zone times are shown in.
 
 ## 1. Administrators
 
@@ -21,34 +40,26 @@ another's lost device. Every change is in the **Audit log**.
 
 ## 2. The contest
 
+0. **Server → Time zone**: the zone of every time on every site (and of the
+   ones you type in forms). It can change at any moment.
 1. **Contests → New contest**: a name (letters, digits, `.`, `_`, `-`; it is
-   the address, `https://<domain>/<name>/`), a description, the start and
-   end in the contest's time zone.
+   the address, `https://<domain>/<name>/`), a title, a description, the
+   start and the end.
 2. Status *draft* while you prepare it (contestants cannot see it,
    administrators can); *published* when it is ready; *archived* after it
    (read-only, off the lists).
-3. The rest, section by section — languages, per-contestant time windows,
-   practice, IOI or ICPC, teams, tokens, feedback, score visibility, access
-   and registration, submission limits, questions, printing — is on the
-   contest's **Settings** page and described in
-   [contest settings](contest-settings.md). Every field shows its meaning
-   next to it.
-4. **Presentation** (Settings): a title shown to everybody, the description
-   as its subtitle, the place and a motto make the **banner** at the top of
-   the contestants' and the administrators' dashboards (and of the login
-   page). **Banner image**: a wide PNG, JPEG, GIF or WebP (about 1600×400,
-   at most 4 MiB); SVG is refused because it can carry scripts. Without an
-   image the banner uses a plain background.
-5. **Sites** (optional): venues with their own start time, used to filter
+3. The form shows three parts — **General**, **Submissions** (the wait
+   between submissions, 20 s by default; the maximum number of submissions;
+   which scores contestants see) and **Scoreboard** (who sees it, when, the
+   freeze, the columns) — and folds the rest under **All other settings**:
+   languages, per-contestant windows, practice, appeals, access and
+   registration, teams, tokens, printing. Everything is described in
+   [contest settings](contest-settings.md).
+4. **Sites** (optional): venues with their own start time, used to filter
    the ranking and the balloons.
-6. Reusing last year's contest: **Copy this contest** at the bottom of its
+5. Reusing last year's contest: **Copy this contest** at the bottom of its
    Settings page (tasks and settings, optionally the participants), or
    import its [archive](backups.md#contest-archives).
-
-The left menu follows the contest you are looking at (the home page shows
-the running one, else the next one): its **dashboard**, problems,
-submissions, scoreboard, statistics, announcements, participants and
-settings; the top bar shows its phase and the time remaining.
 
 ## 3. Contestants
 
@@ -67,51 +78,49 @@ settings; the top bar shows its phase and the time remaining.
 
 ## 4. Tasks
 
-The quickest way is a **problem package**: **Tasks → Import a package**,
-drop the zip, check the preview (type, limits, subtasks, testcases,
-statements, reference solutions) and confirm. The reference solutions are
-judged at once and the validation report says whether each gets the
-verdict its name announces. Packages from CMS (italy_yaml) and Polygon are
-converted. The format and one example per type are in
-[problem packages](problem-package.md).
+A task is built in parts, in any order: **Problems → New task** with just a
+name, and then, on its page, the **Setup** list says what is missing
+(statement, testcases, checker, scoring, a reference solution with the
+full score). Testcases are added **one by one** (input typed or uploaded;
+output typed, uploaded, empty or written by the reference solution) or with
+a **generator** run once per line of parameters. All of it is explained
+step by step in [creating a problem](creating-a-problem.md).
 
-By hand, **Tasks → Create task** and then, on the task page:
+A **problem package** can be imported too: **Task library → Import a
+problem package**, drop the zip, check the preview (type, limits,
+subtasks, testcases, statements, reference solutions) and confirm. The
+reference solutions are judged at once and the validation report says
+whether each gets the verdict its name announces. Packages from CMS
+(italy_yaml) and Polygon are converted. The format and one example per type
+are in [problem packages](problem-package.md).
 
-1. **General**: title, statements (written in Markdown or LaTeX in the
-   editor, or uploaded; one or more marked primary, see
-   [statements](statements.md)), examples, attachments (files contestants
-   download), submission files
-   (`sol.%l` — `%l` becomes the language extension), languages (none
-   ticked = the contest's).
-2. **Scoring and feedback**: score mode (best per subtask as at the IOI
-   since 2017, best submission, tokened and last, or the last submission
-   that compiled, better or worse), precision, feedback (full, or only the
-   first failure per subtask), and whether contestants see the checker's
-   own messages or only the standard one of each outcome.
-3. **Datasets → New dataset** (copy an existing one or start empty). On the
-   dataset page:
-   - **Task type** and its options (below), **Limits** (time, memory,
-     output, source size).
-   - **Score type**: *Sum* (points per testcase), *GroupMin* (a subtask
-     scores only if all its testcases pass), *GroupMul*, *GroupThreshold*;
-     the subtask editor asks for the points and the testcases of each
-     subtask (a regular expression over the codenames, a count or a list).
-     With GroupMin/GroupMul, **Short-circuit** skips the rest of a subtask
-     once a testcase scores 0 (same score, less judging time; see
-     [evaluation](evaluation.md)).
-   - **Testcases**: one by one (input, output, public) or **From a zip
-     archive** with name patterns (`*.in`/`*.out`, `input*`/`output*`).
-   - **Managers**: checker, graders, stubs, headers, interactor — the page
-     lists the files the chosen configuration still needs (*Missing
-     managers for this configuration*).
-   - **Make live** when it is right: submissions are scored with the live
-     dataset; a second dataset can judge new submissions in the background
-     to compare before switching (*autojudge*); **compare with live**
-     lists the task scores and submissions that would change.
+What is on the task page and on each dataset's page:
+
+1. The task's **Settings**: title, submission files (`sol.%l` — `%l`
+   becomes the language extension), languages (none ticked = the
+   contest's), score mode (best per subtask as at the IOI since 2017, best
+   submission, tokened and last, or the last submission that compiled),
+   precision, feedback, and whether contestants see the checker's own
+   messages or only the standard one of each outcome.
+2. **Statements**, **Examples** and **Attachments** ([statements](statements.md)).
+3. **Datasets**: the *live* one scores submissions. On its page:
+   - **Type, limits and checker**: task type and its options (below), time,
+     memory, output, source size.
+   - **Scoring and subtasks**: *Sum* (points per testcase), *GroupMin* (a
+     subtask scores only if all its testcases pass), *GroupMul*,
+     *GroupThreshold*; the subtask editor asks for the points and the
+     testcases of each subtask (a regular expression over the codenames, a
+     count or a list). With GroupMin/GroupMul, **Short-circuit** skips the
+     rest of a subtask once a testcase scores 0 (see [evaluation](evaluation.md)).
+   - **Managers**: checker, graders, stubs, headers, interactor; the page
+     lists the ones still missing.
+   - **Add testcases** and **Testcases**.
+   - **Make live** a new dataset when it is right; a second dataset can
+     judge new submissions in the background to compare before switching;
+     **compare with live** lists the scores that would change.
 4. **Task tester**: submit any source as an administrator and see the
    verdict per testcase without it counting anywhere; **Validation report**
    judges the reference solutions on every dataset.
-5. Add the task to the contest (the contest's **Problems** page lists its tasks in order).
 
 ### Each problem type, step by step
 
@@ -139,18 +148,17 @@ backup and restore it, rehearse with a short contest
 ## 6. During the contest
 
 - The contest **dashboard** (its page, and the home page while it runs)
-  refreshes by itself every 20 seconds: the top of the scoreboard, the
-  state of each problem (solved by somebody, only partial points, unsolved;
-  submissions and who solved it first), the latest events (submissions,
-  first solves, questions, announcements), a chart of submissions and
-  accepted ones over time, the verdict counts, the health of judges, queue,
-  database, disks and backups, and what needs someone (unanswered
-  questions, submissions that could not be judged, stuck jobs,
-  registrations to approve, the end approaching, a frozen ranking).
-- **Workers & queues**: queues, jobs in flight, stuck jobs (requeue),
-  system errors, CPU/memory/disk.
-- **Questions** and **Communication** (announcements, private messages);
-  answers can be public.
+  refreshes by itself every 20 seconds: at the top what needs someone
+  (unanswered questions, submissions that could not be judged, stuck jobs,
+  registrations to approve, the end approaching, a frozen ranking); then,
+  in tables, each problem (who solved it, partial scores, submissions), the
+  verdict counts, the health of judges, queue, database, disks and
+  backups, the top of the scoreboard and the latest events.
+- **Judges**: queues, jobs in flight, stuck jobs (requeue), system errors,
+  CPU/memory/disk.
+- **Clarifications** and **Announcements**: answer one person or everyone,
+  general announcements and private messages ([clarifications](clarifications.md)).
+  Contestants get them at once.
 - **Submissions**: filters (task, user, verdict, language, score, dates),
   source with highlighting, diff between two submissions, download as zip;
   **reevaluate** a submission, user, task or contest (recompile,
@@ -162,8 +170,9 @@ backup and restore it, rehearse with a short contest
   dashboard; see [security](security.md).
 - **Participation** page: extra time, manual score adjustment with a reason
   (audited), sessions, "view as the contestant".
-- **Extend the contest** for everybody from its Settings page; **Balloons**
-  and **Printing** for ICPC and on-site contests.
+- **Extend the contest** or **pause submissions** from its Settings page;
+  **close submissions** of a single task in Problems; **Balloons** and
+  **Printing** for ICPC and on-site contests.
 
 ## 7. After the contest
 

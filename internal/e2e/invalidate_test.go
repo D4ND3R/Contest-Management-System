@@ -49,7 +49,7 @@ func TestInvalidateSubmissionFromAdminUI(t *testing.T) {
 		t.Fatalf("invalidate = %d\n%s", code, body)
 	}
 	score(0, "invalidated")
-	if _, body := c.get("/e2e/tasks/sum"); !strings.Contains(body, ">invalidated<") {
+	if _, body := c.get("/e2e/tasks/sum/submissions"); !strings.Contains(body, ">invalidated<") {
 		t.Fatalf("task page lacks the mark:\n%s", body)
 	}
 	if _, body := c.get(fmt.Sprintf("/e2e/submissions/%d", id)); !strings.Contains(body, "invalidated this submission") || !strings.Contains(body, "Solución copiada") {
@@ -62,7 +62,7 @@ func TestInvalidateSubmissionFromAdminUI(t *testing.T) {
 		t.Fatalf("restore = %d", code)
 	}
 	score(100, "restored")
-	if _, body := c.get("/e2e/tasks/sum"); strings.Contains(body, ">invalidated<") {
+	if _, body := c.get("/e2e/tasks/sum/submissions"); strings.Contains(body, ">invalidated<") {
 		t.Fatal("the mark survived the restore")
 	}
 	rows, _ := s.q.ListAuditLog(bg, sqlc.ListAuditLogParams{Limit: 50})

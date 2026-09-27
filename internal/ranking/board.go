@@ -107,11 +107,15 @@ func ParticipationKey(id int64) string { return "p" + strconv.FormatInt(id, 10) 
 // BuildBoard applies c's presentation settings to r (computed with
 // IncludeHidden = c.RankingShowHidden).
 func BuildBoard(r *Ranking, c sqlc.Contest, now time.Time) *Board {
-	b := &Board{Contest: c.Name, Title: c.Description, ICPC: r.ICPC, Precision: r.Precision, Start: c.StartTime, Stop: c.StopTime,
+	b := &Board{Contest: c.Name, Title: c.Title, ICPC: r.ICPC, Precision: r.Precision, Start: c.StartTime, Stop: c.StopTime,
 		Timezone: c.Timezone,
 		FreezeAt: FreezeAt(c), Frozen: Frozen(c, now), Teams: c.TeamMode, Subtasks: c.RankingShowSubtasks,
 		Flags: c.RankingShowFlags, Institutions: c.RankingShowInstitutions, Generated: r.Generated,
 		Photos: c.RankingShowPhotos && !c.RankingAnonymous}
+	// The title shown to everybody, else the description, else the name.
+	if b.Title == "" {
+		b.Title = c.Description
+	}
 	if b.Title == "" {
 		b.Title = c.Name
 	}

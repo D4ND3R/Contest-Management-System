@@ -264,7 +264,7 @@ func TestSpanishUI(t *testing.T) {
 	c := f.client()
 	f.login(c, "ana", "secret")
 	_, body := f.get(c, "/ioi/", "Accept-Language", "es-MX,es;q=0.9")
-	if !strings.Contains(body, "Resumen") || !strings.Contains(body, "El concurso está en curso.") || !strings.Contains(body, `lang="es"`) {
+	if !strings.Contains(body, "Problemas") || !strings.Contains(body, "El concurso está en curso.") || !strings.Contains(body, `lang="es"`) {
 		t.Fatalf("Spanish overview:\n%s", body)
 	}
 }
@@ -328,7 +328,10 @@ func TestSubmitFlow(t *testing.T) {
 	}
 }
 
-func TestScoredSubmissionShowsPublicScore(t *testing.T) {
+// TestScoredSubmissionShowsFullScore (SPEC_MIN §8): without tokens a
+// contestant sees the real score and verdict, and only the public
+// testcases' runs.
+func TestScoredSubmissionShowsFullScore(t *testing.T) {
 	f := newFixture(t, fixtureOpts{})
 	c := f.client()
 	_, page := f.login(c, "ana", "secret")
@@ -340,15 +343,55 @@ func TestScoredSubmissionShowsPublicScore(t *testing.T) {
 	ok := "ok"
 	f.q.SetCompilationResult(bg, sqlc.SetCompilationResultParams{SubmissionID: id, DatasetID: f.ds.ID, CompilationOutcome: &ok, CompilationText: "Compilation succeeded", TestcasesTotal: 2})
 	full, pub := 100.0, 50.0
-	det := json.RawMessage(`{"type":"sum","max_score":100,"testcases":[{"codename":"0","public":true,"outcome":1,"text":"Output is correct","time":0.01,"memory":1024,"status":"ok"}]}`)
+	det := json.RawMessage(`{"type":"sum","max_score":100,"testcases":[{"codename":"0","public":true,"outcome":1,"text":"Output is correct","time":0.01,"memory":1024,"status":"ok"},
+		{"codename":"1","public":false,"outcome":1,"text":"Output is correct (secret)","time":0.02,"memory":1024,"status":"ok"}]}`)
 	f.q.SetScore(bg, sqlc.SetScoreParams{SubmissionID: id, DatasetID: f.ds.ID, Score: &full, ScoreDetails: det, PublicScore: &pub, PublicScoreDetails: det, RankingScoreDetails: json.RawMessage(`[100]`)})
 	_, body := f.get(c, fmt.Sprintf("/ioi/submissions/%d/row", id))
-	if !strings.Contains(body, "50 / 100") || !strings.Contains(body, "Evaluated") {
+	if !strings.Contains(body, "100 / 100") || !strings.Contains(body, `<span class="v ok">AC</span>`) || !strings.Contains(body, "Accepted") {
 		t.Fatalf("row shows %s", body)
 	}
 	_, body = f.get(c, fmt.Sprintf("/ioi/submissions/%d", id), "Accept-Language", "es")
-	if !strings.Contains(body, "La salida es correcta") || !strings.Contains(body, "Compilación exitosa") || !strings.Contains(body, "Sólo se muestran los casos públicos.") {
+	if !strings.Contains(body, "La salida es correcta") || !strings.Contains(body, "Compilación exitosa") || strings.Contains(body, "(secret)") {
 		t.Fatalf("details in Spanish:\n%s", body)
+	}
+}
+
+// TestSubtaskBlocksAndPartialVerdict (SPEC_MIN §8, §9): the detail shows a
+// block per subtask coloured by its result, the public testcase only, and
+// a partial score is PA.
+func TestSubtaskBlocksAndPartialVerdict(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	c := f.client()
+	_, page := f.login(c, "ana", "secret")
+	f.submit(c, csrfOf(t, page), "c11", "int main(){}", true)
+	subs, _ := f.q.ListSubmissionsByParticipationTask(bg, sqlc.ListSubmissionsByParticipationTaskParams{ParticipationID: f.part.ID, TaskID: f.task.ID})
+	id := subs[0].ID
+	f.q.EnsureSubmissionResult(bg, sqlc.EnsureSubmissionResultParams{SubmissionID: id, DatasetID: f.ds.ID})
+	ok, wa := "ok", "WA"
+	f.q.SetCompilationResult(bg, sqlc.SetCompilationResultParams{SubmissionID: id, DatasetID: f.ds.ID, CompilationOutcome: &ok, CompilationText: "Compilation succeeded", TestcasesTotal: 4})
+	score, pub := 45.0, 20.0
+	det := json.RawMessage(`{"type":"group","max_score":100,"subtasks":[
+		{"index":1,"max_score":20,"score":20,"fraction":1,"testcases":[{"codename":"sample","public":true,"outcome":1,"text":"Output is correct","status":"ok","time":0.01,"memory":2048}]},
+		{"index":2,"max_score":50,"score":25,"fraction":0.5,"testcases":[{"codename":"2a","outcome":0.5,"text":"Output is partially correct","status":"ok"}]},
+		{"index":3,"max_score":30,"score":0,"fraction":0,"testcases":[{"codename":"3a","outcome":0,"text":"Execution timed out","status":"timeout"}]}]}`)
+	f.q.SetScore(bg, sqlc.SetScoreParams{SubmissionID: id, DatasetID: f.ds.ID, Score: &score, ScoreDetails: det, PublicScore: &pub,
+		PublicScoreDetails: det, RankingScoreDetails: json.RawMessage(`[20,25,0]`), Verdict: &wa})
+	_, row := f.get(c, fmt.Sprintf("/ioi/submissions/%d/row", id))
+	if !strings.Contains(row, `<span class="v pa">PA</span>`) || !strings.Contains(row, "Partially correct") || !strings.Contains(row, "45 / 100") {
+		t.Fatalf("row:\n%s", row)
+	}
+	_, body := f.get(c, fmt.Sprintf("/ioi/submissions/%d", id))
+	for _, want := range []string{`<li class="ok"><small>Subtask 1</small><b>20 / 20</b>`, `<li class="pa"><small>Subtask 2</small><b>25 / 50</b>`,
+		`<li class="bad"><small>Subtask 3</small><b>0 / 30</b><small>TLE`, "<td>sample</td>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("detail lacks %s", want)
+		}
+	}
+	if strings.Contains(body, "<td>2a</td>") || strings.Contains(body, "<td>3a</td>") {
+		t.Error("private testcases shown")
+	}
+	if t.Failed() {
+		t.Log(body)
 	}
 }
 
@@ -460,6 +503,11 @@ func TestServerSentEvents(t *testing.T) {
 	defer resp.Body.Close()
 	br := bufio.NewReader(resp.Body)
 	br.ReadString('\n') // retry line
+	br.ReadString('\n')
+	// A ping at once: the page knows the stream gets through.
+	if line, _ := br.ReadString('\n'); line != "event: ping\n" {
+		t.Fatalf("first event %q, want a ping", line)
+	}
 	time.Sleep(100 * time.Millisecond)
 	// An event for another participation must not arrive; ours must.
 	events.Publish(bg, f.rdb, f.ns, events.Event{Type: events.TypeSubmission, ParticipationID: f.part.ID + 1000, SubmissionID: 1})
@@ -469,7 +517,7 @@ func TestServerSentEvents(t *testing.T) {
 		if err != nil {
 			t.Fatalf("stream ended: %v", err)
 		}
-		if strings.HasPrefix(line, "data: ") {
+		if strings.HasPrefix(line, "data: ") && line != "data: {}\n" {
 			if !strings.Contains(line, `"submission_id":42`) {
 				t.Fatalf("unexpected event %s", line)
 			}
@@ -553,7 +601,7 @@ func TestTaskLanguages(t *testing.T) {
 	c := f.client()
 	_, page := f.login(c, "ana", "secret")
 	csrf := csrfOf(t, page)
-	_, body := f.get(c, "/ioi/tasks/sum")
+	_, body := f.get(c, "/ioi/tasks/sum/submissions")
 	// java is allowed by the task but not by the contest.
 	if !strings.Contains(body, `value="cpp17"`) || strings.Contains(body, `value="c11"`) || strings.Contains(body, `value="java"`) {
 		t.Fatalf("language choices:\n%s", body)

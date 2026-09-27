@@ -43,7 +43,7 @@ valores por defecto). Algunos se rechazan a propósito:
 - `invitation_code`: es un secreto, no va en un repositorio;
 - `status`, `submissions_paused`, `pause_message`, `ranking_unfrozen`:
   estado operativo, se cambia desde el panel durante el concurso;
-- el banner: se sube desde el panel de administración.
+- la zona horaria: es la del servidor (página **Servidor**).
 
 Los concursantes no forman parte de la configuración: sus credenciales no
 deben estar en un repositorio. Impórtalos desde CSV en el panel.

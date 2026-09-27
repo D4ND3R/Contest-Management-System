@@ -32,11 +32,11 @@ the best of them, as usual).
 
 ## Queue position and waiting time
 
-While a submission waits for a worker, the result card on the task page
-says how many submissions are ahead of it and how long results take right
-now (the median time from submission to score of the latest 200 judged
-submissions). The card refreshes itself every 10 seconds while it waits
-and stops once the submission is being judged.
+While a submission waits for a worker, its row on the task's Submissions
+tab (and its page) says how many submissions are ahead of it and how long
+results take right now (the median time from submission to score of the
+latest 200 judged submissions). The row updates by itself as soon as the
+submission's state changes.
 
 ## Short-circuit evaluation
 

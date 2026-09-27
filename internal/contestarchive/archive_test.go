@@ -151,7 +151,7 @@ func seed(t *testing.T, pool *pgxpool.Pool, store blob.Store) int64 {
 	check(t, q.AnswerAppeal(ctx, sqlc.AnswerAppealParams{ID: ap.ID, Status: "accepted", Response: "Yes.", HandledBy: &admin.ID}))
 	check(t, q.AssignQuestion(ctx, sqlc.AssignQuestionParams{ID: qu.ID, AdminID: &admin.ID}))
 	must[sqlc.PrintJob](t)(q.CreatePrintJob(ctx, sqlc.CreatePrintJobParams{ParticipationID: pa.ID, CreatedAt: now, Filename: "a.txt", Digest: put("print")}))
-	must[sqlc.UserTest](t)(q.CreateUserTest(ctx, sqlc.CreateUserTestParams{ParticipationID: pa.ID, TaskID: tasks[0].ID, SubmittedAt: now, InputDigest: put("user test")}))
+	must[sqlc.UserTest](t)(q.CreateUserTest(ctx, sqlc.CreateUserTestParams{ParticipationID: &pa.ID, TaskID: tasks[0].ID, SubmittedAt: now, InputDigest: put("user test")}))
 	return c.ID
 }
 

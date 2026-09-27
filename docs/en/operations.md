@@ -8,8 +8,8 @@ through the real judging pipeline.
 ## Alerts
 
 The monitor service checks the system every few seconds. An alert is shown
-to the administrators (a red notification and the **Alerts** card of the
-System page) when a problem lasts, and once again when it is resolved:
+to the administrators (a red notification and the **Alerts** section of the
+Judges page) when a problem lasts, and once again when it is resolved:
 
 | Alert | When |
 | --- | --- |

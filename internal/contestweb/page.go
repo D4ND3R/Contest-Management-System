@@ -245,11 +245,9 @@ func (p *page) BannerURL() string {
 func (p *page) PhaseClass() string {
 	switch p.Status.Phase {
 	case contest.Running:
-		return "ok live"
-	case contest.NotStarted, contest.WaitingStart:
-		return "info"
-	case contest.Analysis, contest.Practice:
-		return "warn"
+		return "phase-on"
+	case contest.Finished:
+		return "phase-off"
 	}
 	return ""
 }

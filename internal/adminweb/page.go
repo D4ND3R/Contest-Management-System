@@ -1,6 +1,7 @@
 package adminweb
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -44,8 +45,10 @@ type page struct {
 	// default to (see focusContest); Phase is its phase.
 	Contest *sqlc.Contest
 	Phase   string
-	// Path is the request path (the sidebar marks where the admin is).
+	// Path is the request path (the menu marks where the admin is).
 	Path string
+	// TZ is the server's time zone, which every time shown is in.
+	TZ string
 }
 
 type crumb struct{ Name, URL string }
@@ -68,6 +71,7 @@ func (s *Server) newPage(w http.ResponseWriter, r *http.Request, rc *reqCtx, tit
 	}
 	p.Flash = s.takeFlash(w, r)
 	p.Path = r.URL.Path
+	p.TZ = s.zone(r.Context()).String()
 	if rc != nil && !p.IsLeader {
 		p.Contest = s.pageContest(r, rc)
 		if p.Contest != nil {
@@ -138,15 +142,15 @@ func contestHeading(c sqlc.Contest) string {
 	return c.Name
 }
 
-// PhaseClass and PhaseLabel describe the page contest's phase in a pill.
+// PhaseClass and PhaseLabel describe the page contest's phase.
 func (p *page) PhaseClass() string {
 	switch p.Phase {
 	case "running":
-		return "ok live"
+		return "phase-on"
 	case "upcoming":
-		return "info"
+		return "phase-soon"
 	}
-	return ""
+	return "phase-off"
 }
 
 func (p *page) PhaseLabel() string {
@@ -211,7 +215,7 @@ func (p *page) RoleLabel() string {
 // ServerMillis is the page's time in Unix milliseconds (countdowns).
 func (p *page) ServerMillis() int64 { return p.ServerTime.UnixMilli() }
 
-// Version is the CMS version (sidebar footer).
+// Version is the CMS version (footer).
 func (p *page) Version() string { return version.Version }
 
 func (p *page) crumb(name, url string) *page {
@@ -346,15 +350,16 @@ func (s *Server) done(w http.ResponseWriter, r *http.Request, to, msg string, ar
 func (s *Server) funcs() template.FuncMap {
 	return template.FuncMap{
 		"static": s.static.URL,
+		// dt formats a time in the server's zone.
 		"dt": func(t any) string {
 			switch v := t.(type) {
 			case time.Time:
-				return v.UTC().Format("2006-01-02 15:04:05")
+				return v.In(s.zone(context.Background())).Format("2006-01-02 15:04:05")
 			case *time.Time:
 				if v == nil {
 					return ""
 				}
-				return v.UTC().Format("2006-01-02 15:04:05")
+				return v.In(s.zone(context.Background())).Format("2006-01-02 15:04:05")
 			}
 			return ""
 		},

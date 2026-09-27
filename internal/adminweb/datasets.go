@@ -99,6 +99,7 @@ type datasetPage struct {
 	OtherSets  []sqlc.Dataset
 	TF         typeFields
 	Editor     *scoreEditor
+	Tools      *testcaseTools
 }
 
 var scoreTypes = []string{"Sum", "GroupMin", "GroupMul", "GroupThreshold"}
@@ -123,6 +124,9 @@ func (s *Server) datasetPage(ctx context.Context, d sqlc.Dataset, u sqlc.UpdateD
 		return nil, err
 	}
 	if p.Testcases, err = s.q.ListTestcases(ctx, d.ID); err != nil {
+		return nil, err
+	}
+	if p.Tools, err = s.testcaseTools(ctx, d, t, p.Testcases); err != nil {
 		return nil, err
 	}
 	all, err := s.q.ListDatasetsByTask(ctx, t.ID)
@@ -428,41 +432,6 @@ func (s *Server) handleManagerDelete(w http.ResponseWriter, r *http.Request, rc 
 // ---------------------------------------------------------------- testcases
 
 var codenameRe = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
-
-func (s *Server) handleTestcaseUpload(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	d, ok := s.loadDataset(w, r, rc)
-	if !ok {
-		return
-	}
-	if err := s.parseUpload(w, r); err != nil {
-		s.errorPage(w, r, rc, http.StatusBadRequest, "Upload failed: "+err.Error())
-		return
-	}
-	code := strings.TrimSpace(r.FormValue("codename"))
-	if !codenameRe.MatchString(code) {
-		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "Invalid codename (letters, digits, '_', '.', '-').")
-		return
-	}
-	in, _, _, err := s.storeUpload(r, "input")
-	if err != nil {
-		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "Choose an input file.")
-		return
-	}
-	out, _, _, err := s.storeUpload(r, "output")
-	if err != nil {
-		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "Choose an output file.")
-		return
-	}
-	tc, err := s.q.UpsertTestcase(r.Context(), sqlc.UpsertTestcaseParams{DatasetID: d.ID, Codename: code,
-		Public: r.FormValue("public") != "", InputDigest: in, OutputDigest: out})
-	if err != nil {
-		s.internalError(w, r, rc, err)
-		return
-	}
-	rc.target("testcase", tc.ID)
-	s.datasetChanged(r.Context(), d.TaskID, d.ID)
-	s.done(w, r, "/datasets/"+strconv.FormatInt(d.ID, 10)+"#testcases", "Testcase "+code+" saved.")
-}
 
 // templateRe turns an archive name template ("input*.txt", "*.in") into a
 // regexp capturing the codename.

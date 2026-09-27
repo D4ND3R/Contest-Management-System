@@ -25,13 +25,16 @@ type target struct {
 	conn *pgxpool.Conn
 	tx   pgx.Tx
 	fks  []foreignKey
+	// triggered are the tables whose triggers are off while loading.
+	triggered []string
 }
 
 type foreignKey struct{ table, name, def string }
 
-// regeneratedTables are refilled by the services on start; rows there do
-// not make a database "in use".
-var regeneratedTables = map[string]bool{"languages": true}
+// regeneratedTables are refilled by the services on start (languages) or
+// seeded by a migration (server_settings); rows there do not make a
+// database "in use", and the backup's rows replace them.
+var regeneratedTables = map[string]bool{"languages": true, "server_settings": true}
 
 // checkMigrations makes sure this binary knows every migration of the
 // backup (in the same order) and returns the version of the last one.
@@ -101,6 +104,21 @@ FROM pg_constraint WHERE contype = 'f' AND connamespace = current_schema()::regn
 	}
 	for _, fk := range tg.fks {
 		if _, err := tg.tx.Exec(ctx, "ALTER TABLE "+fk.table+" DROP CONSTRAINT "+pgx.Identifier{fk.name}.Sanitize()); err != nil {
+			return err
+		}
+	}
+	// The data is loaded as it was: triggers (contests follow the server's
+	// time zone) stay off until the end.
+	rows, err = tg.tx.Query(ctx, `SELECT DISTINCT tgrelid::regclass::text FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+WHERE NOT t.tgisinternal AND c.relnamespace = current_schema()::regnamespace ORDER BY 1`)
+	if err != nil {
+		return err
+	}
+	if tg.triggered, err = pgx.CollectRows(rows, pgx.RowTo[string]); err != nil {
+		return err
+	}
+	for _, t := range tg.triggered {
+		if _, err := tg.tx.Exec(ctx, "ALTER TABLE "+t+" DISABLE TRIGGER USER"); err != nil {
 			return err
 		}
 	}
@@ -202,6 +220,11 @@ func (tg *target) commit(ctx context.Context, seqs []Sequence) error {
 	for _, fk := range tg.fks {
 		if _, err := tg.tx.Exec(ctx, "ALTER TABLE "+fk.table+" ADD CONSTRAINT "+pgx.Identifier{fk.name}.Sanitize()+" "+fk.def); err != nil {
 			return fmt.Errorf("the restored data breaks %s on %s: %w", fk.name, fk.table, err)
+		}
+	}
+	for _, t := range tg.triggered {
+		if _, err := tg.tx.Exec(ctx, "ALTER TABLE "+t+" ENABLE TRIGGER USER"); err != nil {
+			return err
 		}
 	}
 	if err := tg.tx.Commit(ctx); err != nil {

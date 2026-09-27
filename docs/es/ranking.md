@@ -2,24 +2,39 @@
 
 Hay tres lugares que muestran un ranking:
 
-- **Panel de administración** (concurso → Ranking): siempre completo y sin
+- **Panel de administración** (concurso → Clasificación): siempre completo y sin
   congelar, con exportación CSV/JSON y filtro por sede.
-- **Servidor de concursantes** (menú del concursante → Ranking): lo que los
+- **Servidor de concursantes** (menú del concursante → Clasificación): lo que los
   concursantes pueden ver según la configuración del concurso.
 - **Servidor de ranking** (`cms ranking-web`, RWS): el marcador público en
   vivo, con historial de puntaje por participante, banderas y
   actualizaciones en vivo.
 
-## Configuración (Configuración del concurso → Ranking)
+## Configuración (Configuración del concurso → Clasificación)
 
-| opción | valores |
-|--------|---------|
-| Quién lo ve | todos (marcador público) · solo los concursantes · solo administradores (y un enlace secreto, p. ej. para un proyector) · nadie (solo el panel) |
-| Qué ven los concursantes | el ranking completo · solo su posición · nada |
-| Cuándo | durante y después del concurso · solo al terminar |
-| Congelamiento | los últimos N minutos (o a una hora dada); los envíos posteriores se muestran como `?` |
-| Mostrar | puntajes por subtarea · banderas · fotos · instituciones · usuarios ocultos · anónimo (sin nombres) |
-| Empates | comparten el puesto (la regla de la IOI, por defecto) · se desempatan por tiempo |
+El formulario hace cuatro preguntas; lo demás está en **Más opciones de la
+clasificación**.
+
+1. **Quién ve la clasificación**:
+
+   | Respuesta | Qué pasa |
+   |-----------|----------|
+   | todos: concursantes y la clasificación pública | el servidor de ranking la publica y los concursantes la ven completa |
+   | solo los concursantes | la ven completa en el sitio del concurso; no hay marcador público |
+   | cada concursante ve solo su posición | el sitio del concurso muestra "Tu posición: 3 de 40" |
+   | solo los organizadores (y quien tenga el enlace secreto) | para un proyector: el marcador público pide una clave |
+   | nadie (solo en este panel) | solo la administración la ve |
+
+   Un concurso antiguo con una combinación que no es ninguna de estas
+   muestra *mantener el ajuste actual*.
+2. **Se muestra**: durante y después del concurso, o solo al terminar.
+3. **Congelarla durante los últimos N minutos** (0: nunca): los envíos
+   posteriores se muestran como `?` hasta que la descongelas.
+4. **Columnas**: puntajes por subtarea, instituciones, banderas, fotos.
+
+En **Más opciones de la clasificación**: congelar a una hora exacta,
+empates, medallas, penalización ICPC, decimales, mostrar usuarios ocultos y
+clasificación anónima (sin nombres).
 
 **Fotos**: las fotos de los participantes (página del usuario → Foto),
 desactivadas por defecto: los concursantes suelen ser menores de edad, así

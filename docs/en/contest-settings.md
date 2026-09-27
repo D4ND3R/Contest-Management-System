@@ -1,8 +1,40 @@
 # Contest settings
 
 Everything below is on the contest's **Settings** page of the admin web server
-(**Contests → the contest → Settings**, also in the left menu). Changes apply at once: contestant pages pick them up within a
-second, without restarting anything.
+(**Contests → the contest → Settings**, or the last link of the second menu
+row). Changes apply at once: contestant pages pick them up within a second,
+without restarting anything.
+
+## How the form is laid out
+
+In view, what almost every contest adjusts:
+
+- **General**: name, title, description, status, start and end, time per
+  contestant, mode (IOI or ICPC).
+- **Submissions**: the **wait between submissions** (20 s in a new contest;
+  empty = no wait), the maximum number of submissions per task, the
+  maximum file size, which scores contestants see, the compiler's messages,
+  testing, questions and printing.
+- **Scoreboard**: who sees it, when, the freeze and the columns (see
+  [rankings](ranking.md)); **More scoreboard options** (folded): ties,
+  medals, freezing at an exact time, hidden users, anonymous, ICPC penalty
+  and decimals.
+
+Folded under **All other settings**: schedule (analysis, practice, appeals,
+location and motto), languages, access and registration, scoring (score
+mode of new tasks, teams, user test limits), tokens and printing.
+
+Below the form: **Emergency controls** (pause submissions), **Extend the
+contest**, **Copy this contest**, **Archive**, **Reevaluate the whole
+contest** and **Delete**.
+
+## Time zone
+
+The times of the form (start, end, freeze, appeals) are in the **server's
+time zone**, chosen on the **Server** page for every contest and the three
+sites; the form reminds it under the dates. Changing it does not move the
+contests: the same moment is shown in the new zone. A user can have their
+own zone (remote contestants): **Time zone** on their page.
 
 ## Lifecycle
 
@@ -56,14 +88,24 @@ organizers add that user to the contest instead.
 
 ## Results and feedback
 
+- **What the contestant sees of each submission**: the verdict (AC, PA
+  partial, WA, TLE, ...), the score, **one block per subtask** with its
+  points and verdict, and the result of each **public testcase** one by
+  one. Non-public testcases are never listed one by one, but they count in
+  the blocks. Make at least the first testcase (the examples) of each task
+  public.
 - **Scores shown to contestants**: as soon as they are known, only after the
-  end, or never. Hidden scores also hide the testcase details. The ranking has
-  its own visibility ([rankings](ranking.md)): hide it too if it would give
-  the scores away.
+  end, or never. Hidden scores also hide the verdicts and the blocks. The
+  ranking has its own visibility ([rankings](ranking.md)): hide it too if it
+  would give the scores away.
 - **Show the compiler's messages** of failed and successful compilations.
-- **Tokens** (contest and task rules): with tokens a contestant sees the full
-  result of a submission during the contest. The contest page shows the tokens
-  available and when the next one comes.
+- **Tokens** (contest and task rules): with tokens on, a contestant sees
+  only the score of the public testcases until they play a token on a
+  submission to see its full result. The task's Submissions tab shows the
+  tokens available and when the next one comes. Without tokens (the usual)
+  the full result is always shown.
+- **Wait between submissions**: the contestant's Submit button counts the
+  time left; the server refuses a submission sent too early.
 
 ## ICPC contests
 

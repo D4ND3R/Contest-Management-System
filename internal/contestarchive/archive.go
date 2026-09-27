@@ -128,6 +128,8 @@ var skipped = map[string]string{
 	"user_test_executables":   "compiled again when needed",
 	"print_jobs":              "contest-day logistics",
 	"balloons":                "contest-day logistics",
+	"server_settings":         "installation (contests follow the importing server's time zone)",
+	"testcase_jobs":           "testcases still being made (the finished ones travel with their dataset)",
 }
 
 // refs maps every column holding an id to the table the id belongs to.

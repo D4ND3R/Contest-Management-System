@@ -43,7 +43,7 @@ on purpose:
 - `invitation_code`: a secret, it does not belong in a repository;
 - `status`, `submissions_paused`, `pause_message`, `ranking_unfrozen`:
   operational state, changed from the admin panel during the contest;
-- the banner: uploaded from the admin panel.
+- the time zone: the server's (**Server** page).
 
 Contestants are not part of the configuration: their credentials must not
 be in a repository. Import them from CSV in the admin panel.

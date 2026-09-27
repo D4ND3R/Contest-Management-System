@@ -136,7 +136,7 @@ func (s *Server) ownTest(w http.ResponseWriter, r *http.Request, rc *reqCtx) (sq
 		return zero, nil, false
 	}
 	ut, err := s.q.GetUserTest(r.Context(), id)
-	if err != nil || ut.ParticipationID != rc.part.ID {
+	if err != nil || ut.ParticipationID == nil || *ut.ParticipationID != rc.part.ID {
 		http.NotFound(w, r)
 		return zero, nil, false
 	}
@@ -209,10 +209,8 @@ func (s *Server) handleUserTest(w http.ResponseWriter, r *http.Request, rc *reqC
 	if t == nil {
 		return
 	}
-	back := "/" + rc.contest.Name + "/tasks/" + t.Name + "#tests"
-	if r.URL.Query().Get("from") == "testing" {
-		back = "/" + rc.contest.Name + "/testing?task=" + url.QueryEscape(t.Name)
-	}
+	// Tests live on the Testing page (like Codeforces' custom invocation).
+	back := "/" + rc.contest.Name + "/testing?task=" + url.QueryEscape(t.Name)
 	if !testsEnabled(rc, t) || submitBlocked(rc, t) != "" {
 		s.errorPage(w, r, rc.contest, http.StatusForbidden, "Test rejected", "Tests are not available now.")
 		return
@@ -315,7 +313,7 @@ func (s *Server) storeUserTest(r *http.Request, rc *reqCtx, t *taskView, files [
 	}
 	var id int64
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx, q *sqlc.Queries) error {
-		ut, err := q.CreateUserTest(ctx, sqlc.CreateUserTestParams{ParticipationID: rc.part.ID, TaskID: t.ID,
+		ut, err := q.CreateUserTest(ctx, sqlc.CreateUserTestParams{ParticipationID: &rc.part.ID, TaskID: t.ID,
 			SubmittedAt: rc.now, Language: langID, InputDigest: in.Digest})
 		if err != nil {
 			return err

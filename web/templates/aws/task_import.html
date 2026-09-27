@@ -1,7 +1,7 @@
 {{define "content"}}{{$d := .Data}}{{$p := $d.Package}}
 <h1>{{.T "Import a problem package"}}</h1>
 {{if not $p}}
-<form method="post" action="/tasks/import" enctype="multipart/form-data" class="card">
+<form method="post" action="/tasks/import" enctype="multipart/form-data" class="section">
   {{template "csrf" .CSRF}}
   <input type="hidden" name="step" value="preview">
   <label class="dropzone" data-dropzone>
@@ -16,7 +16,7 @@
 {{else}}
 <p class="muted">{{$d.FileName}}{{with $p.Format}} · <span class="tag">{{$.T "converted from the %s format" .}}</span>{{end}}</p>
 {{if $p.Errors}}
-<section class="card danger">
+<section class="section danger-zone">
 <h2>{{.T "Problems to fix (%d)" (len $p.Errors)}}</h2>
 <p>{{.T "Nothing was created. Fix the package and upload it again."}}</p>
 <table><thead><tr><th>{{.T "File"}}</th><th>{{.T "Problem"}}</th></tr></thead><tbody>
@@ -25,13 +25,13 @@
 </section>
 {{end}}
 {{with $p.Warnings}}
-<section class="card">
+<section class="section">
 <h2>{{$.T "Warnings"}}</h2>
 <ul>{{range .}}<li><code>{{.Path}}</code> <span class="warn">{{.Message}}</span></li>{{end}}</ul>
 </section>
 {{end}}
 {{with $p.Config}}{{$c := .}}
-<section class="card">
+<section class="section">
 <h2>{{$.T "Detected"}}</h2>
 <dl class="meta">
   <dt>{{$.T "Name"}}</dt><dd><b>{{$c.Name}}</b> — {{$c.Title}}</dd>
@@ -55,7 +55,7 @@
 </section>
 {{end}}
 {{with $d.Conflict}}<p class="alert">{{$.T "A task named %s already exists: import the package as a new dataset of it, or rename the package." .Name}}</p>{{end}}
-<form method="post" action="/tasks/import" class="card">
+<form method="post" action="/tasks/import" class="section">
   {{template "csrf" .CSRF}}
   <input type="hidden" name="step" value="confirm">
   <input type="hidden" name="digest" value="{{$d.Digest}}">

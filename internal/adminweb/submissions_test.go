@@ -17,6 +17,8 @@ import (
 // filters, highlighted sources, and the zip of the filtered submissions.
 func TestSubmissionFiltersSourceAndZip(t *testing.T) {
 	f := newFixture(t)
+	// The contests follow the server's time zone.
+	f.pool.Exec(bg, "UPDATE server_settings SET timezone = 'America/Mexico_City'")
 	f.pool.Exec(bg, "UPDATE contests SET timezone = 'America/Mexico_City' WHERE id = $1", f.contest.ID)
 	f.pool.Exec(bg, "UPDATE submission_results SET verdict = 'AC' WHERE submission_id = $1", f.subs[0])
 	f.pool.Exec(bg, "UPDATE submissions SET submitted_at = '2030-01-01 18:00:00+00' WHERE id = $1", f.subs[0])

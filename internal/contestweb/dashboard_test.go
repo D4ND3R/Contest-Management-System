@@ -9,12 +9,11 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 )
 
-// TestContestantDashboard (SPEC_IOI H2): the overview is a dashboard: the
-// contest's banner (title, subtitle, dates, place, motto, image), shortcuts,
-// the tasks with their state, the latest submissions, the progress, the
-// ranking and the announcements; the banner image is public (the login
-// page shows it) and served only with an image type.
-func TestContestantDashboard(t *testing.T) {
+// TestProblemsPage (SPEC_MIN §1, §15): the contest's first page is a
+// plain list of problems with the contestant's score, the latest
+// submissions and announcements; no pictures (the banner image is not
+// shown, though its address stays safe).
+func TestProblemsPage(t *testing.T) {
 	f := newFixture(t, fixtureOpts{})
 	c := db.ContestToUpdate(f.contest)
 	c.Title, c.Description, c.Location, c.Tagline = "OMI 2026", "Selección nacional", "Mérida", "Mejores problemas."
@@ -26,7 +25,7 @@ func TestContestantDashboard(t *testing.T) {
 	banner := "/ioi/banner?v=" + img.Digest[:20]
 
 	anon := f.client()
-	if _, body := f.get(anon, "/ioi/login"); !strings.Contains(body, `<img class="login-banner" src="`+banner+`"`) || !strings.Contains(body, "<b>OMI 2026</b>") {
+	if _, body := f.get(anon, "/ioi/login"); strings.Contains(body, "<img") || !strings.Contains(body, ">OMI 2026</a>") {
 		t.Fatalf("login page:\n%s", body)
 	}
 	code, h, _ := f.headers(anon, banner)
@@ -42,15 +41,18 @@ func TestContestantDashboard(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("overview: %d", code)
 	}
-	for _, w := range []string{`<h1>OMI 2026</h1>`, `<p class="sub">Selección nacional</p>`, "Mérida", "“Mejores problemas.”",
-		`<img class="bg" src="` + banner + `"`, `class="tile blue" href="/ioi/tasks/sum"`, "Your latest submissions", "Compiling…",
-		"Your progress", "Recordatorio", `<span class="letter c1">A</span>`, "Contest in progress", `class="nav active" href="/ioi/"`} {
+	for _, w := range []string{`<h1>OMI 2026</h1>`, "Selección nacional", `<a href="/ioi/tasks/sum">sum</a>`, "Your latest submissions",
+		"Compiling…", "Recordatorio", "Contest in progress", `<a href="/ioi/" aria-current="page">Problems</a>`,
+		`<a href="/ioi/tasks/sum" title="Suma" >A. sum</a>`} {
 		if !strings.Contains(body, w) {
-			t.Errorf("overview lacks %s", w)
+			t.Errorf("problems page lacks %s", w)
 		}
 	}
-	// The task counts one submission and was tried, not solved.
-	if !strings.Contains(body, `<td class="num">1</td>`) || !strings.Contains(body, `class="st-ic bad"`) {
+	if strings.Contains(body, "<img") || strings.Contains(body, "<svg") || strings.Contains(body, `class="card`) {
+		t.Error("pictures or cards on the problems page")
+	}
+	// The task counts one submission.
+	if !strings.Contains(body, `<td class="num">1</td>`) {
 		t.Errorf("task row:\n%s", body)
 	}
 

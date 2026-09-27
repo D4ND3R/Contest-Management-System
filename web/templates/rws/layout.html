@@ -6,31 +6,37 @@
 <title>{{.Title}}</title>
 <link rel="stylesheet" href="{{static "style.css"}}">
 <link rel="stylesheet" href="{{static "rws.css"}}">
-{{if .Live}}<meta name="rws-events" content="/{{.Name}}/events" data-seq="{{.Seq}}"><script src="{{static "rws.js"}}" defer></script>{{end}}
+{{if .Live}}<meta name="rws-events" content="/{{.Name}}/events" data-seq="{{.Seq}}">{{end}}
+<script src="{{static "rws.js"}}" defer></script>
 </head>
-<body class="rws">
+<body>
 <a class="skip" href="#main">{{.T "Skip to content"}}</a>
-<header class="topbar">
-  <a class="brand" href="/"><span class="logo">{{icon "logo"}}</span><span><b>CMS</b><small>{{.T "Ranking"}}</small></span></a>
-  <div class="crumbs">{{if .Board}}<a href="/{{.Name}}/" class="with-icon">{{icon "trophy"}} <b>{{.Board.Title}}</b></a>{{end}}</div>
-  {{if .Live}}<div class="top-right"><span id="live" class="pill ok live">{{.T "live"}}</span></div>{{end}}
+<header class="head">
+<div class="wrap wide">
+  <div class="bar">
+    <a class="brand" href="/">{{.T "Ranking"}}</a>
+    {{if .Board}}<a href="/{{.Name}}/"><b>{{.Board.Title}}</b></a>{{end}}
+    <span class="spacer"></span>
+    {{if .Live}}<span id="live" class="phase phase-on">{{.T "live"}}</span>{{end}}
+  </div>
+</div>
 </header>
-<main id="main" class="content">
+<main id="main" class="wrap wide">
 {{template "content" .}}
 </main>
-<footer class="content rws-foot">
-  <details class="prefs-box">
-    <summary>{{.T "Language and display"}}</summary>
-    <form method="get" action="{{.Path}}">
-      <label for="ui-lang">{{.T "Language"}}</label>
-      <select id="ui-lang" name="lang">{{range .Languages}}<option value="{{.Value}}" lang="{{.Value}}" {{if eq .Value $.Lang}}selected{{end}}>{{.Label}}</option>{{end}}</select>
-      <label for="ui-theme">{{.T "Theme"}}</label>
-      <select id="ui-theme" name="theme">{{range .Themes}}<option value="{{.Value}}" {{if eq .Value $.Display.Theme}}selected{{end}}>{{.Label}}</option>{{end}}</select>
-      <label for="ui-size">{{.T "Text size"}}</label>
-      <select id="ui-size" name="size">{{range .Sizes}}<option value="{{.Value}}" {{if eq .Value $.Display.Size}}selected{{end}}>{{.Label}}</option>{{end}}</select>
-      <button class="small">{{.T "Apply"}}</button>
-    </form>
-  </details>
+<footer class="foot">
+<div class="wrap wide">
+  <form method="get" action="{{.Path}}" class="prefs" id="prefs">
+    <label for="ui-lang">{{.T "Language"}}</label>
+    <select id="ui-lang" name="lang" data-reload>{{range .Languages}}<option value="{{.Value}}" lang="{{.Value}}" {{if eq .Value $.Lang}}selected{{end}}>{{.Label}}</option>{{end}}</select>
+    <label for="ui-theme">{{.T "Theme"}}</label>
+    <select id="ui-theme" name="theme" data-attr="theme">{{range .Themes}}<option value="{{.Value}}" {{if eq .Value $.Display.Theme}}selected{{end}}>{{.Label}}</option>{{end}}</select>
+    <label for="ui-size">{{.T "Text size"}}</label>
+    <select id="ui-size" name="size" data-attr="size">{{range .Sizes}}<option value="{{.Value}}" {{if eq .Value $.Display.Size}}selected{{end}}>{{.Label}}</option>{{end}}</select>
+    <button class="apply">{{.T "Apply"}}</button>
+  </form>
+  <span>{{with .Board}}{{$.T "Times in %s" .Timezone}}{{end}}</span>
+</div>
 </footer>
 </body>
 </html>{{end}}

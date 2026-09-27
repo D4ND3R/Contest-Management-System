@@ -11,7 +11,7 @@
 </form>
 <p class="muted small">{{.T "Sources are compared after removing layout, comments and preprocessor lines and replacing every name and literal, so renaming variables or reformatting does not hide a copy. Code given to contestants (attachments and graders or stubs) and fragments present in many submissions are ignored. Similarity is the share of the smaller submission found in the other one: a lead to review, not a verdict."}}</p>
 {{if $d.Ran}}
-<section class="card">
+<section class="section">
 <p>{{.T "%d submissions compared" $d.Compared}}{{with $d.Skipped}} · {{$.T "%d without source code in a known language or too short" .}}{{end}}{{with $d.Templates}} · {{$.T "ignored as given code: %s" (join . ", ")}}{{end}}</p>
 <table>
 <thead><tr><th class="num">{{.T "Similarity"}}</th><th>{{.T "Contestant"}}</th><th>{{.T "Contestant"}}</th><th class="num">{{.T "Shared fragments"}}</th><th></th></tr></thead>

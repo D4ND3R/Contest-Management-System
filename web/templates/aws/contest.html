@@ -1,57 +1,112 @@
 {{define "content"}}
 {{$c := .Data.C}}
 <div class="page-head"><div><h1>{{if .Data.New}}{{.T "New contest"}}{{else}}{{.T "Settings"}}{{end}}</h1>{{if not .Data.New}}<p>{{.T "Contest %s" $c.Name}}{{with .Data.Pending}} · <a href="/contests/{{$c.ID}}/participations"><span class="tag bad">{{$.T "%d waiting for approval" .}}</span></a>{{end}}</p>{{end}}</div></div>
-<form method="post" action="{{if .Data.New}}/contests{{else}}/contests/{{$c.ID}}{{end}}" class="card">
+<form method="post" action="{{if .Data.New}}/contests{{else}}/contests/{{$c.ID}}{{end}}">
 {{template "csrf" .CSRF}}
-<fieldset {{if not .CanWrite}}disabled{{end}}>
+<fieldset class="bare" {{if not .CanWrite}}disabled{{end}}>
 <fieldset><legend>{{.T "General"}}</legend>
 <div class="grid">
   <label>{{.T "Name"}} <input name="name" value="{{$c.Name}}" required pattern="[A-Za-z0-9_.\-]+"></label>
+  <label>{{.T "Title shown to everybody"}} <input name="title" value="{{$c.Title}}" maxlength="120" placeholder="{{$c.Name}}"></label>
   <label>{{.T "Description"}} <input name="description" value="{{$c.Description}}"></label>
   <label>{{.T "Status"}} <select name="status">
     <option value="draft" {{if eq $c.Status "draft"}}selected{{end}}>{{.T "draft (hidden from contestants)"}}</option>
     <option value="published" {{if eq $c.Status "published"}}selected{{end}}>{{.T "published"}}</option>
     <option value="archived" {{if eq $c.Status "archived"}}selected{{end}}>{{.T "archived (read-only, not listed)"}}</option></select></label>
-  <label>{{.T "Timezone"}} <input name="timezone" value="{{$c.Timezone}}" placeholder="America/Mexico_City"></label>
-  <label>{{.T "Start (%s)" $c.Timezone}} <input type="datetime-local" step="1" name="start_time" value="{{local $c.StartTime $c.Timezone}}" required></label>
-  <label>{{.T "End (%s)" $c.Timezone}} <input type="datetime-local" step="1" name="stop_time" value="{{local $c.StopTime $c.Timezone}}" required></label>
+  <label>{{.T "Start"}} <input type="datetime-local" step="1" name="start_time" value="{{local $c.StartTime $.TZ}}" required></label>
+  <label>{{.T "End"}} <input type="datetime-local" step="1" name="stop_time" value="{{local $c.StopTime $.TZ}}" required></label>
   <label>{{.T "Per-user time (minutes)"}} <input name="per_user_time_min" value="{{div60 $c.PerUserTimeS}}" inputmode="numeric" placeholder="{{.T "off: everybody shares the window"}}"></label>
+  <label>{{.T "Mode"}} <select name="scoring_mode"><option value="ioi" {{if eq $c.ScoringMode "ioi"}}selected{{end}}>{{.T "IOI (scores)"}}</option><option value="icpc" {{if eq $c.ScoringMode "icpc"}}selected{{end}}>{{.T "ICPC (solved + penalty)"}}</option></select></label>
+</div>
+<p class="help">{{.T "Times are in the server's time zone (%s), set on the Server page." $.TZ}}</p>
+</fieldset>
+
+<fieldset><legend>{{.T "Submissions"}}</legend>
+<div class="grid">
+  <label>{{.T "Wait between submissions (seconds)"}} <input name="min_submission_interval_s" value="{{opt $c.MinSubmissionIntervalS}}" inputmode="numeric" placeholder="{{.T "none"}}"></label>
+  <label>{{.T "Max. submissions per task"}} <input name="max_submission_number" value="{{opt $c.MaxSubmissionNumber}}" inputmode="numeric" placeholder="{{.T "unlimited"}}"></label>
+  <label>{{.T "Maximum size of a submitted file (KiB)"}} <input name="max_submission_kib" value="{{kib $c.MaxSubmissionBytes}}" inputmode="numeric" placeholder="{{.T "server default"}}"></label>
+  <label>{{.T "Scores shown to contestants"}} <select name="score_visibility">
+    <option value="always" {{if eq $c.ScoreVisibility "always"}}selected{{end}}>{{.T "as soon as they are known"}}</option>
+    <option value="after" {{if eq $c.ScoreVisibility "after"}}selected{{end}}>{{.T "only after the end"}}</option>
+    <option value="never" {{if eq $c.ScoreVisibility "never"}}selected{{end}}>{{.T "never"}}</option></select></label>
 </div>
 <p class="checks">
-  <label><input type="checkbox" name="analysis_enabled" {{if $c.AnalysisEnabled}}checked{{end}}> {{.T "Analysis mode"}}</label>
-  <label>{{.T "from"}} <input type="datetime-local" step="1" name="analysis_start" value="{{local $c.AnalysisStart $c.Timezone}}"></label>
-  <label>{{.T "to"}} <input type="datetime-local" step="1" name="analysis_stop" value="{{local $c.AnalysisStop $c.Timezone}}"></label>
-  <label><input type="checkbox" name="practice_enabled" {{if $c.PracticeEnabled}}checked{{end}}> {{.T "Practice after the contest (unofficial submissions, no end)"}}</label>
+  <label><input type="checkbox" name="show_compilation_output" {{if $c.ShowCompilationOutput}}checked{{end}}> {{.T "Show the compiler's messages"}}</label>
+  <label><input type="checkbox" name="allow_user_tests" {{if $c.AllowUserTests}}checked{{end}}> {{.T "User tests"}}</label>
+  <label><input type="checkbox" name="allow_questions" {{if $c.AllowQuestions}}checked{{end}}> {{.T "Questions"}}</label>
+  <label><input type="checkbox" name="allow_printing" {{if $c.AllowPrinting}}checked{{end}}> {{.T "Printing"}}</label>
 </p>
-<p class="checks"><label>{{.T "Appeals until"}} <input type="datetime-local" step="1" name="appeals_until" value="{{local $c.AppealsUntil $c.Timezone}}"></label>
-  <span class="muted small">{{.T "empty: no appeals. Contestants appeal from the end of their contest until then."}}</span></p>
+<p class="help">{{.T "The wait between submissions stops a contestant from flooding the judge: the Submit button counts down. Contestants see the verdict of each subtask and the result of the public testcases."}}</p>
 </fieldset>
-<fieldset><legend>{{.T "Presentation"}}</legend>
+
+<fieldset><legend>{{.T "Scoreboard"}}</legend>
+{{$preset := .Data.RankingPreset}}
+<label>{{.T "Who sees the scoreboard"}} <select name="ranking_preset">
+  {{if not $preset}}<option value="keep" selected>{{.T "keep the current setting (%s, %s)" $c.RankingVisibility $c.RankingContestantView}}</option>{{end}}
+  <option value="public" {{if eq $preset "public"}}selected{{end}}>{{.T "everybody: contestants and the public scoreboard"}}</option>
+  <option value="contestants" {{if eq $preset "contestants"}}selected{{end}}>{{.T "only the contestants"}}</option>
+  <option value="own" {{if eq $preset "own"}}selected{{end}}>{{.T "each contestant sees only their own position"}}</option>
+  <option value="staff" {{if eq $preset "staff"}}selected{{end}}>{{.T "only the organizers (and whoever has the secret link)"}}</option>
+  <option value="hidden" {{if eq $preset "hidden"}}selected{{end}}>{{.T "nobody (only in this panel)"}}</option>
+</select></label>
+<p class="checks">{{.T "Shown:"}}
+  <label><input type="radio" name="ranking_when" value="always" {{if ne $c.RankingWhen "after"}}checked{{end}}> {{.T "during and after the contest"}}</label>
+  <label><input type="radio" name="ranking_when" value="after" {{if eq $c.RankingWhen "after"}}checked{{end}}> {{.T "only after the end"}}</label></p>
+<p class="checks"><label>{{.T "Freeze it during the last"}} <input name="ranking_freeze_minutes" value="{{$c.RankingFreezeMinutes}}" inputmode="numeric" size="4"> {{.T "minutes (0: never)"}}</label></p>
+<p class="checks">{{.T "Columns:"}}
+  <label><input type="checkbox" name="ranking_show_subtasks" {{if $c.RankingShowSubtasks}}checked{{end}}> {{.T "subtask scores"}}</label>
+  <label><input type="checkbox" name="ranking_show_institutions" {{if $c.RankingShowInstitutions}}checked{{end}}> {{.T "institutions"}}</label>
+  <label><input type="checkbox" name="ranking_show_flags" {{if $c.RankingShowFlags}}checked{{end}}> {{.T "flags"}}</label>
+  <label><input type="checkbox" name="ranking_show_photos" {{if $c.RankingShowPhotos}}checked{{end}}> {{.T "photos"}}</label></p>
+<details class="more"><summary>{{.T "More scoreboard options"}}</summary>
 <div class="grid">
-  <label>{{.T "Title shown to everybody"}} <input name="title" value="{{$c.Title}}" maxlength="120" placeholder="{{$c.Name}}"></label>
+  <label>{{.T "Freeze at an exact time instead"}} <input type="datetime-local" step="1" name="ranking_freeze_time" value="{{local $c.RankingFreezeTime $.TZ}}"></label>
+  <label>{{.T "Ties"}} <select name="ranking_tie_break">
+    <option value="shared" {{if eq $c.RankingTieBreak "shared"}}selected{{end}}>{{.T "share the place (IOI)"}}</option>
+    <option value="time" {{if eq $c.RankingTieBreak "time"}}selected{{end}}>{{.T "broken by time: who got there first ranks higher"}}</option></select></label>
+  <label>{{.T "Medals"}} <select name="medals">
+    <option value="none" {{if eq $c.Medals "none"}}selected{{end}}>{{.T "none"}}</option>
+    <option value="admins" {{if eq $c.Medals "admins"}}selected{{end}}>{{.T "cutoffs for the administrators"}}</option>
+    <option value="public" {{if eq $c.Medals "public"}}selected{{end}}>{{.T "cutoffs also on the public scoreboards"}}</option></select></label>
+  <label>{{.T "ICPC penalty per rejected attempt (min)"}} <input name="icpc_penalty_minutes" value="{{$c.IcpcPenaltyMinutes}}" inputmode="numeric"></label>
+  <label>{{.T "Score precision (decimals)"}} <input name="score_precision" value="{{$c.ScorePrecision}}" inputmode="numeric"></label>
+</div>
+<p class="checks">
+  <label><input type="checkbox" name="ranking_show_hidden" {{if $c.RankingShowHidden}}checked{{end}}> {{.T "hidden users"}}</label>
+  <label><input type="checkbox" name="ranking_anonymous" {{if $c.RankingAnonymous}}checked{{end}}> {{.T "anonymous (no names)"}}</label></p>
+<p class="help">{{.T "Tie-break by time: the moment the participant's total was reached, counted from their own start (in ICPC mode, the last problem solved after equal problems and penalty). Manual adjustments do not change it."}}</p>
+<p class="help">{{.T "IOI rule: at most a twelfth of the official participants get gold, a quarter gold or silver, half a medal; a tie is never split and a zero score wins nothing. Unofficial and hidden participants take no place and no medal."}}</p>
+<p class="help">{{.T "Team contests are ranked by team. The public scoreboard is served by the ranking web server; the freeze hides later results until you unfreeze it from the ranking page."}}</p>
+</details>
+</fieldset>
+
+<details class="more"><summary>{{.T "All other settings"}}</summary>
+<fieldset><legend>{{.T "Schedule"}}</legend>
+<p class="checks">
+  <label><input type="checkbox" name="analysis_enabled" {{if $c.AnalysisEnabled}}checked{{end}}> {{.T "Analysis mode"}}</label>
+  <label>{{.T "from"}} <input type="datetime-local" step="1" name="analysis_start" value="{{local $c.AnalysisStart $.TZ}}"></label>
+  <label>{{.T "to"}} <input type="datetime-local" step="1" name="analysis_stop" value="{{local $c.AnalysisStop $.TZ}}"></label></p>
+<p class="checks"><label><input type="checkbox" name="practice_enabled" {{if $c.PracticeEnabled}}checked{{end}}> {{.T "Practice after the contest (unofficial submissions, no end)"}}</label></p>
+<p class="checks"><label>{{.T "Appeals until"}} <input type="datetime-local" step="1" name="appeals_until" value="{{local $c.AppealsUntil $.TZ}}"></label>
+  <span class="help">{{.T "empty: no appeals. Contestants appeal from the end of their contest until then."}}</span></p>
+<div class="grid">
   <label>{{.T "Location"}} <input name="location" value="{{$c.Location}}" maxlength="120" placeholder="{{.T "City, country or online"}}"></label>
   <label>{{.T "Motto"}} <input name="tagline" value="{{$c.Tagline}}" maxlength="200"></label>
 </div>
-<p class="muted small">{{.T "The title, the description (as a subtitle), the dates, the location and the motto make the banner at the top of the contestants' and the administrators' dashboards; the banner image is set below."}}</p>
 </fieldset>
 <fieldset><legend>{{.T "Languages"}}</legend>
 <p class="checks">{{range .Data.Languages}}<label><input type="checkbox" name="languages" value="{{.ID}}" {{if has $c.Languages .ID}}checked{{end}}> {{.Name}}</label>{{end}}</p>
-<p class="muted small">{{.T "No language checked means every configured language."}}</p>
+<p class="help">{{.T "No language checked means every configured language."}}</p>
 <p class="checks">{{.T "Interface:"}} {{range .Data.Localizations}}<label><input type="checkbox" name="localizations" value="{{.Code}}" {{if has $c.AllowedLocalizations .Code}}checked{{end}}> {{.Name}}</label>{{end}}</p>
 </fieldset>
-<fieldset><legend>{{.T "Access and features"}}</legend>
+<fieldset><legend>{{.T "Access"}}</legend>
 <p class="checks">
   <label><input type="checkbox" name="allow_password_authentication" {{if $c.AllowPasswordAuthentication}}checked{{end}}> {{.T "Password login"}}</label>
   <label><input type="checkbox" name="ip_restriction" {{if $c.IpRestriction}}checked{{end}}> {{.T "Restrict by IP"}}</label>
   <label><input type="checkbox" name="ip_autologin" {{if $c.IpAutologin}}checked{{end}}> {{.T "Automatic login by IP"}}</label>
   <label><input type="checkbox" name="single_login" {{if $c.SingleLogin}}checked{{end}}> {{.T "Block simultaneous logins"}}</label>
   <label><input type="checkbox" name="block_hidden_participations" {{if $c.BlockHiddenParticipations}}checked{{end}}> {{.T "Block hidden users"}}</label>
-</p>
-<p class="checks">
-  <label><input type="checkbox" name="allow_questions" {{if $c.AllowQuestions}}checked{{end}}> {{.T "Questions"}}</label>
-  <label>{{.T "at most"}} <input name="questions_per_minute" value="{{$c.QuestionsPerMinute}}" size="3" inputmode="numeric"> {{.T "per minute and contestant (0: no limit)"}}</label>
-  <label><input type="checkbox" name="allow_user_tests" {{if $c.AllowUserTests}}checked{{end}}> {{.T "User tests"}}</label>
-  <label><input type="checkbox" name="allow_printing" {{if $c.AllowPrinting}}checked{{end}}> {{.T "Printing"}}</label>
   <label><input type="checkbox" name="submissions_download_allowed" {{if $c.SubmissionsDownloadAllowed}}checked{{end}}> {{.T "Contestants can download their submissions"}}</label>
 </p>
 <div class="grid">
@@ -62,81 +117,25 @@
   <label>{{.T "Invitation code"}} <input name="invitation_code" value="{{$c.InvitationCode}}" autocomplete="off" maxlength="100"></label>
   <label>{{.T "Minimum password length"}} <input name="password_min_length" value="{{$c.PasswordMinLength}}" inputmode="numeric" size="4"></label>
   <label>{{.T "Session duration (minutes)"}} <input name="session_minutes" value="{{opt $c.SessionMinutes}}" inputmode="numeric" placeholder="{{.T "24 hours"}}"></label>
+  <label>{{.T "Questions per minute and contestant (0: no limit)"}} <input name="questions_per_minute" value="{{$c.QuestionsPerMinute}}" inputmode="numeric"></label>
 </div>
 </fieldset>
-<fieldset><legend>{{.T "Results and feedback"}}</legend>
+<fieldset><legend>{{.T "Scoring"}}</legend>
 <div class="grid">
-  <label>{{.T "Scores shown to contestants"}} <select name="score_visibility">
-    <option value="always" {{if eq $c.ScoreVisibility "always"}}selected{{end}}>{{.T "as soon as they are known"}}</option>
-    <option value="after" {{if eq $c.ScoreVisibility "after"}}selected{{end}}>{{.T "only after the end"}}</option>
-    <option value="never" {{if eq $c.ScoreVisibility "never"}}selected{{end}}>{{.T "never"}}</option></select></label>
-</div>
-<p class="checks"><label><input type="checkbox" name="show_compilation_output" {{if $c.ShowCompilationOutput}}checked{{end}}> {{.T "Show the compiler's messages"}}</label></p>
-<p class="muted small">{{.T "How much of each testcase is shown is set per task (feedback level); tokens (below) show the full result of a submission during the contest."}}</p>
-</fieldset>
-{{template "token-fields" (part $ $c)}}
-{{template "limit-fields" (part $ $c)}}
-<fieldset><legend>{{.T "Files"}}</legend>
-<div class="grid">
-  <label>{{.T "Maximum size of a submitted file (KiB)"}} <input name="max_submission_kib" value="{{kib $c.MaxSubmissionBytes}}" inputmode="numeric" placeholder="{{.T "server default"}}"></label>
-</div>
-<p class="muted small">{{.T "User tests (enabled above) use the same limits as submissions for the sources; their number and frequency are limited like submissions (contest and task)."}}</p>
-</fieldset>
-<fieldset><legend>{{.T "Scoring and ranking"}}</legend>
-<div class="grid">
-  <label>{{.T "Mode"}} <select name="scoring_mode"><option value="ioi" {{if eq $c.ScoringMode "ioi"}}selected{{end}}>{{.T "IOI (scores)"}}</option><option value="icpc" {{if eq $c.ScoringMode "icpc"}}selected{{end}}>{{.T "ICPC (solved + penalty)"}}</option></select></label>
-  <label>{{.T "Score precision (decimals)"}} <input name="score_precision" value="{{$c.ScorePrecision}}" inputmode="numeric"></label>
-  <label>{{.T "ICPC penalty per rejected attempt (min)"}} <input name="icpc_penalty_minutes" value="{{$c.IcpcPenaltyMinutes}}" inputmode="numeric"></label>
   <label>{{.T "Score mode of new tasks"}} <select name="default_score_mode">
     <option value="max_subtask" {{if eq $c.DefaultScoreMode "max_subtask"}}selected{{end}}>{{.T "best per subtask (IOI 2017+)"}}</option>
     <option value="max" {{if eq $c.DefaultScoreMode "max"}}selected{{end}}>{{.T "best submission"}}</option>
     <option value="max_tokened_last" {{if eq $c.DefaultScoreMode "max_tokened_last"}}selected{{end}}>{{.T "max of tokened and last"}}</option>
     <option value="last" {{if eq $c.DefaultScoreMode "last"}}selected{{end}}>{{.T "last submission"}}</option></select></label>
+  <label>{{.T "Max. user tests"}} <input name="max_user_test_number" value="{{opt $c.MaxUserTestNumber}}" inputmode="numeric" placeholder="{{.T "unlimited"}}"></label>
+  <label>{{.T "Min. interval between user tests (s)"}} <input name="min_user_test_interval_s" value="{{opt $c.MinUserTestIntervalS}}" inputmode="numeric" placeholder="{{.T "none"}}"></label>
 </div>
 <p class="checks">
   <label><input type="checkbox" name="team_mode" {{if $c.TeamMode}}checked{{end}}> {{.T "Team contest (members share submissions, limits and scores)"}}</label>
   <label>{{.T "Maximum team size"}} <input name="max_team_size" value="{{opt $c.MaxTeamSize}}" inputmode="numeric" size="3" placeholder="{{.T "no limit"}}"></label>
 </p>
-<p class="muted small">{{.T "New tasks of the contest start with this score mode and the score precision above; each task can change them."}}</p>
 </fieldset>
-<fieldset><legend>{{.T "Ranking"}}</legend>
-<div class="grid">
-  <label>{{.T "Who sees it"}} <select name="ranking_visibility">
-    <option value="public" {{if eq $c.RankingVisibility "public"}}selected{{end}}>{{.T "everybody (public scoreboard)"}}</option>
-    <option value="contestants" {{if eq $c.RankingVisibility "contestants"}}selected{{end}}>{{.T "only contestants"}}</option>
-    <option value="admins" {{if eq $c.RankingVisibility "admins"}}selected{{end}}>{{.T "only administrators (and a secret link)"}}</option>
-    <option value="hidden" {{if eq $c.RankingVisibility "hidden"}}selected{{end}}>{{.T "nobody (admin panel only)"}}</option></select></label>
-  <label>{{.T "What contestants see"}} <select name="ranking_contestant_view">
-    <option value="full" {{if eq $c.RankingContestantView "full"}}selected{{end}}>{{.T "the whole ranking"}}</option>
-    <option value="own" {{if eq $c.RankingContestantView "own"}}selected{{end}}>{{.T "only their position"}}</option>
-    <option value="none" {{if eq $c.RankingContestantView "none"}}selected{{end}}>{{.T "nothing"}}</option></select></label>
-  <label>{{.T "When"}} <select name="ranking_when">
-    <option value="always" {{if eq $c.RankingWhen "always"}}selected{{end}}>{{.T "during and after the contest"}}</option>
-    <option value="after" {{if eq $c.RankingWhen "after"}}selected{{end}}>{{.T "only after the end"}}</option></select></label>
-  <label>{{.T "Freeze the last (minutes)"}} <input name="ranking_freeze_minutes" value="{{$c.RankingFreezeMinutes}}" inputmode="numeric" size="4"></label>
-  <label>{{.T "or freeze at (%s)" $c.Timezone}} <input type="datetime-local" step="1" name="ranking_freeze_time" value="{{local $c.RankingFreezeTime $c.Timezone}}"></label>
-</div>
-<p class="checks">
-  <label><input type="checkbox" name="ranking_show_subtasks" {{if $c.RankingShowSubtasks}}checked{{end}}> {{.T "subtask scores"}}</label>
-  <label><input type="checkbox" name="ranking_show_flags" {{if $c.RankingShowFlags}}checked{{end}}> {{.T "flags"}}</label>
-  <label><input type="checkbox" name="ranking_show_photos" {{if $c.RankingShowPhotos}}checked{{end}}> {{.T "photos"}}</label>
-  <label><input type="checkbox" name="ranking_show_institutions" {{if $c.RankingShowInstitutions}}checked{{end}}> {{.T "institutions"}}</label>
-  <label><input type="checkbox" name="ranking_show_hidden" {{if $c.RankingShowHidden}}checked{{end}}> {{.T "hidden users"}}</label>
-  <label><input type="checkbox" name="ranking_anonymous" {{if $c.RankingAnonymous}}checked{{end}}> {{.T "anonymous (no names)"}}</label>
-</p>
-<label>{{.T "Medals"}} <select name="medals">
-  <option value="none" {{if eq $c.Medals "none"}}selected{{end}}>{{.T "none"}}</option>
-  <option value="admins" {{if eq $c.Medals "admins"}}selected{{end}}>{{.T "cutoffs for the administrators"}}</option>
-  <option value="public" {{if eq $c.Medals "public"}}selected{{end}}>{{.T "cutoffs also on the public scoreboards"}}</option>
-</select></label>
-<label>{{.T "Ties"}} <select name="ranking_tie_break">
-  <option value="shared" {{if eq $c.RankingTieBreak "shared"}}selected{{end}}>{{.T "share the place (IOI)"}}</option>
-  <option value="time" {{if eq $c.RankingTieBreak "time"}}selected{{end}}>{{.T "broken by time: who got there first ranks higher"}}</option>
-</select></label>
-<p class="muted small">{{.T "Tie-break by time: the moment the participant's total was reached, counted from their own start (in ICPC mode, the last problem solved after equal problems and penalty). Manual adjustments do not change it."}}</p>
-<p class="muted small">{{.T "IOI rule: at most a twelfth of the official participants get gold, a quarter gold or silver, half a medal; a tie is never split and a zero score wins nothing. Unofficial and hidden participants take no place and no medal."}}</p>
-<p class="muted small">{{.T "Team contests are ranked by team. The public scoreboard is served by the ranking web server; the freeze hides later results until you unfreeze it from the ranking page."}}</p>
-</fieldset>
+{{template "token-fields" (part $ $c)}}
 <fieldset><legend>{{.T "Printing"}}</legend>
 <div class="grid">
   <label>{{.T "Max. print jobs per user"}} <input name="max_print_jobs" value="{{$c.MaxPrintJobs}}" inputmode="numeric"></label>
@@ -144,44 +143,30 @@
   <label>{{.T "Max. pages per contestant"}} <input name="max_print_total_pages" value="{{opt $c.MaxPrintTotalPages}}" inputmode="numeric" placeholder="{{.T "no limit"}}"></label>
 </div>
 </fieldset>
-{{if .CanWrite}}<button>{{if .Data.New}}{{.T "Create contest"}}{{else}}{{.T "Save"}}{{end}}</button>{{end}}
+</details>
+{{if .CanWrite}}<p><button class="primary">{{if .Data.New}}{{.T "Create contest"}}{{else}}{{.T "Save"}}{{end}}</button></p>{{end}}
 </fieldset>
 </form>
 
-{{if not .Data.New}}
-<section class="card" id="banner">
-<h2>{{.T "Banner image"}}</h2>
-{{with .Data.BannerURL}}<p><img class="banner-preview" src="{{.}}" alt="{{$.T "Banner image"}}"></p>{{else}}<p class="muted">{{.T "No image: the banner uses a plain background."}}</p>{{end}}
-{{if .CanWrite}}
-<form method="post" action="/contests/{{$c.ID}}/banner" enctype="multipart/form-data" class="inline-form">
-  {{template "csrf" .CSRF}}
-  <label>{{.T "PNG, JPEG, GIF or WebP, at most 4 MiB; wide images (about 1600×400) look best"}} <input type="file" name="banner" accept="image/png,image/jpeg,image/gif,image/webp" required></label>
-  <button>{{icon "upload"}} {{.T "Upload"}}</button>
-</form>
-{{if .Data.BannerURL}}<form method="post" action="/contests/{{$c.ID}}/banner" class="inline">{{template "csrf" .CSRF}}<input type="hidden" name="remove" value="1"><p><button class="secondary">{{icon "trash"}} {{.T "Remove the image"}}</button></p></form>{{end}}
-{{end}}
-</section>
-{{end}}
-
 {{if and (not .Data.New) .CanWrite}}
-<section class="card" id="emergency">
-<h2>{{icon "alert"}} {{.T "Emergency controls"}}</h2>
+<section class="section" id="emergency">
+<h2>{{.T "Emergency controls"}}</h2>
 {{if .Data.Paused}}
 <p class="alert">{{.T "Submissions are paused: contestants cannot submit or run tests."}}{{with .Data.PauseMessage}} “{{.}}”{{end}}</p>
 <form method="post" action="/contests/{{$c.ID}}/pause" class="inline-form">
   {{template "csrf" .CSRF}}<input type="hidden" name="paused" value="0">
-  <button>{{icon "play"}} {{.T "Resume submissions"}}</button>
+  <button>{{.T "Resume submissions"}}</button>
 </form>
 {{else}}
 <form method="post" action="/contests/{{$c.ID}}/pause" class="inline-form" data-confirm="{{.T "Pause submissions and user tests for every contestant now?"}}">
   {{template "csrf" .CSRF}}<input type="hidden" name="paused" value="1">
   <label>{{.T "Message for the contestants (optional)"}} <input name="message" maxlength="500" size="40"></label>
-  <button class="danger">{{icon "pause"}} {{.T "Pause submissions"}}</button>
+  <button class="danger">{{.T "Pause submissions"}}</button>
 </form>
 {{end}}
 <p class="muted small">{{.T "A pause stops submissions and user tests (questions still work); the clock keeps running, so extend the contest afterwards if the pause should not count. To stop a single task, close it on the Problems page."}}</p>
 </section>
-<section class="card">
+<section class="section">
 <h2>{{.T "Extend the contest"}}</h2>
 <form method="post" action="/contests/{{$c.ID}}/extend" class="inline-form" data-confirm="{{.T "Change the end of the contest for everybody now?"}}">
   {{template "csrf" .CSRF}}
@@ -190,7 +175,7 @@
 </form>
 <p class="muted small">{{.T "Moves the end (and each contestant's window with per-user time) at once; open contest pages update their clocks. A negative number shortens it. For one contestant, give extra time on the participation instead."}}</p>
 </section>
-<section class="card">
+<section class="section">
 <h2>{{.T "Copy this contest"}}</h2>
 <p class="muted small">{{.T "The copy is a draft with the same settings, sites and tasks (statements, attachments, datasets, testcases); it has no submissions. Task names get a suffix because they are unique."}}</p>
 <form method="post" action="/contests/{{$c.ID}}/clone" class="grid">
@@ -201,7 +186,7 @@
   <button>{{.T "Copy contest"}}</button>
 </form>
 </section>
-<section class="card">
+<section class="section">
 <h2>{{.T "Archive"}}</h2>
 <p class="muted small">{{.T "One zip file with the whole contest: settings, sites, tasks with every dataset, participants (with their password hashes), communication and, optionally, the submissions with their results and the final results table. Import it from the contests page of this or another installation (same version or newer)."}}</p>
 <form method="get" action="/contests/{{$c.ID}}/archive.zip" class="inline-form">
@@ -210,7 +195,7 @@
   <button>{{.T "Download the archive"}}</button>
 </form>
 </section>
-<section class="card danger">
+<section class="section danger-zone">
 <h2>{{.T "Reevaluate the whole contest"}}</h2>
 {{template "reevaluate" (reeval $ "contest_id" $c.ID (printf "/contests/%d" $c.ID))}}
 <h2>{{.T "Delete"}}</h2>

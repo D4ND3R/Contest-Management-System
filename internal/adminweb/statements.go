@@ -380,7 +380,7 @@ func (s *Server) handleStatementSave(w http.ResponseWriter, r *http.Request, rc 
 	rc.note("language", lang)
 	rc.note("digest", info.Digest)
 	if t.ContestID != nil {
-		s.contestChanged(r.Context(), *t.ContestID, 0)
+		s.statementChanged(r.Context(), t)
 	}
 	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"/statements/"+lang+"/edit", "Statement ("+lang+") saved.")
 }
@@ -588,6 +588,6 @@ func (s *Server) handleExampleUpdate(w http.ResponseWriter, r *http.Request, rc 
 // examplesChanged tells the contest pages to reload the task.
 func (s *Server) examplesChanged(ctx context.Context, t sqlc.Task) {
 	if t.ContestID != nil {
-		s.contestChanged(ctx, *t.ContestID, 0)
+		s.statementChanged(ctx, t)
 	}
 }

@@ -82,3 +82,10 @@ SELECT u.id, u.participation_id, u.task_id, u.submitted_at, u.language, u.input_
 FROM user_tests u
 LEFT JOIN user_test_results r ON r.user_test_id = u.id AND r.dataset_id = @dataset_id::bigint
 WHERE u.id = @id::bigint;
+
+-- name: CreateAdminUserTest :one
+-- A run of an administrator (testcase generation): no participation, on
+-- a given dataset; plain runs ignore the task type.
+INSERT INTO user_tests (task_id, admin_id, dataset_id, plain, language, input_digest)
+VALUES (@task_id, @admin_id, @dataset_id, @plain, @language, @input_digest)
+RETURNING *;

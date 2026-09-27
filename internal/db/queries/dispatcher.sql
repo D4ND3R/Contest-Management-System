@@ -76,7 +76,9 @@ WHERE p.id = $1;
 UPDATE user_test_results SET jobs_enqueued_at = now() WHERE user_test_id = $1 AND dataset_id = $2;
 
 -- name: GetUserTestMeta :one
-SELECT u.id, u.participation_id, u.task_id, u.language, u.input_digest, t.active_dataset_id
+-- dataset_id: the run's own dataset (administrators' runs) or the live one.
+SELECT u.id, COALESCE(u.participation_id, 0)::bigint AS participation_id, u.task_id, u.language, u.input_digest,
+       COALESCE(u.dataset_id, t.active_dataset_id) AS dataset_id, u.plain
 FROM user_tests u JOIN tasks t ON t.id = u.task_id
 WHERE u.id = $1;
 
@@ -93,10 +95,11 @@ ORDER BY jobs_enqueued_at NULLS FIRST, user_test_id
 LIMIT @max_rows::integer;
 
 -- name: ListUserTestsMissingResults :many
-SELECT u.id AS user_test_id, t.active_dataset_id::bigint AS dataset_id
+SELECT u.id AS user_test_id, COALESCE(u.dataset_id, t.active_dataset_id)::bigint AS dataset_id
 FROM user_tests u JOIN tasks t ON t.id = u.task_id
-WHERE t.active_dataset_id IS NOT NULL
-  AND NOT EXISTS (SELECT 1 FROM user_test_results r WHERE r.user_test_id = u.id AND r.dataset_id = t.active_dataset_id)
+WHERE COALESCE(u.dataset_id, t.active_dataset_id) IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM user_test_results r WHERE r.user_test_id = u.id
+                  AND r.dataset_id = COALESCE(u.dataset_id, t.active_dataset_id))
 ORDER BY u.id
 LIMIT $1;
 

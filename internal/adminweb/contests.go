@@ -28,14 +28,37 @@ type contestForm struct {
 	Counts        *sqlc.AdminContestCountsRow
 	// Pending self-registrations waiting for approval.
 	Pending int64
-	// BannerURL shows the banner image ("" = none).
-	BannerURL string
 	// Paused and PauseMessage: the emergency pause (not a form field).
 	Paused       bool
 	PauseMessage string
 }
 
 type localization struct{ Code, Name string }
+
+// defaultSubmissionWait is the wait between submissions (seconds) a new
+// contest's form proposes.
+const defaultSubmissionWait = 20
+
+// rankingPresets are the choices of "who sees the scoreboard": the
+// ranking visibility and what contestants see, in one question.
+var rankingPresets = map[string][2]string{
+	"public":      {"public", "full"},
+	"contestants": {"contestants", "full"},
+	"own":         {"contestants", "own"},
+	"staff":       {"admins", "none"},
+	"hidden":      {"hidden", "none"},
+}
+
+// RankingPreset names the stored combination ("" when it is none of the
+// presets: the form then offers to keep it).
+func (d *contestForm) RankingPreset() string {
+	for name, v := range rankingPresets {
+		if v[0] == d.C.RankingVisibility && v[1] == d.C.RankingContestantView {
+			return name
+		}
+	}
+	return ""
+}
 
 func (s *Server) contestForm(ctx context.Context, c sqlc.UpdateContestParams, isNew bool) (*contestForm, error) {
 	d := &contestForm{C: c, New: isNew, Languages: s.langs.All()}
@@ -113,8 +136,11 @@ func (s *Server) handleContestNew(w http.ResponseWriter, r *http.Request, rc *re
 	now := s.now().Truncate(time.Hour).Add(time.Hour)
 	c := db.NewContestUpdate()
 	c.StartTime, c.StopTime = now, now.Add(5*time.Hour)
-	// New contests start hidden from contestants until published.
+	// New contests start hidden from contestants until published, and
+	// with a wait between submissions against flooding (SPEC_MIN §10).
 	c.Status = "draft"
+	wait := int64(defaultSubmissionWait)
+	c.MinSubmissionIntervalS = &wait
 	d, _ := s.contestForm(r.Context(), c, true)
 	s.render(w, "contest", http.StatusOK, s.newPage(w, r, rc, "New contest", "contests", d).crumb("Contests", "/contests"))
 }
@@ -166,11 +192,10 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 	if f.str("status") != "" {
 		c.Status = f.oneOf("status", "Status", "draft", "published", "archived")
 	}
-	c.Timezone = f.timezone("timezone")
-	loc, err := time.LoadLocation(c.Timezone)
-	if err != nil {
-		loc = time.UTC
-	}
+	// Contests follow the server's time zone (settings.go); the times of
+	// the form are in it.
+	loc := s.zone(f.r.Context())
+	c.Timezone = loc.String()
 	c.StartTime = f.time("start_time", "Start", loc)
 	c.StopTime = f.time("stop_time", "End", loc)
 	if c.StopTime.Before(c.StartTime) {
@@ -276,9 +301,18 @@ func (s *Server) parseContest(f *form, c sqlc.UpdateContestParams) sqlc.UpdateCo
 		f.fail("the ICPC penalty must not be negative")
 	}
 	c.RankingFreezeTime = f.optTime("ranking_freeze_time", "Ranking freeze", loc)
-	if f.str("ranking_visibility") != "" {
-		c.RankingVisibility = f.oneOf("ranking_visibility", "Ranking visibility", "public", "contestants", "admins", "hidden")
-		c.RankingContestantView = f.oneOf("ranking_contestant_view", "What contestants see", "full", "own", "none")
+	preset := f.str("ranking_preset")
+	if preset != "" || f.str("ranking_visibility") != "" {
+		switch v, ok := rankingPresets[preset]; {
+		case ok:
+			c.RankingVisibility, c.RankingContestantView = v[0], v[1]
+		case preset == "keep":
+		case preset != "":
+			f.fail("unknown choice for %s", "Who sees the scoreboard")
+		default:
+			c.RankingVisibility = f.oneOf("ranking_visibility", "Ranking visibility", "public", "contestants", "admins", "hidden")
+			c.RankingContestantView = f.oneOf("ranking_contestant_view", "What contestants see", "full", "own", "none")
+		}
 		c.RankingWhen = f.oneOf("ranking_when", "When the ranking is shown", "always", "after")
 		c.RankingFreezeMinutes = f.int32("ranking_freeze_minutes", "Freeze minutes", 0)
 		if c.RankingFreezeMinutes < 0 {
@@ -355,7 +389,6 @@ func (s *Server) handleContestSettings(w http.ResponseWriter, r *http.Request, r
 		s.internalError(w, r, rc, err)
 		return
 	}
-	d.BannerURL = bannerURL(c)
 	d.Paused, d.PauseMessage = c.SubmissionsPaused, c.PauseMessage
 	s.render(w, "contest", http.StatusOK, s.contestCrumbs(s.newPage(w, r, rc, "Settings", "contests", d), c))
 }
@@ -372,14 +405,6 @@ func (s *Server) handleContestTasks(w http.ResponseWriter, r *http.Request, rc *
 		return
 	}
 	s.render(w, "contest_tasks", http.StatusOK, s.contestCrumbs(s.newPage(w, r, rc, "Problems", "contests", d), c))
-}
-
-// bannerURL is the versioned address of a contest's banner ("" = none).
-func bannerURL(c sqlc.Contest) string {
-	if c.BannerDigest == nil || len(*c.BannerDigest) < 12 {
-		return ""
-	}
-	return "/contests/" + strconv.FormatInt(c.ID, 10) + "/banner?v=" + (*c.BannerDigest)[:12]
 }
 
 // contestCrumbs leads back to the contest's dashboard.
@@ -404,7 +429,6 @@ func (s *Server) handleContestUpdate(w http.ResponseWriter, r *http.Request, rc 
 	if f.err != nil {
 		rc.contest = &old
 		d, _ := s.contestForm(r.Context(), c, false)
-		d.BannerURL = bannerURL(old)
 		d.Paused, d.PauseMessage = old.SubmissionsPaused, old.PauseMessage
 		s.formError(w, r, rc, "contest", s.contestCrumbs(s.newPage(w, r, rc, "Settings", "contests", d), old), f.err.Error())
 		return

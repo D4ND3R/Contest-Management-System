@@ -112,8 +112,8 @@ hashes siguientes.
 
 ## Archivos subidos
 
-- Los banners de los concursos se revisan por su contenido: PNG, JPEG,
-  GIF o WebP, nunca SVG (puede llevar scripts).
+- Las imágenes (fotos, banderas, logotipos de certificados) se revisan por
+  su contenido: PNG, JPEG, GIF o WebP, nunca SVG (puede llevar scripts).
 - Los enunciados HTML se convierten al modelo del CMS: se quitan los
   scripts y todo lo activo.
 - Los zip (envíos de solo salida, paquetes) se leen con límites de tamaño

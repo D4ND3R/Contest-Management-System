@@ -1,9 +1,9 @@
 {{define "content"}}
 {{$u := .Data.U}}
 <h1>{{if .Data.New}}{{.T "New user"}}{{else}}{{.T "User %s" $u.Username}}{{if $u.Disabled}} <span class="tag bad">{{.T "disabled"}}</span>{{end}}{{end}}</h1>
-<form method="post" action="{{if .Data.New}}/users{{else}}/users/{{$u.ID}}{{end}}" enctype="multipart/form-data" class="card">
+<form method="post" action="{{if .Data.New}}/users{{else}}/users/{{$u.ID}}{{end}}" enctype="multipart/form-data" class="section">
 {{template "csrf" .CSRF}}
-<fieldset {{if not .CanWrite}}disabled{{end}}>
+<fieldset class="bare" {{if not .CanWrite}}disabled{{end}}>
 <div class="grid">
   <label>{{.T "Username"}} <input name="username" value="{{$u.Username}}" required autocomplete="off"></label>
   <label>{{.T "Password"}} <input type="password" name="password" autocomplete="new-password" {{if not .Data.New}}placeholder="{{.T "leave empty to keep"}}"{{end}}></label>
@@ -27,7 +27,7 @@
 </form>
 {{if not .Data.New}}
 {{if .CanWrite}}
-<section class="card actions">
+<section class="section actions">
   <form method="post" action="/users/{{$u.ID}}/reset-password" class="inline" data-confirm="{{.T "Generate a new password for %s? The current one stops working." $u.Username}}">{{template "csrf" .CSRF}}<button class="secondary">{{.T "Generate a new password"}}</button></form>
   <form method="post" action="/users/{{$u.ID}}/logout" class="inline">{{template "csrf" .CSRF}}<button class="secondary">{{.T "Close every session"}}</button></form>
   {{if $u.Disabled}}
@@ -37,7 +37,7 @@
   {{end}}
 </section>
 {{end}}
-<section class="card">
+<section class="section">
 <h2>{{.T "Participations"}}</h2>
 <table><thead><tr><th>{{.T "Contest"}}</th><th>{{.T "Team"}}</th><th>{{.T "Flags"}}</th><th></th></tr></thead><tbody>
 {{range .Data.Participations}}<tr><td><a href="/participations/{{.ID}}">{{.ContestName}}</a></td><td>{{deref .TeamCode}}</td><td>{{if .Hidden}}<span class="tag">{{$.T "hidden"}}</span>{{end}}{{if .Unrestricted}}<span class="tag">{{$.T "unrestricted"}}</span>{{end}}</td>
@@ -46,12 +46,12 @@
 </tbody></table>
 {{if .CanWrite}}<p>{{.T "Reevaluate all of this user's submissions:"}} {{template "reevaluate" (reeval $ "user_id" $u.ID (printf "/users/%d" $u.ID))}}</p>{{end}}
 </section>
-<section class="card">
+<section class="section">
 <h2>{{.T "Sessions"}} <small class="muted">{{.T "last 24 hours"}}</small></h2>
 {{template "sessions" (part $ .Data.Sessions)}}
 </section>
 {{if .CanWrite}}
-<section class="card danger">
+<section class="section danger-zone">
 <form method="post" action="/users/{{$u.ID}}/delete" data-confirm="{{.T "Delete the user and all their submissions?"}}">
   {{template "csrf" .CSRF}}
   <label>{{.T "Type %s to delete the user" $u.Username}} <input name="confirm" autocomplete="off"></label>

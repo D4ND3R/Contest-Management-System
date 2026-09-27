@@ -1,8 +1,6 @@
 package adminweb
 
 import (
-	"html/template"
-	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -29,8 +27,6 @@ type contestDash struct {
 	Contests []contestListItem
 	Errors   []sqlc.AdminListSystemErrorsRow
 	Status   *systemStatus
-	// BannerURL shows the banner image ("" = none).
-	BannerURL string
 }
 
 // dashLive is the part of the dashboard that refreshes by itself.
@@ -44,8 +40,6 @@ type dashLive struct {
 	// Solved, Partial and Unsolved count the tasks (by anybody).
 	Solved, Partial, Unsolved int
 	Events                    []dashEvent
-	Chart                     template.HTML
-	ChartSubs                 int64
 	Stats                     quickStats
 	Health                    []healthItem
 	Notes                     []dashEvent
@@ -54,12 +48,12 @@ type dashLive struct {
 }
 
 type dashRow struct {
-	Rank                         int
-	ParticipationID              int64
-	Name, Username, Sub, Initial string
-	Total                        float64
-	Solved, Penalty              int
-	Hidden                       bool
+	Rank                int
+	ParticipationID     int64
+	Name, Username, Sub string
+	Total               float64
+	Solved, Penalty     int
+	Hidden              bool
 }
 
 type dashTask struct {
@@ -88,7 +82,7 @@ func (t dashTask) State() string {
 // dashEvent is a line of the events feed or of the notifications.
 type dashEvent struct {
 	At             time.Time
-	Icon, Class    string
+	Class          string
 	Text, Sub, URL string
 }
 
@@ -177,7 +171,7 @@ func (s *Server) handleContestLive(w http.ResponseWriter, r *http.Request, rc *r
 
 func (s *Server) fillDash(r *http.Request, rc *reqCtx, d *contestDash, c sqlc.Contest) error {
 	ctx := r.Context()
-	d.C, d.BannerURL = c, bannerURL(c)
+	d.C = c
 	counts, err := s.q.AdminContestCounts(ctx)
 	if err != nil {
 		return err
@@ -312,70 +306,21 @@ func (s *Server) dashLive(r *http.Request, rc *reqCtx, c sqlc.Contest) (*dashLiv
 	}
 	l.Stats.Total += l.Stats.Pending
 
-	if err := s.dashChart(r, l, c, now, loc); err != nil {
-		return nil, err
-	}
 	if err := s.dashEvents(r, l, c, firsts, tr); err != nil {
 		return nil, err
 	}
 	if c.AppealsUntil != nil {
 		if n, err := s.q.CountOpenAppeals(r.Context(), c.ID); err == nil && n > 0 {
-			l.Notes = append(l.Notes, dashEvent{At: now, Icon: "clipboard", Class: "warn", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/appeals?status=open",
+			l.Notes = append(l.Notes, dashEvent{At: now, Class: "warn", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/appeals?status=open",
 				Text: tr("%d appeals waiting for an answer", n)})
 		}
 	}
 	if c.SubmissionsPaused {
-		l.Notes = append([]dashEvent{{At: now, Icon: "pause", Class: "bad", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/settings#emergency",
+		l.Notes = append([]dashEvent{{At: now, Class: "bad", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/settings#emergency",
 			Text: tr("Submissions are paused"), Sub: c.PauseMessage}}, l.Notes...)
 	}
 	s.dashHealth(r, rc, l, c, now)
 	return l, nil
-}
-
-// dashChart draws submissions, accepted and rejected ones over the
-// contest's time (in about 12 to 24 steps).
-func (s *Server) dashChart(r *http.Request, l *dashLive, c sqlc.Contest, now time.Time, loc *time.Location) error {
-	end := c.StopTime
-	if now.Before(end) {
-		end = now
-	}
-	if !end.After(c.StartTime) {
-		return nil
-	}
-	span := end.Sub(c.StartTime)
-	bucket := 5 * time.Minute
-	for _, b := range []time.Duration{5, 10, 15, 30, 60, 120, 240, 480, 1440} {
-		bucket = b * time.Minute
-		if span/bucket <= 24 {
-			break
-		}
-	}
-	rows, err := s.q.AdminContestActivity(r.Context(), sqlc.AdminContestActivityParams{Since: c.StartTime, BucketS: bucket.Seconds(), ContestID: c.ID})
-	if err != nil {
-		return err
-	}
-	n := int(span/bucket) + 1
-	if n < 2 {
-		n = 2
-	}
-	subs, acc, rej := make([]float64, n), make([]float64, n), make([]float64, n)
-	for _, row := range rows {
-		i := int(row.Bucket)
-		if i < 0 || i >= n {
-			continue
-		}
-		subs[i], acc[i], rej[i] = float64(row.Submissions), float64(row.Accepted), float64(row.Rejected)
-		l.ChartSubs += row.Submissions
-	}
-	labels := make([]string, n)
-	for i := range labels {
-		labels[i] = c.StartTime.Add(time.Duration(i) * bucket).In(loc).Format("15:04")
-	}
-	l.Chart = webkit.LineChart(labels,
-		webkit.Series{Class: "s1", Area: "a1", Values: acc},
-		webkit.Series{Class: "s2", Values: subs},
-		webkit.Series{Class: "s3", Values: rej})
-	return nil
 }
 
 // dashEvents merges the latest submissions, first solves, questions and
@@ -388,17 +333,17 @@ func (s *Server) dashEvents(r *http.Request, l *dashLive, c sqlc.Contest, firsts
 	}
 	var ev []dashEvent
 	for _, sub := range subs {
-		e := dashEvent{At: sub.SubmittedAt, Icon: "send", Class: "info", URL: "/submissions/" + strconv.FormatInt(sub.ID, 10),
+		e := dashEvent{At: sub.SubmittedAt, Class: "info", URL: "/submissions/" + strconv.FormatInt(sub.ID, 10),
 			Text: tr("New submission from %s", sub.Username)}
 		switch {
 		case sub.SystemError != nil:
-			e.Class, e.Icon, e.Sub = "warn", "alert", tr("%s: evaluation failed", sub.TaskName)
+			e.Class, e.Sub = "warn", tr("%s: evaluation failed", sub.TaskName)
 		case sub.CompilationOutcome != nil && *sub.CompilationOutcome == "fail":
 			e.Class, e.Sub = "bad", tr("%s: compilation failed", sub.TaskName)
 		case sub.ScoredAt == nil:
 			e.Sub = tr("%s: being evaluated", sub.TaskName)
 		case sub.Verdict != nil && *sub.Verdict == scoring.VerdictAccepted:
-			e.Class, e.Icon, e.Sub = "ok", "check-circle", tr("%s: accepted", sub.TaskName)
+			e.Class, e.Sub = "ok", tr("%s: accepted", sub.TaskName)
 		default:
 			v := ""
 			if sub.Verdict != nil {
@@ -420,7 +365,7 @@ func (s *Server) dashEvents(r *http.Request, l *dashLive, c sqlc.Contest, firsts
 		names[t.ID] = t.Name
 	}
 	for _, f := range firsts {
-		ev = append(ev, dashEvent{At: f.SubmittedAt, Icon: "trophy", Class: "purple", URL: "/submissions/" + strconv.FormatInt(f.SubmissionID, 10),
+		ev = append(ev, dashEvent{At: f.SubmittedAt, Class: "purple", URL: "/submissions/" + strconv.FormatInt(f.SubmissionID, 10),
 			Text: tr("%s solved %s", f.Username, names[f.TaskID]), Sub: tr("First to solve")})
 	}
 	qs, err := s.q.AdminContestRecentQuestions(ctx, sqlc.AdminContestRecentQuestionsParams{ContestID: c.ID, Lim: 5})
@@ -428,11 +373,11 @@ func (s *Server) dashEvents(r *http.Request, l *dashLive, c sqlc.Contest, firsts
 		return err
 	}
 	for _, q := range qs {
-		e := dashEvent{At: q.AskedAt, Icon: "help", Class: "info", URL: "/questions?contest=" + strconv.FormatInt(c.ID, 10),
+		e := dashEvent{At: q.AskedAt, Class: "info", URL: "/questions?contest=" + strconv.FormatInt(c.ID, 10),
 			Text: tr("Question from %s", q.Username), Sub: q.Subject}
 		if q.ReplyAt == nil && !q.Ignored {
 			e.Class = "warn"
-			l.Notes = append(l.Notes, dashEvent{At: q.AskedAt, Icon: "help", Class: "warn", URL: e.URL, Text: tr("Unanswered question from %s", q.Username), Sub: q.Subject})
+			l.Notes = append(l.Notes, dashEvent{At: q.AskedAt, Class: "warn", URL: e.URL, Text: tr("Unanswered question from %s", q.Username), Sub: q.Subject})
 		}
 		ev = append(ev, e)
 	}
@@ -444,7 +389,7 @@ func (s *Server) dashEvents(r *http.Request, l *dashLive, c sqlc.Contest, firsts
 		if i == 3 {
 			break
 		}
-		ev = append(ev, dashEvent{At: a.CreatedAt, Icon: "megaphone", Class: "bad", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/communication",
+		ev = append(ev, dashEvent{At: a.CreatedAt, Class: "bad", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/communication",
 			Text: tr("Announcement"), Sub: a.Subject})
 	}
 	sort.SliceStable(ev, func(i, j int) bool { return ev[i].At.After(ev[j].At) })
@@ -470,7 +415,7 @@ func (s *Server) dashHealth(r *http.Request, rc *reqCtx, l *dashLive, c sqlc.Con
 		judges.Value, judges.Class = tr("offline"), "bad"
 	case unfiltered > 0:
 		judges.Class = "warn"
-		l.Notes = append(l.Notes, dashEvent{At: now, Icon: "shield", Class: "warn", URL: "/system",
+		l.Notes = append(l.Notes, dashEvent{At: now, Class: "warn", URL: "/system",
 			Text: tr("%d judges run without the seccomp filter", unfiltered)})
 	}
 	var waiting int64
@@ -516,7 +461,7 @@ func (s *Server) dashHealth(r *http.Request, rc *reqCtx, l *dashLive, c sqlc.Con
 		l.Health = append(l.Health, it)
 	}
 	if st.Stuck > 0 {
-		l.Notes = append(l.Notes, dashEvent{At: now, Icon: "alert", Class: "bad", URL: "/system", Text: tr("%d jobs look stuck", st.Stuck)})
+		l.Notes = append(l.Notes, dashEvent{At: now, Class: "bad", URL: "/system", Text: tr("%d jobs look stuck", st.Stuck)})
 	}
 	if errs, err := s.q.AdminListSystemErrors(ctx); err == nil {
 		n := 0
@@ -526,24 +471,24 @@ func (s *Server) dashHealth(r *http.Request, rc *reqCtx, l *dashLive, c sqlc.Con
 			}
 		}
 		if n > 0 {
-			l.Notes = append(l.Notes, dashEvent{At: now, Icon: "alert", Class: "bad", URL: "/", Text: tr("%d submissions could not be judged", n)})
+			l.Notes = append(l.Notes, dashEvent{At: now, Class: "bad", URL: "/", Text: tr("%d submissions could not be judged", n)})
 		}
 	}
 	if n, err := s.q.AdminContestFlagged(ctx, c.ID); err == nil && n > 0 {
-		l.Notes = append(l.Notes, dashEvent{At: now, Icon: "shield", Class: "warn",
+		l.Notes = append(l.Notes, dashEvent{At: now, Class: "warn",
 			URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/submissions?status=flagged", Text: tr("%d suspicious submissions", n)})
 	}
 	if c.Registration == "approval" {
 		if n, err := s.q.CountPendingRegistrations(ctx, c.ID); err == nil && n > 0 {
-			l.Notes = append(l.Notes, dashEvent{At: now, Icon: "user", Class: "info", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/participations",
+			l.Notes = append(l.Notes, dashEvent{At: now, Class: "info", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/participations",
 				Text: tr("%d registrations waiting for approval", n)})
 		}
 	}
 	if left := c.StopTime.Sub(now); left > 0 && left <= time.Hour && !now.Before(c.StartTime) {
-		l.Notes = append(l.Notes, dashEvent{At: now, Icon: "clock", Class: "warn", Text: tr("The contest ends in %s", humanAgo(left))})
+		l.Notes = append(l.Notes, dashEvent{At: now, Class: "warn", Text: tr("The contest ends in %s", humanAgo(left))})
 	}
 	if ranking.Frozen(c, now) {
-		l.Notes = append(l.Notes, dashEvent{At: now, Icon: "eye", Class: "info", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/ranking",
+		l.Notes = append(l.Notes, dashEvent{At: now, Class: "info", URL: "/contests/" + strconv.FormatInt(c.ID, 10) + "/ranking",
 			Text: tr("The public ranking is frozen")})
 	}
 }
@@ -572,70 +517,4 @@ func humanAgo(d time.Duration) string {
 		return strconv.Itoa(int(d/time.Hour)) + " h"
 	}
 	return strconv.Itoa(int(d/(24*time.Hour))) + " d"
-}
-
-// maxBannerBytes bounds the banner image.
-const maxBannerBytes = 4 << 20
-
-// bannerTypes are the image types a banner may have: sniffed from the
-// content, never SVG (it can carry scripts).
-var bannerTypes = map[string]bool{"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true}
-
-// handleContestBanner serves the banner image to administrators.
-func (s *Server) handleContestBanner(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	c, ok := s.loadContest(w, r, rc)
-	if !ok {
-		return
-	}
-	if c.BannerDigest == nil || !bannerTypes[c.BannerType] {
-		s.notFound(w, r, rc)
-		return
-	}
-	s.serveBlob(w, r, rc, *c.BannerDigest, c.BannerType, "banner", false)
-}
-
-// handleContestBannerUpload sets (or removes) the banner image.
-func (s *Server) handleContestBannerUpload(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	c, ok := s.loadContest(w, r, rc)
-	if !ok {
-		return
-	}
-	back := "/contests/" + strconv.FormatInt(c.ID, 10) + "/settings"
-	params := sqlc.SetContestBannerParams{ID: c.ID}
-	if r.FormValue("remove") == "" {
-		file, fh, err := r.FormFile("banner")
-		if err != nil {
-			s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "Choose an image.")
-			return
-		}
-		defer file.Close()
-		data, _ := io.ReadAll(io.LimitReader(file, maxBannerBytes+1))
-		if fh.Size > maxBannerBytes || len(data) > maxBannerBytes {
-			s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "The banner may have at most 4 MiB.")
-			return
-		}
-		ct := http.DetectContentType(data)
-		if !bannerTypes[ct] {
-			s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "The banner must be a PNG, JPEG, GIF or WebP image.")
-			return
-		}
-		info, err := s.blobs.PutBytes(r.Context(), data)
-		if err != nil {
-			s.internalError(w, r, rc, err)
-			return
-		}
-		params.Digest, params.MediaType = &info.Digest, ct
-	}
-	if err := s.q.SetContestBanner(r.Context(), params); err != nil {
-		s.internalError(w, r, rc, err)
-		return
-	}
-	rc.target("contest", c.ID)
-	rc.note("removed", params.Digest == nil)
-	s.contestChanged(r.Context(), c.ID, 0)
-	if params.Digest == nil {
-		s.done(w, r, back, "Banner removed.")
-		return
-	}
-	s.done(w, r, back, "Banner saved.")
 }

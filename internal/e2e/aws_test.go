@@ -112,7 +112,7 @@ func TestSetUpContestFromAdminUI(t *testing.T) {
 	webtest.MustOK(t, "submit", code, body)
 	deadline := time.Now().Add(60 * time.Second)
 	for {
-		_, body = c.Get("/omi/tasks/sum")
+		_, body = c.Get("/omi/tasks/sum/submissions")
 		if strings.Contains(body, "100 / 100") {
 			break
 		}

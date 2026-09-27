@@ -4,9 +4,9 @@
   <a href="/contests/{{$d.Contest.ID}}/certificates.pdf?preview=1" target="_blank" rel="noopener">{{.T "Preview the first one"}}</a> ·
   <a href="/contests/{{$d.Contest.ID}}/certificates.pdf">{{.T "Download all (%d, PDF)" $d.Recipients}}</a>
 </p>
-<form method="post" action="/contests/{{$d.Contest.ID}}/certificates" enctype="multipart/form-data" class="card">
+<form method="post" action="/contests/{{$d.Contest.ID}}/certificates" enctype="multipart/form-data" class="section">
   {{template "csrf" .CSRF}}
-  <fieldset {{if not .CanWrite}}disabled{{end}}>
+  <fieldset class="bare" {{if not .CanWrite}}disabled{{end}}>
   <label>{{.T "Title"}} <input name="title" value="{{$t.Title}}" required></label>
   <label>{{.T "Text"}} <textarea name="body" rows="9">{{$t.Body}}</textarea></label>
   <p class="muted small">{{.T "Paragraphs are separated by a blank line; a paragraph starting with # is printed large and bold, one with ## bold. A paragraph left empty by its placeholders (e.g. ## {award} without an award) is skipped."}}

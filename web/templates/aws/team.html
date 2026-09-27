@@ -1,9 +1,9 @@
 {{define "content"}}
 {{$t := .Data.T}}
 <h1>{{.T "Team %s" $t.Code}}</h1>
-<form method="post" action="/teams/{{$t.ID}}" enctype="multipart/form-data" class="card">
+<form method="post" action="/teams/{{$t.ID}}" enctype="multipart/form-data" class="section">
 {{template "csrf" .CSRF}}
-<fieldset {{if not .CanWrite}}disabled{{end}}>
+<fieldset class="bare" {{if not .CanWrite}}disabled{{end}}>
 <div class="grid">
   <label>{{.T "Code"}} <input name="code" value="{{$t.Code}}" required pattern="[A-Za-z0-9_.\-]+"></label>
   <label>{{.T "Name"}} <input name="name" value="{{$t.Name}}" required></label>
@@ -14,7 +14,7 @@
 {{if .CanWrite}}<button>{{.T "Save"}}</button>{{end}}
 </fieldset>
 </form>
-<section class="card">
+<section class="section">
 <h2>{{.T "Members"}}</h2>
 <table><thead><tr><th>{{.T "Contest"}}</th><th>{{.T "User"}}</th><th>{{.T "Name"}}</th></tr></thead><tbody>
 {{range .Data.Members}}<tr><td>{{.ContestName}}</td><td><a href="/participations/{{.ID}}">{{.Username}}</a></td><td>{{.FirstName}} {{.LastName}}</td></tr>
@@ -30,7 +30,7 @@
 {{end}}
 </section>
 {{if .CanWrite}}
-<form method="post" action="/teams/{{$t.ID}}/delete" class="card danger" data-confirm="{{.T "Delete team %s? Participations keep existing without a team." $t.Code}}">
+<form method="post" action="/teams/{{$t.ID}}/delete" class="section danger-zone" data-confirm="{{.T "Delete team %s? Participations keep existing without a team." $t.Code}}">
   {{template "csrf" .CSRF}}<button class="danger">{{.T "Delete team"}}</button>
 </form>
 {{end}}

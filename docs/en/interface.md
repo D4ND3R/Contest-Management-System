@@ -1,4 +1,18 @@
-# Interface languages and accessibility
+# Interface, languages and accessibility
+
+## The design
+
+The three sites (contest, administration, ranking) share a sober design in
+the spirit of Codeforces, QOJ and the original CMS: a header line (contest,
+phase, time left, user), a row of links as the menu (two in the
+administration: the server and the current contest), tables, and the foot
+with the preferences. There are no cards, icons or decorative images:
+colour only carries meaning (verdicts and subtask blocks: green accepted,
+yellow partial, red rejected, grey pending). Pages weigh a few kilobytes,
+so they load fast even with many contestants on the same network.
+
+On narrow screens the menu wraps over several lines and wide tables scroll
+inside themselves, never the page.
 
 ## Languages of the interface
 
@@ -8,15 +22,14 @@ Chinese (simplified), Japanese, Korean, Vietnamese, Indonesian, and three
 written right to left: Arabic, Persian and Hebrew. The administration site
 is in English and Spanish.
 
-Each visitor picks a language in the **Language and display** menu (in the
-user menu, or at the foot of the login page); the choice is remembered in
-the browser. Without a choice, the browser's preferred languages decide.
+Each visitor picks a language **at the foot of any page**; the page reloads
+in that language and the choice is remembered in the browser. Without a choice, the browser's preferred languages decide.
 A contest can restrict the languages offered (the **Interface** checkboxes of the contest settings, or
 `allowed_localizations` in
 [contest.yaml](contest-config.md)).
 
-Right-to-left languages mirror the whole layout (the menu moves to the
-right, arrows point the other way). Source code, inputs and outputs always
+Right-to-left languages mirror the whole layout (the menu starts on the
+right). Source code, inputs and outputs always
 read left to right. A statement is shown in the direction of its own
 language, whatever the interface language, so a Persian statement reads
 correctly on an English page and the other way round. Questions, answers,
@@ -63,20 +76,17 @@ speaker's review are all a new language needs to be shipped.
 The three sites are built to be used with a keyboard only, with a screen
 reader, and with large text.
 
-- **Display preferences** (menu **Language and display**): dark (default),
-  light, high contrast (black and white with yellow accents, underlined
-  links) or as the operating system prefers; text size normal, large,
+- **Display preferences** (at the foot of every page, applied at once):
+  light (default), dark, high contrast (black with yellow accents,
+  underlined links) or as the operating system prefers; text size normal, large,
   larger or largest. The base size follows the browser's own font setting,
   and every page reflows at any zoom. They are remembered in the browser,
   apply before logging in, and never change what the organizers see.
 - **Keyboard**: every page starts with a "Skip to content" link; every
-  control is reachable with Tab and shows where the focus is; menus open
-  with Enter and close with Escape; the narrow-screen menu button is
-  reachable too. The code editor keeps Tab for indentation: press Esc and
+  control is reachable with Tab and shows where the focus is. The code editor keeps Tab for indentation: press Esc and
   then Tab to leave it (no keyboard trap).
 - **Screen readers**: pages declare their language and direction, every
-  form field has a label, icons are hidden from assistive technology or
-  named, results appear in a polite live region, notifications are
+  form field has a label, results appear in a polite live region, notifications are
   announced, and ranking markers (medals, unofficial participants) have
   words.
 - **Contrast**: every text colour meets WCAG AA (4.5:1) on its background in

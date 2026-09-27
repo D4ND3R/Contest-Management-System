@@ -1,7 +1,7 @@
 {{define "content"}}
 <h1>{{.T "Users"}} <small class="muted">{{.Data.Total}}</small> {{if .CanWrite}}<a class="button small" href="/users/new">{{.T "New user"}}</a>{{end}} <a class="button small secondary" href="/users/export.csv">{{.T "Export CSV"}}</a></h1>
 {{if .CanWrite}}
-<form method="post" action="/users/import" enctype="multipart/form-data" class="card inline-form">
+<form method="post" action="/users/import" enctype="multipart/form-data" class="inline-form">
   {{template "csrf" .CSRF}}
   <b>{{.T "Import CSV"}}</b>
   <input type="file" name="file" accept=".csv,text/csv" required aria-label="{{.T "Import CSV"}}">

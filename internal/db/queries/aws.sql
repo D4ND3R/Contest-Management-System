@@ -289,21 +289,6 @@ WHERE id = $1 RETURNING *;
 SELECT (SELECT count(*) FROM blobs)::bigint AS blobs, (SELECT COALESCE(sum(size), 0) FROM blobs)::bigint AS blob_bytes,
        pg_database_size(current_database())::bigint AS db_bytes;
 
--- name: AdminContestActivity :many
--- Official submissions of a contest per time bucket since @since, with the
--- accepted ones (the dashboard chart; submissions_task_idx per task).
-SELECT floor(extract(epoch FROM s.submitted_at - @since::timestamptz) / @bucket_s::float8)::int AS bucket,
-       count(*)::bigint AS submissions,
-       count(*) FILTER (WHERE sr.verdict = 'AC')::bigint AS accepted,
-       count(*) FILTER (WHERE sr.scored_at IS NOT NULL AND sr.verdict IS DISTINCT FROM 'AC')::bigint AS rejected
-FROM tasks t
-JOIN submissions s ON s.task_id = t.id
-LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
-WHERE t.contest_id = @contest_id::bigint AND s.official AND NOT s.tester AND s.invalidated_at IS NULL
-  AND s.submitted_at >= @since::timestamptz
-GROUP BY 1
-ORDER BY 1;
-
 -- name: AdminContestRecentSubmissions :many
 -- The latest submissions of a contest with their result on the live
 -- dataset (the dashboard's events; newest first through the primary key,

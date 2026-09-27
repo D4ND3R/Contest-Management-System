@@ -1,9 +1,9 @@
 {{define "content"}}
 {{$a := .Data.A}}
 <h1>{{.T "Administrator %s" $a.Username}}</h1>
-<form method="post" action="/admins/{{$a.ID}}" class="card">
+<form method="post" action="/admins/{{$a.ID}}" class="section">
 {{template "csrf" .CSRF}}
-<fieldset {{if not .CanWrite}}disabled{{end}}>
+<fieldset class="bare" {{if not .CanWrite}}disabled{{end}}>
 <div class="grid">
   <label>{{.T "Username"}} <input name="username" value="{{$a.Username}}" required autocomplete="off"></label>
   <label>{{.T "Name"}} <input name="name" value="{{$a.Name}}"></label>
@@ -18,7 +18,7 @@
 </form>
 <p><a href="/audit?admin={{$a.ID}}">{{.T "Actions of %s" $a.Username}}</a></p>
 {{if .CanWrite}}
-<form method="post" action="/admins/{{$a.ID}}/delete" class="card danger" data-confirm="{{.T "Delete administrator %s?" $a.Username}}">
+<form method="post" action="/admins/{{$a.ID}}/delete" class="section danger-zone" data-confirm="{{.T "Delete administrator %s?" $a.Username}}">
   {{template "csrf" .CSRF}}<button class="danger">{{.T "Delete administrator"}}</button>
 </form>
 {{end}}

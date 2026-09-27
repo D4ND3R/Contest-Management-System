@@ -297,7 +297,7 @@ type auditPage struct {
 	Admins []sqlc.Admin
 	Admin  int64
 	// Action is a prefix ("contest." or a full action); From and To are
-	// datetime-local values in UTC.
+	// datetime-local values in the server's zone.
 	Action, From, To string
 	Actions          []string
 	Next             string
@@ -322,7 +322,7 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 	}
 	parse := func(v *string) *time.Time {
 		for _, layout := range []string{"2006-01-02T15:04", "2006-01-02T15:04:05", "2006-01-02"} {
-			if t, err := time.ParseInLocation(layout, *v, time.UTC); err == nil {
+			if t, err := time.ParseInLocation(layout, *v, s.zone(r.Context())); err == nil {
 				return &t
 			}
 		}

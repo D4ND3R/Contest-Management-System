@@ -1,7 +1,7 @@
 {{define "content"}}
 <h1>{{.T "Teams"}}</h1>
 {{if .CanWrite}}
-<form method="post" action="/teams" enctype="multipart/form-data" class="card inline-form">
+<form method="post" action="/teams" enctype="multipart/form-data" class="inline-form">
   {{template "csrf" .CSRF}}
   <label>{{.T "Code"}} <input name="code" required size="8" pattern="[A-Za-z0-9_.\-]+"></label>
   <label>{{.T "Name"}} <input name="name" required></label>

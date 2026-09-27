@@ -1,7 +1,7 @@
 {{define "content"}}{{$v := .Data}}
 <h1>{{.T "Backups"}}</h1>
 {{if not $v.Enabled}}<p class="alert">{{.T "Backups are not configured."}}</p>{{else}}
-<section class="card">
+<section class="section">
 <p>{{.T "Each backup holds the whole database and every file (statements, testcases, submissions) in a single file whose hashes are checked when it is restored."}}</p>
 <dl class="meta">
   <dt>{{.T "Folder"}}</dt><dd><code>{{$v.Dir}}</code></dd>

@@ -1,38 +1,23 @@
-// CMS front-end glue (no framework): CSRF header for htmx requests, live
-// updates over Server-Sent Events, countdowns and notifications.
+// CMS contest site (no framework): live updates over Server-Sent Events
+// with a polling fallback, notifications, display preferences applied at
+// once, countdowns, the submission form's checks and the code editor.
 (function () {
   "use strict";
   var meta = function (n) { var m = document.querySelector('meta[name="' + n + '"]'); return m ? m.content : ""; };
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  document.documentElement.classList.add("js");
 
   document.addEventListener("htmx:configRequest", function (e) {
     e.detail.headers["X-CSRF-Token"] = meta("csrf-token");
   });
 
-  // Refresh an element that declares where its fresh HTML lives.
-  function refresh(el) {
-    if (el && el.dataset.src && window.htmx) {
-      htmx.ajax("GET", el.dataset.src, { target: el, swap: "outerHTML" });
-    }
-  }
-
-  function notify(text) {
-    var box = document.getElementById("notifications");
-    if (!box) return;
-    var n = document.createElement("div");
-    n.className = "notice";
-    n.textContent = text;
-    n.addEventListener("click", function () { n.remove(); });
-    box.appendChild(n);
-    if (window.Notification && Notification.permission === "granted") {
-      try { new Notification(document.title, { body: text }); } catch (err) { /* ignore */ }
-    }
-  }
-
-  // Optional sound on announcements, messages and answers (per browser).
   function store(k, v) {
     try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (err) { return null; }
     return null;
   }
+
+  // ---- notifications ---------------------------------------------------
   function beep() {
     if (store("cms-sound") !== "1") return;
     try {
@@ -40,6 +25,22 @@
       o.frequency.value = 880; g.gain.value = 0.08; o.connect(g); g.connect(c.destination);
       o.start(); o.stop(c.currentTime + 0.25); o.onended = function () { c.close(); };
     } catch (err) { /* no audio */ }
+  }
+  function notify(title, text, kind, sound) {
+    var box = document.getElementById("notifications");
+    if (!box) return;
+    var n = document.createElement("div");
+    n.className = "notice" + (kind ? " " + kind : "");
+    n.setAttribute("role", "status");
+    if (title) { var b = document.createElement("b"); b.textContent = title; n.appendChild(b); }
+    if (text) { var t = document.createElement("span"); t.textContent = text; n.appendChild(t); }
+    n.addEventListener("click", function () { n.remove(); });
+    box.appendChild(n);
+    setTimeout(function () { n.remove(); }, 12000);
+    if (sound) beep();
+    if (document.hidden && window.Notification && Notification.permission === "granted") {
+      try { new Notification(title || document.title, { body: text || "" }); } catch (err) { /* ignore */ }
+    }
   }
   function soundToggle() {
     var b = document.getElementById("sound-toggle");
@@ -49,89 +50,195 @@
     show();
   }
 
+  // ---- refreshing parts of the page --------------------------------------
+  // An element with data-src is replaced by the fresh HTML found there.
+  function refresh(el, then) {
+    if (!el || !el.dataset.src) return;
+    fetch(el.dataset.src, { credentials: "same-origin", headers: { "HX-Request": "true" } })
+      .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
+      .then(function (html) {
+        var t = document.createElement("template");
+        t.innerHTML = html.trim();
+        var n = t.content.firstElementChild;
+        if (!n || !el.parentNode) return;
+        el.replaceWith(n);
+        if (window.htmx) htmx.process(n);
+        if (then) then(n);
+      }).catch(function () { /* the next event or poll retries */ });
+  }
+  // A whole region of the current page (#sub-detail, #statement).
+  function reloadRegion(id, then) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    fetch(location.href, { credentials: "same-origin" }).then(function (r) { return r.text(); }).then(function (html) {
+      var doc = new DOMParser().parseFromString(html, "text/html"), n = doc.getElementById(id);
+      if (n) { el.replaceWith(n); if (window.htmx) htmx.process(n); if (then) then(n); }
+    }).catch(function () { /* retried later */ });
+  }
+  // What a judged row says: the verdict and the score.
+  function verdictText(row) {
+    var cell = function (i) { return row.cells[i] ? row.cells[i].textContent.replace(/\s+/g, " ").trim() : ""; };
+    var score = row.cells.length > 5 ? cell(4) : "";
+    return cell(3) + (score ? " · " + score : "");
+  }
+  function verdictKind(row) {
+    var v = row.querySelector(".v");
+    return v ? v.className.replace(/^v\s*/, "") : "";
+  }
+  function submissionChanged(id, taskID, final) {
+    var title = (meta("cms-msg-judged") || "%s").replace("%s", "#" + id);
+    var row = document.getElementById("sub-" + id);
+    if (row) {
+      refresh(row, function (n) { if (final) notify(title, verdictText(n), verdictKind(n), true); });
+    } else {
+      var list = document.getElementById("submissions");
+      if (list && String(taskID) === list.dataset.task) refresh(list);
+      else if (final) notify(title, "", "", true);
+    }
+    var det = document.getElementById("sub-detail");
+    if (det && det.dataset.sub === String(id)) reloadRegion("sub-detail");
+  }
+  function bumpUnread(n) {
+    var badge = document.getElementById("unread");
+    if (!badge) return;
+    var v = n === undefined ? Number((badge.lastChild && badge.lastChild.textContent) || 0) + 1 : n;
+    if (badge.lastChild) badge.lastChild.textContent = String(v);
+    badge.hidden = v <= 0;
+  }
+
+  // ---- live updates: SSE, with polling when it is not working ------------
+  var lastSeen = 0, polling = null;
   function connect() {
     var url = meta("cms-events");
-    if (!url || !window.EventSource) return;
+    if (!url) return;
+    if (!window.EventSource) { startPolling(); return; }
     var es = new EventSource(url);
+    var seen = function () { lastSeen = Date.now(); if (polling) { clearInterval(polling); polling = null; } };
+    es.addEventListener("open", function () { /* pings prove it works */ });
+    es.addEventListener("ping", seen);
     es.addEventListener("submission", function (e) {
-      var d = JSON.parse(e.data);
-      // The result card follows the newest submission of its task.
-      var card = document.getElementById("latest");
-      if (card && String(d.task_id) === card.dataset.task && Number(d.submission_id) >= Number(card.dataset.sub || 0)) {
-        card.dataset.src = card.dataset.base + "submissions/" + d.submission_id + "/card";
-        refresh(card);
-      }
-      var row = document.getElementById("sub-" + d.submission_id);
-      if (row) { refresh(row); return; }
-      var list = document.getElementById("submissions");
-      if (list && String(d.task_id) === list.dataset.task) refresh(list);
+      seen();
+      var d = JSON.parse(e.data), st = d.status || "";
+      submissionChanged(d.submission_id, d.task_id, st === "scored" || st === "compilation_failed" || st === "error");
     });
     es.addEventListener("user_test", function (e) {
+      seen();
       var d = JSON.parse(e.data);
       refresh(document.getElementById("test-" + d.user_test_id));
     });
     ["announcement", "message", "question"].forEach(function (t) {
       es.addEventListener(t, function (e) {
+        seen();
         var d = JSON.parse(e.data);
-        notify(d.text || t);
-        beep();
+        notify(meta("cms-msg-" + t), d.text || "", "", true);
         var page = document.getElementById("communication");
-        if (page) { refresh(page); return; } // the list marks it read
-        var badge = document.getElementById("unread");
-        if (badge) { badge.textContent = String(Number(badge.textContent || 0) + 1); badge.hidden = false; }
+        if (page) refresh(page); else bumpUnread();
       });
     });
-    es.addEventListener("print", function () { refresh(document.getElementById("print-jobs")); });
+    es.addEventListener("statement", function (e) {
+      seen();
+      var d = JSON.parse(e.data), st = document.getElementById("statement");
+      notify((meta("cms-msg-statement") || "%s").replace("%s", d.text || ""), "", "", true);
+      if (st && st.dataset.task === String(d.task_id)) reloadRegion("statement");
+    });
+    es.addEventListener("print", function () { seen(); refresh(document.getElementById("print-jobs")); });
     es.addEventListener("reload", function () { location.reload(); });
     // The organizers changed the times: fetch this contestant's window
     // (spread over two seconds so thousands of pages do not ask at once).
-    es.addEventListener("clock", function () {
-      setTimeout(function () {
-        fetch(meta("cms-clock"), { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (c) {
-          if (c.phase !== meta("cms-phase")) { location.reload(); return; }
-          document.querySelectorAll("[data-countdown]").forEach(function (el) {
-            el.dataset.countdown = String(c.end);
-            delete el.dataset.done;
-          });
-        }).catch(function () { /* next event */ });
-      }, Math.random() * 2000);
-    });
+    es.addEventListener("clock", function () { seen(); setTimeout(syncClock, Math.random() * 2000); });
+    // No ping for a minute: a proxy holds the stream back, or it is down.
+    setInterval(function () {
+      if (Date.now() - lastSeen > 60000 && !polling) startPolling();
+    }, 15000);
+    lastSeen = Date.now();
   }
-
-  function countdowns() {
-    var els = document.querySelectorAll("[data-countdown]");
-    if (!els.length) return;
-    var offset = Date.now() - Number(meta("server-time") || Date.now());
-    function tick() {
-      var now = Date.now() - offset;
-      els.forEach(function (el) {
-        var left = Math.max(0, Math.floor((Number(el.dataset.countdown) - now) / 1000));
-        var h = Math.floor(left / 3600), m = Math.floor(left / 60) % 60, s = left % 60;
-        el.textContent = h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
-        if (left === 0 && !el.dataset.done) { el.dataset.done = "1"; setTimeout(function () { location.reload(); }, 1500); }
+  function syncClock() {
+    fetch(meta("cms-clock"), { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (c) {
+      if (c.phase !== meta("cms-phase")) { location.reload(); return; }
+      $$("[data-countdown]").forEach(function (el) { el.dataset.countdown = String(c.end); delete el.dataset.done; });
+      if (typeof c.unread === "number") {
+        var badge = document.getElementById("unread"), before = badge ? Number(badge.lastChild.textContent || 0) : 0;
+        if (c.unread > before) {
+          notify(meta("cms-msg-clar"), "", "", true);
+          var page = document.getElementById("communication");
+          if (page) refresh(page);
+        }
+        if (!document.getElementById("communication")) bumpUnread(c.unread);
+      }
+    }).catch(function () { /* next poll */ });
+  }
+  // Polling: what is being judged, the clock and new clarifications.
+  function startPolling() {
+    if (polling) return;
+    var tick = function () {
+      $$("tr[data-pending]").forEach(function (row) {
+        var id = row.id.replace("sub-", "");
+        refresh(row, function (n) {
+          if (!n.dataset.pending && n.id.indexOf("sub-") === 0) {
+            notify((meta("cms-msg-judged") || "%s").replace("%s", "#" + id), verdictText(n), verdictKind(n), true);
+          }
+        });
       });
-    }
+      var det = document.getElementById("sub-detail");
+      if (det && det.dataset.pending) reloadRegion("sub-detail");
+      if (meta("cms-clock")) syncClock();
+    };
+    polling = setInterval(tick, 8000);
     tick();
-    setInterval(tick, 1000);
   }
 
-  // The user menu closes when clicking elsewhere, or with Escape.
-  document.addEventListener("click", function (e) {
-    document.querySelectorAll("details.userbox[open]").forEach(function (d) {
-      if (!d.contains(e.target)) d.removeAttribute("open");
+  // ---- countdowns ------------------------------------------------------
+  var offset = 0;
+  function fmt(left) {
+    var h = Math.floor(left / 3600), m = Math.floor(left / 60) % 60, s = left % 60;
+    return (h ? h + ":" + (m < 10 ? "0" : "") : "") + m + ":" + (s < 10 ? "0" : "") + s;
+  }
+  function countdowns() {
+    offset = Date.now() - Number(meta("server-time") || Date.now());
+    setInterval(tickAll, 1000);
+    tickAll();
+  }
+  function tickAll() {
+    var now = Date.now() - offset;
+    $$("[data-countdown]").forEach(function (el) {
+      var left = Math.max(0, Math.floor((Number(el.dataset.countdown) - now) / 1000));
+      var h = Math.floor(left / 3600), m = Math.floor(left / 60) % 60, s = left % 60;
+      el.textContent = h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+      if (left === 0 && !el.dataset.done) { el.dataset.done = "1"; setTimeout(function () { location.reload(); }, 1500); }
     });
-  });
-  document.addEventListener("keydown", function (e) {
-    if (e.key !== "Escape") return;
-    document.querySelectorAll("details.userbox[open]").forEach(function (d) {
-      d.removeAttribute("open");
-      d.querySelector("summary").focus();
+    // The minimum interval between submissions: the button waits.
+    $$("button[data-ready-at]").forEach(function (b) {
+      if (!b.dataset.label) b.dataset.label = b.textContent;
+      var left = Math.ceil((Number(b.dataset.readyAt) - now) / 1000);
+      if (left > 0) { b.disabled = true; b.textContent = (b.dataset.wait || "%s").replace("%s", fmt(left)); }
+      else { b.disabled = false; b.textContent = b.dataset.label; b.removeAttribute("data-ready-at"); }
     });
-  });
+  }
 
-  // Checks of the submission form before sending: file sizes, each
-  // source's extension against the chosen language, something to send.
-  // The server checks all of it again; this only saves a round trip.
+  // ---- display preferences: applied at once --------------------------------
+  function prefs() {
+    var f = document.getElementById("prefs");
+    if (!f) return;
+    f.addEventListener("change", function (e) {
+      var sel = e.target, root = document.documentElement;
+      if (sel.dataset.attr) {
+        if (sel.value) root.setAttribute("data-" + sel.dataset.attr, sel.value); else root.removeAttribute("data-" + sel.dataset.attr);
+      }
+      var body = new URLSearchParams(new FormData(f));
+      fetch(f.action, { method: "POST", body: body, credentials: "same-origin",
+        headers: { "HX-Request": "true", "X-CSRF-Token": meta("csrf-token") } })
+        .then(function () { if (sel.hasAttribute("data-reload")) location.reload(); })
+        .catch(function () { f.submit(); });
+    });
+  }
+
+  // ---- after sending a submission --------------------------------------
+  function onSubmitted(e) {
+    var d = e.detail || {};
+    notify(d.title || "", d.text || "", "", false);
+  }
+
+  // ---- checks of the submission form before sending ------------------------
   function check(f) {
     var max = Number(f.dataset.max || 0), sel = f.querySelector('select[name="language"]');
     var opt = sel && sel.options[sel.selectedIndex];
@@ -165,14 +272,14 @@
     if (out) out.textContent = msg;
   }, true);
 
-  // The code editor: a textarea where Tab indents (Shift+Tab unindents),
-  // Esc then Tab leaves it (no keyboard trap), Ctrl+Enter submits, and a
-  // draft survives reloads in this browser.
+  // ---- the code editor ---------------------------------------------------
+  // Tab indents (Shift+Tab unindents), Esc then Tab leaves it (no keyboard
+  // trap), Ctrl+Enter submits, and a draft survives reloads.
   var INDENT = "    ";
   function insert(t, text) {
     t.focus();
     if (!document.execCommand || !document.execCommand("insertText", false, text)) {
-      t.setRangeText(text, t.selectionStart, t.selectionEnd, "end"); // no undo history, still correct
+      t.setRangeText(text, t.selectionStart, t.selectionEnd, "end");
     }
   }
   function eachLine(t, fn) {
@@ -184,6 +291,8 @@
     t.setSelectionRange(start, start + out.length);
   }
   function editor(t) {
+    if (t.dataset.ready) return;
+    t.dataset.ready = "1";
     var key = "cms-draft:" + t.dataset.draft, leaving = false, timer;
     var saved = store(key);
     if (saved && !t.value) {
@@ -213,12 +322,16 @@
       }
     });
   }
+  // The Submissions tab is replaced after sending: set up its editor again.
+  document.addEventListener("htmx:afterSwap", function () { $$("textarea[data-draft]").forEach(editor); tickAll(); });
 
   document.addEventListener("DOMContentLoaded", function () {
+    document.body.addEventListener("cms-submitted", onSubmitted);
     connect();
     countdowns();
     soundToggle();
-    document.querySelectorAll("textarea[data-draft]").forEach(editor);
+    prefs();
+    $$("textarea[data-draft]").forEach(editor);
     var ask = document.getElementById("enable-notifications");
     if (ask && window.Notification) {
       ask.hidden = Notification.permission !== "default";

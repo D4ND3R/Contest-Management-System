@@ -116,7 +116,10 @@ func (s *Server) loadTemplates() error {
 		"kib":     func(n int64) int64 { return n >> 10 },
 		"row":     func(p *page, sv subView) rowCtx { return rowCtx{P: p, S: sv} },
 		"testrow": func(p *page, v testView) testCtx { return testCtx{P: p, T: v} },
-		"card":    func(p *page, c *resultCard, t *taskView) cardCtx { return cardCtx{P: p, C: c, Task: t} },
+		"verdict": verdictName,
+		// srcname shows a submission file name ("sum.%l" → "sum.*": the
+		// extension follows the language).
+		"srcname": func(f string) string { return strings.ReplaceAll(f, ".%l", ".*") },
 		"tests": func(p *page, d *taskData, t *taskView, from string) testsCtx {
 			return testsCtx{P: p, D: d, Task: t, From: from}
 		},
@@ -209,7 +212,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{contest}/tasks/{task}/submissions", auth(s.handleSubmissionList))
 	mux.HandleFunc("GET /{contest}/submissions/{id}", auth(s.handleSubmission))
 	mux.HandleFunc("GET /{contest}/submissions/{id}/row", auth(s.handleSubmissionRow))
-	mux.HandleFunc("GET /{contest}/submissions/{id}/card", auth(s.handleSubmissionCard))
 	mux.HandleFunc("GET /{contest}/testing", auth(s.handleTesting))
 	mux.HandleFunc("POST /{contest}/submissions/{id}/token", auth(s.handleToken))
 	mux.HandleFunc("GET /{contest}/submissions/{id}/file/{name}", auth(s.handleSubmissionFile))
