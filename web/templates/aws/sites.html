@@ -1,7 +1,7 @@
 {{define "content"}}
 {{$c := .Data.Contest}}
 <h1>{{.T "Sites of %s" $c.Name}}</h1>
-<p class="muted">{{.T "Each site may start at its own time; the contest keeps its duration (%s – %s UTC). Assign participants in their participation page or with the site CSV column; the ranking can be filtered by site." (dt $c.StartTime) (dt $c.StopTime)}}</p>
+<p class="muted">{{.T "Each site may start at its own time; the contest keeps its duration (%s – %s). Assign participants in their participation page or with the site CSV column; the ranking can be filtered by site." (dt $c.StartTime) (dt $c.StopTime)}}</p>
 <table>
 <thead><tr><th>{{.T "Name"}}</th><th>{{.T "Start (%s)" $c.Timezone}}</th><th class="num">{{.T "Participants"}}</th><th></th></tr></thead>
 <tbody>
@@ -22,7 +22,7 @@
 </tbody>
 </table>
 {{if .CanWrite}}
-<form method="post" action="/contests/{{$c.ID}}/sites" class="card inline-form">
+<form method="post" action="/contests/{{$c.ID}}/sites" class="inline-form">
   {{template "csrf" .CSRF}}
   <b>{{.T "New site"}}</b>
   <label>{{.T "Name"}} <input name="name" required></label>

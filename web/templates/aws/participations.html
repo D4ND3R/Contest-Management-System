@@ -5,7 +5,7 @@
 <p class="actions"><a href="/contests/{{$c.ID}}/sites">{{.T "Sites"}}</a> · <a href="/users/export.csv?contest={{$c.ID}}">{{.T "Export CSV"}}</a></p>
 {{if .CanWrite}}
 <div class="row">
-<form method="post" action="/contests/{{$c.ID}}/participations" class="card">
+<form method="post" action="/contests/{{$c.ID}}/participations" class="section">
   {{template "csrf" .CSRF}}
   <h3>{{.T "Add users"}}</h3>
   <label>{{.T "Usernames (separated by spaces, commas or lines)"}} <textarea name="usernames" rows="3" required></textarea></label>
@@ -13,7 +13,7 @@
   <p class="checks"><label><input type="checkbox" name="hidden"> {{.T "Hidden"}}</label> <label><input type="checkbox" name="unrestricted"> {{.T "Unrestricted"}}</label></p>
   <button>{{.T "Add"}}</button>
 </form>
-<form method="post" action="/users/import" enctype="multipart/form-data" class="card" data-drop>
+<form method="post" action="/users/import" enctype="multipart/form-data" class="section" data-drop>
   {{template "csrf" .CSRF}}
   <input type="hidden" name="contest_id" value="{{$c.ID}}">
   <h3>{{.T "Import users from CSV into this contest"}}</h3>
@@ -23,7 +23,7 @@
   <button>{{.T "Import"}}</button>
 </form>
 </div>
-<form method="post" action="/contests/{{$c.ID}}/reset-passwords" class="card inline-form" data-confirm="{{.T "Generate new passwords for every participant?"}}">
+<form method="post" action="/contests/{{$c.ID}}/reset-passwords" class="inline-form" data-confirm="{{.T "Generate new passwords for every participant?"}}">
   {{template "csrf" .CSRF}}
   <b>{{.T "New passwords for everybody"}}</b>
   <label><input type="checkbox" name="include_hidden"> {{.T "include hidden"}}</label>

@@ -357,7 +357,7 @@ func (s *Server) handleStatementUpload(w http.ResponseWriter, r *http.Request, r
 		}
 	}
 	if t.ContestID != nil {
-		s.contestChanged(r.Context(), *t.ContestID, 0)
+		s.statementChanged(r.Context(), t)
 	}
 	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#statements", "Statement ("+lang+") uploaded.")
 }
@@ -395,7 +395,7 @@ func (s *Server) handleStatementDelete(w http.ResponseWriter, r *http.Request, r
 	}
 	rc.target("task", t.ID)
 	if t.ContestID != nil {
-		s.contestChanged(r.Context(), *t.ContestID, 0)
+		s.statementChanged(r.Context(), t)
 	}
 	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#statements", "Statement ("+lang+") deleted.")
 }
@@ -429,7 +429,7 @@ func (s *Server) handleAttachmentUpload(w http.ResponseWriter, r *http.Request, 
 	}
 	rc.target("task", t.ID)
 	if t.ContestID != nil {
-		s.contestChanged(r.Context(), *t.ContestID, 0)
+		s.statementChanged(r.Context(), t)
 	}
 	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#attachments", "Attachment "+name+" uploaded.")
 }
@@ -465,7 +465,7 @@ func (s *Server) handleAttachmentDelete(w http.ResponseWriter, r *http.Request, 
 	}
 	rc.target("task", t.ID)
 	if t.ContestID != nil {
-		s.contestChanged(r.Context(), *t.ContestID, 0)
+		s.statementChanged(r.Context(), t)
 	}
 	s.done(w, r, "/tasks/"+strconv.FormatInt(t.ID, 10)+"#attachments", "Attachment "+name+" deleted.")
 }

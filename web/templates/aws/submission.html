@@ -1,11 +1,11 @@
 {{define "content"}}
 {{$s := .Data.S}}
 {{if $s.Tester}}
-<h1>{{.T "Test run %d" $s.ID}} <small class="muted">{{$s.TaskName}} · {{dt $s.SubmittedAt}} UTC</small></h1>
+<h1>{{.T "Test run %d" $s.ID}} <small class="muted">{{$s.TaskName}} · {{dt $s.SubmittedAt}}</small></h1>
 <p class="info">{{.T "Task tester run by %s: judged on every dataset, never counted as a submission." $s.TesterUsername}}</p>
 <dl class="meta card">
 {{else}}
-<h1>{{.T "Submission %d" $s.ID}} <small class="muted">{{$s.Username}} · {{$s.TaskName}} · {{dt $s.SubmittedAt}} UTC</small></h1>
+<h1>{{.T "Submission %d" $s.ID}} <small class="muted">{{$s.Username}} · {{$s.TaskName}} · {{dt $s.SubmittedAt}}</small></h1>
 <dl class="meta card">
   <dt>{{.T "User"}}</dt><dd><a href="/participations/{{deref64 $s.ParticipationID}}">{{$s.Username}}</a> (<a href="/users/{{$s.UserID}}">{{.T "user"}}</a>)</dd>
 {{end}}
@@ -15,19 +15,19 @@
   <dt>{{.T "Token"}}</dt><dd>{{if $s.Tokened}}{{.T "played"}}{{else}}{{.T "no"}}{{end}}</dd>
   {{if $s.Comment}}<dt>{{.T "Comment"}}</dt><dd>{{$s.Comment}}</dd>{{end}}
 </dl>
-{{with .Data.Flags}}<section class="card danger">
-<div class="card-head"><h2>{{icon "alert"}} {{$.T "Suspicious submission"}}</h2></div>
+{{with .Data.Flags}}<section class="section danger-zone">
+<div class="card-head"><h2>{{$.T "Suspicious submission"}}</h2></div>
 <p class="muted small">{{$.T "The source or its runs look like an attack on the judge rather than a solution. The sandbox stopped it; a flag changes no score. Review the source and invalidate the submission if needed."}}</p>
-<ul class="feed">{{range .}}<li><span class="ico {{if eq .Kind "runtime"}}bad{{else}}warn{{end}}">{{icon "alert"}}</span><div class="what"><b>{{$.T .Reason}}</b>
-<small>{{if eq .Kind "runtime"}}{{$.T "seen by the sandbox"}}{{else}}{{$.T "seen in the source"}}{{end}}{{with .Detail}} · <code>{{.}}</code>{{end}}</small></div><span class="when">{{dt .CreatedAt}}</span></li>{{end}}</ul>
+<ul class="feed">{{range .}}<li class="{{if eq .Kind "runtime"}}bad{{else}}warn{{end}}"><div class="what"><b>{{$.T .Reason}}</b> <span class="muted">{{dt .CreatedAt}}</span>
+<small>{{if eq .Kind "runtime"}}{{$.T "seen by the sandbox"}}{{else}}{{$.T "seen in the source"}}{{end}}{{with .Detail}} · <code>{{.}}</code>{{end}}</small></div></li>{{end}}</ul>
 </section>{{end}}
-{{if $s.InvalidatedAt}}<p class="alert">{{.T "Invalidated on %s UTC: it does not count." (dt $s.InvalidatedAt)}} {{.T "Reason:"}} <b>{{$s.InvalidatedReason}}</b></p>{{end}}
+{{if $s.InvalidatedAt}}<p class="alert">{{.T "Invalidated on %s: it does not count." (dt $s.InvalidatedAt)}} {{.T "Reason:"}} <b>{{$s.InvalidatedReason}}</b></p>{{end}}
 {{if .CanWrite}}<p>{{template "reevaluate" (reeval $ "submission_id" $s.ID (printf "/submissions/%d" $s.ID))}}</p>
 {{if not $s.Tester}}{{if $s.InvalidatedAt}}
 <form method="post" action="/submissions/{{$s.ID}}/restore" class="inline" data-confirm="{{.T "Make the submission count again?"}}">{{template "csrf" .CSRF}}<button class="secondary">{{.T "Restore (count it again)"}}</button></form>
 {{else}}
 <details><summary>{{.T "Invalidate this submission"}}</summary>
-<form method="post" action="/submissions/{{$s.ID}}/invalidate" class="card danger">
+<form method="post" action="/submissions/{{$s.ID}}/invalidate" class="section danger-zone">
   {{template "csrf" .CSRF}}
   <label>{{.T "Reason (shown to the contestant)"}} <textarea name="reason" rows="2" maxlength="1000" required></textarea></label>
   <p class="muted small">{{.T "The submission stays visible but stops counting for the score, the ranking and ICPC penalties; it can be restored."}}</p>
@@ -47,7 +47,7 @@
 {{end}}
 <h2>{{.T "Results"}}</h2>
 {{range .Data.Results}}
-<section class="card">
+<section class="section">
 <h3>{{$.T "Dataset %s" .DatasetDescription}} {{if .Live}}<span class="tag ok">{{$.T "live"}}</span>{{end}}
   {{if .ScoredAt}}— {{$.T "score %s (public %s)" (score .Score 2) (score .PublicScore 2)}}{{end}}</h3>
 {{with .SystemError}}<p class="alert">{{$.T "System error:"}} {{.}}</p>{{end}}

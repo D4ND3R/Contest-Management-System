@@ -46,7 +46,7 @@ func TestEmergencyControls(t *testing.T) {
 	f.q.SetContestPaused(bg, sqlc.SetContestPausedParams{ID: f.contest.ID})
 	f.q.SetTaskSubmissionsClosed(bg, sqlc.SetTaskSubmissionsClosedParams{ID: f.task.ID, Closed: true})
 	reload()
-	if _, body := f.get(c, "/ioi/tasks/sum"); !strings.Contains(body, "Submissions to this task are closed.") || strings.Contains(body, "paused") {
+	if _, body := f.get(c, "/ioi/tasks/sum/submissions"); !strings.Contains(body, "Submissions to this task are closed.") || strings.Contains(body, "paused") {
 		t.Fatalf("closed task page:\n%s", body)
 	}
 	if code, _ := f.submit(c, csrf, "c11", "int main(){}", true); code != 403 {

@@ -81,9 +81,15 @@ type taskData struct {
 	Limits       [][2]string
 	// Statement is the statement shown on the page.
 	Statement *statementPage
-	// Latest is the result of the newest submission, shown next to the
-	// submit button and updated live.
-	Latest *resultCard
+	// Tab is the part of the problem page shown: "statement" or
+	// "submissions".
+	Tab string
+	// ReadyAt is when the next submission is allowed (Unix milliseconds;
+	// 0: now): the minimum interval between submissions.
+	ReadyAt int64
+	// Submitted is the submission just made (the page without JavaScript
+	// comes back here after sending).
+	Submitted int64
 }
 
 // Why submissions are refused (untranslated).
@@ -133,8 +139,8 @@ func (s *Server) taskData(r *http.Request, rc *reqCtx, p *page, t *taskView) (*t
 	}
 	d.Subs = subs
 	d.Limits = s.limitsText(p, rc, t)
-	if len(subs) > 0 {
-		if d.Latest, err = s.resultCardByID(r, p, rc, t, subs[0].ID); err != nil {
+	if d.CanSubmit {
+		if d.ReadyAt, err = s.readyAt(r, rc, t); err != nil {
 			return nil, err
 		}
 	}
@@ -182,7 +188,59 @@ func (s *Server) limitsText(p *page, rc *reqCtx, t *taskView) [][2]string {
 	return out
 }
 
+// readyAt is when the contestant may submit to t again (Unix ms, 0: now),
+// after the minimum intervals of the contest and of the task.
+func (s *Server) readyAt(r *http.Request, rc *reqCtx, t *taskView) (int64, error) {
+	cmin, tmin := rc.contest.MinSubmissionIntervalS, t.MinSubmissionIntervalS
+	if !rc.status.Official || rc.part.Unrestricted || (cmin == nil || *cmin <= 0) && (tmin == nil || *tmin <= 0) {
+		return 0, nil
+	}
+	st, err := s.q.SubmissionStats(r.Context(), sqlc.SubmissionStatsParams{ParticipationIds: rc.group, TaskID: t.ID})
+	if err != nil {
+		return 0, err
+	}
+	var at time.Time
+	if cmin != nil && *cmin > 0 && st.ContestCount > 0 {
+		at = st.ContestLast.Add(time.Duration(*cmin) * time.Second)
+	}
+	if tmin != nil && *tmin > 0 && st.TaskCount > 0 {
+		if a := st.TaskLast.Add(time.Duration(*tmin) * time.Second); a.After(at) {
+			at = a
+		}
+	}
+	if !at.After(rc.now) {
+		return 0, nil
+	}
+	return at.UnixMilli(), nil
+}
+
+// handleTask shows a problem: its statement (the first tab).
 func (s *Server) handleTask(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	s.taskPage(w, r, rc, "statement")
+}
+
+// handleSubmissionList shows the Submissions tab of a problem, or only the
+// list (live refresh: an htmx request or ?fragment=1).
+func (s *Server) handleSubmissionList(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	if webkit.IsHTMX(r) || r.URL.Query().Get("fragment") == "1" {
+		t := s.visibleTask(w, r, rc)
+		if t == nil {
+			return
+		}
+		p := s.newPage(rc, t.Title, t.Name)
+		d, err := s.taskData(r, rc, p, t)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		p.Data = d
+		s.renderPartial(w, "submissions", p)
+		return
+	}
+	s.taskPage(w, r, rc, "submissions")
+}
+
+func (s *Server) taskPage(w http.ResponseWriter, r *http.Request, rc *reqCtx, tab string) {
 	t := s.visibleTask(w, r, rc)
 	if t == nil {
 		return
@@ -193,27 +251,19 @@ func (s *Server) handleTask(w http.ResponseWriter, r *http.Request, rc *reqCtx) 
 		s.fail(w, err)
 		return
 	}
-	if d.Statement, err = s.statementPage(r, rc, p, t); err != nil {
-		s.fail(w, err)
-		return
+	d.Tab = tab
+	if tab == "statement" {
+		if d.Statement, err = s.statementPage(r, rc, p, t); err != nil {
+			s.fail(w, err)
+			return
+		}
+	}
+	if id, err := strconv.ParseInt(r.URL.Query().Get("submitted"), 10, 64); err == nil && id > 0 {
+		d.Submitted = id
+		p.Flash = p.T("Submission #%d received. Watch its status below: it updates by itself.", id)
 	}
 	p.Data = d
 	s.render(w, "task", http.StatusOK, p)
-}
-
-func (s *Server) handleSubmissionList(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
-	t := s.visibleTask(w, r, rc)
-	if t == nil {
-		return
-	}
-	p := s.newPage(rc, t.Title, t.Name)
-	d, err := s.taskData(r, rc, p, t)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	p.Data = d
-	s.renderPartial(w, "submissions", p)
 }
 
 func (s *Server) serveBlob(w http.ResponseWriter, r *http.Request, digest, name, ctype string, attachment bool) {
@@ -334,16 +384,17 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request, rc *reqCtx
 			s.fail(w, err)
 			return
 		}
+		d.Tab, d.Submitted = "submissions", id
 		p.Data = d
-		// The new submission's result card replaces the previous one next
-		// to the button; the list below is updated out of band.
-		w.Header().Set("HX-Retarget", "#latest")
-		w.Header().Set("HX-Reswap", "outerHTML")
-		p.OOB = true
-		s.renderPartial(w, "submitted", submittedCtx{Card: cardCtx{P: p, C: d.Latest, Task: t}, Page: p})
+		// The page shows a notification, and the tab (form and list) is
+		// replaced: the new row updates by itself as it is judged.
+		trig, _ := json.Marshal(map[string]any{"cms-submitted": map[string]any{"id": id, "title": p.T("Submission sent"),
+			"text": p.T("Submission #%d received. Watch its status below: it updates by itself.", id)}})
+		w.Header().Set("HX-Trigger", string(trig))
+		s.renderPartial(w, "subs-tab", p)
 		return
 	}
-	http.Redirect(w, r, "/"+rc.contest.Name+"/tasks/"+t.Name, http.StatusSeeOther)
+	http.Redirect(w, r, fmt.Sprintf("/%s/tasks/%s/submissions?submitted=%d", rc.contest.Name, t.Name, id), http.StatusSeeOther)
 }
 
 type submittedFile struct {
@@ -649,6 +700,10 @@ func (s *Server) handleSubmissionRow(w http.ResponseWriter, r *http.Request, rc 
 	}
 	p := s.newPage(rc, "", t.Name)
 	sv := s.subViewFromDetail(p, rc, t, row)
+	if err := s.queueInfo(r, &sv); err != nil {
+		s.fail(w, err)
+		return
+	}
 	s.renderPartial(w, "subrow", rowCtx{P: p, S: sv})
 }
 

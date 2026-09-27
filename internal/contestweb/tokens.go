@@ -104,7 +104,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 		http.NotFound(w, r)
 		return
 	}
-	back := "/" + rc.contest.Name + "/tasks/" + t.Name
+	back := "/" + rc.contest.Name + "/tasks/" + t.Name + "/submissions"
 	if !sub.Official || sub.InvalidatedAt != nil {
 		s.errorPage(w, r, rc.contest, http.StatusConflict, "Token", "Tokens can only be played on official submissions.")
 		return

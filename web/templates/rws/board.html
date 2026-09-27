@@ -1,34 +1,22 @@
 {{define "content"}}{{$b := .Board}}
-<section class="banner board-head">
-  <div class="inner"><div>
-    <h1>{{$b.Title}}</h1>
-    <p class="when"><span>{{icon "calendar"}} {{when $b.Start $b.Timezone}} – {{when $b.Stop $b.Timezone}} ({{$b.Timezone}})</span>
-    {{if $b.Frozen}}<span class="frozen">{{icon "eye"}} {{.T "Frozen since %s: later submissions show as ?." (when (deref $b.FreezeAt) $b.Timezone)}}</span>{{end}}</p>
-  </div></div>
-  <div class="figures">
-    <div class="figure">{{icon "users"}}<div><b>{{len $b.Rows}}</b><small>{{if $b.Teams}}{{.T "Teams"}}{{else}}{{.T "Participants"}}{{end}}</small></div></div>
-    <div class="figure">{{icon "file"}}<div><b>{{len $b.Tasks}}</b><small>{{.T "Tasks"}}</small></div></div>
-  </div>
-</section>
-<section class="card">
+<h1>{{$b.Title}}</h1>
+<p class="muted">{{when $b.Start $b.Timezone}} – {{when $b.Stop $b.Timezone}} ({{$b.Timezone}}) · {{len $b.Rows}} {{if $b.Teams}}{{.T "Teams"}}{{else}}{{.T "Participants"}}{{end}}</p>
+{{if $b.Frozen}}<p class="info">{{.T "Frozen since %s: later submissions show as ?." (when (deref $b.FreezeAt) $b.Timezone)}}</p>{{end}}
 <div class="table-wrap">
-<table class="ranking board">
-<thead><tr><th class="num">#</th><th>{{if $b.Teams}}{{.T "Team"}}{{else}}{{.T "Participant"}}{{end}}</th>
-{{range $i, $t := $b.Tasks}}<th class="num" title="{{$t.Title}}"><span class="letter {{lclass $i}}">{{letter $i}}</span> {{$t.Name}}<br><small class="muted">{{score $t.MaxScore $t.Precision}}</small></th>{{end}}
+<table class="standings board">
+<thead><tr><th class="num">#</th><th class="name">{{if $b.Teams}}{{.T "Team"}}{{else}}{{.T "Participant"}}{{end}}</th>
+{{range $i, $t := $b.Tasks}}<th class="num" title="{{$t.Title}}">{{letter $i}}. {{$t.Name}}<br><small class="muted">{{score $t.MaxScore $t.Precision}}</small></th>{{end}}
 <th class="num">{{if $b.ICPC}}{{.T "Solved"}}{{else}}{{.T "Total"}}{{end}}</th>{{if $b.ICPC}}<th class="num">{{.T "Penalty"}}</th>{{end}}</tr></thead>
 <tbody id="rows">
 {{range $b.Rows}}{{template "row" (row $b .)}}{{end}}
 </tbody>
 </table>
 </div>
-{{if not $b.Rows}}<p class="empty">{{.T "Nobody takes part yet."}}</p>{{end}}
-</section>
+{{if not $b.Rows}}<p class="muted">{{.T "Nobody takes part yet."}}</p>{{end}}
 {{/* Names of the row markers for screen readers (rows are shared by every
      viewer, so they point here for the words). */}}
 <div hidden><span id="d-medal-gold">{{.T "gold"}}</span><span id="d-medal-silver">{{.T "silver"}}</span><span id="d-medal-bronze">{{.T "bronze"}}</span><span id="d-unofficial">{{.T "Unofficial participant: no place and no medal."}}</span></div>
-{{if or $b.Unofficial $b.Cutoffs}}<section class="card legend">
-{{if $b.Cutoffs}}<p class="cutoffs">{{range $b.Cutoffs}}<span class="medal {{.Medal}}">{{icon "award"}} {{$.T .Medal}}: {{$.T "%d from %s points" .Count (score .Score $b.Precision)}}</span> {{end}}</p>{{end}}
-{{if $b.Unofficial}}<p class="muted small"><sup>*</sup> {{.T "Unofficial participant: no place and no medal."}}</p>{{end}}
-</section>{{end}}
-<p class="muted small"><a href="ranking.json">JSON</a></p>
+{{if $b.Cutoffs}}<p class="cutoffs">{{range $b.Cutoffs}}<span class="medal-{{.Medal}}"><b>{{$.T .Medal}}</b>: {{$.T "%d from %s points" .Count (score .Score $b.Precision)}}</span> {{end}}</p>{{end}}
+{{if $b.Unofficial}}<p class="muted"><sup>*</sup> {{.T "Unofficial participant: no place and no medal."}}</p>{{end}}
+<p class="muted"><a href="ranking.json">JSON</a></p>
 {{end}}

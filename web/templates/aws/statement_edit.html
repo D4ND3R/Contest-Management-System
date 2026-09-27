@@ -1,13 +1,13 @@
 {{define "content"}}{{$d := .Data}}{{$t := $d.Task}}
 <h1>{{if $d.New}}{{.T "New statement"}}{{else}}{{.T "Statement"}} ({{$d.Lang}}){{end}} — {{$t.Name}}</h1>
 {{if $d.IsPDF}}
-<section class="card">
+<section class="section">
   <p>{{.T "This statement is an uploaded PDF: it is shown as it is. Write a Markdown or LaTeX statement instead to get the page, the PDF and the examples from one source."}}</p>
   <iframe class="pdf-frame" src="/tasks/{{$t.ID}}/statements/{{$d.Lang}}/pdf" title="{{$d.Lang}}"></iframe>
 </section>
 {{else}}
 <div class="editor">
-<form method="post" action="/tasks/{{$t.ID}}/statements/{{if $d.New}}new{{else}}{{$d.Lang}}{{end}}/source" class="card editor-form" id="statement-form">
+<form method="post" action="/tasks/{{$t.ID}}/statements/{{if $d.New}}new{{else}}{{$d.Lang}}{{end}}/source" class="section editor-form" id="statement-form">
   {{template "csrf" .CSRF}}
   <div class="grid">
     <label>{{.T "Language"}} <input name="language" value="{{$d.Lang}}" placeholder="es" required {{if not $d.New}}readonly{{end}} size="6"></label>
@@ -29,7 +29,7 @@
   </ul>
   </details>
 </form>
-<section class="card preview-pane">
+<section class="section preview-pane">
   <h2>{{.T "Preview"}}{{if $d.Examples}} <small class="muted">{{.T "with %d examples" $d.Examples}}</small>{{end}}</h2>
   <div id="preview">{{with $d.Warnings}}<div class="alert"><b>{{$.T "Not understood (shown as written):"}}</b><ul>{{range .}}<li>{{.}}</li>{{end}}</ul></div>{{end}}{{$d.Preview}}</div>
 </section>

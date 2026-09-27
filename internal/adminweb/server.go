@@ -75,6 +75,8 @@ type Server struct {
 	now          func() time.Time
 	// MaxUploadBytes bounds multipart requests (testcase archives).
 	maxUpload int64
+	// tz caches the server's time zone (settings.go).
+	tz zoneCache
 }
 
 // Deps are the dependencies of the server.
@@ -227,6 +229,8 @@ func (s *Server) Handler() http.Handler {
 	post("/account/2fa/disable", permSelf, "account.2fa_disable", s.handle2FADisable)
 	post("/account/password", permSelf, "account.password", s.handleAccountPassword)
 	route("GET /{$}", permSelf, "", s.handleDashboard)
+	get("/server", s.handleServerSettings)
+	post("/server", permAll, "server.timezone", s.handleServerSettingsSave)
 	route("GET /delegation", permLeader, "", s.handleDelegation)
 	route("GET /delegation/submissions/{id}", permLeader, "", s.handleDelegationSubmission)
 	get("/events", s.handleEvents)
@@ -239,8 +243,6 @@ func (s *Server) Handler() http.Handler {
 	get("/contests/{id}/live", s.handleContestLive)
 	get("/contests/{id}/settings", s.handleContestSettings)
 	get("/contests/{id}/tasks", s.handleContestTasks)
-	get("/contests/{id}/banner", s.handleContestBanner)
-	post("/contests/{id}/banner", permAll, "contest.banner", s.handleContestBannerUpload)
 	post("/contests/{id}", permAll, "contest.update", s.handleContestUpdate)
 	post("/contests/{id}/delete", permAll, "contest.delete", s.handleContestDelete)
 	post("/contests/{id}/clone", permAll, "contest.clone", s.handleContestClone)
@@ -679,6 +681,20 @@ func (s *Server) contestChanged(ctx context.Context, contestID, participationID 
 	if err := events.Publish(ctx, s.rdb, s.ns, events.Event{Type: events.TypeContest, ContestID: contestID,
 		ParticipationID: participationID}); err != nil {
 		s.log.Warn("publish contest change", "error", err)
+	}
+}
+
+// statementChanged tells the web servers that a task's statement,
+// examples or attachments changed: caches, and the contestants' open
+// pages (a notification, and the statement reloads if shown).
+func (s *Server) statementChanged(ctx context.Context, t sqlc.Task) {
+	if t.ContestID == nil {
+		return
+	}
+	s.contestChanged(ctx, *t.ContestID, 0)
+	if err := events.Publish(ctx, s.rdb, s.ns, events.Event{Type: events.TypeStatement, ContestID: *t.ContestID,
+		TaskID: t.ID, Text: t.Name}); err != nil {
+		s.log.Warn("publish statement change", "error", err)
 	}
 }
 

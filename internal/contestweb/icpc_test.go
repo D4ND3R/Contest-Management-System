@@ -65,8 +65,8 @@ func TestICPCVerdicts(t *testing.T) {
 	f.q.UpsertParticipationTaskScore(bg, sqlc.UpsertParticipationTaskScoreParams{ParticipationID: f.part.ID, TaskID: f.task.ID,
 		Score: 100, SubtaskScores: json.RawMessage(`[]`), IcpcSolved: true, IcpcAttempts: 2, IcpcSolvedAt: &solvedAt})
 
-	_, body := f.get(c, "/ioi/tasks/sum")
-	for _, want := range []string{"Verdict", "Time limit exceeded", "Accepted", "Rejected"} {
+	_, body := f.get(c, "/ioi/tasks/sum/submissions")
+	for _, want := range []string{"Verdict", "Time limit exceeded", "Accepted", "Wrong answer"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("task page lacks %q", want)
 		}
@@ -92,7 +92,7 @@ func TestICPCVerdicts(t *testing.T) {
 			t.Errorf("verdict %q has no Spanish translation", k)
 		}
 	}
-	_, body = f.get(c, "/ioi/tasks/sum", "Accept-Language", "es")
+	_, body = f.get(c, "/ioi/tasks/sum/submissions", "Accept-Language", "es")
 	if !strings.Contains(body, "Aceptado") || !strings.Contains(body, "Tiempo límite excedido") {
 		t.Errorf("Spanish verdicts:\n%s", body)
 	}

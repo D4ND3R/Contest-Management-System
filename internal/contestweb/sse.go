@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/D4ND3R/Contest-Management-System/internal/contest"
+	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/events"
 	"github.com/D4ND3R/Contest-Management-System/internal/metrics"
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
@@ -145,7 +146,11 @@ func (s *Server) handleClock(w http.ResponseWriter, r *http.Request, rc *reqCtx)
 	if rc.status.Phase == contest.Running {
 		end = rc.status.End.UnixMilli()
 	}
+	// The unread clarifications too: pages poll this when their event
+	// stream is not getting through (a buffering proxy).
+	unread, _ := s.q.CountUnreadCommunication(rc.ctx, sqlc.CountUnreadCommunicationParams{ParticipationID: rc.part.ID,
+		ContestID: rc.contest.ID})
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
-	fmt.Fprintf(w, `{"phase":%q,"end":%d,"server":%d}`, rc.status.Phase.String(), end, rc.now.UnixMilli())
+	fmt.Fprintf(w, `{"phase":%q,"end":%d,"server":%d,"unread":%d}`, rc.status.Phase.String(), end, rc.now.UnixMilli(), unread)
 }

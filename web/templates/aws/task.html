@@ -3,7 +3,7 @@
 <h1>{{.T "Task %s" $task.Name}} <small class="muted">{{$task.Title}}{{with .Data.Contest}} · {{$.T "in"}} <a href="/contests/{{.ID}}">{{.Name}}</a>{{end}}</small></h1>
 <p class="actions"><a href="/tasks/{{$task.ID}}/export.zip">{{.T "Export as a package"}}</a> · <a href="/tasks/{{$task.ID}}/validation">{{.T "Validation report"}}</a>{{if .CanEditTasks}} · <a href="/tasks/import?task={{$task.ID}}">{{.T "Import a dataset from a package"}}</a>{{end}}</p>
 
-<section class="card" id="datasets">
+<section class="section" id="datasets">
 <h2>{{.T "Datasets"}}</h2>
 <table>
 <thead><tr><th>{{.T "Description"}}</th><th>{{.T "Type"}}</th><th>{{.T "Score type"}}</th><th>{{.T "Limits"}}</th><th></th></tr></thead>
@@ -30,7 +30,7 @@
 {{end}}
 </section>
 
-<section class="card" id="tester">
+<section class="section" id="tester">
 <h2>{{.T "Task tester"}} <small class="muted">{{.T "reference solutions, judged on every dataset; never counted"}}</small></h2>
 {{with .Data.Tester}}
 {{if $.CanEditTasks}}
@@ -43,7 +43,7 @@
 </form>
 {{end}}
 <table>
-<thead><tr><th>{{$.T "Run"}}</th><th>{{$.T "Time (UTC)"}}</th><th>{{$.T "By"}}</th><th>{{$.T "Language"}}</th><th>{{$.T "Results per dataset"}}</th></tr></thead>
+<thead><tr><th>{{$.T "Run"}}</th><th>{{$.T "Time"}}</th><th>{{$.T "By"}}</th><th>{{$.T "Language"}}</th><th>{{$.T "Results per dataset"}}</th></tr></thead>
 <tbody>
 {{range .Runs}}
 <tr><td><a href="/submissions/{{.ID}}">#{{.ID}}</a></td><td>{{dt .Time}}</td><td>{{.Admin}}</td><td>{{.Language}}</td>
@@ -57,7 +57,7 @@
 </section>
 
 <div class="row">
-<section class="card" id="statements">
+<section class="section" id="statements">
 <h2>{{.T "Statements"}}</h2>
 <p class="muted">{{.T "Write statements in Markdown or LaTeX (formulas with $...$): contestants read them on the task page and download them as PDF, with the limits and the examples typeset in. An uploaded PDF is shown as it is."}}</p>
 <table>
@@ -81,7 +81,7 @@
 </form>
 {{end}}
 </section>
-<section class="card" id="attachments">
+<section class="section" id="attachments">
 <h2>{{.T "Attachments"}}</h2>
 <ul>{{range .Data.Attachments}}<li><a href="/tasks/{{$task.ID}}/attachments/{{.Filename}}">{{.Filename}}</a>
   {{if $.CanEditTasks}}<form method="post" action="/tasks/{{$task.ID}}/attachments/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
@@ -95,7 +95,7 @@
 </section>
 </div>
 
-<section class="card" id="examples">
+<section class="section" id="examples">
 <h2>{{.T "Examples"}}</h2>
 <p class="muted">{{.T "Shown in every statement of the task, on the page and in the PDF (not as downloads). A testcase can be added from its dataset page."}}</p>
 {{range $i, $e := .Data.Examples}}
@@ -130,9 +130,9 @@
 {{end}}
 </section>
 
-<form method="post" action="/tasks/{{$task.ID}}" class="card">
+<form method="post" action="/tasks/{{$task.ID}}" class="section">
 {{template "csrf" .CSRF}}
-<fieldset {{if not .CanEditTasks}}disabled{{end}}>
+<fieldset class="bare" {{if not .CanEditTasks}}disabled{{end}}>
 <fieldset><legend>{{.T "General"}}</legend>
 <div class="grid">
   <label>{{.T "Name"}} <input name="name" value="{{$t.Name}}" required pattern="[A-Za-z0-9_.\-]+"></label>
@@ -169,7 +169,7 @@
 </form>
 
 {{if .CanWrite}}
-<section class="card danger">
+<section class="section danger-zone">
 <h2>{{.T "Reevaluate this task"}}</h2>
 {{template "reevaluate" (reeval $ "task_id" $task.ID (printf "/tasks/%d" $task.ID))}}
 <h2>{{.T "Delete"}}</h2>

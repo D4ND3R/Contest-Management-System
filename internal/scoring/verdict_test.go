@@ -33,3 +33,38 @@ func TestICPCVerdict(t *testing.T) {
 		}
 	}
 }
+
+// TestIOIVerdicts (SPEC_MIN §9): partial scores are PA, full scores AC,
+// and a zero keeps the kind of failure.
+func TestIOIVerdicts(t *testing.T) {
+	cases := []struct {
+		stored     string
+		score, max float64
+		want       string
+	}{
+		{"AC", 100, 100, "AC"}, {"WA", 40, 100, "PA"}, {"TLE", 0.5, 100, "PA"}, {"TLE", 0, 100, "TLE"},
+		{"", 0, 100, "WA"}, {"AC", 0, 100, "WA"},
+	}
+	for _, c := range cases {
+		if got := Verdict(c.stored, c.score, c.max); got != c.want {
+			t.Errorf("Verdict(%q, %v, %v) = %s, want %s", c.stored, c.score, c.max, got, c.want)
+		}
+	}
+	tcs := []struct {
+		tc   TestcaseDetail
+		want string
+	}{
+		{TestcaseDetail{Outcome: 1, Status: "ok"}, "AC"}, {TestcaseDetail{Outcome: 0.3, Status: "ok"}, "PA"},
+		{TestcaseDetail{Outcome: 0, Status: "ok"}, "WA"}, {TestcaseDetail{Outcome: 0, Status: "timeout"}, "TLE"},
+		{TestcaseDetail{Status: StatusSkipped}, "SK"},
+	}
+	for _, c := range tcs {
+		if got := TestcaseVerdict(c.tc); got != c.want {
+			t.Errorf("TestcaseVerdict(%+v) = %s, want %s", c.tc, got, c.want)
+		}
+	}
+	st := SubtaskDetail{Fraction: 0, Testcases: []TestcaseDetail{{Outcome: 1}, {Outcome: 0, Status: "memory"}}}
+	if v := SubtaskVerdict(st); v != "MLE" || VerdictClass(v) != "bad" || VerdictClass("PA") != "pa" || VerdictClass("AC") != "ok" {
+		t.Fatalf("subtask verdict %s", v)
+	}
+}

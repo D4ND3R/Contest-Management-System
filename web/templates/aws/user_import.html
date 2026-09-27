@@ -5,7 +5,7 @@
 {{if $d.Preview}}
 <p>{{.T "%d valid rows," $d.Valid}} <span class="{{if $d.Invalid}}bad{{end}}">{{.T "%d with errors" $d.Invalid}}</span>. {{.T "Nothing has been written yet."}}</p>
 {{if and (not $d.Invalid) (not $d.Errors) $d.Valid}}
-<form method="post" action="/users/import" class="card inline-form">
+<form method="post" action="/users/import" class="inline-form">
   {{template "csrf" .CSRF}}
   <input type="hidden" name="step" value="confirm">
   <input type="hidden" name="digest" value="{{$d.Digest}}">
@@ -19,7 +19,7 @@
 <p class="info">{{.T "%d users created, %d updated, %d participations added." $d.Created $d.Updated $d.Participations}}</p>
 {{end}}
 {{with $d.Credentials}}
-<section class="card">
+<section class="section">
 <h2>{{$.T "Generated passwords"}}</h2>
 <p class="alert">{{$.T "Save or print them now: they are stored hashed and cannot be shown again."}}</p>
 {{template "credentials-form" $}}

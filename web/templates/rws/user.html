@@ -1,13 +1,11 @@
 {{define "content"}}{{$d := .Data}}{{$b := .Board}}
-<p><a class="button secondary" href="/{{.Name}}/">{{icon "chevron-left"}} {{.T "Back to the ranking"}}</a></p>
-<h1>{{if and $b.Photos $d.Row.Photo}}<img src="/assets/{{$d.Row.Photo}}" alt="" class="photo big" width="64" height="64"> {{end}}<bdi>{{$d.Row.Name}}</bdi> <small class="muted">#{{$d.Row.Rank}}{{with $d.Row.Institution}} · <bdi>{{.}}</bdi>{{end}}</small></h1>
-<section class="card">
+<p><a href="/{{.Name}}/">{{.T "Back to the ranking"}}</a></p>
+<h1>{{if and $b.Photos $d.Row.Photo}}<img src="/assets/{{$d.Row.Photo}}" alt="" class="photo big" width="64" height="64"> {{end}}<bdi>{{$d.Row.Name}}</bdi> <span class="muted">#{{$d.Row.Rank}}{{with $d.Row.Institution}} · <bdi>{{.}}</bdi>{{end}}</span></h1>
 <h2>{{.T "Score history"}}</h2>
 {{if $d.Points}}
 {{$d.Chart}}
-<table><thead><tr><th>{{.T "Time"}}</th><th class="num">{{if $b.ICPC}}{{.T "Solved"}}{{else}}{{.T "Total"}}{{end}}</th></tr></thead><tbody>
+<table class="narrow"><thead><tr><th>{{.T "Time"}}</th><th class="num">{{if $b.ICPC}}{{.T "Solved"}}{{else}}{{.T "Total"}}{{end}}</th></tr></thead><tbody>
 {{range $d.Points}}<tr><td>{{when .Time $b.Timezone}}</td><td class="num">{{score .Total $b.Precision}}</td></tr>{{end}}
 </tbody></table>
 {{else}}<p class="muted">{{.T "No history."}}</p>{{end}}
-</section>
 {{end}}

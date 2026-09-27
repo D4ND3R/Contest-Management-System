@@ -69,9 +69,9 @@ func TestSubmissionFlow(t *testing.T) {
 		}
 	}
 	t.Logf("submission judged and notified in %v (events: %v)", time.Since(start).Round(time.Millisecond), seen)
-	_, body := b.get("/e2e/tasks/sum")
-	// Public score: only testcase 0 is public (25 points of 100).
-	if !strings.Contains(body, "25 / 100") || !strings.Contains(body, "Evaluated") {
+	_, body := b.get("/e2e/tasks/sum/submissions")
+	// Without tokens the contestant sees the full score and the verdict.
+	if !strings.Contains(body, "100 / 100") || !strings.Contains(body, "Accepted") {
 		t.Fatalf("task page after judging:\n%s", body)
 	}
 	subs, _ := s.q.ListSubmissionsByParticipationTask(bg, sqlc.ListSubmissionsByParticipationTaskParams{ParticipationID: p.ID, TaskID: s.task.ID})
@@ -197,7 +197,7 @@ func TestUserTestJudged(t *testing.T) {
 	resp.Body.Close()
 	deadline := time.Now().Add(60 * time.Second)
 	for {
-		_, page := b.get("/e2e/tasks/sum")
+		_, page := b.get("/e2e/testing?task=sum")
 		if strings.Contains(page, "<pre>42\n</pre>") {
 			break
 		}

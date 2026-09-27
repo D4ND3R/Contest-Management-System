@@ -23,11 +23,11 @@ func TestAccessibility(t *testing.T) {
 		}
 		webtest.A11y(t, p, body, true)
 	}
-	code, hdr, body := get(t, ts.URL+"/omi/?lang=ar&theme=light&size=xxl")
-	if code != http.StatusOK || !strings.Contains(body, `<html lang="ar" dir="rtl" data-theme="light" data-size="xxl">`) {
+	code, hdr, body := get(t, ts.URL+"/omi/?lang=ar&theme=dark&size=xxl")
+	if code != http.StatusOK || !strings.Contains(body, `<html lang="ar" dir="rtl" data-theme="dark" data-size="xxl">`) {
 		t.Fatalf("preferences: %d %.200s", code, body)
 	}
-	if !strings.Contains(strings.Join(hdr.Values("Set-Cookie"), ";"), "cms_display=light.xxl") {
+	if !strings.Contains(strings.Join(hdr.Values("Set-Cookie"), ";"), "cms_display=dark.xxl") {
 		t.Fatalf("cookies %v", hdr.Values("Set-Cookie"))
 	}
 	webtest.A11y(t, "arabic board", body, true)

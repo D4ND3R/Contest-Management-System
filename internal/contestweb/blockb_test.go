@@ -66,6 +66,7 @@ func TestContestStatus(t *testing.T) {
 		t.Fatal("question accepted in an archived contest")
 	}
 	// Only Spanish allowed: the interface is Spanish whatever the browser asks.
+	f.pool.Exec(bg, "UPDATE server_settings SET timezone = 'America/Mexico_City'") // contests follow it
 	f.setContest(t, "status = 'published', allowed_localizations = '{es}', timezone = 'America/Mexico_City'")
 	code, page := f.get(c, "/ioi/", "Accept-Language", "en")
 	if code != 200 || !strings.Contains(page, `lang="es"`) {
@@ -178,8 +179,8 @@ func TestTeamSharedSubmissions(t *testing.T) {
 	}
 	subs, _ := f.q.ListSubmissionsByParticipation(bg, f.part.ID)
 	f.login(bc, "beto", "secret")
-	_, page := f.get(bc, "/ioi/tasks/sum")
-	if !strings.Contains(page, fmt.Sprintf(`id="sub-%d"`, subs[0].ID)) || !strings.Contains(page, "· ana") {
+	_, page := f.get(bc, "/ioi/tasks/sum/submissions")
+	if !strings.Contains(page, fmt.Sprintf(`id="sub-%d"`, subs[0].ID)) || !strings.Contains(page, `<small class="muted">ana</small>`) {
 		t.Fatalf("beto does not see ana's submission:\n%s", page)
 	}
 	if code, _ := f.get(bc, fmt.Sprintf("/ioi/submissions/%d", subs[0].ID)); code != 200 {
@@ -269,7 +270,7 @@ func TestScoreVisibilityAndCompilerOutput(t *testing.T) {
 		t.Fatalf("details:\n%s", body)
 	}
 	f.setContest(t, "score_visibility = 'never', show_compilation_output = false")
-	for _, path := range []string{"/ioi/", "/ioi/tasks/sum", detail, detail + "/row"} {
+	for _, path := range []string{"/ioi/", "/ioi/tasks/sum", "/ioi/tasks/sum/submissions", detail, detail + "/row"} {
 		_, body := f.get(c, path)
 		if strings.Contains(body, "/ 100") || strings.Contains(body, "Output is correct") {
 			t.Errorf("%s shows scores:\n%s", path, body)
@@ -309,7 +310,7 @@ func TestTokens(t *testing.T) {
 	}
 	f.pool.Exec(bg, "UPDATE tasks SET token_mode = 'infinite' WHERE id = $1", f.task.ID)
 	f.setContest(t, "token_mode = 'finite', token_gen_initial = 1, token_gen_number = 0")
-	_, page = f.get(c, "/ioi/tasks/sum")
+	_, page = f.get(c, "/ioi/tasks/sum/submissions")
 	if !strings.Contains(page, "Tokens available: 1.") || strings.Count(page, "use a token") != 2 {
 		t.Fatalf("token offer:\n%s", page)
 	}
@@ -327,7 +328,7 @@ func TestTokens(t *testing.T) {
 		t.Fatalf("after the token = %d:\n%s", code, body)
 	}
 	// The tokened submission shows its full score.
-	if _, row := f.get(c, fmt.Sprintf("/ioi/submissions/%d/row", subs[0].ID)); !strings.Contains(row, "100 / 100") || !strings.Contains(row, "★") {
+	if _, row := f.get(c, fmt.Sprintf("/ioi/submissions/%d/row", subs[0].ID)); !strings.Contains(row, "100 / 100") || !strings.Contains(row, "token played") {
 		t.Fatalf("tokened row:\n%s", row)
 	}
 	if code, _ := play(subs[1].ID); code != 409 {
@@ -344,7 +345,7 @@ func TestTokens(t *testing.T) {
 	// The task's own rules apply too.
 	f.pool.Exec(bg, "UPDATE tasks SET token_mode = 'disabled' WHERE id = $1", f.task.ID)
 	f.setContest(t, "token_gen_initial = 5")
-	if _, page := f.get(c, "/ioi/tasks/sum"); strings.Contains(page, "use a token") {
+	if _, page := f.get(c, "/ioi/tasks/sum/submissions"); strings.Contains(page, "use a token") {
 		t.Fatal("token offered on a task without tokens")
 	}
 }
@@ -379,11 +380,11 @@ func TestUserTests(t *testing.T) {
 	f := newFixture(t, fixtureOpts{})
 	c := f.client()
 	f.login(c, "ana", "secret")
-	code, page := f.get(c, "/ioi/tasks/sum")
+	code, page := f.get(c, "/ioi/testing?task=sum")
 	if code != 200 {
 		t.Fatal(code)
 	}
-	if !strings.Contains(page, "Test your solution") {
+	if !strings.Contains(page, "Run test") {
 		t.Fatalf("no test form:\n%s", page)
 	}
 	code, body := f.postTest(c, csrfOf(t, page), "int main(){}", "2 3")
@@ -434,7 +435,7 @@ func TestUserTests(t *testing.T) {
 		t.Fatalf("second test = %d\n%s", code, body)
 	}
 	f.setContest(t, "allow_user_tests = false")
-	if _, page := f.get(c, "/ioi/tasks/sum"); strings.Contains(page, "Run test") {
+	if _, page := f.get(c, "/ioi/testing?task=sum"); strings.Contains(page, "Run test") {
 		t.Fatal("test form shown with tests disabled")
 	}
 	if code, _ := f.postTest(c, csrfOf(t, page), "int main(){}", "1 1"); code != 403 {
@@ -442,7 +443,7 @@ func TestUserTests(t *testing.T) {
 	}
 	// Contest-wide file size limit.
 	f.setContest(t, "max_submission_bytes = 16")
-	_, page = f.get(c, "/ioi/tasks/sum")
+	_, page = f.get(c, "/ioi/tasks/sum/submissions")
 	if !strings.Contains(page, "Maximum file size") || !strings.Contains(page, "16 B") {
 		t.Fatalf("file size limit not shown:\n%s", page)
 	}

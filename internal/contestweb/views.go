@@ -24,9 +24,20 @@ type subView struct {
 	Total      int32
 	StatusText string
 	Class      string
-	HasScore   bool
-	Score, Max float64
-	Precision  int
+	// Verdict is the short code shown in a coloured box (AC, PA, WA, TLE,
+	// CE...; "" while pending or when results are hidden) and VClass its
+	// colour.
+	Verdict, VClass string
+	HasScore        bool
+	Score, Max      float64
+	Precision       int
+	// Public: Score is the public score (tokens: the full one is revealed
+	// by playing a token).
+	Public bool
+	// Queued: waiting for a worker, with Ahead submissions before it;
+	// results take about Typical seconds now (0: unknown).
+	Queued         bool
+	Ahead, Typical int64
 	// Author is the team member who submitted (team contests only).
 	Author string
 	// CanToken: a token can be played on it now.
@@ -56,68 +67,86 @@ type subState struct {
 	// icpc: show the verdict instead of the score.
 	icpc    bool
 	verdict *string
+	// full: the contestant sees full scores (no tokens on the task).
+	full bool
 }
 
-// verdictNames are the ICPC verdicts as contestants read them.
+// verdictNames are the verdicts as contestants read them.
 var verdictNames = map[string]string{
-	scoring.VerdictAccepted:    "Accepted",
-	scoring.VerdictWrong:       "Wrong answer",
-	scoring.VerdictTime:        "Time limit exceeded",
-	scoring.VerdictMemory:      "Memory limit exceeded",
-	scoring.VerdictRuntime:     "Runtime error",
-	scoring.VerdictOutputLimit: "Output limit exceeded",
-	scoring.VerdictSecurity:    "Security violation",
+	scoring.VerdictAccepted:     "Accepted",
+	scoring.VerdictPartial:      "Partially correct",
+	scoring.VerdictWrong:        "Wrong answer",
+	scoring.VerdictTime:         "Time limit exceeded",
+	scoring.VerdictMemory:       "Memory limit exceeded",
+	scoring.VerdictRuntime:      "Runtime error",
+	scoring.VerdictOutputLimit:  "Output limit exceeded",
+	scoring.VerdictSecurity:     "Security violation",
+	scoring.VerdictCompileError: "Compilation failed",
+	scoring.VerdictSkipped:      "Skipped",
 }
 
-// icpcVerdict names the verdict of a scored submission; results scored
-// before verdicts were stored fall back on the score.
-func icpcVerdict(st subState, max float64) (text string, accepted bool) {
-	v := ""
-	if st.verdict != nil {
-		v = *st.verdict
-	} else if st.score != nil && max > 0 && *st.score >= max-1e-9 {
-		v = scoring.VerdictAccepted
+// verdictName is the translatable name of a verdict code.
+func verdictName(v string) string {
+	if n, ok := verdictNames[v]; ok {
+		return n
 	}
-	if name, ok := verdictNames[v]; ok {
-		return name, v == scoring.VerdictAccepted
-	}
-	return "Rejected", false
+	return "Rejected"
+}
+
+// fullScores reports whether contestants see full scores on task t: always,
+// except with tokens, where a token reveals the full result of one
+// submission (the public score shows until then).
+func fullScores(rc *reqCtx, t *taskView) bool {
+	return rc.contest.TokenMode == "disabled" || t.TokenMode == "disabled"
 }
 
 func (s *Server) fillStatus(p *page, t *taskView, st subState, sv *subView) {
 	sv.Max, sv.Precision = t.MaxScore, t.Precision
+	stored := ""
+	if st.verdict != nil {
+		stored = *st.verdict
+	}
 	switch {
 	case st.systemError != nil:
 		sv.StatusText, sv.Class = p.T("Evaluation failed (the organizers were notified)"), "warn"
 	case st.compilation == nil:
-		sv.StatusText, sv.Pending = p.T("Compiling…"), true
+		sv.StatusText, sv.Pending, sv.Class = p.T("Compiling…"), true, "pending"
 	case *st.compilation == "fail":
+		sv.Verdict = scoring.VerdictCompileError
 		sv.StatusText, sv.Class = p.T("Compilation failed"), "bad"
 	case !st.scored:
 		sv.Pending, sv.Evaluating, sv.Done, sv.Total = true, true, st.done, st.total
-		sv.StatusText = p.T("Evaluating")
+		sv.StatusText, sv.Class = p.T("Evaluating"), "pending"
 	case st.hidden:
 		sv.StatusText = p.T("Evaluated")
 	case st.icpc:
-		text, ok := icpcVerdict(st, t.MaxScore)
-		sv.StatusText, sv.Class = p.T(text), "bad"
-		if ok {
-			sv.Class = "ok"
+		v := stored
+		if v == "" && st.score != nil && t.MaxScore > 0 && *st.score >= t.MaxScore-1e-9 {
+			v = scoring.VerdictAccepted
 		}
+		if v == "" {
+			v = scoring.VerdictWrong
+		}
+		sv.Verdict = v
+		sv.StatusText, sv.Class = p.T(verdictName(v)), scoring.VerdictClass(v)
 	default:
 		sv.HasScore = true
-		// Contestants see the public score unless they played a token or
-		// every testcase is public (then both coincide).
-		if st.tokened && st.score != nil {
-			sv.Score = *st.score
-		} else if st.pub != nil {
-			sv.Score = *st.pub
-		}
-		sv.StatusText, sv.Class = p.T("Evaluated"), "ok"
-		if sv.Score < sv.Max {
-			sv.Class = ""
+		if st.full || st.tokened {
+			if st.score != nil {
+				sv.Score = *st.score
+			}
+			sv.Verdict = scoring.Verdict(stored, sv.Score, sv.Max)
+			sv.StatusText, sv.Class = p.T(verdictName(sv.Verdict)), scoring.VerdictClass(sv.Verdict)
+		} else {
+			// Tokens: the public score until a token reveals the result.
+			if st.pub != nil {
+				sv.Score = *st.pub
+			}
+			sv.Public = true
+			sv.StatusText = p.T("Evaluated")
 		}
 	}
+	sv.VClass = scoring.VerdictClass(sv.Verdict)
 }
 
 // listSubs loads the contestant's submissions to a task (one query).
@@ -157,11 +186,32 @@ func (s *Server) listSubs(r *http.Request, rc *reqCtx, t *taskView) ([]subView, 
 		}
 		s.fillStatus(p, t, subState{compilation: row.CompilationOutcome, evaluation: row.EvaluationOutcome, done: done, total: total,
 			score: row.Score, pub: row.PublicScore, scored: row.ScoredAt != nil, systemError: row.SystemError, tokened: row.Tokened,
-			hidden: hidden, icpc: rc.contest.ICPC(), verdict: row.Verdict}, &sv)
+			hidden: hidden, icpc: rc.contest.ICPC(), verdict: row.Verdict, full: fullScores(rc, t)}, &sv)
 		sv.CanToken = tv != nil && tv.CanPlay && !row.Tokened && row.Official && row.InvalidatedAt == nil && row.Author == rc.part.Username
 		out = append(out, sv)
 	}
+	// Where the newest waiting submissions stand in the queue (a few at
+	// most: the others are judged by then).
+	for i := 0; i < len(out) && i < 3; i++ {
+		if err := s.queueInfo(r, &out[i]); err != nil {
+			return nil, err
+		}
+	}
 	return out, nil
+}
+
+// queueInfo fills the queue position of a submission waiting for a worker.
+func (s *Server) queueInfo(r *http.Request, sv *subView) error {
+	if !sv.Pending || sv.Evaluating || sv.Invalidated != nil {
+		return nil
+	}
+	var err error
+	sv.Queued = true
+	if sv.Ahead, err = s.q.CountSubmissionsAhead(r.Context(), sv.ID); err != nil {
+		return err
+	}
+	sv.Typical = s.typicalLatency(r)
+	return nil
 }
 
 func (s *Server) langName(id string) string {
@@ -189,7 +239,7 @@ func (s *Server) subViewFromDetail(p *page, rc *reqCtx, t *taskView, row sqlc.Ge
 	}
 	s.fillStatus(p, t, subState{compilation: row.CompilationOutcome, evaluation: row.EvaluationOutcome, done: done, total: total,
 		score: row.Score, pub: row.PublicScore, scored: row.ScoredAt != nil, systemError: row.SystemError, tokened: row.Tokened,
-		hidden: !scoresVisible(rc), icpc: rc.contest.ICPC(), verdict: row.Verdict}, &sv)
+		hidden: !scoresVisible(rc), icpc: rc.contest.ICPC(), verdict: row.Verdict, full: fullScores(rc, t)}, &sv)
 	if !row.Tokened && row.Official && row.InvalidatedAt == nil && row.ParticipationID != nil && *row.ParticipationID == rc.part.ID {
 		if tv, err := s.tokenView(nil, rc, t); err == nil && tv != nil && tv.CanPlay {
 			sv.CanToken = true
@@ -223,30 +273,35 @@ type compilationView struct {
 
 type detailRow struct {
 	Codename string
-	Text     string
-	Class    string
-	Time     float64
-	Memory   int64
+	// Subtask is the subtask of the testcase (0: none).
+	Subtask int
+	Verdict string
+	Text    string
+	Class   string
+	Time    float64
+	Memory  int64
 }
 
-type detailGroup struct {
-	Title      string
-	Index      int // subtask number (group score types)
+// block is a subtask's result: its points and verdict, coloured.
+type block struct {
+	Index      int
 	Score, Max float64
+	Verdict    string
 	Class      string
-	Rows       []detailRow
 }
-
-type detailsView struct{ Groups []detailGroup }
 
 type detailData struct {
-	Sub           subView
-	TaskName      string
-	Files         []string
-	Download      bool
-	Compilation   *compilationView
-	Details       *detailsView
-	Full          bool
+	Sub         subView
+	TaskName    string
+	Files       []string
+	Download    bool
+	Compilation *compilationView
+	// Blocks are the subtasks (group score types) and Rows the testcases
+	// shown: the public ones, or every one once a token was played (All).
+	Blocks        []block
+	Rows          []detailRow
+	All           bool
+	Scored        bool
 	ShowResources bool
 }
 
@@ -279,80 +334,62 @@ func (s *Server) detailData(r *http.Request, p *page, rc *reqCtx, t *taskView, r
 		if !rc.contest.ShowCompilationOutput {
 			c.Stdout, c.Stderr = "", ""
 		}
-		if c != nil && c.OK && c.Stdout == "" && c.Stderr == "" && t.TaskType == "OutputOnly" {
+		if c.OK && c.Stdout == "" && c.Stderr == "" && t.TaskType == "OutputOnly" {
 			c = nil
 		}
 		d.Compilation = c
+	}
+	if d.Sub.Queued = d.Sub.Pending && !d.Sub.Evaluating && d.Sub.Invalidated == nil; d.Sub.Queued {
+		if d.Sub.Ahead, err = s.q.CountSubmissionsAhead(r.Context(), row.ID); err != nil {
+			return nil, err
+		}
+		d.Sub.Typical = s.typicalLatency(r)
 	}
 	if row.ScoredAt == nil || !scoresVisible(rc) || rc.contest.ICPC() {
 		// ICPC contests show the verdict only.
 		return d, nil
 	}
-	// Full details for tokened submissions, public ones otherwise.
+	d.Scored = true
+	// Every subtask's score, and the public testcases' runs; a token
+	// reveals every testcase (and, with tokens, the full score).
 	raw := row.PublicScoreDetails
-	d.Full = row.Tokened
-	if d.Full {
+	d.All = row.Tokened
+	if fullScores(rc, t) || row.Tokened {
 		raw = row.ScoreDetails
 	}
 	var det scoring.Details
 	if len(raw) == 0 || json.Unmarshal(raw, &det) != nil {
 		return d, nil
 	}
-	restricted := t.FeedbackLevel == "restricted"
-	d.ShowResources = !restricted
-	dv := &detailsView{}
-	classOf := func(o float64) string {
-		switch {
-		case o >= 1:
-			return "ok"
-		case o <= 0:
-			return "bad"
-		}
-		return "warn"
-	}
-	mkRow := func(tc scoring.TestcaseDetail) detailRow {
+	d.ShowResources = t.FeedbackLevel != "restricted"
+	mkRow := func(tc scoring.TestcaseDetail, subtask int) detailRow {
 		text := tc.Text
 		if t.HideCheckerMessages && !standardMessage(text) {
 			// The checker's own words stay with the staff.
 			text = checkers.TranslateMessage("", tc.Outcome)
 		}
-		r := detailRow{Codename: tc.Codename, Text: translateOutcome(p.Lang, text), Class: classOf(tc.Outcome), Time: tc.Time, Memory: tc.Memory}
-		if tc.Text == scoring.MsgSkipped {
-			r.Class = "muted" // not run: the subtask had failed already
-		}
-		return r
+		v := scoring.TestcaseVerdict(tc)
+		return detailRow{Codename: tc.Codename, Subtask: subtask, Verdict: v, Text: translateOutcome(p.Lang, text),
+			Class: scoring.VerdictClass(v), Time: tc.Time, Memory: tc.Memory}
 	}
 	switch det.Type {
 	case "group":
 		for _, st := range det.Subtasks {
-			g := detailGroup{Title: p.T("Subtask %d", st.Index), Index: st.Index, Score: st.Score, Max: st.MaxScore, Class: classOf(st.Fraction)}
+			v := scoring.SubtaskVerdict(st)
+			d.Blocks = append(d.Blocks, block{Index: st.Index, Score: st.Score, Max: st.MaxScore, Verdict: v, Class: scoring.VerdictClass(v)})
 			for _, tc := range st.Testcases {
-				if restricted {
-					// Only the first testcase that did not pass is shown.
-					if tc.Outcome < 1 {
-						g.Rows = append(g.Rows, mkRow(tc))
-						break
-					}
-					continue
+				if tc.Public || d.All {
+					d.Rows = append(d.Rows, mkRow(tc, st.Index))
 				}
-				g.Rows = append(g.Rows, mkRow(tc))
 			}
-			dv.Groups = append(dv.Groups, g)
 		}
 	default:
-		g := detailGroup{}
 		for _, tc := range det.Testcases {
-			if restricted && tc.Outcome >= 1 {
-				continue
-			}
-			g.Rows = append(g.Rows, mkRow(tc))
-			if restricted {
-				break
+			if tc.Public || d.All {
+				d.Rows = append(d.Rows, mkRow(tc, 0))
 			}
 		}
-		dv.Groups = append(dv.Groups, g)
 	}
-	d.Details = dv
 	return d, nil
 }
 

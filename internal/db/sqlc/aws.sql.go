@@ -12,60 +12,6 @@ import (
 	"time"
 )
 
-const adminContestActivity = `-- name: AdminContestActivity :many
-SELECT floor(extract(epoch FROM s.submitted_at - $1::timestamptz) / $2::float8)::int AS bucket,
-       count(*)::bigint AS submissions,
-       count(*) FILTER (WHERE sr.verdict = 'AC')::bigint AS accepted,
-       count(*) FILTER (WHERE sr.scored_at IS NOT NULL AND sr.verdict IS DISTINCT FROM 'AC')::bigint AS rejected
-FROM tasks t
-JOIN submissions s ON s.task_id = t.id
-LEFT JOIN submission_results sr ON sr.submission_id = s.id AND sr.dataset_id = t.active_dataset_id
-WHERE t.contest_id = $3::bigint AND s.official AND NOT s.tester AND s.invalidated_at IS NULL
-  AND s.submitted_at >= $1::timestamptz
-GROUP BY 1
-ORDER BY 1
-`
-
-type AdminContestActivityParams struct {
-	Since     time.Time `json:"since"`
-	BucketS   float64   `json:"bucket_s"`
-	ContestID int64     `json:"contest_id"`
-}
-
-type AdminContestActivityRow struct {
-	Bucket      int32 `json:"bucket"`
-	Submissions int64 `json:"submissions"`
-	Accepted    int64 `json:"accepted"`
-	Rejected    int64 `json:"rejected"`
-}
-
-// Official submissions of a contest per time bucket since @since, with the
-// accepted ones (the dashboard chart; submissions_task_idx per task).
-func (q *Queries) AdminContestActivity(ctx context.Context, arg AdminContestActivityParams) ([]AdminContestActivityRow, error) {
-	rows, err := q.db.Query(ctx, adminContestActivity, arg.Since, arg.BucketS, arg.ContestID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []AdminContestActivityRow{}
-	for rows.Next() {
-		var i AdminContestActivityRow
-		if err := rows.Scan(
-			&i.Bucket,
-			&i.Submissions,
-			&i.Accepted,
-			&i.Rejected,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const adminContestCounts = `-- name: AdminContestCounts :many
 SELECT c.id,
        (SELECT count(*) FROM participations p WHERE p.contest_id = c.id) AS participations,

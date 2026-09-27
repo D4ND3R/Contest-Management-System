@@ -3,6 +3,7 @@ package contestweb
 import (
 	"context"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -13,14 +14,28 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/webkit"
 )
 
-// commData is the communication page: announcements, private messages,
-// the participant's questions and the answers given to everyone.
+// commData is the clarifications page: announcements, private messages,
+// the participant's questions and the answers given to everyone, in one
+// list with the latest activity first.
 type commData struct {
-	CanAsk        bool
-	Announcements []sqlc.Announcement
-	Messages      []sqlc.Message
-	Questions     []questionView
-	Public        []questionView
+	CanAsk bool
+	Items  []commItem
+}
+
+// commItem is a row of the clarifications list. Notices (announcements
+// and private messages) have a subject and a text; questions have the
+// question and, once answered, the answer.
+type commItem struct {
+	At             time.Time
+	About          string
+	Kind           string
+	Notice         bool
+	Subject        string
+	Question       string
+	Answered       bool
+	ReplySubject   string
+	Answer         string
+	Mine, Everyone bool
 }
 
 type questionView struct {
@@ -61,19 +76,47 @@ func canAsk(rc *reqCtx) bool {
 
 func (s *Server) commData(ctx context.Context, p *page, rc *reqCtx) (*commData, error) {
 	d := &commData{CanAsk: canAsk(rc) && !rc.sess.ReadOnly}
-	var err error
-	if d.Announcements, err = s.q.ListAnnouncements(ctx, rc.contest.ID); err != nil {
+	anns, err := s.q.ListAnnouncements(ctx, rc.contest.ID)
+	if err != nil {
 		return nil, err
 	}
-	if d.Messages, err = s.q.ListMessagesByParticipation(ctx, rc.part.ID); err != nil {
+	for _, a := range anns {
+		d.Items = append(d.Items, commItem{At: a.CreatedAt, About: p.T("Everyone"), Kind: p.T("Announcement"), Notice: true,
+			Subject: a.Subject, Question: a.Text})
+	}
+	msgs, err := s.q.ListMessagesByParticipation(ctx, rc.part.ID)
+	if err != nil {
 		return nil, err
+	}
+	for _, m := range msgs {
+		d.Items = append(d.Items, commItem{At: m.CreatedAt, About: p.T("You"), Kind: p.T("Private message"), Notice: true,
+			Subject: m.Subject, Question: m.Text, Mine: true})
+	}
+	item := func(q sqlc.Question, mine bool) commItem {
+		v := s.questionView(p, rc, q)
+		it := commItem{At: v.AskedAt, About: v.About, Question: v.Text, Mine: mine, Everyone: v.Public}
+		switch {
+		case mine && v.Public:
+			it.Kind = p.T("Your question, answered for everyone")
+		case mine:
+			it.Kind = p.T("Your question")
+		default:
+			it.Kind = p.T("Clarification for everyone")
+		}
+		if v.Answered {
+			it.Answered, it.ReplySubject, it.Answer = true, p.T(v.ReplySubject), v.ReplyText
+			if v.ReplyAt.After(it.At) {
+				it.At = v.ReplyAt
+			}
+		}
+		return it
 	}
 	qs, err := s.q.ListQuestionsByParticipation(ctx, rc.part.ID)
 	if err != nil {
 		return nil, err
 	}
 	for _, q := range qs {
-		d.Questions = append(d.Questions, s.questionView(p, rc, q))
+		d.Items = append(d.Items, item(q, true))
 	}
 	pub, err := s.q.ListPublicAnswers(ctx, rc.contest.ID)
 	if err != nil {
@@ -81,9 +124,10 @@ func (s *Server) commData(ctx context.Context, p *page, rc *reqCtx) (*commData, 
 	}
 	for _, q := range pub {
 		if q.ParticipationID != rc.part.ID {
-			d.Public = append(d.Public, s.questionView(p, rc, q))
+			d.Items = append(d.Items, item(q, false))
 		}
 	}
+	sort.SliceStable(d.Items, func(i, j int) bool { return d.Items[i].At.After(d.Items[j].At) })
 	// Opening the page marks everything as read (not in the read-only
 	// administrator view).
 	if !rc.sess.ReadOnly {
@@ -96,7 +140,7 @@ func (s *Server) commData(ctx context.Context, p *page, rc *reqCtx) (*commData, 
 
 func (s *Server) handleCommunication(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
 	p := s.newPage(rc, "", "communication")
-	p.Title = p.T("Communication")
+	p.Title = p.T("Clarifications")
 	d, err := s.commData(r.Context(), p, rc)
 	if err != nil {
 		s.fail(w, err)

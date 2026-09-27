@@ -10,9 +10,9 @@
 {{with .Data.ScoreError}}<p class="alert">{{$.T "Score type:"}} {{.}}</p>{{else}}<p>{{.T "Maximum score"}} <b>{{score .Data.MaxScore .Data.Task.ScorePrecision}}</b>{{if gt (len .Data.Subtasks) 1}} ({{.T "subtasks:"}} {{range $i, $x := .Data.Subtasks}}{{if $i}}, {{end}}{{score $x $.Data.Task.ScorePrecision}}{{end}}){{end}}.</p>{{end}}
 {{with .Data.Missing}}<p class="alert">{{$.T "Missing managers for this configuration:"}} {{join . ", "}}.</p>{{end}}
 
-<form method="post" action="/datasets/{{$ds.ID}}" class="card">
+<form method="post" action="/datasets/{{$ds.ID}}" class="section">
 {{template "csrf" .CSRF}}
-<fieldset {{if not .CanEditTasks}}disabled{{end}}>
+<fieldset class="bare" {{if not .CanEditTasks}}disabled{{end}}>
 <div class="grid">
   <label>{{.T "Description"}} <input name="description" value="{{$d.Description}}" required></label>
   <label>{{.T "Time limit (s)"}} <input name="time_limit" value="{{msToS $d.TimeLimitMs}}" inputmode="decimal"></label>
@@ -93,7 +93,7 @@
 </fieldset>
 </form>
 
-<section class="card" id="managers">
+<section class="section" id="managers">
 <h2>{{.T "Managers"}} <small class="muted">{{.T "checkers, graders, stubs, headers"}}</small></h2>
 <ul>{{range .Data.Managers}}<li><a href="/datasets/{{$ds.ID}}/managers/{{.Filename}}">{{.Filename}}</a>
   {{if $.CanEditTasks}}<form method="post" action="/datasets/{{$ds.ID}}/managers/{{.Filename}}/delete" class="inline" data-confirm="{{$.T "Delete %s?" .Filename}}">{{template "csrf" $.CSRF}}<button class="link">{{$.T "delete"}}</button></form>{{end}}</li>
@@ -106,7 +106,7 @@
 {{end}}
 </section>
 
-<section class="card" id="testcases">
+<section class="section" id="testcases">
 <h2>{{.T "Testcases"}} <small class="muted">{{len .Data.Testcases}}</small></h2>
 {{if .CanEditTasks}}
 <div class="row">
@@ -144,7 +144,7 @@
 </section>
 
 {{if and .CanEditTasks (not .Data.Live)}}
-<section class="card danger">
+<section class="section danger-zone">
 <form method="post" action="/datasets/{{$ds.ID}}/delete" data-confirm="{{.T "Delete this dataset and its results?"}}">
   {{template "csrf" .CSRF}}<button class="danger">{{.T "Delete dataset"}}</button>
 </form>

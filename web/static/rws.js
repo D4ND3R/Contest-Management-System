@@ -4,6 +4,20 @@
 // sorted. No framework.
 (function () {
   "use strict";
+  document.documentElement.classList.add("js");
+  // Preferences at the bottom apply at once; the GET request remembers
+  // them in cookies, and a new language reloads the page.
+  var prefs = document.getElementById("prefs");
+  if (prefs) prefs.addEventListener("change", function (e) {
+    var sel = e.target, root = document.documentElement;
+    var url = prefs.action + "?" + new URLSearchParams(new FormData(prefs)).toString();
+    if (sel.hasAttribute("data-reload")) { location.href = url; return; }
+    if (sel.dataset.attr) {
+      if (sel.value) root.setAttribute("data-" + sel.dataset.attr, sel.value); else root.removeAttribute("data-" + sel.dataset.attr);
+    }
+    fetch(url, { credentials: "same-origin" }).catch(function () {});
+  });
+
   var meta = document.querySelector('meta[name="rws-events"]');
   var body = document.getElementById("rows");
   if (!meta || !body || !window.EventSource) return;

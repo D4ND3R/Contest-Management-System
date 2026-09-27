@@ -21,7 +21,7 @@ func TestAccessibility(t *testing.T) {
 	c := f.client()
 	var sub string
 	pages := func(label string) {
-		for _, p := range []string{"/ioi/", "/ioi/tasks/sum", "/ioi/communication", "/ioi/documentation", "/ioi/testing", "/ioi/printing",
+		for _, p := range []string{"/ioi/", "/ioi/tasks/sum", "/ioi/tasks/sum/submissions", "/ioi/communication", "/ioi/documentation", "/ioi/testing", "/ioi/printing",
 			"/ioi/ranking", "/ioi/submissions/" + sub} {
 			code, body := f.get(c, p)
 			if code != http.StatusOK {
@@ -42,7 +42,7 @@ func TestAccessibility(t *testing.T) {
 	var id int64
 	f.pool.QueryRow(bg, "SELECT max(id) FROM submissions").Scan(&id)
 	sub = strconv.FormatInt(id, 10)
-	for _, frag := range []string{"/ioi/submissions/" + sub + "/card", "/ioi/tasks/sum/submissions"} {
+	for _, frag := range []string{"/ioi/submissions/" + sub + "/row", "/ioi/tasks/sum/submissions?fragment=1"} {
 		_, body := f.get(c, frag, "HX-Request", "true")
 		webtest.A11y(t, frag, body, false)
 	}
@@ -89,7 +89,7 @@ func TestEditorSubmission(t *testing.T) {
 	f := newFixture(t, fixtureOpts{})
 	c := f.client()
 	f.login(c, "ana", "secret")
-	_, page := f.get(c, "/ioi/tasks/sum")
+	_, page := f.get(c, "/ioi/tasks/sum/submissions")
 	if !strings.Contains(page, `name="source"`) || !strings.Contains(page, `data-exts=".c"`) {
 		t.Fatalf("no editor or extensions on the task page")
 	}

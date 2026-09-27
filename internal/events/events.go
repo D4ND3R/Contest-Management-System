@@ -26,6 +26,7 @@ const (
 	TypeContest      = "contest"      // contest settings changed (caches)
 	TypeBalloon      = "balloon"      // a first accepted submission, for admins
 	TypePrint        = "print"        // a print job was queued or printed
+	TypeStatement    = "statement"    // a task's statement, examples or attachments changed
 )
 
 // Event is a notification. ParticipationID 0 with a ContestID means every

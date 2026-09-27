@@ -5,13 +5,13 @@
   <label>{{.T "Dataset B"}} <select name="b">{{range $d.Datasets}}<option value="{{.ID}}" {{if eq .ID $d.B.ID}}selected{{end}}>{{.Description}}{{if and $d.Task.ActiveDatasetID (eq .ID (deref64 $d.Task.ActiveDatasetID))}} ({{$.T "live"}}){{end}}</option>{{end}}</select></label>
   <button>{{.T "Compare"}}</button>
 </form>
-<section class="card">
+<section class="section">
 <p>{{.T "%d contestants and %d submissions compared: %d task scores and %d submission scores would change from A to B." $d.Contestants $d.Submissions (len $d.People) (len $d.Subs)}}</p>
 {{if $d.PendingB}}<p class="alert">{{.T "%d submissions are not judged on B yet: the comparison is partial (reevaluate on B, or mark it autojudge)." $d.PendingB}}</p>{{end}}
 <p class="muted small">{{.T "Task scores follow the task's score mode, as the ranking would compute them after switching. Only official, valid submissions count."}}</p>
 </section>
 {{if $d.People}}
-<section class="card">
+<section class="section">
 <h2>{{.T "Task scores that change"}}</h2>
 <table>
 <thead><tr><th>{{.T "User"}}</th><th class="num">A</th><th class="num">B</th><th class="num">{{.T "Change"}}</th></tr></thead>
@@ -23,10 +23,10 @@
 </section>
 {{end}}
 {{if $d.Subs}}
-<section class="card">
+<section class="section">
 <h2>{{.T "Submissions whose score changes"}}</h2>
 <table>
-<thead><tr><th>{{.T "Submission"}}</th><th>{{.T "User"}}</th><th>{{.T "Time (UTC)"}}</th><th class="num">A</th><th class="num">B</th></tr></thead>
+<thead><tr><th>{{.T "Submission"}}</th><th>{{.T "User"}}</th><th>{{.T "Time"}}</th><th class="num">A</th><th class="num">B</th></tr></thead>
 <tbody>
 {{range $d.Subs}}<tr><td><a href="/submissions/{{.ID}}">#{{.ID}}</a></td><td>{{.Username}}</td><td>{{dt .At}}</td>
 <td class="num">{{with .A}}{{score . $d.Task.ScorePrecision}}{{else}}–{{end}}</td><td class="num">{{with .B}}{{score . $d.Task.ScorePrecision}}{{else}}–{{end}}</td></tr>{{end}}

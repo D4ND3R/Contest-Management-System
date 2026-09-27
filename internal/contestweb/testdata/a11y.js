@@ -1,8 +1,9 @@
 // Drives the contest site in headless Chromium (Playwright) for
 // TestContestantUIInBrowser: the code editor's keys (Tab indents, Shift+Tab
 // unindents, Esc then Tab leaves it, Ctrl+Enter submits), its draft, the
-// checks before sending, the keyboard-only menu, and the right-to-left and
-// high-contrast displays. Prints "PASS" or the problems found.
+// checks before sending, the notice after sending, the preferences at the
+// bottom (applied at once), and the right-to-left and high-contrast
+// displays. Prints "PASS" or the problems found.
 'use strict';
 const { chromium } = require('playwright');
 const BASE = process.env.CWS_URL;
@@ -20,7 +21,7 @@ const expect = (ok, what) => { if (!ok) failures.push(what); };
     await page.waitForURL(BASE + '/ioi/');
 
     // The editor.
-    await page.goto(BASE + '/ioi/tasks/sum');
+    await page.goto(BASE + '/ioi/tasks/sum/submissions');
     await page.click('details.code-editor > summary');
     const ed = page.locator('textarea[name="source"]');
     await ed.click();
@@ -65,44 +66,33 @@ const expect = (ok, what) => { if (!ok) failures.push(what); };
     await page.waitForTimeout(800);
     expect(posted === 1, 'Ctrl+Enter did not submit (' + posted + ' requests)');
 
-    // Keyboard-only: the user menu opens from the keyboard and closes with Esc.
-    await page.focus('details.userbox > summary');
-    await page.keyboard.press('Enter');
-    expect(await page.locator('details.userbox').evaluate(d => d.open), 'the user menu did not open with Enter');
-    await page.keyboard.press('Escape');
-    expect(!(await page.locator('details.userbox').evaluate(d => d.open)), 'Escape did not close the user menu');
+    // Sending tells so, and the list shows the new submission.
+    expect((await page.textContent('#notifications')).includes('Submission sent'), 'no notice after sending');
+    expect(await page.locator('#submissions tbody tr').count() === 1, 'the list does not show the submission');
 
-    // Right to left, high contrast, larger text: through the menu's form.
-    await page.click('details.userbox > summary');
-    await page.selectOption('.menu select[name="lang"]', 'ar');
-    await page.selectOption('.menu select[name="theme"]', 'contrast');
-    await page.selectOption('.menu select[name="size"]', 'xl');
-    await Promise.all([page.waitForNavigation(), page.click('.menu .prefs button')]);
+    // Preferences at the bottom apply at once: theme and size without a
+    // reload, the language with one (and the others were remembered).
+    await page.selectOption('#prefs select[name="theme"]', 'contrast');
+    expect(await page.getAttribute('html', 'data-theme') === 'contrast', 'the theme did not apply at once');
+    await page.selectOption('#prefs select[name="size"]', 'xl');
+    expect(await page.getAttribute('html', 'data-size') === 'xl', 'the size did not apply at once');
+    await page.waitForTimeout(500);
+    await Promise.all([page.waitForNavigation(), page.selectOption('#prefs select[name="lang"]', 'ar')]);
     expect(await page.getAttribute('html', 'dir') === 'rtl', 'the page is not right to left');
-    const side = await page.locator('nav.sidebar').boundingBox();
-    expect(side && side.x > 640, 'the sidebar should be on the right in RTL (x=' + (side && side.x) + ')');
+    expect(await page.getAttribute('html', 'data-theme') === 'contrast', 'the theme was not remembered');
+    const first = await page.locator('ul.menu li').first().boundingBox();
+    expect(first && first.x > 640, 'the menu should start on the right in RTL (x=' + (first && first.x) + ')');
     const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
     expect(bg === 'rgb(0, 0, 0)', 'high contrast background: ' + bg);
     const fs = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
-    expect(fs > 18, 'larger text: ' + fs + 'px');
+    expect(fs > 16, 'larger text: ' + fs + 'px');
     const code = await page.locator('textarea[name="source"]').evaluate(e => getComputedStyle(e).direction);
     expect(code === 'ltr', 'code must stay left to right: ' + code);
-    // Narrow screens: the menu button is reachable with the keyboard.
-    await page.setViewportSize({ width: 600, height: 900 });
-    await page.focus('#nav');
-    await page.keyboard.press('Space');
-    // The menu slides in: wait for the transition to end rather than
-    // sampling its position mid-way (slow under a loaded machine).
-    let shown = '';
-    try {
-      await page.waitForFunction(() => {
-        const t = getComputedStyle(document.querySelector('nav.sidebar')).transform;
-        return t === 'none' || t === 'matrix(1, 0, 0, 1, 0, 0)';
-      }, null, { timeout: 5000 });
-    } catch (e) {
-      shown = await page.locator('nav.sidebar').evaluate(n => getComputedStyle(n).transform);
-    }
-    expect(shown === '', 'the menu did not open from the keyboard: ' + shown);
+    // Narrow screens: nothing scrolls sideways, the menu wraps.
+    await page.setViewportSize({ width: 400, height: 900 });
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth);
+    const culprits = wide > 400 ? await page.evaluate(() => Array.from(document.querySelectorAll('body *')).filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.left < -1 || r.right > 401); }).slice(0, 8).map(e => e.tagName + '.' + e.className + '#' + e.id + ' ' + Math.round(e.getBoundingClientRect().left) + '..' + Math.round(e.getBoundingClientRect().right)).join(', ')) : '';
+    expect(wide <= 400, 'the page scrolls sideways at 400px: ' + wide + ' ' + culprits);
   } catch (e) {
     failures.push(String(e && e.stack || e));
   } finally {

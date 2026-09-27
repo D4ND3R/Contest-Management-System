@@ -335,6 +335,12 @@ type ScoreAdjustment struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
+type ServerSetting struct {
+	ID        bool      `json:"id"`
+	Timezone  string    `json:"timezone"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Site struct {
 	ID        int64      `json:"id"`
 	ContestID int64      `json:"contest_id"`

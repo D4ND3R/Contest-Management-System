@@ -209,10 +209,8 @@ func (s *Server) handleUserTest(w http.ResponseWriter, r *http.Request, rc *reqC
 	if t == nil {
 		return
 	}
-	back := "/" + rc.contest.Name + "/tasks/" + t.Name + "#tests"
-	if r.URL.Query().Get("from") == "testing" {
-		back = "/" + rc.contest.Name + "/testing?task=" + url.QueryEscape(t.Name)
-	}
+	// Tests live on the Testing page (like Codeforces' custom invocation).
+	back := "/" + rc.contest.Name + "/testing?task=" + url.QueryEscape(t.Name)
 	if !testsEnabled(rc, t) || submitBlocked(rc, t) != "" {
 		s.errorPage(w, r, rc.contest, http.StatusForbidden, "Test rejected", "Tests are not available now.")
 		return

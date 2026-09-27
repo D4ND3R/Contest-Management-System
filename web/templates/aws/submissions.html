@@ -18,12 +18,12 @@
 <p class="muted small">{{.T "Times are in the contest's timezone (%s)." $c.Timezone}}</p>
 <form method="get" action="/submissions/diff">
 <table id="submissions">
-<thead><tr><th></th><th>#</th><th>{{.T "Time (UTC)"}}</th><th>{{.T "User"}}</th><th>{{.T "Task"}}</th><th>{{.T "Language"}}</th><th>{{.T "Status"}}</th><th>{{.T "Verdict"}}</th><th class="num">{{.T "Score"}}</th></tr></thead>
+<thead><tr><th></th><th>#</th><th>{{.T "Time"}}</th><th>{{.T "User"}}</th><th>{{.T "Task"}}</th><th>{{.T "Language"}}</th><th>{{.T "Status"}}</th><th>{{.T "Verdict"}}</th><th class="num">{{.T "Score"}}</th></tr></thead>
 <tbody>
 {{range .Data.Rows}}
 <tr id="sub-{{.ID}}">
   <td><input type="checkbox" name="id" value="{{.ID}}" aria-label="{{$.T "compare"}}"></td>
-  <td><a href="/submissions/{{.ID}}">{{.ID}}</a>{{if not .Official}} <span class="tag">{{$.T "unofficial"}}</span>{{end}}{{if .Tokened}} <span class="tag">{{$.T "token"}}</span>{{end}}{{if .Invalidated}} <span class="tag bad">{{$.T "invalidated"}}</span>{{end}}{{if .Flagged}} <span class="tag warn" title="{{$.T "Suspicious: see the submission"}}">{{icon "alert"}} {{$.T "suspicious"}}</span>{{end}}</td>
+  <td><a href="/submissions/{{.ID}}">{{.ID}}</a>{{if not .Official}} <span class="tag">{{$.T "unofficial"}}</span>{{end}}{{if .Tokened}} <span class="tag">{{$.T "token"}}</span>{{end}}{{if .Invalidated}} <span class="tag bad">{{$.T "invalidated"}}</span>{{end}}{{if .Flagged}} <span class="tag warn" title="{{$.T "Suspicious: see the submission"}}">{{$.T "suspicious"}}</span>{{end}}</td>
   <td>{{dt .SubmittedAt}}</td>
   <td><a href="/participations/{{.ParticipationID}}">{{.Username}}</a></td>
   <td>{{.TaskName}}</td>
@@ -41,7 +41,7 @@
 {{with .Data.Next}}<a class="right" href="?{{.}}">{{$.T "Older →"}}</a>{{end}}</p>
 </form>
 {{if .CanWrite}}
-<section class="card">
+<section class="section">
 <h2>{{.T "Reevaluate"}}</h2>
 {{if $f.Task}}<p>{{.T "Task:"}} {{template "reevaluate" (reeval $ "task_id" $f.Task (printf "/contests/%d/submissions?task=%d" $c.ID $f.Task))}}</p>{{end}}
 {{if $f.Participation}}<p>{{.T "Participation:"}} {{template "reevaluate" (reeval $ "participation_id" $f.Participation (printf "/contests/%d/submissions?participation=%d" $c.ID $f.Participation))}}</p>{{end}}

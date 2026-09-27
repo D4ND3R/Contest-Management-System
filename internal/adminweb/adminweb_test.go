@@ -226,7 +226,10 @@ func TestLoginRolesAndAudit(t *testing.T) {
 	if code, _ := all.Post("/contests", url.Values{"csrf": {"forged"}, "name": {"x"}}); code != http.StatusForbidden {
 		t.Fatalf("forged CSRF = %d", code)
 	}
-	code, body = all.Post("/contests", url.Values{"name": {"final"}, "description": {"Final round"}, "timezone": {"America/Mexico_City"},
+	// Times of the form are in the server's time zone (SPEC_MIN §4).
+	code, body = all.Post("/server", url.Values{"timezone": {"America/Mexico_City"}})
+	webtest.MustOK(t, "server time zone", code, body)
+	code, body = all.Post("/contests", url.Values{"name": {"final"}, "description": {"Final round"},
 		"start_time": {"2030-05-01T09:00"}, "stop_time": {"2030-05-01T14:00"}, "languages": {"c11", "cpp17"},
 		"token_mode": {"disabled"}, "scoring_mode": {"ioi"}, "allow_password_authentication": {"on"}})
 	webtest.MustOK(t, "create contest", code, body)
@@ -234,8 +237,8 @@ func TestLoginRolesAndAudit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := time.Date(2030, 5, 1, 15, 0, 0, 0, time.UTC); !c.StartTime.Equal(want) {
-		t.Fatalf("start %v, want %v (Mexico City is UTC-6)", c.StartTime, want)
+	if want := time.Date(2030, 5, 1, 15, 0, 0, 0, time.UTC); !c.StartTime.Equal(want) || c.Timezone != "America/Mexico_City" {
+		t.Fatalf("start %v in %s, want %v (Mexico City is UTC-6)", c.StartTime, c.Timezone, want)
 	}
 	if strings.Join(c.Languages, ",") != "c11,cpp17" || c.Description != "Final round" {
 		t.Fatalf("contest %+v", c)

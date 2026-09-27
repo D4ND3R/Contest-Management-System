@@ -1,19 +1,17 @@
 {{define "content"}}{{$d := .Data}}
 <h1>{{.T "Testing"}}</h1>
 {{if $d.Tasks}}
-<nav class="tabs" aria-label="{{.T "Task"}}">{{range $d.Tasks}}<a href="{{$.Base}}testing?task={{.Name}}" {{if eq .Name $d.Task.Name}}class="active" aria-current="true"{{end}}>{{.Name}}</a>{{end}}</nav>
-<section class="card" id="tests">
+<nav aria-label="{{.T "Task"}}"><ul class="tabs">{{range $d.Tasks}}<li><a href="{{$.Base}}testing?task={{.Name}}" {{if eq .Name $d.Task.Name}}aria-current="page"{{end}}>{{.Name}}</a></li>{{end}}</ul></nav>
+<div id="tests">
   <h2>{{$d.Task.Name}} — {{$d.Task.Title}}</h2>
   {{template "testsform" (tests $ $d.Form $d.Task "testing")}}
-</section>
+</div>
 {{range $d.ByTask}}{{if ne .Task.Name $d.Task.Name}}
-<section class="card">
-  <h2>{{.Task.Name}} — {{.Task.Title}}</h2>
-  <table>
-  <tr><th>{{$.T "Time"}}</th><th>{{$.T "Language"}}</th><th>{{$.T "Status"}}</th><th>{{$.T "Output"}}</th></tr>
-  {{range .Tests}}{{template "testrow" (testrow $ .)}}{{end}}
-  </table>
-</section>
+<h2>{{.Task.Name}} — {{.Task.Title}}</h2>
+<table>
+<thead><tr><th>{{$.T "Time"}}</th><th>{{$.T "Language"}}</th><th>{{$.T "Status"}}</th><th>{{$.T "Output"}}</th></tr></thead>
+<tbody>{{range .Tests}}{{template "testrow" (testrow $ .)}}{{end}}</tbody>
+</table>
 {{end}}{{end}}
 {{else}}<p class="muted">{{.T "Tests are not available now."}}</p>{{end}}
 {{end}}

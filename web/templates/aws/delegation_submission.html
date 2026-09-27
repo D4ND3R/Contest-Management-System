@@ -1,16 +1,16 @@
 {{define "content"}}
 {{$s := .Data.S}}
 <div class="page-head"><div><h1>{{.T "Submission %d" $s.ID}}</h1><p>{{$s.Username}} · {{$s.ContestName}} · {{$s.TaskName}}</p></div>
-<div class="card-actions"><a class="button secondary" href="/delegation{{if not .IsLeader}}?team={{.Data.Team.ID}}{{end}}">{{icon "chevron-left"}} {{.T "My delegation"}}</a></div></div>
-<section class="card">
+<div class="card-actions"><a class="button secondary" href="/delegation{{if not .IsLeader}}?team={{.Data.Team.ID}}{{end}}">{{.T "My delegation"}}</a></div></div>
+<section class="section">
 <dl class="meta">
-  <dt>{{.T "Time (UTC)"}}</dt><dd>{{dt $s.SubmittedAt}}</dd>
+  <dt>{{.T "Time"}}</dt><dd>{{dt $s.SubmittedAt}}</dd>
   <dt>{{.T "Language"}}</dt><dd>{{deref $s.Language}}</dd>
   <dt>{{.T "Result"}}</dt><dd class="{{.Data.Class}}">{{.Data.Result}}</dd>
 </dl>
 </section>
 {{range .Data.Files}}
-<section class="card">
+<section class="section">
 <h2>{{.Name}}</h2>
 {{if .Binary}}<p class="muted">{{$.T "Binary or large file."}}</p>{{else}}<pre class="code hl">{{.HTML}}</pre>{{end}}
 </section>

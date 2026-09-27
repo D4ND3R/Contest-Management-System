@@ -1,0 +1,16 @@
+{{define "content"}}{{$d := .Data}}
+<h1>{{.T "Server settings"}}</h1>
+<h2>{{.T "Time zone"}}</h2>
+<p>{{.T "Every time the sites show (contest pages, scoreboards, this panel, certificates) is in this zone, and the times typed in forms are read in it. Changing it takes effect at once everywhere; the moments stored do not change."}}</p>
+<p>{{.T "Now:"}} <b>{{inTZ $d.Now $d.Timezone}}</b></p>
+{{if .CanWrite}}
+<form method="post" action="/server" class="inline-form">
+  {{template "csrf" .CSRF}}
+  <label>{{.T "Time zone"}} <input name="timezone" value="{{$d.Timezone}}" list="zones" required autocomplete="off" size="32"></label>
+  <datalist id="zones">{{range $d.Zones}}<option value="{{.}}">{{end}}</datalist>
+  <button class="primary">{{.T "Save"}}</button>
+</form>
+<p class="help">{{.T "An IANA name such as America/Mexico_City, Europe/Madrid or UTC. A contestant can still get another zone on their user page (for remote contestants)."}}</p>
+{{end}}
+<p class="muted small">{{.T "Last changed %s." (dt $d.Updated)}}</p>
+{{end}}

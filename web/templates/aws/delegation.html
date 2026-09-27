@@ -9,13 +9,13 @@
 {{end}}
 <p class="muted small">{{.T "The submissions of the delegation's contestants, with the results they see themselves (scores only when the contest shows them). Leaders cannot submit."}}</p>
 {{range .Data.Contests}}
-<section class="card">
-  <h2>{{icon "flag"}} {{if .Title}}{{.Title}}{{else}}{{.Name}}{{end}}</h2>
+<section class="section">
+  <h2>{{if .Title}}{{.Title}}{{else}}{{.Name}}{{end}}</h2>
   {{range .People}}
   <h3>{{.Username}}{{with .Name}} <small class="muted">{{.}}</small>{{end}}</h3>
   {{if .Subs}}
   <table class="compact">
-  <thead><tr><th>{{$.T "Time (UTC)"}}</th><th>{{$.T "Task"}}</th><th>{{$.T "Language"}}</th><th>{{$.T "Result"}}</th><th></th></tr></thead>
+  <thead><tr><th>{{$.T "Time"}}</th><th>{{$.T "Task"}}</th><th>{{$.T "Language"}}</th><th>{{$.T "Result"}}</th><th></th></tr></thead>
   <tbody>
   {{range .Subs}}<tr><td>{{dt .At}}</td><td>{{.Task}}</td><td>{{.Language}}</td><td class="{{.Class}}">{{.Result}}</td>
     <td><a href="/delegation/submissions/{{.ID}}{{if not $.IsLeader}}?team={{$.Data.Team.ID}}{{end}}">{{$.T "source"}}</a></td></tr>{{end}}

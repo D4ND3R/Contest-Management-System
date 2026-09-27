@@ -10,7 +10,7 @@ import (
 // the session) so they apply before logging in, on every site of the
 // host, and cost nothing on the server.
 type Display struct {
-	// Theme: "" is the dark design, or light, contrast (high contrast),
+	// Theme: "" is the light design, or dark, contrast (high contrast),
 	// system (light or dark as the operating system prefers).
 	Theme string
 	// Size: "" is the normal text size, or l, xl, xxl.
@@ -20,7 +20,7 @@ type Display struct {
 // Themes and Sizes are the accepted values, in the order the selectors
 // show them.
 var (
-	Themes = []string{"", "light", "contrast", "system"}
+	Themes = []string{"", "dark", "contrast", "system"}
 	Sizes  = []string{"", "l", "xl", "xxl"}
 )
 
@@ -34,7 +34,7 @@ func ReadDisplay(r *http.Request) Display {
 		return Display{}
 	}
 	theme, size, _ := strings.Cut(c.Value, ".")
-	d := Display{Theme: theme, Size: size}
+	d := Display{Theme: legacyTheme(theme), Size: size}
 	if !slices.Contains(Themes, d.Theme) {
 		d.Theme = ""
 	}
@@ -47,7 +47,7 @@ func ReadDisplay(r *http.Request) Display {
 // DisplayFromForm reads the theme and size fields of a preferences form;
 // unknown values become the defaults.
 func DisplayFromForm(r *http.Request) Display {
-	d := Display{Theme: r.FormValue("theme"), Size: r.FormValue("size")}
+	d := Display{Theme: legacyTheme(r.FormValue("theme")), Size: r.FormValue("size")}
 	if !slices.Contains(Themes, d.Theme) {
 		d.Theme = ""
 	}
@@ -55,6 +55,15 @@ func DisplayFromForm(r *http.Request) Display {
 		d.Size = ""
 	}
 	return d
+}
+
+// legacyTheme maps the values of the earlier dark-first design ("light"
+// was a choice then) to the current ones.
+func legacyTheme(t string) string {
+	if t == "light" {
+		return ""
+	}
+	return t
 }
 
 // WriteDisplay stores the preferences for a year.
@@ -69,7 +78,7 @@ type Option struct{ Value, Label string }
 // ThemeOptions and SizeOptions are the selector entries, labelled by tr
 // (the page's translation function).
 func ThemeOptions(tr func(string, ...any) string) []Option {
-	return []Option{{"", tr("Dark")}, {"light", tr("Light")}, {"contrast", tr("High contrast")}, {"system", tr("As the system")}}
+	return []Option{{"", tr("Light")}, {"dark", tr("Dark")}, {"contrast", tr("High contrast")}, {"system", tr("As the system")}}
 }
 
 func SizeOptions(tr func(string, ...any) string) []Option {

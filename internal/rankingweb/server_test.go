@@ -108,12 +108,17 @@ func sse(t *testing.T, url string) (<-chan string, func()) {
 
 func next(t *testing.T, ch <-chan string) string {
 	t.Helper()
-	select {
-	case m := <-ch:
-		return m
-	case <-time.After(3 * time.Second):
-		t.Fatal("no event")
-		return ""
+	for {
+		select {
+		case m := <-ch:
+			if strings.HasPrefix(m, "ping ") { // keep-alive
+				continue
+			}
+			return m
+		case <-time.After(3 * time.Second):
+			t.Fatal("no event")
+			return ""
+		}
 	}
 }
 
