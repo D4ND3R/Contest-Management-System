@@ -352,7 +352,7 @@ func TestUserTests(t *testing.T) {
 	f := newFixture(t)
 	q := f.q
 	ut := must[sqlc.UserTest](t)(q.CreateUserTest(ctx, sqlc.CreateUserTestParams{
-		ParticipationID: f.part.ID, TaskID: f.task.ID, SubmittedAt: time.Now(), Language: ptr("python3"), InputDigest: digestOf("1 2"),
+		ParticipationID: &f.part.ID, TaskID: f.task.ID, SubmittedAt: time.Now(), Language: ptr("python3"), InputDigest: digestOf("1 2"),
 	}))
 	must[int64](t)(q.CreateUserTestFiles(ctx, []sqlc.CreateUserTestFilesParams{{UserTestID: ut.ID, Filename: "sum.%l", Digest: digestOf("print(3)")}}))
 	if err := q.EnsureUserTestResult(ctx, sqlc.EnsureUserTestResultParams{UserTestID: ut.ID, DatasetID: f.dataset.ID}); err != nil {

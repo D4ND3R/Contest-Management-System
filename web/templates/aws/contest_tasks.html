@@ -29,6 +29,7 @@
   {{template "csrf" .CSRF}}
   <input type="hidden" name="contest_id" value="{{$c.ID}}">
   <h2>{{.T "New task"}}</h2>
+  <p class="help">{{.T "A name is enough to start: the statement, the testcases, the checker and the rest are added afterwards from the task's page, one by one and in any order."}}</p>
   <label>{{.T "Name (short, used in URLs)"}} <input name="name" required pattern="[A-Za-z0-9_.\-]+"></label>
   <label>{{.T "Title"}} <input name="title"></label>
   <button>{{.T "Create task"}}</button>

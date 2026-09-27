@@ -15,7 +15,9 @@ import (
 	"github.com/D4ND3R/Contest-Management-System/internal/db"
 	"github.com/D4ND3R/Contest-Management-System/internal/db/sqlc"
 	"github.com/D4ND3R/Contest-Management-System/internal/langs"
+	"github.com/D4ND3R/Contest-Management-System/internal/scoring"
 	"github.com/D4ND3R/Contest-Management-System/internal/statement"
+	"github.com/D4ND3R/Contest-Management-System/internal/tasktypes"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -129,6 +131,15 @@ type taskPage struct {
 	Tester      *testerForm
 	Languages   []*langs.Language
 	Examples    []exampleView
+	// Steps is the setup checklist at the top of the page (SPEC_MIN §13).
+	Steps []setupStep
+}
+
+// setupStep is one step of making a task ready: what, whether it is
+// done, a short state and where to do it.
+type setupStep struct {
+	Title, State, URL string
+	Done              bool
 }
 
 func (s *Server) taskPage(ctx context.Context, t sqlc.Task, u sqlc.UpdateTaskParams) (*taskPage, error) {
@@ -157,7 +168,79 @@ func (s *Server) taskPage(ctx context.Context, t sqlc.Task, u sqlc.UpdateTaskPar
 	if d.Examples, err = s.exampleViews(ctx, t.ID); err != nil {
 		return nil, err
 	}
+	if d.Steps, err = s.setupSteps(ctx, d); err != nil {
+		return nil, err
+	}
 	return d, nil
+}
+
+// setupSteps checks, in order, what a task needs before a contest: a
+// title, a statement, testcases, a complete judging configuration, a
+// scoring, a reference solution with the full score, and a contest. The
+// words are translation keys with their arguments.
+func (s *Server) setupSteps(ctx context.Context, d *taskPage) ([]setupStep, error) {
+	t := d.Task
+	id := strconv.FormatInt(t.ID, 10)
+	steps := []setupStep{
+		{Title: "Name and title", Done: t.Title != "", URL: "/tasks/" + id + "#general"},
+		{Title: "Statement", Done: len(d.Statements) > 0, URL: "/tasks/" + id + "#statements"},
+	}
+	if len(d.Statements) > 0 {
+		steps[1].State = strconv.Itoa(len(d.Statements))
+	}
+	if t.ActiveDatasetID == nil {
+		return append(steps, setupStep{Title: "Testcases", URL: "/tasks/" + id + "#datasets"}), nil
+	}
+	ds, err := s.q.GetDataset(ctx, *t.ActiveDatasetID)
+	if err != nil {
+		return nil, err
+	}
+	dsURL := "/datasets/" + strconv.FormatInt(ds.ID, 10)
+	tcs, err := s.q.ListTestcases(ctx, ds.ID)
+	if err != nil {
+		return nil, err
+	}
+	steps = append(steps, setupStep{Title: "Testcases", Done: len(tcs) > 0, State: strconv.Itoa(len(tcs)), URL: dsURL + "#add-testcases"})
+	managers, err := s.q.ListManagers(ctx, ds.ID)
+	if err != nil {
+		return nil, err
+	}
+	have := map[string]bool{}
+	for _, m := range managers {
+		have[strings.TrimSuffix(m.Filename, path.Ext(m.Filename))], have[m.Filename] = true, true
+	}
+	missing := 0
+	for _, req := range tasktypes.RequiredManagers(ds.TaskType, ds.TaskTypeParams) {
+		if base := strings.TrimSuffix(req, ".<ext>"); !have[base] && !have[req] {
+			missing++
+		}
+	}
+	steps = append(steps, setupStep{Title: "Type, limits and checker", Done: missing == 0, State: ds.TaskType, URL: dsURL})
+	codes, pub := make([]string, len(tcs)), make([]bool, len(tcs))
+	for i, tc := range tcs {
+		codes[i], pub[i] = tc.Codename, tc.Public
+	}
+	maxScore := 0.0
+	score := setupStep{Title: "Scoring and subtasks", URL: dsURL + "#score"}
+	if st, err := scoring.New(ds.ScoreType, ds.ScoreTypeParams, codes, pub, int(t.ScorePrecision)); err == nil {
+		maxScore = st.MaxScore()
+		score.Done, score.State = maxScore > 0, strconv.FormatFloat(maxScore, 'f', -1, 64)
+	}
+	steps = append(steps, score)
+	solved := false
+	for _, run := range d.Tester.Runs {
+		for _, res := range run.Results {
+			if res.Dataset == ds.Description && res.Status == "scored" && res.Score != nil && maxScore > 0 && *res.Score >= maxScore-1e-9 {
+				solved = true
+			}
+		}
+	}
+	steps = append(steps, setupStep{Title: "Reference solution with the full score", Done: solved, URL: "/tasks/" + id + "#tester"})
+	contest := setupStep{Title: "In a contest", Done: d.Contest != nil, URL: "/tasks/" + id + "#general"}
+	if d.Contest != nil {
+		contest.State, contest.URL = d.Contest.Name, "/contests/"+strconv.FormatInt(d.Contest.ID, 10)+"/tasks"
+	}
+	return append(steps, contest), nil
 }
 
 func (s *Server) loadTask(w http.ResponseWriter, r *http.Request, rc *reqCtx) (sqlc.Task, bool) {

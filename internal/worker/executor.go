@@ -53,6 +53,13 @@ type Executor struct {
 // NewExecutor prepares slots (one per configured or detected physical core),
 // the verified testcase cache and the staging directories.
 func NewExecutor(cfg config.Worker, store blob.Store, log *slog.Logger) (*Executor, error) {
+	// isolate only mounts absolute paths: relative directories (as in
+	// config/dev.yaml or the defaults) are taken from the current one.
+	for _, d := range []*string{&cfg.WorkDir, &cfg.CacheDir} {
+		if abs, err := filepath.Abs(*d); err == nil && *d != "" {
+			*d = abs
+		}
+	}
 	name := cfg.Name
 	if name == "" {
 		h, _ := os.Hostname()

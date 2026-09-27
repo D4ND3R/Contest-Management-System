@@ -10,7 +10,11 @@
 {{with .Data.ScoreError}}<p class="alert">{{$.T "Score type:"}} {{.}}</p>{{else}}<p>{{.T "Maximum score"}} <b>{{score .Data.MaxScore .Data.Task.ScorePrecision}}</b>{{if gt (len .Data.Subtasks) 1}} ({{.T "subtasks:"}} {{range $i, $x := .Data.Subtasks}}{{if $i}}, {{end}}{{score $x $.Data.Task.ScorePrecision}}{{end}}){{end}}.</p>{{end}}
 {{with .Data.Missing}}<p class="alert">{{$.T "Missing managers for this configuration:"}} {{join . ", "}}.</p>{{end}}
 
-<form method="post" action="/datasets/{{$ds.ID}}" class="section">
+<nav aria-label="{{.T "Dataset"}}"><ul class="tabs">
+  <li><a href="#config">{{.T "Type, limits and checker"}}</a></li><li><a href="#score">{{.T "Scoring and subtasks"}}</a></li><li><a href="#managers">{{.T "Managers"}}</a></li>
+  <li><a href="#add-testcases">{{.T "Add testcases"}}</a></li><li><a href="#testcases">{{.T "Testcases"}}</a></li>
+</ul></nav>
+<form method="post" action="/datasets/{{$ds.ID}}" class="section" id="config">
 {{template "csrf" .CSRF}}
 <fieldset class="bare" {{if not .CanEditTasks}}disabled{{end}}>
 <div class="grid">
@@ -77,7 +81,7 @@
   <textarea name="task_type_params" rows="6" class="code" aria-label="{{.T "Advanced: raw parameters (JSON)"}}">{{.Data.ParamsJSON}}</textarea>
 </details>
 </div>
-<div>
+<div id="score">
 <label>{{.T "Score type"}} <select name="score_type" data-type-switch="score">{{range .Data.ScoreTypes}}<option {{if eq . $d.ScoreType}}selected{{end}}>{{.}}</option>{{end}}</select></label>
 {{template "score-editor" (part $ .Data.Editor)}}
 <p class="checks" data-group="score" data-for="GroupMin GroupMul"><label><input type="checkbox" name="short_circuit" {{if $d.ShortCircuit}}checked{{end}}> {{.T "Short-circuit: skip the rest of a subtask once one of its testcases scores 0"}}</label></p>
@@ -106,27 +110,67 @@
 {{end}}
 </section>
 
-<section class="section" id="testcases">
-<h2>{{.T "Testcases"}} <small class="muted">{{len .Data.Testcases}}</small></h2>
+{{$tt := .Data.Tools}}
 {{if .CanEditTasks}}
-<div class="row">
+<section class="section" id="add-testcases">
+<h2>{{.T "Add testcases"}}</h2>
+<div class="grid-2">
+<form method="post" action="/datasets/{{$ds.ID}}/testcases" enctype="multipart/form-data">
+  {{template "csrf" .CSRF}}
+  <h3>{{.T "One testcase"}}</h3>
+  <div class="row"><label>{{.T "Codename"}} <input name="codename" value="{{$tt.Next}}" size="10"></label>
+    <label class="inline"><input type="checkbox" name="public"> {{.T "Public (contestants see its result)"}}</label></div>
+  <label>{{.T "Input"}} <textarea name="input_text" rows="5" class="code" spellcheck="false"></textarea></label>
+  <p class="help">{{.T "or a file:"}} <input type="file" name="input" aria-label="{{.T "Input"}}"></p>
+  <p class="checks">{{.T "Output:"}}
+    <label><input type="radio" name="output_mode" value="given" checked> {{.T "typed or uploaded"}}</label>
+    {{if $tt.Solve}}<label><input type="radio" name="output_mode" value="solution" {{if not $tt.Solutions}}disabled{{end}}> {{.T "written by the reference solution"}}</label>{{end}}
+    <label><input type="radio" name="output_mode" value="empty"> {{.T "empty"}}</label></p>
+  <label>{{.T "Output"}} <textarea name="output_text" rows="4" class="code" spellcheck="false"></textarea></label>
+  <p class="help">{{.T "or a file:"}} <input type="file" name="output" aria-label="{{.T "Output"}}"></p>
+  {{if $tt.Solve}}{{template "solution-select" (part $ $tt)}}{{end}}
+  <p><button class="primary">{{.T "Add testcase"}}</button></p>
+</form>
+<form method="post" action="/datasets/{{$ds.ID}}/testcases/generate" enctype="multipart/form-data">
+  {{template "csrf" .CSRF}}
+  <h3>{{.T "Generate with a program"}}</h3>
+  <p class="help">{{.T "The generator reads one line of parameters on standard input and writes a whole input on standard output. It runs once per line below, in the judging sandbox (at least 10 s and 1 GiB)."}}</p>
+  <div class="row">
+    <label>{{.T "Generator source"}} <input type="file" name="generator" required></label>
+    <label>{{.T "Language"}} <select name="language">{{range $tt.Languages}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
+  </div>
+  <label>{{.T "Parameters, one testcase per line"}} <textarea name="lines" rows="5" class="code" spellcheck="false" placeholder="10 1&#10;1000 2&#10;100000 3" required></textarea></label>
+  <div class="row"><label>{{.T "Codename prefix"}} <input name="prefix" size="6" placeholder="g"></label>
+    <label>{{.T "First number"}} <input name="start" value="1" size="4" inputmode="numeric"></label></div>
+  <p class="checks">{{.T "Output:"}}
+    {{if $tt.Solve}}<label><input type="radio" name="output_mode" value="solution" {{if $tt.Solutions}}checked{{else}}disabled{{end}}> {{.T "written by the reference solution"}}</label>{{end}}
+    <label><input type="radio" name="output_mode" value="empty" {{if or (not $tt.Solve) (not $tt.Solutions)}}checked{{end}}> {{.T "empty"}}</label></p>
+  {{if $tt.Solve}}{{template "solution-select" (part $ $tt)}}{{end}}
+  <p><button class="primary">{{.T "Generate"}}</button></p>
+</form>
+</div>
+<details class="more"><summary>{{.T "Many testcases from a zip archive"}}</summary>
 <form method="post" action="/datasets/{{$ds.ID}}/testcases/archive" enctype="multipart/form-data">
   {{template "csrf" .CSRF}}
-  <h3>{{.T "From a zip archive"}}</h3>
-  <div class="grid"><label>{{.T "Input names"}} <input name="input_template" value="*.in"></label><label>{{.T "Output names"}} <input name="output_template" value="*.out"></label></div>
-  <input type="file" name="archive" accept=".zip,application/zip" required aria-label="{{.T "From a zip archive"}}">
+  <div class="row"><label>{{.T "Input names"}} <input name="input_template" value="*.in"></label><label>{{.T "Output names"}} <input name="output_template" value="*.out"></label>
+  <label>{{.T "Archive"}} <input type="file" name="archive" accept=".zip,application/zip" required></label></div>
   <p class="checks"><label><input type="checkbox" name="overwrite"> {{.T "Overwrite existing"}}</label> <label><input type="checkbox" name="public"> {{.T "Public"}}</label></p>
   <button>{{.T "Import"}}</button>
 </form>
-<form method="post" action="/datasets/{{$ds.ID}}/testcases" enctype="multipart/form-data">
-  {{template "csrf" .CSRF}}
-  <h3>{{.T "Single testcase"}}</h3>
-  <label>{{.T "Codename"}} <input name="codename" required></label>
-  <div class="grid"><label>{{.T "Input"}} <input type="file" name="input" required></label><label>{{.T "Output"}} <input type="file" name="output" required></label></div>
-  <p class="checks"><label><input type="checkbox" name="public"> {{.T "Public"}}</label></p>
-  <button>{{.T "Add"}}</button>
-</form>
-</div>
+</details>
+</section>
+{{end}}
+
+<section class="section" id="testcases"{{if $tt.Running}} hx-get="/datasets/{{$ds.ID}}" hx-select="#testcases" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+<h2>{{.T "Testcases"}} <small class="muted">{{len .Data.Testcases}}</small></h2>
+{{with $tt.Jobs}}
+<table>
+<thead><tr><th>{{$.T "Codename"}}</th><th>{{$.T "State"}}</th></tr></thead>
+<tbody>
+{{range .}}<tr><td>{{.Codename}}</td><td>{{if eq .State "input"}}<span class="pending">{{$.T "the generator is writing the input…"}}</span>{{else if eq .State "output"}}<span class="pending">{{$.T "the reference solution is writing the output…"}}</span>{{else}}<span class="bad">{{$.T "failed:"}}</span> <span class="pre">{{.Error}}</span>{{end}}</td></tr>{{end}}
+</tbody>
+</table>
+{{if and $.CanEditTasks (lt $tt.Running (len .))}}<form method="post" action="/datasets/{{$ds.ID}}/testcase-jobs/clear" class="inline">{{template "csrf" $.CSRF}}<button class="link">{{$.T "forget the failed ones"}}</button></form>{{end}}
 {{end}}
 <table>
 <thead><tr><th>{{.T "Codename"}}</th><th>{{.T "Public"}}</th><th>{{.T "Input"}}</th><th>{{.T "Output"}}</th><th></th></tr></thead>

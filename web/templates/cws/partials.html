@@ -9,7 +9,7 @@
       data-msg-ext="{{.T "The file extension does not match the chosen language."}}" data-msg-empty="{{.T "Please attach at least one file."}}">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
   <div class="row">
-    {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" {{if and $t.NeedsLanguage (not $t.Editor)}}required{{end}}></label>{{end}}
+    {{range $t.Formats}}<label>{{srcname .}} <input type="file" name="{{.}}" {{if and $t.NeedsLanguage (not $t.Editor)}}required{{end}}></label>{{end}}
     {{if eq $t.TaskType "OutputOnly"}}<label>{{.T "Or all the outputs in a zip archive"}} <input type="file" name="zip" accept=".zip,application/zip"></label>{{end}}
     {{if $t.NeedsLanguage}}<label>{{.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" data-exts="{{.Exts}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
     <div><button class="primary" {{with $d.ReadyAt}}data-ready-at="{{.}}" data-wait="{{$.T "Wait %s"}}"{{end}}>{{.T "Submit"}}</button></div>
@@ -67,7 +67,7 @@
   <td>{{.About}}<br><small class="muted">{{.Kind}}</small></td>
   {{if .Notice}}<td colspan="2"><b dir="auto">{{.Subject}}</b><br><span class="pre" dir="auto">{{.Question}}</span></td>
   {{else}}<td><span class="pre" dir="auto">{{.Question}}</span></td>
-  <td>{{if .Answered}}<b>{{.ReplySubject}}</b>{{with .Answer}}<br><span class="pre" dir="auto">{{.}}</span>{{end}}{{else}}<span class="muted">{{$.T "Waiting for an answer."}}</span>{{end}}</td>{{end}}
+  <td>{{if .Answered}}{{with .ReplySubject}}<b>{{.}}</b>{{end}}{{if and .ReplySubject .Answer}}<br>{{end}}{{with .Answer}}<span class="pre" dir="auto">{{.}}</span>{{end}}{{else}}<span class="muted">{{$.T "Waiting for an answer."}}</span>{{end}}</td>{{end}}
 </tr>{{end}}
 </tbody>
 </table>
@@ -132,7 +132,7 @@
 <form method="post" action="{{$p.Base}}tasks/{{$t.Name}}/test{{with .From}}?from={{.}}{{end}}" enctype="multipart/form-data">
   <input type="hidden" name="csrf" value="{{$p.CSRF}}">
   <div class="row">
-  {{range $t.Formats}}<label>{{.}} <input type="file" name="{{.}}" required></label>{{end}}
+  {{range $t.Formats}}<label>{{srcname .}} <input type="file" name="{{.}}" required></label>{{end}}
   {{if $t.NeedsLanguage}}<label>{{$p.T "Language"}} <select name="language">{{range $d.Languages}}<option value="{{.ID}}" {{if eq .ID $d.LastLanguage}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>{{end}}
   <label>{{$p.T "Input file"}} <input type="file" name="input"></label>
   </div>

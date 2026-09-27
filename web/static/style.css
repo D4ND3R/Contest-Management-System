@@ -128,7 +128,7 @@ tr.mine td{background:var(--mark)!important}
 table.plain,table.plain th,table.plain td{border:0;background:none}
 table.plain th{padding-inline-start:0;color:var(--muted);font-weight:400}
 table.kv{width:auto}
-table.kv th{text-align:start;width:1%}
+table.kv th{text-align:start}
 .table-wrap{overflow-x:auto}
 td.actions{white-space:nowrap}
 
@@ -183,6 +183,7 @@ button.link{border:0;background:none;padding:0;color:var(--link);cursor:pointer}
 button.link:hover{text-decoration:underline}
 button:disabled{opacity:.55;cursor:not-allowed}
 form.inline{display:inline}
+form.inline select,form.inline input:not([type=checkbox]):not([type=radio]){display:inline-block;width:auto}
 .row{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:end}
 .row>*{flex:0 1 auto}
 .row label{margin-top:0}

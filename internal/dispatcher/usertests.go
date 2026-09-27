@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -13,7 +14,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// newUserTest starts a user test on the task's live dataset.
+// newUserTest starts a user test on the task's live dataset (or the
+// dataset of an administrator's run).
 func (d *Dispatcher) newUserTest(ctx context.Context, id int64) error {
 	q := sqlc.New(d.pool)
 	meta, err := q.GetUserTestMeta(ctx, id)
@@ -23,10 +25,10 @@ func (d *Dispatcher) newUserTest(ctx context.Context, id int64) error {
 	if err != nil {
 		return err
 	}
-	if meta.ActiveDatasetID == nil {
+	if meta.DatasetID == nil {
 		return nil
 	}
-	return d.advanceUserTest(ctx, id, *meta.ActiveDatasetID)
+	return d.advanceUserTest(ctx, id, *meta.DatasetID)
 }
 
 func (d *Dispatcher) userTestJob(ctx context.Context, q *sqlc.Queries, id, dsID int64, gen int32, attempt int) (*jobs.Job, sqlc.GetUserTestMetaRow, error) {
@@ -47,6 +49,12 @@ func (d *Dispatcher) userTestJob(ctx context.Context, q *sqlc.Queries, id, dsID 
 		Priority: int(queue.PriorityUserTest), UserTestID: id, DatasetID: dsID, Generation: gen,
 		TaskType: di.ds.TaskType, TaskTypeParams: di.ds.TaskTypeParams, Managers: di.managers,
 		Limits: di.limits(), Input: meta.InputDigest,
+	}
+	if meta.Plain {
+		// A generator: standard input to standard output, whatever the
+		// task, with room to build big inputs.
+		j.TaskType, j.TaskTypeParams, j.Managers = "Batch", json.RawMessage(`{}`), nil
+		j.Limits = plainLimits(j.Limits)
 	}
 	ext := ""
 	if meta.Language != nil {
@@ -120,7 +128,10 @@ func (d *Dispatcher) handleUserTestResult(ctx context.Context, r *resultT) error
 			if r.Attempt+1 >= d.opts.MaxAttempts {
 				msg := fmt.Sprintf("user test job failed %d times: %s", r.Attempt+1, r.Error)
 				eff.events = append(eff.events, userTestEvent(meta, "error"))
-				return q.SetUserTestSystemError(ctx, sqlc.SetUserTestSystemErrorParams{UserTestID: r.UserTestID, DatasetID: r.DatasetID, SystemError: &msg})
+				if err := q.SetUserTestSystemError(ctx, sqlc.SetUserTestSystemErrorParams{UserTestID: r.UserTestID, DatasetID: r.DatasetID, SystemError: &msg}); err != nil {
+					return err
+				}
+				return d.testcaseJobStep(ctx, q, r.UserTestID, runEnd{err: msg}, &eff)
 			}
 			j, _, err := d.userTestJob(ctx, q, r.UserTestID, r.DatasetID, st.Generation, r.Attempt+1)
 			if err != nil {
@@ -146,7 +157,11 @@ func (d *Dispatcher) handleUserTestResult(ctx context.Context, r *resultT) error
 		}
 		if !c.Success || r.UserTest == nil {
 			eff.events = append(eff.events, userTestEvent(meta, "done"))
-			return nil
+			end := runEnd{err: "the run gave no result"}
+			if !c.Success {
+				end.err = compileFailure(c)
+			}
+			return d.testcaseJobStep(ctx, q, r.UserTestID, end, &eff)
 		}
 		for _, e := range c.Executables {
 			if err := q.RegisterBlob(ctx, sqlc.RegisterBlobParams{Digest: e.Digest, Size: e.Size, Description: "executable"}); err != nil {
@@ -172,7 +187,7 @@ func (d *Dispatcher) handleUserTestResult(ctx context.Context, r *resultT) error
 			return err
 		}
 		eff.events = append(eff.events, userTestEvent(meta, "done"))
-		return nil
+		return d.testcaseJobStep(ctx, q, r.UserTestID, runEnd{output: u.Output, status: u.ExitStatus, text: u.Text}, &eff)
 	})
 	if errors.Is(err, errStale) {
 		return nil
@@ -182,4 +197,14 @@ func (d *Dispatcher) handleUserTestResult(ctx context.Context, r *resultT) error
 	}
 	d.apply(ctx, &eff)
 	return nil
+}
+
+// plainLimits are the limits of a generator run: at least 10 s of CPU,
+// 1 GiB of memory and 256 MiB of output, more when the dataset allows it.
+func plainLimits(l jobs.Limits) jobs.Limits {
+	l.TimeMs = max(l.TimeMs, 10_000)
+	l.WallTimeMs = max(l.WallTimeMs, 2*l.TimeMs)
+	l.MemoryBytes = max(l.MemoryBytes, 1<<30)
+	l.OutputBytes = max(l.OutputBytes, 256<<20)
+	return l
 }

@@ -472,6 +472,21 @@ type Testcase struct {
 	OutputDigest string `json:"output_digest"`
 }
 
+type TestcaseJob struct {
+	ID          int64     `json:"id"`
+	DatasetID   int64     `json:"dataset_id"`
+	Codename    string    `json:"codename"`
+	Public      bool      `json:"public"`
+	AdminID     *int64    `json:"admin_id"`
+	InputDigest *string   `json:"input_digest"`
+	Output      string    `json:"output"`
+	SolutionID  *int64    `json:"solution_id"`
+	UserTestID  *int64    `json:"user_test_id"`
+	State       string    `json:"state"`
+	Error       string    `json:"error"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type Token struct {
 	ID           int64     `json:"id"`
 	SubmissionID int64     `json:"submission_id"`
@@ -497,11 +512,14 @@ type User struct {
 
 type UserTest struct {
 	ID              int64     `json:"id"`
-	ParticipationID int64     `json:"participation_id"`
+	ParticipationID *int64    `json:"participation_id"`
 	TaskID          int64     `json:"task_id"`
 	SubmittedAt     time.Time `json:"submitted_at"`
 	Language        *string   `json:"language"`
 	InputDigest     string    `json:"input_digest"`
+	AdminID         *int64    `json:"admin_id"`
+	DatasetID       *int64    `json:"dataset_id"`
+	Plain           bool      `json:"plain"`
 }
 
 type UserTestExecutable struct {

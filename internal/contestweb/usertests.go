@@ -136,7 +136,7 @@ func (s *Server) ownTest(w http.ResponseWriter, r *http.Request, rc *reqCtx) (sq
 		return zero, nil, false
 	}
 	ut, err := s.q.GetUserTest(r.Context(), id)
-	if err != nil || ut.ParticipationID != rc.part.ID {
+	if err != nil || ut.ParticipationID == nil || *ut.ParticipationID != rc.part.ID {
 		http.NotFound(w, r)
 		return zero, nil, false
 	}
@@ -313,7 +313,7 @@ func (s *Server) storeUserTest(r *http.Request, rc *reqCtx, t *taskView, files [
 	}
 	var id int64
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx, q *sqlc.Queries) error {
-		ut, err := q.CreateUserTest(ctx, sqlc.CreateUserTestParams{ParticipationID: rc.part.ID, TaskID: t.ID,
+		ut, err := q.CreateUserTest(ctx, sqlc.CreateUserTestParams{ParticipationID: &rc.part.ID, TaskID: t.ID,
 			SubmittedAt: rc.now, Language: langID, InputDigest: in.Digest})
 		if err != nil {
 			return err

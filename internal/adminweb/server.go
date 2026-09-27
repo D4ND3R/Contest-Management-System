@@ -342,6 +342,8 @@ func (s *Server) Handler() http.Handler {
 	post("/datasets/{id}/managers/{file}/delete", permTasks, "manager.delete", s.handleManagerDelete)
 	post("/datasets/{id}/testcases", permTasks, "testcase.upload", s.handleTestcaseUpload)
 	post("/datasets/{id}/testcases/archive", permTasks, "testcase.upload_archive", s.handleTestcaseArchive)
+	post("/datasets/{id}/testcases/generate", permTasks, "testcase.generate", s.handleTestcaseGenerate)
+	post("/datasets/{id}/testcase-jobs/clear", permTasks, "", s.handleTestcaseJobsClear)
 	post("/testcases/{id}/public", permTasks, "testcase.set_public", s.handleTestcasePublic)
 	post("/testcases/{id}/delete", permTasks, "testcase.delete", s.handleTestcaseDelete)
 	get("/testcases/{id}/{which}", s.handleTestcaseDownload)

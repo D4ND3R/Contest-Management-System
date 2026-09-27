@@ -136,6 +136,11 @@ const LauncherDir = "/cms-launcher"
 // BuildLauncher compiles the launcher into dir (once per source version)
 // with cc and checks that it runs; it returns the launcher's path.
 func BuildLauncher(ctx context.Context, dir, cc string) (string, error) {
+	// isolate only accepts absolute paths in --dir rules (a relative
+	// work_dir, as in config/dev.yaml, broke every run).
+	if abs, err := filepath.Abs(dir); err == nil {
+		dir = abs
+	}
 	sum := sha256.Sum256([]byte(launcherSource))
 	path := filepath.Join(dir, "cms-seccomp-"+hex.EncodeToString(sum[:6]))
 	if st, err := os.Stat(path); err == nil && st.Mode()&0o111 != 0 {

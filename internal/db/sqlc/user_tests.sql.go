@@ -10,14 +10,55 @@ import (
 	"time"
 )
 
+const createAdminUserTest = `-- name: CreateAdminUserTest :one
+INSERT INTO user_tests (task_id, admin_id, dataset_id, plain, language, input_digest)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, participation_id, task_id, submitted_at, language, input_digest, admin_id, dataset_id, plain
+`
+
+type CreateAdminUserTestParams struct {
+	TaskID      int64   `json:"task_id"`
+	AdminID     *int64  `json:"admin_id"`
+	DatasetID   *int64  `json:"dataset_id"`
+	Plain       bool    `json:"plain"`
+	Language    *string `json:"language"`
+	InputDigest string  `json:"input_digest"`
+}
+
+// A run of an administrator (testcase generation): no participation, on
+// a given dataset; plain runs ignore the task type.
+func (q *Queries) CreateAdminUserTest(ctx context.Context, arg CreateAdminUserTestParams) (UserTest, error) {
+	row := q.db.QueryRow(ctx, createAdminUserTest,
+		arg.TaskID,
+		arg.AdminID,
+		arg.DatasetID,
+		arg.Plain,
+		arg.Language,
+		arg.InputDigest,
+	)
+	var i UserTest
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipationID,
+		&i.TaskID,
+		&i.SubmittedAt,
+		&i.Language,
+		&i.InputDigest,
+		&i.AdminID,
+		&i.DatasetID,
+		&i.Plain,
+	)
+	return i, err
+}
+
 const createUserTest = `-- name: CreateUserTest :one
 INSERT INTO user_tests (participation_id, task_id, submitted_at, language, input_digest)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, participation_id, task_id, submitted_at, language, input_digest
+RETURNING id, participation_id, task_id, submitted_at, language, input_digest, admin_id, dataset_id, plain
 `
 
 type CreateUserTestParams struct {
-	ParticipationID int64     `json:"participation_id"`
+	ParticipationID *int64    `json:"participation_id"`
 	TaskID          int64     `json:"task_id"`
 	SubmittedAt     time.Time `json:"submitted_at"`
 	Language        *string   `json:"language"`
@@ -40,6 +81,9 @@ func (q *Queries) CreateUserTest(ctx context.Context, arg CreateUserTestParams) 
 		&i.SubmittedAt,
 		&i.Language,
 		&i.InputDigest,
+		&i.AdminID,
+		&i.DatasetID,
+		&i.Plain,
 	)
 	return i, err
 }
@@ -65,7 +109,7 @@ func (q *Queries) EnsureUserTestResult(ctx context.Context, arg EnsureUserTestRe
 }
 
 const getUserTest = `-- name: GetUserTest :one
-SELECT id, participation_id, task_id, submitted_at, language, input_digest FROM user_tests WHERE id = $1
+SELECT id, participation_id, task_id, submitted_at, language, input_digest, admin_id, dataset_id, plain FROM user_tests WHERE id = $1
 `
 
 func (q *Queries) GetUserTest(ctx context.Context, id int64) (UserTest, error) {
@@ -78,6 +122,9 @@ func (q *Queries) GetUserTest(ctx context.Context, id int64) (UserTest, error) {
 		&i.SubmittedAt,
 		&i.Language,
 		&i.InputDigest,
+		&i.AdminID,
+		&i.DatasetID,
+		&i.Plain,
 	)
 	return i, err
 }
@@ -138,7 +185,7 @@ type GetUserTestWithResultParams struct {
 
 type GetUserTestWithResultRow struct {
 	ID                 int64      `json:"id"`
-	ParticipationID    int64      `json:"participation_id"`
+	ParticipationID    *int64     `json:"participation_id"`
 	TaskID             int64      `json:"task_id"`
 	SubmittedAt        time.Time  `json:"submitted_at"`
 	Language           *string    `json:"language"`
@@ -361,12 +408,12 @@ func (q *Queries) ListUserTestResultsByTests(ctx context.Context, arg ListUserTe
 }
 
 const listUserTestsByParticipationTask = `-- name: ListUserTestsByParticipationTask :many
-SELECT id, participation_id, task_id, submitted_at, language, input_digest FROM user_tests WHERE participation_id = $1 AND task_id = $2 ORDER BY submitted_at, id
+SELECT id, participation_id, task_id, submitted_at, language, input_digest, admin_id, dataset_id, plain FROM user_tests WHERE participation_id = $1 AND task_id = $2 ORDER BY submitted_at, id
 `
 
 type ListUserTestsByParticipationTaskParams struct {
-	ParticipationID int64 `json:"participation_id"`
-	TaskID          int64 `json:"task_id"`
+	ParticipationID *int64 `json:"participation_id"`
+	TaskID          int64  `json:"task_id"`
 }
 
 func (q *Queries) ListUserTestsByParticipationTask(ctx context.Context, arg ListUserTestsByParticipationTaskParams) ([]UserTest, error) {
@@ -385,6 +432,9 @@ func (q *Queries) ListUserTestsByParticipationTask(ctx context.Context, arg List
 			&i.SubmittedAt,
 			&i.Language,
 			&i.InputDigest,
+			&i.AdminID,
+			&i.DatasetID,
+			&i.Plain,
 		); err != nil {
 			return nil, err
 		}

@@ -2,6 +2,19 @@
 {{$t := .Data.T}}{{$task := .Data.Task}}
 <h1>{{.T "Task %s" $task.Name}} <small class="muted">{{$task.Title}}{{with .Data.Contest}} · {{$.T "in"}} <a href="/contests/{{.ID}}">{{.Name}}</a>{{end}}</small></h1>
 <p class="actions"><a href="/tasks/{{$task.ID}}/export.zip">{{.T "Export as a package"}}</a> · <a href="/tasks/{{$task.ID}}/validation">{{.T "Validation report"}}</a>{{if .CanEditTasks}} · <a href="/tasks/import?task={{$task.ID}}">{{.T "Import a dataset from a package"}}</a>{{end}}</p>
+<nav aria-label="{{.T "Task"}}"><ul class="tabs">
+  <li><a href="#setup">{{.T "Setup"}}</a></li><li><a href="#statements">{{.T "Statements"}}</a></li><li><a href="#datasets">{{.T "Datasets and testcases"}}</a></li>
+  <li><a href="#examples">{{.T "Examples"}}</a></li><li><a href="#attachments">{{.T "Attachments"}}</a></li><li><a href="#tester">{{.T "Task tester"}}</a></li><li><a href="#general">{{.T "Settings"}}</a></li>
+</ul></nav>
+
+<section class="section" id="setup">
+<h2>{{.T "Setup"}}</h2>
+<p class="help">{{.T "Each part can be done at any moment and in any order; this list shows what is still missing."}}</p>
+<ol class="steps">
+{{range .Data.Steps}}<li class="{{if .Done}}done{{else}}todo{{end}}"><a href="{{.URL}}">{{$.T .Title}}</a>{{with .State}} <span class="muted">({{.}})</span>{{end}}
+  — {{if .Done}}<span class="ok">{{$.T "done"}}</span>{{else}}<span class="warn">{{$.T "to do"}}</span>{{end}}</li>{{end}}
+</ol>
+</section>
 
 <section class="section" id="datasets">
 <h2>{{.T "Datasets"}}</h2>
@@ -56,7 +69,6 @@
 {{end}}
 </section>
 
-<div class="row">
 <section class="section" id="statements">
 <h2>{{.T "Statements"}}</h2>
 <p class="muted">{{.T "Write statements in Markdown or LaTeX (formulas with $...$): contestants read them on the task page and download them as PDF, with the limits and the examples typeset in. An uploaded PDF is shown as it is."}}</p>
@@ -93,7 +105,6 @@
 </form>
 {{end}}
 </section>
-</div>
 
 <section class="section" id="examples">
 <h2>{{.T "Examples"}}</h2>
@@ -130,7 +141,7 @@
 {{end}}
 </section>
 
-<form method="post" action="/tasks/{{$task.ID}}" class="section">
+<form method="post" action="/tasks/{{$task.ID}}" class="section" id="general">
 {{template "csrf" .CSRF}}
 <fieldset class="bare" {{if not .CanEditTasks}}disabled{{end}}>
 <fieldset><legend>{{.T "General"}}</legend>

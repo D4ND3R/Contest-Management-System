@@ -117,6 +117,9 @@ func (s *Server) loadTemplates() error {
 		"row":     func(p *page, sv subView) rowCtx { return rowCtx{P: p, S: sv} },
 		"testrow": func(p *page, v testView) testCtx { return testCtx{P: p, T: v} },
 		"verdict": verdictName,
+		// srcname shows a submission file name ("sum.%l" → "sum.*": the
+		// extension follows the language).
+		"srcname": func(f string) string { return strings.ReplaceAll(f, ".%l", ".*") },
 		"tests": func(p *page, d *taskData, t *taskView, from string) testsCtx {
 			return testsCtx{P: p, D: d, Task: t, From: from}
 		},

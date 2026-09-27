@@ -87,7 +87,8 @@ func (q *Queries) GetSubmissionMeta(ctx context.Context, id int64) (GetSubmissio
 }
 
 const getUserTestMeta = `-- name: GetUserTestMeta :one
-SELECT u.id, u.participation_id, u.task_id, u.language, u.input_digest, t.active_dataset_id
+SELECT u.id, COALESCE(u.participation_id, 0)::bigint AS participation_id, u.task_id, u.language, u.input_digest,
+       COALESCE(u.dataset_id, t.active_dataset_id) AS dataset_id, u.plain
 FROM user_tests u JOIN tasks t ON t.id = u.task_id
 WHERE u.id = $1
 `
@@ -98,9 +99,11 @@ type GetUserTestMetaRow struct {
 	TaskID          int64   `json:"task_id"`
 	Language        *string `json:"language"`
 	InputDigest     string  `json:"input_digest"`
-	ActiveDatasetID *int64  `json:"active_dataset_id"`
+	DatasetID       *int64  `json:"dataset_id"`
+	Plain           bool    `json:"plain"`
 }
 
+// dataset_id: the run's own dataset (administrators' runs) or the live one.
 func (q *Queries) GetUserTestMeta(ctx context.Context, id int64) (GetUserTestMetaRow, error) {
 	row := q.db.QueryRow(ctx, getUserTestMeta, id)
 	var i GetUserTestMetaRow
@@ -110,7 +113,8 @@ func (q *Queries) GetUserTestMeta(ctx context.Context, id int64) (GetUserTestMet
 		&i.TaskID,
 		&i.Language,
 		&i.InputDigest,
-		&i.ActiveDatasetID,
+		&i.DatasetID,
+		&i.Plain,
 	)
 	return i, err
 }
@@ -384,10 +388,11 @@ func (q *Queries) ListTaskSubmissionsForScore(ctx context.Context, arg ListTaskS
 }
 
 const listUserTestsMissingResults = `-- name: ListUserTestsMissingResults :many
-SELECT u.id AS user_test_id, t.active_dataset_id::bigint AS dataset_id
+SELECT u.id AS user_test_id, COALESCE(u.dataset_id, t.active_dataset_id)::bigint AS dataset_id
 FROM user_tests u JOIN tasks t ON t.id = u.task_id
-WHERE t.active_dataset_id IS NOT NULL
-  AND NOT EXISTS (SELECT 1 FROM user_test_results r WHERE r.user_test_id = u.id AND r.dataset_id = t.active_dataset_id)
+WHERE COALESCE(u.dataset_id, t.active_dataset_id) IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM user_test_results r WHERE r.user_test_id = u.id
+                  AND r.dataset_id = COALESCE(u.dataset_id, t.active_dataset_id))
 ORDER BY u.id
 LIMIT $1
 `

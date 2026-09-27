@@ -201,6 +201,10 @@
 </fieldset>
 {{end}}
 
+{{define "solution-select"}}{{$tt := .V}}
+{{if $tt.Solutions}}<label>{{.T "Reference solution"}} <select name="solution_id">{{range $tt.Solutions}}<option value="{{.ID}}">#{{.ID}} · {{.Language}} · {{dt .Time}}</option>{{end}}</select></label>
+{{else}}<p class="help">{{.T "To have outputs written for you, first send a reference solution with the task tester (on the task page)."}}</p>{{end}}{{end}}
+
 {{define "question-count"}}<span id="q-count" class="badge" data-src="/questions/count" title="{{.T "unanswered questions"}}" {{if not .Pending}}hidden{{end}}>{{.Pending}}</span>{{end}}
 
 {{define "questions-list"}}{{$d := .V}}
