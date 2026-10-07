@@ -12,5 +12,15 @@
 </form>
 <p class="help">{{.T "An IANA name such as America/Mexico_City, Europe/Madrid or UTC. A contestant can still get another zone on their user page (for remote contestants)."}}</p>
 {{end}}
+<h2 id="ranking">{{.T "Ranking site"}}</h2>
+<p>{{.T "The address where spectators open the scoreboards; the ranking pages use it for their links, and for the secret link of a scoreboard only administrators see."}}</p>
+{{if .CanWrite}}
+<form method="post" action="/server/ranking" class="inline-form">
+  {{template "csrf" .CSRF}}
+  <label>{{.T "Address of the ranking site"}} <input name="ranking_url" value="{{$d.RankingURL}}" placeholder="{{if $d.Configured}}{{$d.Configured}}{{else}}:8001{{end}}" size="40" autocomplete="off"></label>
+  <button class="primary">{{.T "Save"}}</button>
+</form>
+{{end}}
+<p class="help">{{.T ":8001 means this same server on port 8001 (installations by ports); or a whole address such as https://ranking.example.org. Empty: the one in cms.yaml (ranking_web.public_url)."}}{{with $d.Configured}} {{$.T "Now: %s." .}}{{end}}</p>
 <p class="muted small">{{.T "Last changed %s." (dt $d.Updated)}}</p>
 {{end}}

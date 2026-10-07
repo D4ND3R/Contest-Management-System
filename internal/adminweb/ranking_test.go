@@ -3,6 +3,7 @@ package adminweb
 import (
 	"bytes"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -86,5 +87,41 @@ func TestRankingSettings(t *testing.T) {
 	}
 	if code, _ := f.login("messaging").Post(fmt.Sprintf("/contests/%d/ranking/freeze", c.ID), url.Values{"unfrozen": {"1"}}); code != 403 {
 		t.Fatalf("messaging unfreeze = %d", code)
+	}
+}
+
+// TestRankingSecretLink: a scoreboard only administrators see is shown on
+// the ranking site to whoever has its secret link; the admin ranking page
+// gives the link once the site's address is known (":PORT" is the host of
+// the admin page on that port, as installations by ports have it).
+func TestRankingSecretLink(t *testing.T) {
+	f := newFixture(t)
+	f.srv.rankingURL = "" // cms.yaml without ranking_web.public_url
+	b := f.login("all")
+	f.pool.Exec(bg, "UPDATE contests SET ranking_visibility = 'admins', ranking_contestant_view = 'none' WHERE id = $1", f.contest.ID)
+	path := fmt.Sprintf("/contests/%d/ranking", f.contest.ID)
+	key := rankingpush.BoardKey(f.srv.secret, f.contest.Name)
+	_, page := b.Get(path)
+	if !strings.Contains(page, "/seeded/?key="+key) || !strings.Contains(page, `href="/server#ranking"`) {
+		t.Fatalf("no secret path without an address:\n%s", page)
+	}
+	if code, _ := b.Post("/server/ranking", url.Values{"ranking_url": {"ranking.example.org"}}); code != http.StatusUnprocessableEntity {
+		t.Fatalf("an address without a scheme: %d", code)
+	}
+	if code, _ := b.Post("/server/ranking", url.Values{"ranking_url": {":8001"}}); code != 200 {
+		t.Fatalf("save address: %d", code)
+	}
+	host := strings.TrimPrefix(f.url, "http://")
+	host = host[:strings.LastIndex(host, ":")]
+	_, page = b.Get(path)
+	if want := "http://" + host + ":8001/seeded/?key=" + key; !strings.Contains(page, want) {
+		t.Fatalf("page lacks %s:\n%s", want, page)
+	}
+	b.Post("/server/ranking", url.Values{"ranking_url": {"https://ranking.example.org/"}})
+	if _, page = b.Get(path); !strings.Contains(page, `href="https://ranking.example.org/seeded/?key=`+key+`"`) {
+		t.Fatal("whole address not used")
+	}
+	if code, _ := f.login("read_only").Post("/server/ranking", url.Values{"ranking_url": {":1"}}); code != http.StatusForbidden {
+		t.Fatalf("read-only: %d", code)
 	}
 }

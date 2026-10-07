@@ -2,8 +2,11 @@
 {{$r := .Data}}
 <h1>{{.T "Ranking of %s" $r.Contest}} {{if $r.ICPC}}<span class="tag">ICPC</span>{{end}}</h1>
 <section class="section">
-<p>{{.T "Public ranking:"}} <b>{{.T $r.C.RankingVisibility}}</b>{{with $r.PublicURL}} · <a href="{{.}}">{{$.T "open the scoreboard"}}</a>{{end}}
+<p>{{.T "Public ranking:"}} <b>{{.T $r.C.RankingVisibility}}</b>{{with $r.PublicURL}} · <a href="{{.}}" target="_blank" rel="noopener">{{if eq $r.C.RankingVisibility "admins"}}{{$.T "open the scoreboard (secret link)"}}{{else}}{{$.T "open the scoreboard"}}{{end}}</a>{{end}}
 {{with $r.FreezeAt}} · {{if $r.Frozen}}<span class="tag">{{$.T "frozen since %s" (dt .)}}</span>{{else if $r.C.RankingUnfrozen}}<span class="tag ok">{{$.T "unfrozen"}}</span>{{else}}{{$.T "freezes at %s" (dt .)}}{{end}}{{end}}</p>
+{{if eq $r.C.RankingVisibility "admins"}}<p class="help">{{if $r.PublicURL}}{{.T "Only the administrators and whoever has this secret link see the scoreboard on the ranking site:"}} <input class="code" value="{{$r.PublicURL}}" readonly size="60" aria-label="{{.T "Secret link"}}">
+{{else}}{{.T "On the ranking site, this scoreboard is at %s (a secret link)." $r.PublicPath}} {{if .CanWrite}}<a href="/server#ranking">{{.T "Set the address of the ranking site to get the whole link."}}</a>{{end}}{{end}}</p>
+{{else if and (eq $r.C.RankingVisibility "public") (not $r.PublicURL)}}<p class="help">{{.T "On the ranking site, this scoreboard is at %s." $r.PublicPath}} {{if .CanWrite}}<a href="/server#ranking">{{.T "Set the address of the ranking site to get the whole link."}}</a>{{end}}</p>{{end}}
 {{if and .CanWrite $r.FreezeAt}}
 <form method="post" action="/contests/{{$r.C.ID}}/ranking/freeze" class="inline" data-confirm="{{if $r.C.RankingUnfrozen}}{{.T "Freeze the public ranking again?"}}{{else}}{{.T "Unfreeze the public ranking? Every result becomes visible."}}{{end}}">
   {{template "csrf" .CSRF}}<input type="hidden" name="unfrozen" value="{{if $r.C.RankingUnfrozen}}0{{else}}1{{end}}">

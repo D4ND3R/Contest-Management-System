@@ -3,7 +3,20 @@ package i18n
 // esTaskPages holds the Spanish strings of the two windows of a task
 // (Configuration and Testcases, D105).
 var esTaskPages = map[string]string{
-	"Configuration":              "Configuración",
+	"Configuration":                      "Configuración",
+	"Address of the ranking site saved.": "Dirección del sitio de rankings guardada.",
+	"Write the address as :8001 (this server, port 8001) or as a whole address such as https://ranking.example.org.": "Escribe la dirección como :8001 (este servidor, puerto 8001) o completa, como https://ranking.example.org.",
+	"open the scoreboard (secret link)": "abrir el scoreboard (enlace secreto)",
+	"Only the administrators and whoever has this secret link see the scoreboard on the ranking site:": "Solo los administradores y quien tenga este enlace secreto ven el scoreboard en el sitio de rankings:",
+	"Secret link": "Enlace secreto",
+	"On the ranking site, this scoreboard is at %s (a secret link).": "En el sitio de rankings, este scoreboard está en %s (un enlace secreto).",
+	"Set the address of the ranking site to get the whole link.":     "Indica la dirección del sitio de rankings para obtener el enlace completo.",
+	"On the ranking site, this scoreboard is at %s.":                 "En el sitio de rankings, este scoreboard está en %s.",
+	"Ranking site": "Sitio de rankings",
+	"The address where spectators open the scoreboards; the ranking pages use it for their links, and for the secret link of a scoreboard only administrators see.": "La dirección donde el público abre los scoreboards; las páginas de ranking la usan para sus enlaces y para el enlace secreto de un scoreboard que solo ven los administradores.",
+	"Address of the ranking site": "Dirección del sitio de rankings",
+	":8001 means this same server on port 8001 (installations by ports); or a whole address such as https://ranking.example.org. Empty: the one in cms.yaml (ranking_web.public_url).": ":8001 significa este mismo servidor en el puerto 8001 (instalaciones por puertos); o una dirección completa como https://ranking.example.org. Vacío: la de cms.yaml (ranking_web.public_url).",
+	"Now: %s.":                   "Ahora: %s.",
 	"Still missing:":             "Falta:",
 	"Ready: nothing is missing.": "Listo: no falta nada.",
 	"This is the dataset %s, not the live one: contestants are judged on the live dataset.": "Este es el dataset %s, no el que está en vivo: a los concursantes los evalúa el dataset en vivo.",

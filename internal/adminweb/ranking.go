@@ -1,6 +1,7 @@
 package adminweb
 
 import (
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,10 +30,13 @@ func (s *Server) handleRanking(w http.ResponseWriter, r *http.Request, rc *reqCt
 		return
 	}
 	d := rankingPage{Ranking: rk, Sites: sites, Site: site, C: c, FreezeAt: ranking.FreezeAt(c), Frozen: ranking.Frozen(c, s.now())}
-	if s.rankingURL != "" && (c.RankingVisibility == "public" || c.RankingVisibility == "admins") {
-		d.PublicURL = strings.TrimRight(s.rankingURL, "/") + "/" + c.Name + "/"
+	if c.RankingVisibility == "public" || c.RankingVisibility == "admins" {
+		d.PublicPath = "/" + c.Name + "/"
 		if c.RankingVisibility == "admins" {
-			d.PublicURL += "?key=" + rankingpush.BoardKey(s.secret, c.Name)
+			d.PublicPath += "?key=" + rankingpush.BoardKey(s.secret, c.Name)
+		}
+		if base := s.rankingBase(r); base != "" {
+			d.PublicURL = base + d.PublicPath
 		}
 	}
 	s.render(w, "ranking", http.StatusOK, s.newPage(w, r, rc, "Ranking", "contests", d).
@@ -43,12 +47,49 @@ func (s *Server) handleRanking(w http.ResponseWriter, r *http.Request, rc *reqCt
 // state of the public one.
 type rankingPage struct {
 	*ranking.Ranking
-	Sites     []sqlc.Site
-	Site      int64
-	C         sqlc.Contest
-	FreezeAt  *time.Time
-	Frozen    bool
-	PublicURL string
+	Sites    []sqlc.Site
+	Site     int64
+	C        sqlc.Contest
+	FreezeAt *time.Time
+	Frozen   bool
+	// PublicPath is the board's path on the ranking site (with the key of
+	// an administrator-only board); PublicURL the whole link when the
+	// site's address is known.
+	PublicPath string
+	PublicURL  string
+}
+
+// rankingBase is the public address of the ranking site as seen from
+// request r: the Server page's setting, else ranking_web.public_url.
+// ":PORT" is the host r came to, on that port (installations by ports).
+// "" when neither is set.
+func (s *Server) rankingBase(r *http.Request) string {
+	u := s.rankingURL
+	if st, err := s.q.GetServerSettings(r.Context()); err == nil && st.RankingUrl != "" {
+		u = st.RankingUrl
+	}
+	return resolveAddress(u, r)
+}
+
+// resolveAddress completes an address that is only ":PORT" with the
+// scheme and host of r.
+func resolveAddress(u string, r *http.Request) string {
+	u = strings.TrimRight(strings.TrimSpace(u), "/")
+	if !strings.HasPrefix(u, ":") {
+		return u
+	}
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	return scheme + "://" + host + u
 }
 
 // handleRankingFreeze unfreezes the public ranking (or freezes it again).

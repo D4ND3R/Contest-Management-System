@@ -526,6 +526,9 @@ configuration() {
   local secure=true contest_url="" ranking_url="" yaml
   [ "$LAN" = 1 ] && secure=false
   if [ -n "$DOMAIN" ]; then contest_url="https://$DOMAIN"; ranking_url="https://$RANKING_DOMAIN"; fi
+  # By ports: the ranking site is this same host on its port (the admin
+  # builds links from the address it was reached at).
+  [ "$LAN" = 1 ] && ranking_url=":$R_PORT"
   if [ "$ROLE" = main ] && { real || [ "$DRY" = 1 ]; }; then
     real && pg_cluster create
     kv_port

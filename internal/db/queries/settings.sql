@@ -1,5 +1,8 @@
 -- name: GetServerSettings :one
-SELECT timezone, updated_at FROM server_settings WHERE id;
+SELECT timezone, ranking_url, updated_at FROM server_settings WHERE id;
+
+-- name: SetRankingURL :exec
+UPDATE server_settings SET ranking_url = $1, updated_at = now() WHERE id;
 
 -- name: SetServerTimezone :exec
 UPDATE server_settings SET timezone = $1, updated_at = now() WHERE id;

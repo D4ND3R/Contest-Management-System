@@ -11,19 +11,29 @@ import (
 )
 
 const getServerSettings = `-- name: GetServerSettings :one
-SELECT timezone, updated_at FROM server_settings WHERE id
+SELECT timezone, ranking_url, updated_at FROM server_settings WHERE id
 `
 
 type GetServerSettingsRow struct {
-	Timezone  string    `json:"timezone"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Timezone   string    `json:"timezone"`
+	RankingUrl string    `json:"ranking_url"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 func (q *Queries) GetServerSettings(ctx context.Context) (GetServerSettingsRow, error) {
 	row := q.db.QueryRow(ctx, getServerSettings)
 	var i GetServerSettingsRow
-	err := row.Scan(&i.Timezone, &i.UpdatedAt)
+	err := row.Scan(&i.Timezone, &i.RankingUrl, &i.UpdatedAt)
 	return i, err
+}
+
+const setRankingURL = `-- name: SetRankingURL :exec
+UPDATE server_settings SET ranking_url = $1, updated_at = now() WHERE id
+`
+
+func (q *Queries) SetRankingURL(ctx context.Context, rankingUrl string) error {
+	_, err := q.db.Exec(ctx, setRankingURL, rankingUrl)
+	return err
 }
 
 const setServerTimezone = `-- name: SetServerTimezone :exec

@@ -231,6 +231,7 @@ func (s *Server) Handler() http.Handler {
 	route("GET /{$}", permSelf, "", s.handleDashboard)
 	get("/server", s.handleServerSettings)
 	post("/server", permAll, "server.timezone", s.handleServerSettingsSave)
+	post("/server/ranking", permAll, "server.ranking_url", s.handleRankingAddressSave)
 	route("GET /delegation", permLeader, "", s.handleDelegation)
 	route("GET /delegation/submissions/{id}", permLeader, "", s.handleDelegationSubmission)
 	get("/events", s.handleEvents)

@@ -11,6 +11,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -62,6 +63,10 @@ type serverPage struct {
 	Now      time.Time
 	Zones    []string
 	Updated  time.Time
+	// RankingURL is the stored address of the ranking site; Configured
+	// the one of cms.yaml (used when none is stored).
+	RankingURL string
+	Configured string
 }
 
 func (s *Server) handleServerSettings(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
@@ -70,7 +75,8 @@ func (s *Server) handleServerSettings(w http.ResponseWriter, r *http.Request, rc
 		s.internalError(w, r, rc, err)
 		return
 	}
-	d := serverPage{Timezone: st.Timezone, Now: s.now(), Zones: zoneNames(), Updated: st.UpdatedAt}
+	d := serverPage{Timezone: st.Timezone, Now: s.now(), Zones: zoneNames(), Updated: st.UpdatedAt,
+		RankingURL: st.RankingUrl, Configured: s.rankingURL}
 	s.render(w, "server", http.StatusOK, s.newPage(w, r, rc, "Server settings", "server", d))
 }
 
@@ -100,6 +106,25 @@ func (s *Server) handleServerSettingsSave(w http.ResponseWriter, r *http.Request
 	}
 	rc.note("timezone", tz)
 	s.done(w, r, "/server", "Every site now shows times in %s.", tz)
+}
+
+// rankingAddressRe accepts the ranking site's address: ":PORT" (the host
+// of the page) or an http(s) URL.
+var rankingAddressRe = regexp.MustCompile(`^(:[0-9]{1,5}|https?://[^\s/?#]+(/[^\s?#]*)?)$`)
+
+// handleRankingAddressSave stores the ranking site's address.
+func (s *Server) handleRankingAddressSave(w http.ResponseWriter, r *http.Request, rc *reqCtx) {
+	u := strings.TrimRight(strings.TrimSpace(r.FormValue("ranking_url")), "/")
+	if u != "" && !rankingAddressRe.MatchString(u) {
+		s.errorPage(w, r, rc, http.StatusUnprocessableEntity, "Write the address as :8001 (this server, port 8001) or as a whole address such as https://ranking.example.org.")
+		return
+	}
+	if err := s.q.SetRankingURL(r.Context(), u); err != nil {
+		s.internalError(w, r, rc, err)
+		return
+	}
+	rc.note("ranking_url", u)
+	s.done(w, r, "/server#ranking", "Address of the ranking site saved.")
 }
 
 // zoneNames lists the time zones to choose from: the system's zone table

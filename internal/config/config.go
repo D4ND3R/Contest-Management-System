@@ -172,7 +172,9 @@ type RankingWeb struct {
 	// MaxClients bounds the number of concurrent SSE spectators.
 	MaxClients int `yaml:"max_clients"`
 	// PublicURL is where spectators reach the ranking web server (links
-	// in the admin panel), e.g. https://ranking.example.org.
+	// in the admin panel), e.g. https://ranking.example.org; ":PORT" is
+	// the host the admin page was reached at, on that port. The Server page
+	// of the admin panel can override it.
 	PublicURL string `yaml:"public_url"`
 	Pprof     bool   `yaml:"pprof"`
 }
